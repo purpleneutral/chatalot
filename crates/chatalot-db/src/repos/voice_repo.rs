@@ -1,0 +1,102 @@
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::models::voice::VoiceSession;
+
+/// Get or create an active voice session for a channel.
+pub async fn get_or_create_session(
+    pool: &PgPool,
+    channel_id: Uuid,
+    started_by: Uuid,
+) -> Result<VoiceSession, sqlx::Error> {
+    // Check for existing active session
+    if let Some(session) = get_active_session(pool, channel_id).await? {
+        return Ok(session);
+    }
+
+    let id = Uuid::now_v7();
+    sqlx::query_as::<_, VoiceSession>(
+        r#"
+        INSERT INTO voice_sessions (id, channel_id, started_by)
+        VALUES ($1, $2, $3)
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(channel_id)
+    .bind(started_by)
+    .fetch_one(pool)
+    .await
+}
+
+/// Get the active voice session for a channel (if any).
+pub async fn get_active_session(
+    pool: &PgPool,
+    channel_id: Uuid,
+) -> Result<Option<VoiceSession>, sqlx::Error> {
+    sqlx::query_as::<_, VoiceSession>(
+        "SELECT * FROM voice_sessions WHERE channel_id = $1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+    )
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Add a participant to a voice session.
+pub async fn join_session(
+    pool: &PgPool,
+    session_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO voice_session_participants (session_id, user_id)
+        VALUES ($1, $2)
+        ON CONFLICT (session_id, user_id) DO UPDATE SET left_at = NULL, joined_at = NOW()
+        "#,
+    )
+    .bind(session_id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Remove a participant from a voice session.
+pub async fn leave_session(
+    pool: &PgPool,
+    session_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE voice_session_participants SET left_at = NOW() WHERE session_id = $1 AND user_id = $2 AND left_at IS NULL",
+    )
+    .bind(session_id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Get current participants in a voice session.
+pub async fn get_participants(
+    pool: &PgPool,
+    session_id: Uuid,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT user_id FROM voice_session_participants WHERE session_id = $1 AND left_at IS NULL",
+    )
+    .bind(session_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}
+
+/// End a voice session (when last participant leaves).
+pub async fn end_session(pool: &PgPool, session_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE voice_sessions SET ended_at = NOW() WHERE id = $1")
+        .bind(session_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}

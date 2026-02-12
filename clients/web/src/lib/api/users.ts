@@ -1,0 +1,15 @@
+import { api } from './client';
+
+export interface UserPublic {
+	id: string;
+	username: string;
+	display_name: string;
+	avatar_url: string | null;
+	status: string;
+	custom_status: string | null;
+	is_admin?: boolean;
+}
+
+export async function searchUsers(query: string): Promise<UserPublic[]> {
+	return api.get<UserPublic[]>(`/users/search?q=${encodeURIComponent(query)}`);
+}

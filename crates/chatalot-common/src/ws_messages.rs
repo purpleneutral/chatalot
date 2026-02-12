@@ -1,0 +1,250 @@
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+/// Messages sent from client to server over WebSocket.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ClientMessage {
+    // Authentication (first message after WS upgrade)
+    Authenticate {
+        token: String,
+    },
+
+    // Messaging
+    SendMessage {
+        channel_id: Uuid,
+        ciphertext: Vec<u8>,
+        nonce: Vec<u8>,
+        message_type: MessageType,
+        reply_to: Option<Uuid>,
+        sender_key_id: Option<Uuid>,
+    },
+    EditMessage {
+        message_id: Uuid,
+        ciphertext: Vec<u8>,
+        nonce: Vec<u8>,
+    },
+    DeleteMessage {
+        message_id: Uuid,
+    },
+
+    // Presence
+    UpdatePresence {
+        status: PresenceStatus,
+    },
+    Typing {
+        channel_id: Uuid,
+    },
+    StopTyping {
+        channel_id: Uuid,
+    },
+
+    // Channel subscriptions
+    Subscribe {
+        channel_ids: Vec<Uuid>,
+    },
+    Unsubscribe {
+        channel_ids: Vec<Uuid>,
+    },
+
+    // WebRTC signaling
+    RtcOffer {
+        target_user_id: Uuid,
+        session_id: Uuid,
+        sdp: String,
+    },
+    RtcAnswer {
+        target_user_id: Uuid,
+        session_id: Uuid,
+        sdp: String,
+    },
+    RtcIceCandidate {
+        target_user_id: Uuid,
+        session_id: Uuid,
+        candidate: String,
+    },
+
+    // Voice/video
+    JoinVoice {
+        channel_id: Uuid,
+    },
+    LeaveVoice {
+        channel_id: Uuid,
+    },
+
+    // Reactions
+    AddReaction {
+        message_id: Uuid,
+        emoji: String,
+    },
+    RemoveReaction {
+        message_id: Uuid,
+        emoji: String,
+    },
+
+    // Unread tracking
+    MarkRead {
+        channel_id: Uuid,
+        message_id: Uuid,
+    },
+
+    // Keepalive
+    Ping {
+        timestamp: i64,
+    },
+}
+
+/// Messages sent from server to client over WebSocket.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ServerMessage {
+    // Auth response
+    Authenticated {
+        user_id: Uuid,
+    },
+
+    // Messaging
+    NewMessage {
+        id: Uuid,
+        channel_id: Uuid,
+        sender_id: Uuid,
+        ciphertext: Vec<u8>,
+        nonce: Vec<u8>,
+        message_type: MessageType,
+        reply_to: Option<Uuid>,
+        sender_key_id: Option<Uuid>,
+        created_at: String,
+    },
+    MessageEdited {
+        message_id: Uuid,
+        ciphertext: Vec<u8>,
+        nonce: Vec<u8>,
+        edited_at: String,
+    },
+    MessageDeleted {
+        message_id: Uuid,
+    },
+
+    // Confirmations
+    MessageSent {
+        /// The client-facing ID so they can reconcile optimistic sends.
+        id: Uuid,
+        channel_id: Uuid,
+        created_at: String,
+    },
+
+    // Presence
+    PresenceUpdate {
+        user_id: Uuid,
+        status: PresenceStatus,
+    },
+    UserTyping {
+        channel_id: Uuid,
+        user_id: Uuid,
+    },
+    UserStoppedTyping {
+        channel_id: Uuid,
+        user_id: Uuid,
+    },
+
+    // WebRTC signaling
+    RtcOffer {
+        from_user_id: Uuid,
+        session_id: Uuid,
+        sdp: String,
+    },
+    RtcAnswer {
+        from_user_id: Uuid,
+        session_id: Uuid,
+        sdp: String,
+    },
+    RtcIceCandidate {
+        from_user_id: Uuid,
+        session_id: Uuid,
+        candidate: String,
+    },
+
+    // Voice/video
+    VoiceStateUpdate {
+        channel_id: Uuid,
+        participants: Vec<Uuid>,
+    },
+    UserJoinedVoice {
+        channel_id: Uuid,
+        user_id: Uuid,
+    },
+    UserLeftVoice {
+        channel_id: Uuid,
+        user_id: Uuid,
+    },
+
+    // Reactions
+    ReactionAdded {
+        message_id: Uuid,
+        user_id: Uuid,
+        emoji: String,
+    },
+    ReactionRemoved {
+        message_id: Uuid,
+        user_id: Uuid,
+        emoji: String,
+    },
+
+    // Channel moderation
+    MemberKicked {
+        channel_id: Uuid,
+        user_id: Uuid,
+        kicked_by: Uuid,
+    },
+    MemberBanned {
+        channel_id: Uuid,
+        user_id: Uuid,
+        banned_by: Uuid,
+    },
+    MemberRoleUpdated {
+        channel_id: Uuid,
+        user_id: Uuid,
+        role: String,
+    },
+
+    // DM notifications
+    NewDmChannel {
+        channel_id: Uuid,
+        channel_name: Option<String>,
+        created_at: String,
+        other_user_id: Uuid,
+        other_user_username: String,
+        other_user_display_name: Option<String>,
+        other_user_avatar_url: Option<String>,
+    },
+
+    // System
+    Error {
+        code: String,
+        message: String,
+    },
+    Pong {
+        timestamp: i64,
+    },
+    KeysLow {
+        remaining: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageType {
+    Text,
+    File,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PresenceStatus {
+    Online,
+    Idle,
+    Dnd,
+    Invisible,
+    Offline,
+}

@@ -1,0 +1,319 @@
+# Chatalot
+
+**Your chat. Your server. Your rules.**
+
+Chatalot is a self-hosted chat platform for friends, teams, and communities who refuse to hand their conversations to corporations. Real-time messaging, voice and video calls, end-to-end encryption, and a desktop app — all running on hardware you control.
+
+No data harvesting. No algorithmic feeds. No subscription tiers to unlock basic features. Just a fast, modern chat experience that belongs entirely to you.
+
+## Why Chatalot?
+
+Most chat platforms make you choose: convenience or privacy. Centralized services own your data and can change the rules whenever they want. Federated alternatives promise freedom but deliver complexity — running a node shouldn't require a systems engineering degree.
+
+Chatalot takes a different approach: **one Docker command, and you're live.** A single binary serves the API, WebSocket connections, and the web UI. Add the desktop app for native performance. Invite your people with access codes. Done.
+
+### What you get
+
+- **Channels and DMs** — organized conversations with roles, permissions, and invite links
+- **Voice and video calls** — peer-to-peer WebRTC, no third-party TURN servers phoning home
+- **End-to-end encryption** — Signal-grade cryptography (X3DH + Double Ratchet for DMs, Sender Keys for groups) *
+- **File sharing** — encrypted uploads with drag-and-drop
+- **Two-factor authentication** — TOTP with any authenticator app
+- **Invite-only by default** — registration is locked down until you generate invite codes
+- **Desktop app** — native Linux and Windows clients that connect to any Chatalot server
+- **Reactions, typing indicators, read receipts, link previews** — the small things that make chat feel alive
+- **Admin panel** — user management, invite codes, system feedback, all in-browser
+- **Markdown messages** — rich text formatting with sanitized rendering
+- **Mentions** — `@username`, `@everyone`, `@here`, `@channel`
+- **Sound and desktop notifications** — configurable per-channel
+- **Dark and light themes** — because everyone has opinions about this
+
+> \* *The E2E encryption library is fully implemented and tested (23 unit tests covering X3DH, Double Ratchet, Sender Keys, and ChaCha20-Poly1305). Client-side WASM integration is in progress — messages are currently transmitted as plaintext over TLS. The server is architecturally designed as an untrusted relay and will enforce encryption once the WASM bridge is complete.*
+
+## Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose v2
+- OpenSSL (for generating keys on first run)
+
+### 1. Clone and generate secrets
+
+```bash
+git clone https://github.com/purpleneutral/chatalot.git
+cd chatalot
+./scripts/generate-secrets.sh
+```
+
+This creates JWT signing keys (`secrets/`) and a `.env` file with a random database password and encryption key.
+
+### 2. Start everything
+
+```bash
+docker compose up -d
+```
+
+Two containers come up:
+- **chatalot** — the Rust server + web UI on port 8080
+- **postgres** — PostgreSQL 17 (internal only, not exposed to the host)
+
+### 3. Open and register
+
+Navigate to `http://localhost:8080`. Since registration defaults to **invite-only**, the first user must set `REGISTRATION_MODE=open` in `.env` (or use the deploy script which handles this). After creating the admin account, switch back to `invite_only` and generate invite codes from the admin panel.
+
+To allow open registration:
+```bash
+# In .env, set:
+REGISTRATION_MODE=open
+
+# Then restart:
+docker compose up -d
+```
+
+### Registration Modes
+
+| Mode | Behavior |
+|------|----------|
+| `invite_only` (default) | Users need a valid invite code to register |
+| `open` | Anyone can register |
+| `closed` | Registration is completely disabled |
+
+Admins generate invite codes from the admin panel. Codes can have usage limits and expiration dates.
+
+## Expose to the Internet
+
+### Option A: Cloudflare Quick Tunnel (free, no domain needed)
+
+```bash
+docker compose --profile quick-tunnel up -d
+```
+
+This spins up a `cloudflared` container that creates a temporary public URL. Check the logs for your URL:
+
+```bash
+docker compose logs cloudflared-quick | grep trycloudflare
+```
+
+Share that URL with your friends — it works immediately, no DNS or certificates to configure.
+
+### Option B: Cloudflare Named Tunnel (persistent domain)
+
+```bash
+# Add your tunnel token to .env
+echo "CLOUDFLARE_TUNNEL_TOKEN=your_token" >> .env
+
+# Start with the production profile
+docker compose --profile production up -d
+```
+
+### Option C: Reverse Proxy (Traefik, nginx, Caddy, etc.)
+
+The server listens on port 8080. Create a `docker-compose.override.yml` (gitignored):
+
+```yaml
+services:
+  chatalot:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.chatalot.rule=Host(`chat.example.com`)"
+      - "traefik.http.routers.chatalot.entrypoints=websecure"
+      - "traefik.http.routers.chatalot.tls=true"
+      - "traefik.http.services.chatalot.loadbalancer.server.port=8080"
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    external: true
+```
+
+WebSocket connections at `/ws` are proxied automatically.
+
+## Desktop App
+
+Native desktop clients are built with Tauri 2.0. They connect to any Chatalot server — just enter the URL on first launch.
+
+### Download
+
+Check the [Releases](../../releases) page for:
+- **Linux**: AppImage (run anywhere), `.deb`, `.rpm`
+- **Windows**: NSIS installer (`.exe`)
+
+### Build from source
+
+```bash
+# Install Tauri CLI
+cargo install tauri-cli
+
+# Install web dependencies
+cd clients/web && npm install && cd ../..
+
+# Build (this also builds the web frontend automatically)
+cd clients/desktop/src-tauri && cargo tauri build
+```
+
+Requires Rust 1.84+, Node.js 22+, and platform-specific dependencies (WebKitGTK on Linux, WebView2 on Windows).
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Server | Rust (axum + tokio) |
+| Database | PostgreSQL 17 |
+| Web Client | Svelte 5 + Tailwind CSS |
+| Desktop Client | Tauri 2.0 |
+| E2E Encryption | X3DH + Double Ratchet, Sender Keys, ChaCha20-Poly1305 |
+| Auth | Argon2id passwords, Ed25519-signed JWTs, refresh token rotation |
+| Voice/Video | WebRTC mesh (up to 5 participants) |
+| Deployment | Docker Compose, Cloudflare Tunnel |
+
+## Security
+
+### Encryption
+
+The server is designed as an **untrusted relay** — it stores and routes messages but is architecturally separated from plaintext content.
+
+> **Status**: The crypto library (`chatalot-crypto`) is complete with 23 unit tests. Client-side WASM integration is the next milestone. Until then, messages are protected by TLS in transit and server-side access controls.
+
+- **DMs**: X3DH key agreement + Double Ratchet — forward secrecy and break-in recovery
+- **Groups**: Sender Keys distributed through pairwise encrypted sessions
+- **Cipher**: ChaCha20-Poly1305 (AEAD)
+- **Key exchange**: X25519
+- **Signatures**: Ed25519
+- **Key storage**: OS keychain (desktop) or encrypted IndexedDB (web)
+
+### Authentication
+
+- Passwords hashed with **Argon2id** (64 MiB memory, 3 iterations, 4 lanes)
+- **JWT access tokens**: 15-minute expiry, Ed25519-signed
+- **Refresh tokens**: 30-day expiry, stored as SHA-256 hash, rotated on each use
+- **TOTP 2FA**: RFC 6238, optional per-user
+
+### Server Hardening
+
+- Rate limiting: token-bucket per IP (20 req/s general, 5 req/s auth)
+- Security headers: HSTS, CSP, X-Frame-Options, Permissions-Policy
+- SSRF protection on link previews (blocks private/internal IPs)
+- Channel authorization on all message, file, and typing operations
+- Audit logging of all auth events with IP and user agent
+
+## Project Structure
+
+```
+chatalot/
+├── crates/
+│   ├── chatalot-server/       # axum HTTP/WS server
+│   │   └── src/
+│   │       ├── routes/        # REST API endpoints
+│   │       ├── ws/            # WebSocket handler + connection manager
+│   │       ├── middleware/     # JWT auth, rate limiting, security headers
+│   │       └── services/      # Auth service, business logic
+│   ├── chatalot-db/           # Database layer (repository pattern)
+│   │   └── src/
+│   │       ├── models/        # Rust structs matching DB tables
+│   │       └── repos/         # Query functions per entity
+│   ├── chatalot-crypto/       # E2E encryption library
+│   │   └── src/
+│   │       ├── x3dh.rs        # X3DH key agreement
+│   │       ├── double_ratchet.rs
+│   │       ├── sender_keys.rs
+│   │       └── aead.rs        # ChaCha20-Poly1305
+│   └── chatalot-common/       # Shared types (API DTOs, WS messages)
+├── clients/
+│   ├── web/                   # Svelte 5 SPA
+│   │   └── src/
+│   │       ├── lib/api/       # REST client
+│   │       ├── lib/ws/        # WebSocket client
+│   │       ├── lib/stores/    # Svelte 5 rune-based state
+│   │       ├── lib/webrtc/    # WebRTC call manager
+│   │       └── routes/        # Pages
+│   └── desktop/               # Tauri 2.0 wrapper
+├── migrations/                # PostgreSQL migrations
+├── scripts/
+│   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
+│   ├── generate-secrets.sh    # Generate JWT keys + .env
+│   └── generate-keys.sh       # Generate JWT keys only
+├── Dockerfile                 # Multi-stage build
+└── docker-compose.yml
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | *required* | PostgreSQL connection string |
+| `JWT_PRIVATE_KEY_PATH` | `./secrets/jwt_private.pem` | Ed25519 private key |
+| `JWT_PUBLIC_KEY_PATH` | `./secrets/jwt_public.pem` | Ed25519 public key |
+| `TOTP_ENCRYPTION_KEY` | *optional* | Hex key for encrypting TOTP secrets at rest |
+| `REGISTRATION_MODE` | `invite_only` | `open`, `invite_only`, or `closed` |
+| `ADMIN_USERNAME` | *optional* | Username that gets admin privileges |
+| `LISTEN_ADDR` | `0.0.0.0:8080` | Server bind address |
+| `FILE_STORAGE_PATH` | `./data/files` | Encrypted file storage directory |
+| `MAX_FILE_SIZE_MB` | `100` | Max upload size in MB |
+| `RUST_LOG` | `info` | Log level |
+| `CLOUDFLARE_TUNNEL_TOKEN` | *optional* | For production Cloudflare Tunnel profile |
+
+## Development
+
+### Prerequisites
+
+- Rust 1.84+ (edition 2024)
+- Node.js 22+
+- PostgreSQL 17 (or use Docker)
+
+### Running locally
+
+```bash
+# Database
+docker compose up postgres -d
+
+# Server
+cp .env.example .env
+./scripts/generate-secrets.sh
+cargo run
+
+# Web client (separate terminal)
+cd clients/web
+npm install
+npm run dev
+```
+
+### Tests
+
+```bash
+cargo test          # 23 crypto unit tests
+cargo clippy        # Lint checks
+cd clients/web && npm run check   # Svelte type checking
+```
+
+## Deployment
+
+### Automated
+
+```bash
+# Full deploy: commit, push, pull on server, rebuild containers
+./scripts/deploy.sh "your commit message"
+
+# Just pull and restart on server
+./scripts/deploy.sh --pull-only
+```
+
+Configure with environment variables: `DEPLOY_HOST`, `DEPLOY_DIR`, `DEPLOY_GIT_URL`. See `scripts/deploy.sh` for all options.
+
+### Manual
+
+```bash
+git clone <repo-url> chatalot && cd chatalot
+./scripts/generate-secrets.sh
+docker compose up -d --build
+```
+
+## Support
+
+If Chatalot is useful to you, consider buying me a coffee:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat&logo=buy-me-a-coffee)](https://buymeacoffee.com/uniqueuserg)
+
+## License
+
+GPL-3.0 — see [LICENSE](LICENSE) for details.

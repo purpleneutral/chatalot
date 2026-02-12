@@ -1,0 +1,53 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/chatalot-server",
+    "crates/chatalot-db",
+    "crates/chatalot-crypto",
+    "crates/chatalot-common",
+]
+exclude = [
+    "clients/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["ws", "multipart"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+tower = { version = "0.5", features = ["limit", "timeout"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace", "compression-gzip", "set-header"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+thiserror = "2"
+anyhow = "1"
+argon2 = "0.5"
+jsonwebtoken = "9"
+ed25519-dalek = { version = "2", features = ["serde", "pem", "rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets", "serde"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+zeroize = { version = "1", features = ["derive"] }
+subtle = "2"
+dashmap = "6"
+validator = { version = "0.19", features = ["derive"] }
+totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
+base32 = "0.5"
+data-encoding = "2"
+reqwest = { version = "0.12", features = ["json"] }
+
+# Shared crates
+chatalot-db = { path = "crates/chatalot-db" }
+chatalot-crypto = { path = "crates/chatalot-crypto" }
+chatalot-common = { path = "crates/chatalot-common" }

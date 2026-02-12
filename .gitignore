@@ -1,0 +1,45 @@
+# Rust
+**/target/
+**/*.rs.bk
+
+# Node
+node_modules/
+dist/
+build/
+.svelte-kit/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+data/
+docker-compose.override.yml
+
+# WASM build output
+clients/web/src/lib/crypto/wasm/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Claude Code
+.claude/
+
+# Playwright MCP
+.playwright-mcp/

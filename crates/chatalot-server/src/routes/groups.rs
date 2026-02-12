@@ -1,0 +1,622 @@
+use std::sync::Arc;
+
+use axum::extract::{Path, State};
+use axum::routing::{get, patch, post};
+use axum::{Extension, Json, Router};
+use uuid::Uuid;
+
+use chatalot_common::api_types::{
+    AcceptInviteResponse, ChannelResponse, CreateChannelRequest, CreateGroupRequest,
+    CreateInviteRequest, GroupMemberResponse, GroupResponse, InviteInfoResponse, InviteResponse,
+    TransferOwnershipRequest, UpdateChannelRequest, UpdateGroupRequest,
+};
+use chatalot_db::models::channel::ChannelType;
+use chatalot_db::repos::{channel_repo, group_repo, invite_repo};
+use rand::Rng as _;
+
+use crate::app_state::AppState;
+use crate::error::AppError;
+use crate::middleware::auth::AccessClaims;
+
+pub fn routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/groups", get(list_groups).post(create_group))
+        .route("/groups/discover", get(discover_groups))
+        .route("/groups/{id}", get(get_group).patch(update_group).delete(delete_group_handler))
+        .route(
+            "/groups/{id}/transfer-ownership",
+            post(transfer_group_ownership),
+        )
+        .route("/groups/{id}/join", post(join_group))
+        .route("/groups/{id}/leave", post(leave_group))
+        .route("/groups/{id}/members", get(list_group_members))
+        .route("/groups/{id}/channels", get(list_group_channels).post(create_group_channel))
+        .route(
+            "/groups/{group_id}/channels/{channel_id}",
+            patch(update_group_channel).delete(delete_group_channel),
+        )
+        .route(
+            "/groups/{id}/invites",
+            get(list_invites).post(create_invite),
+        )
+        .route("/groups/{id}/invites/{invite_id}", axum::routing::delete(delete_invite))
+        .route("/invites/{code}", get(get_invite_info))
+        .route("/invites/{code}/accept", post(accept_invite))
+}
+
+async fn create_group(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(req): Json<CreateGroupRequest>,
+) -> Result<Json<GroupResponse>, AppError> {
+    if req.name.is_empty() || req.name.len() > 64 {
+        return Err(AppError::Validation(
+            "group name must be 1-64 characters".to_string(),
+        ));
+    }
+
+    let group_id = Uuid::now_v7();
+    let group = group_repo::create_group(
+        &state.db,
+        group_id,
+        &req.name,
+        req.description.as_deref(),
+        claims.sub,
+    )
+    .await?;
+
+    // Auto-create #general text channel
+    let channel_id = Uuid::now_v7();
+    channel_repo::create_channel(
+        &state.db,
+        channel_id,
+        "general",
+        ChannelType::Text,
+        None,
+        claims.sub,
+        Some(group_id),
+    )
+    .await?;
+
+    Ok(Json(GroupResponse {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        owner_id: group.owner_id,
+        created_at: group.created_at.to_rfc3339(),
+        member_count: 1,
+    }))
+}
+
+async fn list_groups(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<Vec<GroupResponse>>, AppError> {
+    let groups = group_repo::list_user_groups(&state.db, claims.sub).await?;
+    let mut responses = Vec::with_capacity(groups.len());
+    for g in groups {
+        let count = group_repo::get_member_count(&state.db, g.id).await?;
+        responses.push(GroupResponse {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            owner_id: g.owner_id,
+            created_at: g.created_at.to_rfc3339(),
+            member_count: count,
+        });
+    }
+    Ok(Json(responses))
+}
+
+async fn discover_groups(
+    State(state): State<Arc<AppState>>,
+    Extension(_claims): Extension<AccessClaims>,
+) -> Result<Json<Vec<GroupResponse>>, AppError> {
+    let groups = group_repo::list_all_groups(&state.db).await?;
+    let mut responses = Vec::with_capacity(groups.len());
+    for g in groups {
+        let count = group_repo::get_member_count(&state.db, g.id).await?;
+        responses.push(GroupResponse {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            owner_id: g.owner_id,
+            created_at: g.created_at.to_rfc3339(),
+            member_count: count,
+        });
+    }
+    Ok(Json(responses))
+}
+
+async fn get_group(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<GroupResponse>, AppError> {
+    if !group_repo::is_member(&state.db, id, claims.sub).await? {
+        return Err(AppError::Forbidden);
+    }
+
+    let group = group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let count = group_repo::get_member_count(&state.db, id).await?;
+
+    Ok(Json(GroupResponse {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        owner_id: group.owner_id,
+        created_at: group.created_at.to_rfc3339(),
+        member_count: count,
+    }))
+}
+
+async fn update_group(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateGroupRequest>,
+) -> Result<Json<GroupResponse>, AppError> {
+    let role = group_repo::get_member_role(&state.db, id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let group = group_repo::update_group(
+        &state.db,
+        id,
+        req.name.as_deref(),
+        req.description.as_deref(),
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let count = group_repo::get_member_count(&state.db, id).await?;
+
+    Ok(Json(GroupResponse {
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        owner_id: group.owner_id,
+        created_at: group.created_at.to_rfc3339(),
+        member_count: count,
+    }))
+}
+
+async fn delete_group_handler(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<(), AppError> {
+    let role = group_repo::get_member_role(&state.db, id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" {
+        return Err(AppError::Forbidden);
+    }
+
+    group_repo::delete_group(&state.db, id).await?;
+    Ok(())
+}
+
+async fn transfer_group_ownership(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(group_id): Path<Uuid>,
+    Json(req): Json<TransferOwnershipRequest>,
+) -> Result<(), AppError> {
+    // Only the current owner can transfer
+    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" {
+        return Err(AppError::Forbidden);
+    }
+
+    // Target must be a member of the group
+    if !group_repo::is_member(&state.db, group_id, req.new_owner_id).await? {
+        return Err(AppError::Validation(
+            "target user must be a member of this group".to_string(),
+        ));
+    }
+
+    group_repo::transfer_ownership(&state.db, group_id, claims.sub, req.new_owner_id).await?;
+
+    Ok(())
+}
+
+async fn join_group(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<(), AppError> {
+    // Verify group exists
+    group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    group_repo::join_group(&state.db, id, claims.sub).await?;
+    Ok(())
+}
+
+async fn leave_group(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<(), AppError> {
+    // Owners cannot leave — they must delete or transfer
+    let role = group_repo::get_member_role(&state.db, id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role == "owner" {
+        return Err(AppError::Validation(
+            "owner cannot leave; transfer ownership or delete the group instead".to_string(),
+        ));
+    }
+
+    group_repo::leave_group(&state.db, id, claims.sub).await?;
+    Ok(())
+}
+
+async fn list_group_members(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<GroupMemberResponse>>, AppError> {
+    if !group_repo::is_member(&state.db, id, claims.sub).await? {
+        return Err(AppError::Forbidden);
+    }
+
+    let members = group_repo::list_group_members(&state.db, id).await?;
+    Ok(Json(
+        members
+            .into_iter()
+            .map(|m| GroupMemberResponse {
+                user_id: m.user_id,
+                username: m.username,
+                display_name: m.display_name,
+                avatar_url: m.avatar_url,
+                role: m.role,
+                joined_at: m.joined_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
+}
+
+async fn list_group_channels(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<ChannelResponse>>, AppError> {
+    if !group_repo::is_member(&state.db, id, claims.sub).await? {
+        return Err(AppError::Forbidden);
+    }
+
+    let channels = group_repo::list_group_channels(&state.db, id).await?;
+    Ok(Json(
+        channels
+            .iter()
+            .map(|ch| ChannelResponse {
+                id: ch.id,
+                name: ch.name.clone(),
+                channel_type: format!("{:?}", ch.channel_type).to_lowercase(),
+                topic: ch.topic.clone(),
+                created_by: ch.created_by,
+                created_at: ch.created_at.to_rfc3339(),
+                group_id: ch.group_id,
+            })
+            .collect(),
+    ))
+}
+
+async fn create_group_channel(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(group_id): Path<Uuid>,
+    Json(req): Json<CreateChannelRequest>,
+) -> Result<Json<ChannelResponse>, AppError> {
+    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let channel_type = match req.channel_type.as_str() {
+        "text" => ChannelType::Text,
+        "voice" => ChannelType::Voice,
+        _ => return Err(AppError::Validation("invalid channel type".to_string())),
+    };
+
+    if req.name.is_empty() || req.name.len() > 64 {
+        return Err(AppError::Validation(
+            "channel name must be 1-64 characters".to_string(),
+        ));
+    }
+
+    let channel_id = Uuid::now_v7();
+    let channel = channel_repo::create_channel(
+        &state.db,
+        channel_id,
+        &req.name,
+        channel_type,
+        req.topic.as_deref(),
+        claims.sub,
+        Some(group_id),
+    )
+    .await?;
+
+    // Add all existing group members to the new channel
+    let members = group_repo::list_group_members(&state.db, group_id).await?;
+    for m in members {
+        if m.user_id != claims.sub {
+            // Creator is already added by create_channel
+            let _ = channel_repo::join_channel(&state.db, channel_id, m.user_id).await;
+        }
+    }
+
+    Ok(Json(ChannelResponse {
+        id: channel.id,
+        name: channel.name,
+        channel_type: format!("{:?}", channel.channel_type).to_lowercase(),
+        topic: channel.topic,
+        created_by: channel.created_by,
+        created_at: channel.created_at.to_rfc3339(),
+        group_id: channel.group_id,
+    }))
+}
+
+#[derive(serde::Deserialize)]
+struct GroupChannelPath {
+    group_id: Uuid,
+    channel_id: Uuid,
+}
+
+async fn update_group_channel(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(path): Path<GroupChannelPath>,
+    Json(req): Json<UpdateChannelRequest>,
+) -> Result<Json<ChannelResponse>, AppError> {
+    let role = group_repo::get_member_role(&state.db, path.group_id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let channel = channel_repo::update_channel(
+        &state.db,
+        path.channel_id,
+        req.name.as_deref(),
+        req.topic.as_deref(),
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
+
+    Ok(Json(ChannelResponse {
+        id: channel.id,
+        name: channel.name,
+        channel_type: format!("{:?}", channel.channel_type).to_lowercase(),
+        topic: channel.topic,
+        created_by: channel.created_by,
+        created_at: channel.created_at.to_rfc3339(),
+        group_id: channel.group_id,
+    }))
+}
+
+async fn delete_group_channel(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(path): Path<GroupChannelPath>,
+) -> Result<(), AppError> {
+    let role = group_repo::get_member_role(&state.db, path.group_id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    channel_repo::delete_channel(&state.db, path.channel_id).await?;
+    Ok(())
+}
+
+// ── Invite endpoints ──
+
+fn generate_invite_code() -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    (0..8)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
+}
+
+async fn create_invite(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(group_id): Path<Uuid>,
+    Json(req): Json<CreateInviteRequest>,
+) -> Result<Json<InviteResponse>, AppError> {
+    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let expires_at = req.expires_in_hours.map(|h| {
+        chrono::Utc::now() + chrono::Duration::hours(h as i64)
+    });
+
+    let invite_id = Uuid::now_v7();
+    let code = generate_invite_code();
+
+    let invite = invite_repo::create_invite(
+        &state.db,
+        invite_id,
+        group_id,
+        claims.sub,
+        &code,
+        req.max_uses,
+        expires_at,
+    )
+    .await?;
+
+    Ok(Json(InviteResponse {
+        id: invite.id,
+        code: invite.code,
+        group_id: invite.group_id,
+        max_uses: invite.max_uses,
+        used_count: invite.used_count,
+        expires_at: invite.expires_at.map(|t| t.to_rfc3339()),
+        created_at: invite.created_at.to_rfc3339(),
+    }))
+}
+
+async fn list_invites(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(group_id): Path<Uuid>,
+) -> Result<Json<Vec<InviteResponse>>, AppError> {
+    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let invites = invite_repo::list_group_invites(&state.db, group_id).await?;
+    Ok(Json(
+        invites
+            .into_iter()
+            .map(|i| InviteResponse {
+                id: i.id,
+                code: i.code,
+                group_id: i.group_id,
+                max_uses: i.max_uses,
+                used_count: i.used_count,
+                expires_at: i.expires_at.map(|t| t.to_rfc3339()),
+                created_at: i.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
+}
+
+#[derive(serde::Deserialize)]
+struct GroupInvitePath {
+    id: Uuid,
+    invite_id: Uuid,
+}
+
+async fn delete_invite(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(path): Path<GroupInvitePath>,
+) -> Result<(), AppError> {
+    let role = group_repo::get_member_role(&state.db, path.id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    invite_repo::delete_invite(&state.db, path.invite_id).await?;
+    Ok(())
+}
+
+async fn get_invite_info(
+    State(state): State<Arc<AppState>>,
+    Path(code): Path<String>,
+) -> Result<Json<InviteInfoResponse>, AppError> {
+    let invite = invite_repo::get_invite_by_code(&state.db, &code)
+        .await?
+        .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
+
+    // Check expiry
+    if let Some(expires_at) = invite.expires_at {
+        if expires_at < chrono::Utc::now() {
+            return Err(AppError::NotFound("invite expired".to_string()));
+        }
+    }
+
+    // Check usage
+    if let Some(max_uses) = invite.max_uses {
+        if invite.used_count >= max_uses {
+            return Err(AppError::NotFound("invite fully used".to_string()));
+        }
+    }
+
+    let group = group_repo::get_group(&state.db, invite.group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let count = group_repo::get_member_count(&state.db, group.id).await?;
+
+    Ok(Json(InviteInfoResponse {
+        group_name: group.name,
+        group_description: group.description,
+        member_count: count,
+        code: invite.code,
+    }))
+}
+
+async fn accept_invite(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(code): Path<String>,
+) -> Result<Json<AcceptInviteResponse>, AppError> {
+    let invite = invite_repo::get_invite_by_code(&state.db, &code)
+        .await?
+        .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
+
+    // Check expiry
+    if let Some(expires_at) = invite.expires_at {
+        if expires_at < chrono::Utc::now() {
+            return Err(AppError::Validation("invite expired".to_string()));
+        }
+    }
+
+    // Check usage
+    if let Some(max_uses) = invite.max_uses {
+        if invite.used_count >= max_uses {
+            return Err(AppError::Validation("invite fully used".to_string()));
+        }
+    }
+
+    // Check if already a member
+    if group_repo::is_member(&state.db, invite.group_id, claims.sub).await? {
+        return Err(AppError::Conflict("already a member of this group".to_string()));
+    }
+
+    // Join the group
+    group_repo::join_group(&state.db, invite.group_id, claims.sub).await?;
+
+    // Increment usage
+    invite_repo::increment_usage(&state.db, invite.id).await?;
+
+    let group = group_repo::get_group(&state.db, invite.group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    Ok(Json(AcceptInviteResponse {
+        group_id: group.id,
+        group_name: group.name,
+    }))
+}
