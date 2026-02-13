@@ -8,6 +8,7 @@ members = [
 ]
 exclude = [
     "clients/desktop/src-tauri",
+    "crates/chatalot-crypto-wasm",
 ]
 
 [workspace.package]

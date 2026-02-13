@@ -4,6 +4,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import { onMount } from 'svelte';
+	import { initCrypto, getKeyManager } from '$lib/crypto';
 
 	let serverUrl = $derived(isTauri() ? getServerUrl() : null);
 
@@ -59,22 +60,18 @@
 		loading = true;
 
 		try {
-			// TODO: Generate real identity keys via WASM crypto module (Phase 2)
-			// For now, use placeholder keys for the registration flow
-			const placeholderKey = Array.from(new Uint8Array(32));
+			// Generate real E2E encryption keys via WASM crypto module
+			await initCrypto();
+			const keys = await getKeyManager().generateRegistrationKeys();
 
 			const response = await register({
 				username,
 				email,
 				password,
 				display_name: displayName || username,
-				identity_key: placeholderKey,
-				signed_prekey: {
-					key_id: 1,
-					public_key: placeholderKey,
-					signature: Array.from(new Uint8Array(64))
-				},
-				one_time_prekeys: [],
+				identity_key: keys.identityKey,
+				signed_prekey: keys.signedPrekey,
+				one_time_prekeys: keys.oneTimePrekeys,
 				invite_code: registrationMode === 'invite_only' ? inviteCode : undefined
 			});
 

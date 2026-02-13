@@ -117,6 +117,8 @@ pub enum ServerMessage {
     },
     MessageEdited {
         message_id: Uuid,
+        channel_id: Uuid,
+        sender_id: Uuid,
         ciphertext: Vec<u8>,
         nonce: Vec<u8>,
         edited_at: String,

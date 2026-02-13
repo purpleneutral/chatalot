@@ -13,7 +13,7 @@ use chatalot_common::api_types::{
     AuthResponse, LoginRequest, RefreshRequest, RegisterRequest, TokenResponse, UserPublic,
 };
 use chatalot_common::constants::{ACCESS_TOKEN_LIFETIME_SECS, REFRESH_TOKEN_LIFETIME_SECS};
-use chatalot_db::repos::{registration_invite_repo, user_repo};
+use chatalot_db::repos::{key_repo, registration_invite_repo, user_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -200,6 +200,16 @@ pub async fn register(
             "identity key must be 32 bytes".to_string(),
         ));
     }
+    if req.signed_prekey.public_key.len() != 32 {
+        return Err(AppError::Validation(
+            "signed prekey must be 32 bytes".to_string(),
+        ));
+    }
+    if req.signed_prekey.signature.len() != 64 {
+        return Err(AppError::Validation(
+            "signed prekey signature must be 64 bytes".to_string(),
+        ));
+    }
 
     // Check uniqueness
     if user_repo::username_exists(&state.db, &req.username).await? {
@@ -228,6 +238,27 @@ pub async fn register(
         &fingerprint,
     )
     .await?;
+
+    // Store signed prekey
+    key_repo::upsert_signed_prekey(
+        &state.db,
+        Uuid::now_v7(),
+        user_id,
+        req.signed_prekey.key_id,
+        &req.signed_prekey.public_key,
+        &req.signed_prekey.signature,
+    )
+    .await?;
+
+    // Store one-time prekeys
+    if !req.one_time_prekeys.is_empty() {
+        let pairs: Vec<(i32, Vec<u8>)> = req
+            .one_time_prekeys
+            .into_iter()
+            .map(|p| (p.key_id, p.public_key))
+            .collect();
+        key_repo::upload_one_time_prekeys(&state.db, user_id, &pairs).await?;
+    }
 
     // First registered user becomes admin automatically
     let is_admin = if user_repo::count_users(&state.db).await.unwrap_or(1) == 1 {

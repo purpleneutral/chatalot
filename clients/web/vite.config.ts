@@ -4,6 +4,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	optimizeDeps: {
+		exclude: ['chatalot-crypto-wasm']
+	},
 	server: {
 		proxy: {
 			'/api': 'http://localhost:8080',

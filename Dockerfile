@@ -34,13 +34,40 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     touch crates/*/src/*.rs && cargo build --release \
     && cp target/release/chatalot-server /build/chatalot-server
 
-# Stage 2: Build the web client
+# Stage 2: Build WASM crypto module
+FROM rust:1.93-bookworm AS wasm-builder
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+WORKDIR /build
+
+# Copy only the crates needed for WASM build
+COPY Cargo.toml Cargo.lock ./
+COPY crates/chatalot-crypto/Cargo.toml crates/chatalot-crypto/
+COPY crates/chatalot-crypto-wasm/Cargo.toml crates/chatalot-crypto-wasm/
+# Dummy workspace members so Cargo.toml parses (they're excluded but referenced)
+COPY crates/chatalot-server/Cargo.toml crates/chatalot-server/
+COPY crates/chatalot-db/Cargo.toml crates/chatalot-db/
+COPY crates/chatalot-common/Cargo.toml crates/chatalot-common/
+
+# Copy actual source for crypto crates
+COPY crates/chatalot-crypto/ crates/chatalot-crypto/
+COPY crates/chatalot-crypto-wasm/ crates/chatalot-crypto-wasm/
+
+# Build WASM package
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cd crates/chatalot-crypto-wasm && \
+    wasm-pack build --target web --out-dir /build/wasm-pkg && \
+    rm -f /build/wasm-pkg/package.json /build/wasm-pkg/.gitignore
+
+# Stage 3: Build the web client
 FROM node:22-bookworm AS web-builder
 WORKDIR /build
 COPY clients/web/package.json clients/web/package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci || npm install
 COPY clients/web/ .
+# Copy WASM package into the crypto directory
+COPY --from=wasm-builder /build/wasm-pkg/ ./src/lib/crypto/wasm/
 RUN npm run build
 
 # Stage 3: Minimal runtime image

@@ -13,6 +13,7 @@ import { detectMentions } from '$lib/utils/mentions';
 import { getUser } from '$lib/api/users';
 import { wsClient } from './connection';
 import type { ServerMessage } from './types';
+import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
 
 /** Fetch and cache user info if not already in the store. */
 async function ensureUser(userId: string) {
@@ -25,13 +26,44 @@ async function ensureUser(userId: string) {
 	}
 }
 
+/** Decrypt message ciphertext: E2E for DMs, plain UTF-8 for channels. */
+async function decryptMessage(
+	channelId: string,
+	senderId: string,
+	ciphertext: number[],
+	messageId?: string,
+): Promise<string> {
+	const channel = channelStore.channels.find((c) => c.id === channelId);
+	const isDm = channel?.channel_type === 'dm';
+
+	if (isDm) {
+		try {
+			await initCrypto();
+			const sm = getSessionManager();
+			return await sm.decryptOrFallback(
+				senderId,
+				new Uint8Array(ciphertext),
+				messageId,
+				channelId,
+			);
+		} catch (err) {
+			console.error('DM decryption failed, falling back to UTF-8:', err);
+		}
+	}
+
+	return new TextDecoder().decode(new Uint8Array(ciphertext));
+}
+
 /// Handle incoming server WebSocket messages, updating the appropriate stores.
-export function handleServerMessage(msg: ServerMessage) {
+export async function handleServerMessage(msg: ServerMessage) {
 	switch (msg.type) {
 		case 'new_message': {
-			// TODO: In full implementation, decrypt ciphertext using Double Ratchet.
-			// For now, decode ciphertext as UTF-8 plaintext (development only).
-			const content = new TextDecoder().decode(new Uint8Array(msg.ciphertext));
+			const content = await decryptMessage(
+				msg.channel_id,
+				msg.sender_id,
+				msg.ciphertext,
+				msg.id,
+			);
 			ensureUser(msg.sender_id);
 
 			const chatMsg: ChatMessage = {
@@ -110,7 +142,12 @@ export function handleServerMessage(msg: ServerMessage) {
 		}
 
 		case 'message_edited': {
-			const editedContent = new TextDecoder().decode(new Uint8Array(msg.ciphertext));
+			const editedContent = await decryptMessage(
+				msg.channel_id,
+				msg.sender_id,
+				msg.ciphertext,
+				msg.message_id,
+			);
 			messageStore.editMessage(msg.message_id, editedContent, msg.edited_at);
 			break;
 		}
@@ -260,6 +297,9 @@ export function handleServerMessage(msg: ServerMessage) {
 
 		case 'keys_low': {
 			console.warn(`One-time prekeys running low: ${msg.remaining} remaining`);
+			initCrypto()
+				.then(() => getKeyManager().replenishPrekeys())
+				.catch((err) => console.error('Failed to replenish prekeys:', err));
 			break;
 		}
 

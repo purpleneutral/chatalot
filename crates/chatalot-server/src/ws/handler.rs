@@ -519,6 +519,8 @@ async fn handle_client_message(
                         msg_record.channel_id,
                         ServerMessage::MessageEdited {
                             message_id,
+                            channel_id: msg_record.channel_id,
+                            sender_id: user_id,
                             ciphertext,
                             nonce,
                             edited_at: chrono::Utc::now().to_rfc3339(),

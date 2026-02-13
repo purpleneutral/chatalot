@@ -1,4 +1,5 @@
 import type { UserPublic } from '$lib/api/auth';
+import { wipeCrypto } from '$lib/crypto';
 
 const TOKEN_KEY = 'chatalot_access_token';
 const REFRESH_KEY = 'chatalot_refresh_token';
@@ -58,6 +59,7 @@ class AuthStore {
 		localStorage.removeItem(TOKEN_KEY);
 		localStorage.removeItem(REFRESH_KEY);
 		localStorage.removeItem(USER_KEY);
+		wipeCrypto().catch(() => {});
 	}
 }
 

@@ -2,7 +2,7 @@ import { authStore } from '$lib/stores/auth.svelte';
 import { wsUrl } from '$lib/env';
 import type { ClientMessage, ServerMessage } from './types';
 
-type MessageHandler = (msg: ServerMessage) => void;
+type MessageHandler = (msg: ServerMessage) => void | Promise<void>;
 
 class WebSocketClient {
 	private ws: WebSocket | null = null;
@@ -86,7 +86,16 @@ class WebSocketClient {
 		}
 
 		for (const handler of this.handlers) {
-			handler(msg);
+			try {
+				const result = handler(msg);
+				if (result && typeof result === 'object' && 'catch' in result) {
+					(result as Promise<void>).catch((err) =>
+						console.error('Async handler error:', err),
+					);
+				}
+			} catch (err) {
+				console.error('Handler error:', err);
+			}
 		}
 	}
 

@@ -9,11 +9,14 @@ use chatalot_common::api_types::{
     KeyBundleResponse, OneTimePrekeyResponse, OneTimePrekeyUpload, SignedPrekeyResponse,
     SignedPrekeyUpload,
 };
+use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::key_repo;
 
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
+
+const KEYS_LOW_THRESHOLD: i64 = 25;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -31,6 +34,18 @@ async fn get_key_bundle(
     let bundle = key_repo::fetch_key_bundle(&state.db, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("key bundle not found".to_string()))?;
+
+    // Warn the user if their one-time prekeys are running low
+    if let Ok(remaining) = key_repo::count_unused_prekeys(&state.db, user_id).await
+        && remaining < KEYS_LOW_THRESHOLD
+    {
+        state.connections.send_to_user(
+            &user_id,
+            &ServerMessage::KeysLow {
+                remaining: remaining as u32,
+            },
+        );
+    }
 
     Ok(Json(KeyBundleResponse {
         identity_key: bundle.identity_key,

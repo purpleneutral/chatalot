@@ -29,6 +29,7 @@
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
+	import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
 
 	let messageInput = $state('');
 	let newChannelName = $state('');
@@ -43,6 +44,13 @@
 	let dmSearchQuery = $state('');
 	let dmSearchResults = $state<UserPublic[]>([]);
 	let dmSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	/** Look up the other user's ID for a given DM channel. */
+	function getPeerUserIdForDm(channelId: string | null): string | null {
+		if (!channelId) return null;
+		const dm = dmChannels.find(d => d.channel.id === channelId);
+		return dm?.other_user.id ?? null;
+	}
 
 	// File upload state
 	let fileInputEl: HTMLInputElement | undefined = $state();
@@ -292,6 +300,16 @@
 			userStore.setUser(authStore.user as UserPublic);
 		}
 
+		// Initialize E2E crypto and proactively replenish prekeys
+		try {
+			await initCrypto();
+			getKeyManager().replenishPrekeys().catch((err) =>
+				console.error('Failed to replenish prekeys:', err)
+			);
+		} catch (err) {
+			console.error('Failed to initialize crypto:', err);
+		}
+
 		// Connect WebSocket
 		unsubWs = wsClient.onMessage(handleServerMessage);
 		wsClient.onAuthenticated(subscribeToAllChannels);
@@ -480,17 +498,41 @@
 			messageStore.setLoading(channelId, true);
 			try {
 				const rawMessages = await getMessages(channelId, undefined, FETCH_LIMIT);
-				const chatMessages: ChatMessage[] = rawMessages.reverse().map(m => ({
-					id: m.id,
-					channelId: m.channel_id,
-					senderId: m.sender_id,
-					// TODO: Decrypt with Double Ratchet. For dev, decode as UTF-8.
-					content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
-					messageType: m.message_type,
-					replyToId: m.reply_to_id,
-					editedAt: m.edited_at,
-					createdAt: m.created_at
-				}));
+				const reversed = rawMessages.reverse();
+				const ch = channelStore.channels.find(c => c.id === channelId);
+				const isDmChannel = ch?.channel_type === 'dm';
+
+				let chatMessages: ChatMessage[];
+				if (isDmChannel) {
+					await initCrypto();
+					const sm = getSessionManager();
+					chatMessages = await Promise.all(reversed.map(async (m) => ({
+						id: m.id,
+						channelId: m.channel_id,
+						senderId: m.sender_id,
+						content: await sm.decryptOrFallback(
+							m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelId) : m.sender_id,
+							new Uint8Array(m.ciphertext),
+							m.id,
+							m.channel_id,
+						),
+						messageType: m.message_type,
+						replyToId: m.reply_to_id,
+						editedAt: m.edited_at,
+						createdAt: m.created_at,
+					})));
+				} else {
+					chatMessages = reversed.map(m => ({
+						id: m.id,
+						channelId: m.channel_id,
+						senderId: m.sender_id,
+						content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+						messageType: m.message_type,
+						replyToId: m.reply_to_id,
+						editedAt: m.edited_at,
+						createdAt: m.created_at,
+					}));
+				}
 				messageStore.setMessages(channelId, chatMessages, FETCH_LIMIT);
 
 				// Mark the latest message as read
@@ -537,10 +579,36 @@
 		const text = messageInput.trim();
 		if (!text || !channelStore.activeChannelId) return;
 
-		// TODO: Encrypt with Double Ratchet. For dev, send as raw UTF-8 bytes.
-		const encoder = new TextEncoder();
-		const ciphertext = Array.from(encoder.encode(text));
-		const nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+		// Encrypt DMs with E2E Double Ratchet; group channels use plain UTF-8
+		const channel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
+		const isDm = channel?.channel_type === 'dm';
+		let ciphertext: number[];
+		let nonce: number[];
+
+		if (isDm) {
+			const peerUserId = getPeerUserIdForDm(channelStore.activeChannelId);
+			if (peerUserId) {
+				try {
+					await initCrypto();
+					const encrypted = await getSessionManager().encryptForPeer(peerUserId, text);
+					ciphertext = encrypted.ciphertext;
+					nonce = encrypted.nonce;
+				} catch (err) {
+					console.error('Encryption failed, sending plaintext:', err);
+					const encoder = new TextEncoder();
+					ciphertext = Array.from(encoder.encode(text));
+					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+				}
+			} else {
+				const encoder = new TextEncoder();
+				ciphertext = Array.from(encoder.encode(text));
+				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			}
+		} else {
+			const encoder = new TextEncoder();
+			ciphertext = Array.from(encoder.encode(text));
+			nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+		}
 
 		// Optimistic add
 		const tempId = `temp-${Date.now()}`;
@@ -820,12 +888,39 @@
 		editInput = '';
 	}
 
-	function submitEdit(messageId: string) {
+	async function submitEdit(messageId: string) {
 		const text = editInput.trim();
 		if (!text) return;
-		const encoder = new TextEncoder();
-		const ciphertext = Array.from(encoder.encode(text));
-		const nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+
+		const channel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
+		const isDm = channel?.channel_type === 'dm';
+		let ciphertext: number[];
+		let nonce: number[];
+
+		if (isDm) {
+			const peerUserId = getPeerUserIdForDm(channelStore.activeChannelId);
+			if (peerUserId) {
+				try {
+					await initCrypto();
+					const encrypted = await getSessionManager().encryptForPeer(peerUserId, text);
+					ciphertext = encrypted.ciphertext;
+					nonce = encrypted.nonce;
+				} catch {
+					const encoder = new TextEncoder();
+					ciphertext = Array.from(encoder.encode(text));
+					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+				}
+			} else {
+				const encoder = new TextEncoder();
+				ciphertext = Array.from(encoder.encode(text));
+				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			}
+		} else {
+			const encoder = new TextEncoder();
+			ciphertext = Array.from(encoder.encode(text));
+			nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+		}
+
 		wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
 		messageStore.editMessage(messageId, text, new Date().toISOString());
 		editingMessageId = null;
