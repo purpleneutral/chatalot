@@ -24,7 +24,7 @@
 	import { userStore } from '$lib/stores/users.svelte';
 	import { notificationStore, type NotificationLevel } from '$lib/stores/notification.svelte';
 	import { listGroups, createGroup as apiCreateGroup, joinGroup, leaveGroup, deleteGroup, discoverGroups, listGroupChannels, createGroupChannel, updateChannel as apiUpdateChannel, deleteChannel as apiDeleteChannel, listGroupMembers, createInvite, acceptInvite, getInviteInfo, type Group, type GroupMember, type InviteInfo } from '$lib/api/groups';
-	import { listCommunities, listCommunityGroups, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
+	import { listCommunities, listCommunityGroups, createCommunity, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
 	import { groupStore } from '$lib/stores/groups.svelte';
@@ -114,6 +114,12 @@
 	let showJoinCommunity = $state(false);
 	let joinCommunityCode = $state('');
 	let communityInvitePreview = $state<{ community_name: string; community_description: string | null; member_count: number; code: string } | null>(null);
+
+	// Community creation state
+	let showCreateCommunity = $state(false);
+	let newCommunityName = $state('');
+	let newCommunityDescription = $state('');
+	let creatingCommunity = $state(false);
 
 	// Notification dropdown state
 	let showNotifDropdown = $state(false);
@@ -1237,6 +1243,30 @@
 		}
 	}
 
+	async function handleCreateCommunity() {
+		const name = newCommunityName.trim();
+		if (!name) return;
+		creatingCommunity = true;
+		try {
+			const community = await createCommunity(name, newCommunityDescription.trim() || undefined);
+			communityStore.addCommunity(community);
+			communityStore.setActive(community.id);
+			showCreateCommunity = false;
+			newCommunityName = '';
+			newCommunityDescription = '';
+			// Load groups for the new (empty) community
+			await loadCommunityGroups(community.id);
+			groupStore.setGroups([]);
+			groupChannelsMap = new Map();
+			expandedGroupIds = new Set();
+			toastStore.success(`Community "${community.name}" created`);
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to create community');
+		} finally {
+			creatingCommunity = false;
+		}
+	}
+
 	// Group functions
 	async function toggleGroupExpand(groupId: string) {
 		const next = new Set(expandedGroupIds);
@@ -1609,6 +1639,21 @@
 					</svg>
 				</button>
 			</div>
+
+			<!-- Create Community button -->
+			{#if authStore.user?.is_admin}
+				<div class="group relative flex items-center">
+					<button
+						onclick={() => { showCreateCommunity = !showCreateCommunity; newCommunityName = ''; newCommunityDescription = ''; }}
+						class="ml-3 flex h-12 w-12 items-center justify-center rounded-[24px] bg-[var(--bg-secondary)] text-[var(--accent)] transition-all hover:rounded-2xl hover:bg-[var(--accent)] hover:text-white"
+						title="Create a Community"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+						</svg>
+					</button>
+				</div>
+			{/if}
 		</nav>
 
 		<!-- Sidebar -->
@@ -2117,6 +2162,51 @@
 						<button onclick={handlePreviewCommunityInvite} class="mt-3 w-full rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:bg-white/15">Look Up</button>
 					{/if}
 				</div>
+			</div>
+		{/if}
+
+		<!-- Create Community modal -->
+		{#if showCreateCommunity}
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" transition:fade={{ duration: 150 }}>
+				<form
+					onsubmit={(e) => { e.preventDefault(); handleCreateCommunity(); }}
+					class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
+					onclick={(e) => e.stopPropagation()}
+				>
+					<div class="mb-4 flex items-center justify-between">
+						<h3 class="text-lg font-bold text-[var(--text-primary)]">Create a Community</h3>
+						<button type="button" onclick={() => { showCreateCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">&times;</button>
+					</div>
+					<div class="space-y-3">
+						<div>
+							<label class="mb-1 block text-xs text-[var(--text-secondary)]">Name</label>
+							<input
+								type="text"
+								bind:value={newCommunityName}
+								placeholder="My Community"
+								maxlength="64"
+								required
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+							/>
+						</div>
+						<div>
+							<label class="mb-1 block text-xs text-[var(--text-secondary)]">Description (optional)</label>
+							<input
+								type="text"
+								bind:value={newCommunityDescription}
+								placeholder="What's this community about?"
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+							/>
+						</div>
+					</div>
+					<button
+						type="submit"
+						disabled={creatingCommunity || !newCommunityName.trim()}
+						class="mt-4 w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+					>
+						{creatingCommunity ? 'Creating...' : 'Create Community'}
+					</button>
+				</form>
 			</div>
 		{/if}
 

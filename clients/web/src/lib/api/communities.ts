@@ -66,11 +66,11 @@ export async function updateCommunity(
 	description?: string,
 	iconUrl?: string
 ): Promise<Community> {
-	return api.patch<Community>(`/communities/${id}`, {
-		name: name ?? null,
-		description: description ?? null,
-		icon_url: iconUrl ?? null
-	});
+	const body: Record<string, string | null> = {};
+	if (name !== undefined) body.name = name;
+	if (description !== undefined) body.description = description;
+	if (iconUrl !== undefined) body.icon_url = iconUrl;
+	return api.patch<Community>(`/communities/${id}`, body);
 }
 
 export async function deleteCommunity(id: string): Promise<void> {

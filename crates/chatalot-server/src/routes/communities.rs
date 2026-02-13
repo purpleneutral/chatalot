@@ -249,6 +249,14 @@ async fn update_community(
         return Err(AppError::Forbidden);
     }
 
+    if let Some(ref name) = req.name
+        && (name.is_empty() || name.len() > 64)
+    {
+        return Err(AppError::Validation(
+            "community name must be 1-64 characters".to_string(),
+        ));
+    }
+
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,

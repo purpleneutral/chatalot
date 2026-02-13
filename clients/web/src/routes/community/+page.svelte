@@ -64,7 +64,13 @@
 		loading = true;
 		try {
 			const cid = communityStore.activeCommunityId!;
-			const [c, m] = await Promise.all([getCommunity(cid), listMembers(cid)]);
+			// Also load all communities to populate the store (needed for updates)
+			const [c, m, allCommunities] = await Promise.all([
+				getCommunity(cid),
+				listMembers(cid),
+				listCommunities()
+			]);
+			communityStore.setCommunities(allCommunities);
 			community = c;
 			members = m;
 			editName = c.name;
@@ -83,12 +89,21 @@
 
 	async function handleSave() {
 		if (!community) return;
+		const name = editName.trim();
+		if (!name) {
+			toastStore.error('Community name cannot be empty');
+			return;
+		}
+		if (name.length > 64) {
+			toastStore.error('Community name must be 64 characters or less');
+			return;
+		}
 		saving = true;
 		try {
 			const updated = await updateCommunity(
 				community.id,
-				editName.trim() || undefined,
-				editDescription.trim() || undefined
+				name,
+				editDescription.trim()
 			);
 			community = updated;
 			communityStore.updateCommunity(community.id, {
