@@ -209,6 +209,18 @@ pub enum ServerMessage {
         role: String,
     },
 
+    // Pinned messages
+    MessagePinned {
+        message_id: Uuid,
+        channel_id: Uuid,
+        pinned_by: Uuid,
+        pinned_at: String,
+    },
+    MessageUnpinned {
+        message_id: Uuid,
+        channel_id: Uuid,
+    },
+
     // DM notifications
     NewDmChannel {
         channel_id: Uuid,

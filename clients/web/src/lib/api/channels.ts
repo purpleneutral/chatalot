@@ -89,3 +89,32 @@ export async function searchMessages(channelId: string, query: string, limit?: n
 	if (limit) params.set('limit', String(limit));
 	return api.get<Message[]>(`/channels/${channelId}/messages/search?${params.toString()}`);
 }
+
+// ── Pinned Messages ──
+
+export interface PinnedMessage {
+	id: string;
+	channel_id: string;
+	sender_id: string | null;
+	ciphertext: number[];
+	nonce: number[];
+	message_type: string;
+	reply_to_id: string | null;
+	sender_key_id: string | null;
+	edited_at: string | null;
+	created_at: string;
+	pinned_by: string;
+	pinned_at: string;
+}
+
+export async function getPinnedMessages(channelId: string): Promise<PinnedMessage[]> {
+	return api.get<PinnedMessage[]>(`/channels/${channelId}/pins`);
+}
+
+export async function pinMessage(channelId: string, messageId: string): Promise<void> {
+	await api.post(`/channels/${channelId}/pins/${messageId}`, {});
+}
+
+export async function unpinMessage(channelId: string, messageId: string): Promise<void> {
+	await api.delete(`/channels/${channelId}/pins/${messageId}`);
+}

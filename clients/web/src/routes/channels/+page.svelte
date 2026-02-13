@@ -24,7 +24,11 @@
 	import { userStore } from '$lib/stores/users.svelte';
 	import { notificationStore, type NotificationLevel } from '$lib/stores/notification.svelte';
 	import { listGroups, createGroup as apiCreateGroup, joinGroup, leaveGroup, deleteGroup, discoverGroups, listGroupChannels, createGroupChannel, updateChannel as apiUpdateChannel, deleteChannel as apiDeleteChannel, listGroupMembers, createInvite, acceptInvite, getInviteInfo, type Group, type GroupMember, type InviteInfo } from '$lib/api/groups';
-	import { listCommunities, listCommunityGroups, createCommunity, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
+	import { listCommunities, listCommunityGroups, listMembers as listCommunityMembers, createCommunity, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
+	import { getPinnedMessages, pinMessage as apiPinMessage, unpinMessage as apiUnpinMessage, type PinnedMessage } from '$lib/api/channels';
+	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
+	import { preferencesStore } from '$lib/stores/preferences.svelte';
+	import UserProfileCard from '$lib/components/UserProfileCard.svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
 	import { groupStore } from '$lib/stores/groups.svelte';
@@ -123,6 +127,15 @@
 
 	// Notification dropdown state
 	let showNotifDropdown = $state(false);
+
+	// Profile card state
+	let profileCardUserId = $state<string | null>(null);
+	let profileCardAnchor = $state({ x: 0, y: 0 });
+
+	// Pinned messages state
+	let showPinnedPanel = $state(false);
+	let pinnedMessages = $state<PinnedMessage[]>([]);
+	let loadingPins = $state(false);
 
 	// Status picker state
 	let showStatusPicker = $state(false);
@@ -345,11 +358,19 @@
 				communityStore.setActive(communities[0].id);
 			}
 
-			// Load groups for the active community
+			// Load groups + members for the active community
 			let groups: Group[] = [];
 			if (communityStore.activeCommunityId) {
-				groups = await loadCommunityGroups(communityStore.activeCommunityId);
+				const [loadedGroups, communityMembers] = await Promise.all([
+					loadCommunityGroups(communityStore.activeCommunityId),
+					listCommunityMembers(communityStore.activeCommunityId)
+				]);
+				groups = loadedGroups;
+				communityMemberStore.setMembers(communityStore.activeCommunityId, communityMembers);
 			}
+
+			// Load server-synced preferences
+			preferencesStore.loadFromServer();
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
@@ -661,14 +682,17 @@
 	function handleInputKeydown(e: KeyboardEvent) {
 		if (!channelStore.activeChannelId) return;
 
-		// Enter to send, Shift+Enter for newline
-		if (e.key === 'Enter' && !e.shiftKey && !showMentionPopup) {
-			e.preventDefault();
-			if (messageInput.trim()) {
-				// Dispatch submit event on the form
-				messageInputEl?.closest('form')?.requestSubmit();
+		// Send behavior: Enter or Ctrl+Enter (configurable)
+		if (e.key === 'Enter' && !showMentionPopup) {
+			const sendOnEnter = preferencesStore.preferences.sendBehavior === 'enter';
+			const shouldSend = sendOnEnter ? !e.shiftKey : (e.ctrlKey || e.metaKey);
+			if (shouldSend) {
+				e.preventDefault();
+				if (messageInput.trim()) {
+					messageInputEl?.closest('form')?.requestSubmit();
+				}
+				return;
 			}
-			return;
 		}
 
 		// Up arrow to edit last own message (when input is empty)
@@ -974,7 +998,75 @@
 
 	function formatTime(isoString: string): string {
 		const d = new Date(isoString);
-		return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		const use24h = preferencesStore.preferences.timeFormat === '24h';
+		return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !use24h });
+	}
+
+	/** Get display name respecting community nicknames. */
+	function getDisplayNameForContext(userId: string): string {
+		if (communityStore.activeCommunityId) {
+			const nickname = communityMemberStore.getNickname(communityStore.activeCommunityId, userId);
+			if (nickname) return nickname;
+		}
+		return userStore.getDisplayName(userId);
+	}
+
+	function openProfileCard(userId: string, event: MouseEvent) {
+		profileCardUserId = userId;
+		profileCardAnchor = { x: event.clientX, y: event.clientY };
+	}
+
+	function closeProfileCard() {
+		profileCardUserId = null;
+	}
+
+	async function startDmFromProfileCard(targetUserId: string) {
+		const user = userStore.getUser(targetUserId);
+		if (user) {
+			await startDm(user);
+		}
+	}
+
+	async function loadPinnedMessages() {
+		if (!channelStore.activeChannelId) return;
+		loadingPins = true;
+		try {
+			const pins = await getPinnedMessages(channelStore.activeChannelId);
+			pinnedMessages = pins;
+			messageStore.setPinnedIds(channelStore.activeChannelId, pins.map(p => p.id));
+		} catch (err) {
+			console.error('Failed to load pins:', err);
+		} finally {
+			loadingPins = false;
+		}
+	}
+
+	async function handlePinMessage(messageId: string) {
+		if (!channelStore.activeChannelId) return;
+		try {
+			await apiPinMessage(channelStore.activeChannelId, messageId);
+			toastStore.success('Message pinned');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to pin message');
+		}
+	}
+
+	async function handleUnpinMessage(messageId: string) {
+		if (!channelStore.activeChannelId) return;
+		try {
+			await apiUnpinMessage(channelStore.activeChannelId, messageId);
+			pinnedMessages = pinnedMessages.filter(p => p.id !== messageId);
+			toastStore.success('Message unpinned');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to unpin message');
+		}
+	}
+
+	async function togglePinnedPanel() {
+		showPinnedPanel = !showPinnedPanel;
+		if (showPinnedPanel) {
+			await loadPinnedMessages();
+		}
 	}
 
 	const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
@@ -2266,6 +2358,20 @@
 								<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 							</svg>
 						</button>
+						<button
+							onclick={togglePinnedPanel}
+							class="relative rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showPinnedPanel ? 'text-[var(--accent)]' : ''}"
+							title="Pinned messages"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
+							</svg>
+							{#if channelStore.activeChannelId && messageStore.getPinnedCount(channelStore.activeChannelId) > 0}
+								<span class="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-white">
+									{messageStore.getPinnedCount(channelStore.activeChannelId)}
+								</span>
+							{/if}
+						</button>
 						{#if activeChannel.channel_type !== 'dm'}
 							<div class="relative">
 								<button
@@ -2347,6 +2453,46 @@
 					</div>
 				{/if}
 
+				<!-- Pinned messages panel -->
+				{#if showPinnedPanel}
+					<div class="border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-3" transition:slide={{ duration: 150 }}>
+						<div class="flex items-center justify-between mb-2">
+							<h3 class="text-sm font-semibold text-[var(--text-primary)]">Pinned Messages</h3>
+							<button onclick={() => showPinnedPanel = false} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+							</button>
+						</div>
+						{#if loadingPins}
+							<p class="text-xs text-[var(--text-secondary)]">Loading...</p>
+						{:else if pinnedMessages.length > 0}
+							<div class="max-h-60 space-y-2 overflow-y-auto">
+								{#each pinnedMessages as pin (pin.id)}
+									<div class="flex items-start gap-2 rounded-lg bg-white/5 px-3 py-2">
+										<div class="min-w-0 flex-1">
+											<div class="flex items-baseline gap-2">
+												<span class="text-xs font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(pin.sender_id ?? '')}</span>
+												<span class="text-xs text-[var(--text-secondary)]">{formatTime(pin.created_at)}</span>
+											</div>
+											<p class="mt-0.5 text-sm text-[var(--text-secondary)] truncate">(encrypted message)</p>
+										</div>
+										{#if myRole === 'owner' || myRole === 'admin'}
+											<button
+												onclick={() => handleUnpinMessage(pin.id)}
+												class="shrink-0 rounded p-1 text-[var(--text-secondary)] hover:text-[var(--danger)] transition"
+												title="Unpin"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+											</button>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-xs text-[var(--text-secondary)]">No pinned messages yet.</p>
+						{/if}
+					</div>
+				{/if}
+
 				<!-- Video grid (visible when in a call) -->
 				<VideoGrid />
 
@@ -2365,12 +2511,14 @@
 							</div>
 						{/if}
 						<div
-							id="msg-{msg.id}" class="group relative mb-4 flex gap-3 rounded-lg px-2 py-1 transition hover:bg-white/[0.02] {msg.pending ? 'opacity-50' : ''}"
+							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 transition hover:bg-white/[0.02] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : 'mb-4 gap-3 py-1'}"
 							oncontextmenu={(e) => { if (msg.senderId === authStore.user?.id) showContextMenu(e, msg.id); }}
 							role="article"
-							aria-label="Message from {userStore.getDisplayName(msg.senderId)}"
+							aria-label="Message from {getDisplayNameForContext(msg.senderId)}"
 						>
-							<Avatar userId={msg.senderId} size="md" />
+							{#if preferencesStore.preferences.messageDensity !== 'compact'}
+								<Avatar userId={msg.senderId} size="md" />
+							{/if}
 							<div class="min-w-0 flex-1">
 								{#if msg.replyToId}
 									{@const repliedMsg = messages.find(m => m.id === msg.replyToId)}
@@ -2380,7 +2528,7 @@
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 										{#if repliedMsg}
-											<span class="font-medium">{userStore.getDisplayName(repliedMsg.senderId)}</span>
+											<span class="font-medium">{getDisplayNameForContext(repliedMsg.senderId)}</span>
 											<span class="truncate max-w-[200px] opacity-70">{repliedMsg.content.slice(0, 60)}{repliedMsg.content.length > 60 ? '...' : ''}</span>
 										{:else}
 											<span class="italic opacity-50">Original message not loaded</span>
@@ -2388,14 +2536,20 @@
 									</button>
 								{/if}
 								<div class="flex items-baseline gap-2">
-									<span class="text-sm font-semibold text-[var(--text-primary)]">
-										{userStore.getDisplayName(msg.senderId)}
-									</span>
+									<button
+										class="text-sm font-semibold text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0"
+										onclick={(e) => { e.stopPropagation(); openProfileCard(msg.senderId, e); }}
+									>
+										{getDisplayNameForContext(msg.senderId)}
+									</button>
 									<span class="text-xs text-[var(--text-secondary)]">
 										{formatTime(msg.createdAt)}
 									</span>
 									{#if msg.editedAt}
 										<span class="text-xs text-[var(--text-secondary)]">(edited)</span>
+									{/if}
+									{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" title="Pinned"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
 									{/if}
 								</div>
 
@@ -2562,6 +2716,29 @@
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 									</button>
+									{#if (myRole === 'owner' || myRole === 'admin') && channelStore.activeChannelId}
+										{#if messageStore.isPinned(channelStore.activeChannelId, msg.id)}
+											<button
+												onclick={() => handleUnpinMessage(msg.id)}
+												class="p-1.5 text-yellow-400 transition hover:text-yellow-300"
+												title="Unpin message"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
+													<path d="M16 2L10 8l-4-2-4 4 7 7 4-4-2-4 6-6z" />
+												</svg>
+											</button>
+										{:else}
+											<button
+												onclick={() => handlePinMessage(msg.id)}
+												class="p-1.5 text-[var(--text-secondary)] transition hover:text-yellow-400"
+												title="Pin message"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<path d="M16 2L10 8l-4-2-4 4 7 7 4-4-2-4 6-6z" />
+												</svg>
+											</button>
+										{/if}
+									{/if}
 									{#if msg.senderId === authStore.user?.id}
 										<button
 											onclick={() => startEditMessage(msg)}
@@ -2731,6 +2908,7 @@
 							Send
 						</button>
 					</div>
+					{#if preferencesStore.preferences.showFormattingToolbar}
 					<div class="mt-1 flex items-center gap-1">
 						<div class="flex items-center gap-0.5">
 							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Bold (Ctrl+B)">B</button>
@@ -2743,11 +2921,17 @@
 						</div>
 						<span class="mx-1 h-3 w-px bg-white/10"></span>
 						<div class="flex items-center gap-2 text-[10px] text-[var(--text-secondary)]/50">
-							<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> send</span>
-							<span><kbd class="rounded bg-white/5 px-1">Shift+Enter</kbd> new line</span>
+							{#if preferencesStore.preferences.sendBehavior === 'enter'}
+								<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> send</span>
+								<span><kbd class="rounded bg-white/5 px-1">Shift+Enter</kbd> new line</span>
+							{:else}
+								<span><kbd class="rounded bg-white/5 px-1">Ctrl+Enter</kbd> send</span>
+								<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> new line</span>
+							{/if}
 							<span class="hidden sm:inline"><kbd class="rounded bg-white/5 px-1">↑</kbd> edit last</span>
 						</div>
 					</div>
+				{/if}
 				</form>
 			{:else}
 				<div class="flex flex-1 flex-col items-center justify-center gap-4">
@@ -2785,9 +2969,15 @@
 								<Avatar userId={member.user_id} size="sm" showStatus />
 								<div class="min-w-0 flex-1">
 									<div class="flex items-center gap-1.5">
-										<span class="truncate text-sm text-[var(--text-primary)]">
-											{member.display_name}
-										</span>
+										<button
+											class="truncate text-sm text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+											onclick={(e) => { e.stopPropagation(); openProfileCard(member.user_id, e); }}
+										>
+											{getDisplayNameForContext(member.user_id)}
+										</button>
+										{#if communityStore.activeCommunityId && communityMemberStore.getNickname(communityStore.activeCommunityId, member.user_id)}
+											<span class="truncate text-xs text-[var(--text-secondary)] opacity-60">({member.display_name})</span>
+										{/if}
 										{#if member.role === 'owner'}
 											<span class="text-xs text-yellow-400" title="Owner">&#9733;</span>
 										{:else if member.role === 'admin'}
@@ -2900,5 +3090,17 @@
 				</form>
 			</div>
 		</div>
+	{/if}
+
+	<!-- User Profile Card -->
+	{#if profileCardUserId}
+		<UserProfileCard
+			userId={profileCardUserId}
+			communityId={communityStore.activeCommunityId ?? undefined}
+			channelId={channelStore.activeChannelId ?? undefined}
+			anchorRect={profileCardAnchor}
+			onclose={closeProfileCard}
+			onstartdm={startDmFromProfileCard}
+		/>
 	{/if}
 {/if}

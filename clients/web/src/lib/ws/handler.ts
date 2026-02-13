@@ -290,6 +290,16 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		case 'message_pinned': {
+			messageStore.addPinned(msg.channel_id, msg.message_id);
+			break;
+		}
+
+		case 'message_unpinned': {
+			messageStore.removePinned(msg.channel_id, msg.message_id);
+			break;
+		}
+
 		case 'error': {
 			console.error(`Server error: [${msg.code}] ${msg.message}`);
 			break;

@@ -9,10 +9,10 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    ChangePasswordRequest, DeleteAccountRequest, LogoutAllResponse, SessionResponse,
-    UpdateProfileRequest, UserPublic,
+    ChangePasswordRequest, DeleteAccountRequest, LogoutAllResponse, PreferencesResponse,
+    SessionResponse, UpdatePreferencesRequest, UpdateProfileRequest, UserPublic,
 };
-use chatalot_db::repos::{group_repo, user_repo};
+use chatalot_db::repos::{group_repo, preferences_repo, user_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -29,6 +29,10 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/account/logout-all", post(logout_all))
         .route("/account/sessions", get(list_sessions))
         .route("/account/sessions/{id}", delete(revoke_session))
+        .route(
+            "/account/preferences",
+            get(get_preferences).put(update_preferences),
+        )
 }
 
 /// Public route for serving avatar images (no auth required).
@@ -369,4 +373,35 @@ async fn revoke_session(
     user_repo::revoke_refresh_token(&state.db, session_id).await?;
 
     Ok(())
+}
+
+async fn get_preferences(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<PreferencesResponse>, AppError> {
+    let prefs = preferences_repo::get_preferences(&state.db, claims.sub).await?;
+    Ok(Json(PreferencesResponse {
+        preferences: prefs,
+    }))
+}
+
+async fn update_preferences(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(req): Json<UpdatePreferencesRequest>,
+) -> Result<Json<PreferencesResponse>, AppError> {
+    // Validate size to prevent abuse (max 16 KB)
+    let serialized = serde_json::to_string(&req.preferences)
+        .map_err(|_| AppError::Validation("invalid JSON".to_string()))?;
+    if serialized.len() > 16_384 {
+        return Err(AppError::Validation(
+            "preferences too large (max 16 KB)".to_string(),
+        ));
+    }
+
+    let merged =
+        preferences_repo::merge_preferences(&state.db, claims.sub, &req.preferences).await?;
+    Ok(Json(PreferencesResponse {
+        preferences: merged,
+    }))
 }

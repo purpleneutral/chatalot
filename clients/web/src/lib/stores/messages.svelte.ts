@@ -26,6 +26,7 @@ class MessageStore {
 	private fetchedChannels = new Set<string>(); // channels whose history has been loaded via REST
 	private unreadCounts = $state<Map<string, number>>(new Map());
 	private noMoreMessages = new Set<string>(); // channels where we've loaded all history
+	private pinnedIds = $state<Map<string, Set<string>>>(new Map());
 
 	getMessages(channelId: string): ChatMessage[] {
 		return this.messagesByChannel.get(channelId) ?? [];
@@ -205,6 +206,38 @@ class MessageStore {
 		const next = new Map(this.unreadCounts);
 		next.set(channelId, 0);
 		this.unreadCounts = next;
+	}
+
+	// ── Pinned message tracking ──
+
+	isPinned(channelId: string, messageId: string): boolean {
+		return this.pinnedIds.get(channelId)?.has(messageId) ?? false;
+	}
+
+	getPinnedCount(channelId: string): number {
+		return this.pinnedIds.get(channelId)?.size ?? 0;
+	}
+
+	setPinnedIds(channelId: string, ids: string[]) {
+		const next = new Map(this.pinnedIds);
+		next.set(channelId, new Set(ids));
+		this.pinnedIds = next;
+	}
+
+	addPinned(channelId: string, messageId: string) {
+		const next = new Map(this.pinnedIds);
+		const set = new Set(next.get(channelId) ?? new Set<string>());
+		set.add(messageId);
+		next.set(channelId, set);
+		this.pinnedIds = next;
+	}
+
+	removePinned(channelId: string, messageId: string) {
+		const next = new Map(this.pinnedIds);
+		const set = new Set(next.get(channelId) ?? new Set<string>());
+		set.delete(messageId);
+		next.set(channelId, set);
+		this.pinnedIds = next;
 	}
 }
 

@@ -529,3 +529,33 @@ pub struct AcceptCommunityInviteResponse {
 pub struct TransferCommunityOwnershipRequest {
     pub new_owner_id: Uuid,
 }
+
+// ── Pinned Messages ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PinnedMessageResponse {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub sender_id: Option<Uuid>,
+    pub ciphertext: Vec<u8>,
+    pub nonce: Vec<u8>,
+    pub message_type: String,
+    pub reply_to_id: Option<Uuid>,
+    pub sender_key_id: Option<Uuid>,
+    pub edited_at: Option<String>,
+    pub created_at: String,
+    pub pinned_by: Uuid,
+    pub pinned_at: String,
+}
+
+// ── User Preferences ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PreferencesResponse {
+    pub preferences: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdatePreferencesRequest {
+    pub preferences: serde_json::Value,
+}
