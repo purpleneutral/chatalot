@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Extension, Json, Router};
+use uuid::Uuid;
 
 use chatalot_common::api_types::{UserPublic, UserSearchQuery};
 use chatalot_db::repos::user_repo;
@@ -12,7 +13,29 @@ use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 
 pub fn routes() -> Router<Arc<AppState>> {
-    Router::new().route("/users/search", get(search_users))
+    Router::new()
+        .route("/users/search", get(search_users))
+        .route("/users/{user_id}", get(get_user))
+}
+
+async fn get_user(
+    State(state): State<Arc<AppState>>,
+    Extension(_claims): Extension<AccessClaims>,
+    Path(user_id): Path<Uuid>,
+) -> Result<Json<UserPublic>, AppError> {
+    let user = user_repo::find_by_id(&state.db, user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    Ok(Json(UserPublic {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        status: user.status,
+        custom_status: user.custom_status,
+        is_admin: user.is_admin,
+    }))
 }
 
 async fn search_users(

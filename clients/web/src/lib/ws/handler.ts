@@ -10,8 +10,20 @@ import { soundStore } from '$lib/stores/sound.svelte';
 import { notificationStore } from '$lib/stores/notification.svelte';
 import { userStore } from '$lib/stores/users.svelte';
 import { detectMentions } from '$lib/utils/mentions';
+import { getUser } from '$lib/api/users';
 import { wsClient } from './connection';
 import type { ServerMessage } from './types';
+
+/** Fetch and cache user info if not already in the store. */
+async function ensureUser(userId: string) {
+	if (userStore.getUser(userId)) return;
+	try {
+		const user = await getUser(userId);
+		userStore.setUser(user);
+	} catch {
+		// User lookup failed — display will fall back to truncated ID
+	}
+}
 
 /// Handle incoming server WebSocket messages, updating the appropriate stores.
 export function handleServerMessage(msg: ServerMessage) {
@@ -20,6 +32,7 @@ export function handleServerMessage(msg: ServerMessage) {
 			// TODO: In full implementation, decrypt ciphertext using Double Ratchet.
 			// For now, decode ciphertext as UTF-8 plaintext (development only).
 			const content = new TextDecoder().decode(new Uint8Array(msg.ciphertext));
+			ensureUser(msg.sender_id);
 
 			const chatMsg: ChatMessage = {
 				id: msg.id,
@@ -135,6 +148,9 @@ export function handleServerMessage(msg: ServerMessage) {
 		// Voice/Video
 		case 'voice_state_update': {
 			webrtcManager.onVoiceStateUpdate(msg.channel_id, msg.participants);
+			for (const uid of msg.participants) {
+				ensureUser(uid);
+			}
 			break;
 		}
 
@@ -143,6 +159,7 @@ export function handleServerMessage(msg: ServerMessage) {
 			webrtcManager.onUserJoined(msg.user_id);
 			if (msg.user_id !== authStore.user?.id) {
 				soundStore.playVoiceJoin();
+				ensureUser(msg.user_id);
 			}
 			break;
 		}

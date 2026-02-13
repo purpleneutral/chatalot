@@ -13,3 +13,7 @@ export interface UserPublic {
 export async function searchUsers(query: string): Promise<UserPublic[]> {
 	return api.get<UserPublic[]>(`/users/search?q=${encodeURIComponent(query)}`);
 }
+
+export async function getUser(userId: string): Promise<UserPublic> {
+	return api.get<UserPublic>(`/users/${userId}`);
+}

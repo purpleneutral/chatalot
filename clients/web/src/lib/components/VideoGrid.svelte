@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { userStore } from '$lib/stores/users.svelte';
 
 	let localVideoEl: HTMLVideoElement | undefined = $state();
 	let screenVideoEl: HTMLVideoElement | undefined = $state();
+	let remoteVideoEls = $state<Map<string, HTMLVideoElement>>(new Map());
 
 	// Attach local stream to video element
 	$effect(() => {
@@ -19,14 +21,30 @@
 		}
 	});
 
-	// Svelte action to bind remote stream to video element
-	function remoteVideo(node: HTMLVideoElement, userId: string) {
+	// Reactively attach remote streams to video elements whenever either changes
+	$effect(() => {
+		for (const [userId, stream] of voiceStore.remoteStreams) {
+			const el = remoteVideoEls.get(userId);
+			if (el && el.srcObject !== stream) {
+				el.srcObject = stream;
+			}
+		}
+	});
+
+	function bindRemoteVideo(node: HTMLVideoElement, userId: string) {
+		const next = new Map(remoteVideoEls);
+		next.set(userId, node);
+		remoteVideoEls = next;
+
+		// Try to attach stream immediately
 		const stream = voiceStore.remoteStreams.get(userId);
 		if (stream) node.srcObject = stream;
+
 		return {
-			update(newUserId: string) {
-				const s = voiceStore.remoteStreams.get(newUserId);
-				if (s) node.srcObject = s;
+			destroy() {
+				const next = new Map(remoteVideoEls);
+				next.delete(userId);
+				remoteVideoEls = next;
 			}
 		};
 	}
@@ -74,10 +92,10 @@
 						autoplay
 						playsinline
 						class="h-full w-full object-cover"
-						use:remoteVideo={userId}
+						use:bindRemoteVideo={userId}
 					></video>
 					<div class="absolute bottom-1 left-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
-						{userId.slice(0, 8)}
+						{userStore.getDisplayName(userId)}
 					</div>
 				</div>
 			{/each}
