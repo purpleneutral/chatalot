@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use chatalot_common::ws_messages::{ClientMessage, MessageType, ServerMessage};
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, message_repo, reaction_repo, unread_repo, voice_repo};
+use chatalot_db::repos::{channel_repo, message_repo, reaction_repo, unread_repo, user_repo, voice_repo};
 
 use crate::permissions;
 
@@ -186,8 +186,41 @@ async fn handle_client_message(
                         if let Ok(members) =
                             channel_repo::list_members(&state.db, channel_id).await
                         {
+                            // If this is the first message, notify the other user
+                            // about the DM channel so it appears in their sidebar.
+                            let is_first = message_repo::count_messages(&state.db, channel_id)
+                                .await
+                                .unwrap_or(0)
+                                == 1;
+
                             for member in &members {
                                 if member.user_id != user_id {
+                                    if is_first {
+                                        if let Ok(Some(sender)) =
+                                            user_repo::find_by_id(&state.db, user_id).await
+                                        {
+                                            if let Ok(Some(ch)) =
+                                                channel_repo::get_channel(&state.db, channel_id).await
+                                            {
+                                                conn_mgr.send_to_user(
+                                                    &member.user_id,
+                                                    &ServerMessage::NewDmChannel {
+                                                        channel_id,
+                                                        channel_name: ch.name.clone(),
+                                                        created_at: ch.created_at.to_rfc3339(),
+                                                        other_user_id: sender.id,
+                                                        other_user_username: sender.username.clone(),
+                                                        other_user_display_name: Some(
+                                                            sender.display_name.clone(),
+                                                        ),
+                                                        other_user_avatar_url: sender
+                                                            .avatar_url
+                                                            .clone(),
+                                                    },
+                                                );
+                                            }
+                                        }
+                                    }
                                     conn_mgr.send_to_user(&member.user_id, &new_msg);
                                 }
                             }

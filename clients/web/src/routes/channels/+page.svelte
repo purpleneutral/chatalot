@@ -1395,6 +1395,17 @@
 			<div class="flex h-14 items-center justify-between border-b border-white/10 px-4">
 				<h1 class="text-lg font-bold text-[var(--text-primary)]">Chatalot</h1>
 				<div class="flex items-center gap-1">
+					{#if authStore.user?.is_admin}
+						<button
+							onclick={() => goto('/admin')}
+							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							title="Admin Panel"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+							</svg>
+						</button>
+					{/if}
 					<button
 						onclick={() => goto('/settings')}
 						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
@@ -1790,7 +1801,7 @@
 			<!-- User info -->
 			<div class="relative flex items-center gap-3 border-t border-white/10 p-3">
 				{#if authStore.user}
-					<button onclick={() => (showStatusPicker = !showStatusPicker)} class="rounded-full transition hover:ring-2 hover:ring-[var(--accent)]/50" title="Set status">
+					<button onclick={(e) => { e.stopPropagation(); showStatusPicker = !showStatusPicker; }} class="rounded-full transition hover:ring-2 hover:ring-[var(--accent)]/50" title="Set status">
 						<Avatar userId={authStore.user.id} size="sm" showStatus />
 					</button>
 				{/if}
@@ -1805,7 +1816,9 @@
 
 				<!-- Status picker dropdown -->
 				{#if showStatusPicker}
-					<div class="absolute bottom-full left-2 mb-2 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" transition:scale={{ start: 0.95, duration: 150 }}>
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div onclick={(e) => e.stopPropagation()} class="absolute bottom-full left-2 mb-2 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" transition:scale={{ start: 0.95, duration: 150 }}>
 						<div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Set Status</div>
 						{#each statusOptions as opt (opt.value)}
 							<button

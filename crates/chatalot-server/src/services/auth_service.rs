@@ -158,7 +158,12 @@ fn validate_email(email: &str) -> Result<(), AppError> {
 }
 
 /// Register a new user.
-pub async fn register(state: &AppState, req: RegisterRequest) -> Result<AuthResponse, AppError> {
+pub async fn register(
+    state: &AppState,
+    req: RegisterRequest,
+    device_name: Option<&str>,
+    ip_address: Option<&str>,
+) -> Result<AuthResponse, AppError> {
     // Check registration mode
     match state.config.registration_mode.as_str() {
         "closed" => {
@@ -245,8 +250,8 @@ pub async fn register(state: &AppState, req: RegisterRequest) -> Result<AuthResp
         refresh_id,
         user.id,
         &refresh_hash,
-        None,
-        None,
+        device_name,
+        ip_address,
         expires_at,
     )
     .await?;
@@ -274,7 +279,12 @@ pub async fn register(state: &AppState, req: RegisterRequest) -> Result<AuthResp
 }
 
 /// Log in an existing user.
-pub async fn login(state: &AppState, req: LoginRequest) -> Result<AuthResponse, AppError> {
+pub async fn login(
+    state: &AppState,
+    req: LoginRequest,
+    device_name: Option<&str>,
+    ip_address: Option<&str>,
+) -> Result<AuthResponse, AppError> {
     let user = user_repo::find_by_username(&state.db, &req.username)
         .await?
         .ok_or(AppError::Unauthorized)?;
@@ -340,8 +350,8 @@ pub async fn login(state: &AppState, req: LoginRequest) -> Result<AuthResponse, 
         refresh_id,
         user.id,
         &refresh_hash,
-        None,
-        None,
+        device_name,
+        ip_address,
         expires_at,
     )
     .await?;
@@ -372,6 +382,8 @@ pub async fn login(state: &AppState, req: LoginRequest) -> Result<AuthResponse, 
 pub async fn refresh_token(
     state: &AppState,
     req: RefreshRequest,
+    device_name: Option<&str>,
+    ip_address: Option<&str>,
 ) -> Result<TokenResponse, AppError> {
     // Decode the hex refresh token and hash it
     let raw_token =
@@ -409,8 +421,8 @@ pub async fn refresh_token(
         refresh_id,
         user.id,
         &refresh_hash,
-        None,
-        None,
+        device_name,
+        ip_address,
         expires_at,
     )
     .await?;

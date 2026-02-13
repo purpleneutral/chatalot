@@ -6,8 +6,7 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{ChannelResponse, CreateDmRequest, DmChannelResponse, UserPublic};
-use chatalot_common::ws_messages::ServerMessage;
-use chatalot_db::repos::{dm_repo, user_repo};
+use chatalot_db::repos::dm_repo;
 use chatalot_db::models::user::User;
 
 use crate::app_state::AppState;
@@ -42,23 +41,8 @@ async fn create_dm(
     )
     .await?;
 
-    // Notify the target user about the new DM channel so they can subscribe
-    let creator = user_repo::find_by_id(&state.db, claims.sub)
-        .await?
-        .ok_or_else(|| AppError::Internal("creator not found".to_string()))?;
-
-    state.connections.send_to_user(
-        &target.id,
-        &ServerMessage::NewDmChannel {
-            channel_id: channel.id,
-            channel_name: channel.name.clone(),
-            created_at: channel.created_at.to_rfc3339(),
-            other_user_id: creator.id,
-            other_user_username: creator.username.clone(),
-            other_user_display_name: Some(creator.display_name.clone()),
-            other_user_avatar_url: creator.avatar_url.clone(),
-        },
-    );
+    // Don't notify the target user yet — they'll be notified when the
+    // first message is actually sent (see ws/handler.rs).
 
     Ok(Json(DmChannelResponse {
         channel: ChannelResponse {

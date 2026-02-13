@@ -34,6 +34,20 @@ pub async fn create_message(
     .await
 }
 
+/// Count messages in a channel (excluding deleted).
+pub async fn count_messages(
+    pool: &PgPool,
+    channel_id: Uuid,
+) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM messages WHERE channel_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(channel_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
 /// Get messages in a channel, paginated by cursor (before a given message ID).
 /// Returns messages in reverse chronological order.
 pub async fn get_messages(

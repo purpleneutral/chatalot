@@ -715,14 +715,32 @@
 					<p class="text-sm text-[var(--text-secondary)]">No active sessions.</p>
 				{:else}
 					<div class="space-y-3">
-						{#each sessions as session}
-							<div class="flex items-center justify-between rounded-lg border border-white/5 bg-[var(--bg-primary)] px-4 py-3">
-								<div>
-									<div class="text-sm font-medium">
-										{session.device_name ?? 'Unknown device'}
+						{#each sessions as session, i}
+							{@const isExpired = new Date(session.expires_at) < new Date()}
+							{@const expiresIn = Math.max(0, Math.round((new Date(session.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))}
+							<div class="flex items-center justify-between rounded-lg border border-white/5 bg-[var(--bg-primary)] px-4 py-3 {isExpired ? 'opacity-50' : ''}">
+								<div class="flex items-center gap-3">
+									<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-[var(--text-secondary)]">
+										{#if session.device_name?.includes('Desktop')}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+										{:else if session.device_name?.includes('Android') || session.device_name?.includes('iOS')}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>
+										{:else}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+										{/if}
 									</div>
-									<div class="text-xs text-[var(--text-secondary)]">
-										{session.ip_address ?? 'Unknown IP'} &middot; Created {new Date(session.created_at).toLocaleDateString()}
+									<div>
+										<div class="text-sm font-medium">
+											{session.device_name ?? 'Unknown device'}
+										</div>
+										<div class="text-xs text-[var(--text-secondary)]">
+											{session.ip_address ?? 'Unknown IP'} &middot; {new Date(session.created_at).toLocaleDateString()}
+											{#if isExpired}
+												&middot; <span class="text-red-400">Expired</span>
+											{:else}
+												&middot; Expires in {expiresIn}d
+											{/if}
+										</div>
 									</div>
 								</div>
 								<button
