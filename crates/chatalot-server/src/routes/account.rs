@@ -102,19 +102,19 @@ async fn update_profile(
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserPublic>, AppError> {
     // Validate inputs
-    if let Some(ref dn) = req.display_name {
-        if dn.is_empty() || dn.len() > 64 {
-            return Err(AppError::Validation(
-                "display name must be 1-64 characters".to_string(),
-            ));
-        }
+    if let Some(ref dn) = req.display_name
+        && (dn.is_empty() || dn.len() > 64)
+    {
+        return Err(AppError::Validation(
+            "display name must be 1-64 characters".to_string(),
+        ));
     }
-    if let Some(ref cs) = req.custom_status {
-        if cs.len() > 128 {
-            return Err(AppError::Validation(
-                "custom status must be at most 128 characters".to_string(),
-            ));
-        }
+    if let Some(ref cs) = req.custom_status
+        && cs.len() > 128
+    {
+        return Err(AppError::Validation(
+            "custom status must be at most 128 characters".to_string(),
+        ));
     }
 
     let user = user_repo::update_profile(

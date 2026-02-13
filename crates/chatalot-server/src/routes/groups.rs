@@ -577,17 +577,17 @@ async fn get_invite_info(
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
 
     // Check expiry
-    if let Some(expires_at) = invite.expires_at {
-        if expires_at < chrono::Utc::now() {
-            return Err(AppError::NotFound("invite expired".to_string()));
-        }
+    if let Some(expires_at) = invite.expires_at
+        && expires_at < chrono::Utc::now()
+    {
+        return Err(AppError::NotFound("invite expired".to_string()));
     }
 
     // Check usage
-    if let Some(max_uses) = invite.max_uses {
-        if invite.used_count >= max_uses {
-            return Err(AppError::NotFound("invite fully used".to_string()));
-        }
+    if let Some(max_uses) = invite.max_uses
+        && invite.used_count >= max_uses
+    {
+        return Err(AppError::NotFound("invite fully used".to_string()));
     }
 
     let group = group_repo::get_group(&state.db, invite.group_id)
@@ -614,17 +614,17 @@ async fn accept_invite(
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
 
     // Check expiry
-    if let Some(expires_at) = invite.expires_at {
-        if expires_at < chrono::Utc::now() {
-            return Err(AppError::Validation("invite expired".to_string()));
-        }
+    if let Some(expires_at) = invite.expires_at
+        && expires_at < chrono::Utc::now()
+    {
+        return Err(AppError::Validation("invite expired".to_string()));
     }
 
     // Check usage
-    if let Some(max_uses) = invite.max_uses {
-        if invite.used_count >= max_uses {
-            return Err(AppError::Validation("invite fully used".to_string()));
-        }
+    if let Some(max_uses) = invite.max_uses
+        && invite.used_count >= max_uses
+    {
+        return Err(AppError::Validation("invite fully used".to_string()));
     }
 
     // Verify user is a member of the group's community

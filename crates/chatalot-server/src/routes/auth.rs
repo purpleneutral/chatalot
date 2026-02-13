@@ -82,23 +82,22 @@ fn parse_device_name(ua: &str) -> String {
 /// Extract client IP from headers, checking reverse proxy headers first.
 fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
     // X-Forwarded-For (first entry is the client)
-    if let Some(xff) = headers.get("x-forwarded-for") {
-        if let Ok(val) = xff.to_str() {
-            if let Some(first) = val.split(',').next() {
-                let ip = first.trim();
-                if !ip.is_empty() {
-                    return Some(ip.to_string());
-                }
-            }
+    if let Some(xff) = headers.get("x-forwarded-for")
+        && let Ok(val) = xff.to_str()
+        && let Some(first) = val.split(',').next()
+    {
+        let ip = first.trim();
+        if !ip.is_empty() {
+            return Some(ip.to_string());
         }
     }
     // X-Real-IP
-    if let Some(xri) = headers.get("x-real-ip") {
-        if let Ok(val) = xri.to_str() {
-            let ip = val.trim();
-            if !ip.is_empty() {
-                return Some(ip.to_string());
-            }
+    if let Some(xri) = headers.get("x-real-ip")
+        && let Ok(val) = xri.to_str()
+    {
+        let ip = val.trim();
+        if !ip.is_empty() {
+            return Some(ip.to_string());
         }
     }
     None

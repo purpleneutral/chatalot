@@ -38,12 +38,11 @@ async fn get_link_preview(
     }
 
     // SSRF protection: block private/internal IPs
-    if let Ok(parsed) = url::Url::parse(&url) {
-        if let Some(host) = parsed.host_str() {
-            if is_private_host(host) {
-                return Err(AppError::Validation("Cannot preview internal URLs".into()));
-            }
-        }
+    if let Ok(parsed) = url::Url::parse(&url)
+        && let Some(host) = parsed.host_str()
+        && is_private_host(host)
+    {
+        return Err(AppError::Validation("Cannot preview internal URLs".into()));
     }
 
     // Check cache
@@ -183,15 +182,15 @@ fn parse_og_metadata(html: &str, url: &str) -> LinkPreviewResponse {
     if let Some(ref img) = image {
         if img.starts_with("//") {
             image = Some(format!("https:{img}"));
-        } else if img.starts_with('/') {
-            if let Ok(parsed) = url::Url::parse(url) {
-                image = Some(format!(
-                    "{}://{}{}",
-                    parsed.scheme(),
-                    parsed.host_str().unwrap_or(""),
-                    img
-                ));
-            }
+        } else if img.starts_with('/')
+            && let Ok(parsed) = url::Url::parse(url)
+        {
+            image = Some(format!(
+                "{}://{}{}",
+                parsed.scheme(),
+                parsed.host_str().unwrap_or(""),
+                img
+            ));
         }
     }
 

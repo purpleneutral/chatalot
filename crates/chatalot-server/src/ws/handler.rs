@@ -231,31 +231,28 @@ async fn handle_client_message(
 
                             for member in &members {
                                 if member.user_id != user_id {
-                                    if is_first {
-                                        if let Ok(Some(sender)) =
+                                    if is_first
+                                        && let Ok(Some(sender)) =
                                             user_repo::find_by_id(&state.db, user_id).await
-                                        {
-                                            if let Ok(Some(ch)) =
-                                                channel_repo::get_channel(&state.db, channel_id).await
-                                            {
-                                                conn_mgr.send_to_user(
-                                                    &member.user_id,
-                                                    &ServerMessage::NewDmChannel {
-                                                        channel_id,
-                                                        channel_name: ch.name.clone(),
-                                                        created_at: ch.created_at.to_rfc3339(),
-                                                        other_user_id: sender.id,
-                                                        other_user_username: sender.username.clone(),
-                                                        other_user_display_name: Some(
-                                                            sender.display_name.clone(),
-                                                        ),
-                                                        other_user_avatar_url: sender
-                                                            .avatar_url
-                                                            .clone(),
-                                                    },
-                                                );
-                                            }
-                                        }
+                                        && let Ok(Some(ch)) =
+                                            channel_repo::get_channel(&state.db, channel_id).await
+                                    {
+                                        conn_mgr.send_to_user(
+                                            &member.user_id,
+                                            &ServerMessage::NewDmChannel {
+                                                channel_id,
+                                                channel_name: ch.name.clone(),
+                                                created_at: ch.created_at.to_rfc3339(),
+                                                other_user_id: sender.id,
+                                                other_user_username: sender.username.clone(),
+                                                other_user_display_name: Some(
+                                                    sender.display_name.clone(),
+                                                ),
+                                                other_user_avatar_url: sender
+                                                    .avatar_url
+                                                    .clone(),
+                                            },
+                                        );
                                     }
                                     conn_mgr.send_to_user(&member.user_id, &new_msg);
                                 }
