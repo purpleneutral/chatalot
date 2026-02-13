@@ -16,7 +16,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 - **Channels and DMs** — organized conversations with roles, permissions, and invite links
 - **Voice and video calls** — peer-to-peer WebRTC, no third-party TURN servers phoning home
-- **End-to-end encryption** — Signal-grade cryptography (X3DH + Double Ratchet for DMs, Sender Keys for groups) *
+- **End-to-end encryption** — Signal-grade cryptography (X3DH + Double Ratchet) for DMs, compiled to WASM *
 - **File sharing** — encrypted uploads with drag-and-drop
 - **Two-factor authentication** — TOTP with any authenticator app
 - **Invite-only by default** — registration is locked down until you generate invite codes
@@ -28,7 +28,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Sound and desktop notifications** — configurable per-channel
 - **Dark and light themes** — because everyone has opinions about this
 
-> \* *The E2E encryption library is fully implemented and tested (23 unit tests covering X3DH, Double Ratchet, Sender Keys, and ChaCha20-Poly1305). Client-side WASM integration is in progress — messages are currently transmitted as plaintext over TLS. The server is architecturally designed as an untrusted relay and will enforce encryption once the WASM bridge is complete.*
+> \* *DM messages are end-to-end encrypted using the Signal protocol (X3DH + Double Ratchet + ChaCha20-Poly1305), compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay. Group encryption (Sender Keys) is planned for a future release — group messages are currently protected by TLS in transit.*
 
 ## Quick Start
 
@@ -162,7 +162,7 @@ Requires Rust 1.84+, Node.js 22+, and platform-specific dependencies (WebKitGTK 
 | Database | PostgreSQL 17 |
 | Web Client | Svelte 5 + Tailwind CSS |
 | Desktop Client | Tauri 2.0 |
-| E2E Encryption | X3DH + Double Ratchet, Sender Keys, ChaCha20-Poly1305 |
+| E2E Encryption | X3DH + Double Ratchet, ChaCha20-Poly1305 (Rust → WASM) |
 | Auth | Argon2id passwords, Ed25519-signed JWTs, refresh token rotation |
 | Voice/Video | WebRTC mesh (up to 5 participants) |
 | Deployment | Docker Compose, Cloudflare Tunnel |
@@ -173,14 +173,14 @@ Requires Rust 1.84+, Node.js 22+, and platform-specific dependencies (WebKitGTK 
 
 The server is designed as an **untrusted relay** — it stores and routes messages but is architecturally separated from plaintext content.
 
-> **Status**: The crypto library (`chatalot-crypto`) is complete with 23 unit tests. Client-side WASM integration is the next milestone. Until then, messages are protected by TLS in transit and server-side access controls.
-
-- **DMs**: X3DH key agreement + Double Ratchet — forward secrecy and break-in recovery
-- **Groups**: Sender Keys distributed through pairwise encrypted sessions
+- **DMs**: X3DH key agreement + Double Ratchet — forward secrecy and break-in recovery, compiled to WASM and running client-side
+- **Groups**: Sender Keys (planned) — currently protected by TLS in transit
 - **Cipher**: ChaCha20-Poly1305 (AEAD)
 - **Key exchange**: X25519
 - **Signatures**: Ed25519
-- **Key storage**: OS keychain (desktop) or encrypted IndexedDB (web)
+- **Key storage**: IndexedDB (web), OS keychain (desktop, planned)
+- **Session persistence**: Double Ratchet sessions and decrypted message cache stored in IndexedDB
+- **Prekey management**: Automatic replenishment when one-time prekeys run low
 
 ### Authentication
 
@@ -218,11 +218,13 @@ chatalot/
 │   │       ├── double_ratchet.rs
 │   │       ├── sender_keys.rs
 │   │       └── aead.rs        # ChaCha20-Poly1305
+│   ├── chatalot-crypto-wasm/  # WASM bindings for browser crypto
 │   └── chatalot-common/       # Shared types (API DTOs, WS messages)
 ├── clients/
 │   ├── web/                   # Svelte 5 SPA
 │   │   └── src/
 │   │       ├── lib/api/       # REST client
+│   │       ├── lib/crypto/    # E2E crypto (WASM loader, IndexedDB, session manager)
 │   │       ├── lib/ws/        # WebSocket client
 │   │       ├── lib/stores/    # Svelte 5 rune-based state
 │   │       ├── lib/webrtc/    # WebRTC call manager
@@ -232,7 +234,8 @@ chatalot/
 ├── scripts/
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
 │   ├── generate-secrets.sh    # Generate JWT keys + .env
-│   └── generate-keys.sh       # Generate JWT keys only
+│   ├── generate-keys.sh       # Generate JWT keys only
+│   └── build-wasm.sh          # Build WASM crypto module for web client
 ├── Dockerfile                 # Multi-stage build
 └── docker-compose.yml
 ```
@@ -260,6 +263,7 @@ chatalot/
 - Rust 1.84+ (edition 2024)
 - Node.js 22+
 - PostgreSQL 17 (or use Docker)
+- [wasm-pack](https://rustwasm.github.io/wasm-pack/) (for building the crypto WASM module)
 
 ### Running locally
 
@@ -271,6 +275,9 @@ docker compose up postgres -d
 cp .env.example .env
 ./scripts/generate-secrets.sh
 cargo run
+
+# Build WASM crypto module (required before web client)
+./scripts/build-wasm.sh
 
 # Web client (separate terminal)
 cd clients/web
@@ -285,6 +292,8 @@ cargo test          # 23 crypto unit tests
 cargo clippy        # Lint checks
 cd clients/web && npm run check   # Svelte type checking
 ```
+
+> **Note**: The Docker build handles the WASM compilation automatically — `build-wasm.sh` is only needed for local development.
 
 ## Deployment
 
