@@ -6,6 +6,7 @@ export interface Group {
 	name: string;
 	description: string | null;
 	owner_id: string;
+	community_id: string;
 	created_at: string;
 	member_count: number;
 }
@@ -27,8 +28,16 @@ export async function discoverGroups(): Promise<Group[]> {
 	return api.get<Group[]>('/groups/discover');
 }
 
-export async function createGroup(name: string, description?: string): Promise<Group> {
-	return api.post<Group>('/groups', { name, description: description ?? null });
+export async function createGroup(
+	communityId: string,
+	name: string,
+	description?: string
+): Promise<Group> {
+	return api.post<Group>('/groups', {
+		community_id: communityId,
+		name,
+		description: description ?? null
+	});
 }
 
 export async function updateGroup(

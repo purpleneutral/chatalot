@@ -6,7 +6,7 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{ChannelResponse, CreateDmRequest, DmChannelResponse, UserPublic};
-use chatalot_db::repos::dm_repo;
+use chatalot_db::repos::{community_repo, dm_repo};
 use chatalot_db::models::user::User;
 
 use crate::app_state::AppState;
@@ -31,6 +31,13 @@ async fn create_dm(
     let target = chatalot_db::repos::user_repo::find_by_id(&state.db, req.target_user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    // DMs require shared community membership (instance admins bypass for moderation)
+    if !claims.is_admin
+        && !community_repo::shares_community(&state.db, claims.sub, target.id).await?
+    {
+        return Err(AppError::Forbidden);
+    }
 
     let channel_id = Uuid::now_v7();
     let channel = dm_repo::get_or_create_dm(

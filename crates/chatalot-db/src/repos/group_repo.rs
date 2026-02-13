@@ -11,13 +11,14 @@ pub async fn create_group(
     name: &str,
     description: Option<&str>,
     owner_id: Uuid,
+    community_id: Uuid,
 ) -> Result<Group, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let group = sqlx::query_as::<_, Group>(
         r#"
-        INSERT INTO groups (id, name, description, owner_id)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO groups (id, name, description, owner_id, community_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING *
         "#,
     )
@@ -25,6 +26,7 @@ pub async fn create_group(
     .bind(name)
     .bind(description)
     .bind(owner_id)
+    .bind(community_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -310,4 +312,17 @@ pub async fn list_all_groups(pool: &PgPool) -> Result<Vec<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>("SELECT * FROM groups ORDER BY name ASC")
         .fetch_all(pool)
         .await
+}
+
+/// List all groups in a community.
+pub async fn list_community_groups(
+    pool: &PgPool,
+    community_id: Uuid,
+) -> Result<Vec<Group>, sqlx::Error> {
+    sqlx::query_as::<_, Group>(
+        "SELECT * FROM groups WHERE community_id = $1 ORDER BY name ASC",
+    )
+    .bind(community_id)
+    .fetch_all(pool)
+    .await
 }

@@ -1,4 +1,5 @@
 pub mod channel_repo;
+pub mod community_repo;
 pub mod dm_repo;
 pub mod group_repo;
 pub mod invite_repo;

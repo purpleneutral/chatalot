@@ -1,4 +1,5 @@
 pub mod channel;
+pub mod community;
 pub mod file;
 pub mod group;
 pub mod key_bundle;

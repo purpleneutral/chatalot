@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use chatalot_common::ws_messages::{ClientMessage, MessageType, ServerMessage};
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, message_repo, reaction_repo, unread_repo, user_repo, voice_repo};
+use chatalot_db::repos::{channel_repo, community_repo, message_repo, reaction_repo, unread_repo, user_repo, voice_repo};
 
 use crate::permissions;
 
@@ -128,6 +128,42 @@ async fn handle_client_message(
                         message: "not a member of this channel".to_string(),
                     });
                     return;
+                }
+            }
+
+            // For DM channels, block messages if users no longer share a community
+            if let Ok(Some(ch)) = channel_repo::get_channel(&state.db, channel_id).await
+                && ch.channel_type == ChannelType::Dm
+            {
+                // Find the other user in this DM
+                if let Ok(members) = channel_repo::list_members(&state.db, channel_id).await {
+                    for member in &members {
+                        if member.user_id != user_id {
+                            match community_repo::shares_community(
+                                &state.db,
+                                user_id,
+                                member.user_id,
+                            )
+                            .await
+                            {
+                                Ok(false) => {
+                                    let _ = tx.send(ServerMessage::Error {
+                                        code: "forbidden".to_string(),
+                                        message:
+                                            "you no longer share a community with this user"
+                                                .to_string(),
+                                    });
+                                    return;
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        "Failed to check shared community: {e}"
+                                    );
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
             }
 

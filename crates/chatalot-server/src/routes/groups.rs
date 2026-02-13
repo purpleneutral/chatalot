@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     TransferOwnershipRequest, UpdateChannelRequest, UpdateGroupRequest,
 };
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, group_repo, invite_repo};
+use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo};
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -55,6 +55,20 @@ async fn create_group(
         ));
     }
 
+    // Verify caller is a community member with manage permission
+    let community_role =
+        community_repo::get_community_member_role(&state.db, req.community_id, claims.sub)
+            .await?
+            .ok_or(AppError::Forbidden)?;
+
+    if !matches!(
+        community_role.as_str(),
+        "owner" | "admin"
+    ) && !claims.is_admin
+    {
+        return Err(AppError::Forbidden);
+    }
+
     let group_id = Uuid::now_v7();
     let group = group_repo::create_group(
         &state.db,
@@ -62,6 +76,7 @@ async fn create_group(
         &req.name,
         req.description.as_deref(),
         claims.sub,
+        req.community_id,
     )
     .await?;
 
@@ -83,6 +98,7 @@ async fn create_group(
         name: group.name,
         description: group.description,
         owner_id: group.owner_id,
+        community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
         member_count: 1,
     }))
@@ -101,6 +117,7 @@ async fn list_groups(
             name: g.name,
             description: g.description,
             owner_id: g.owner_id,
+            community_id: g.community_id,
             created_at: g.created_at.to_rfc3339(),
             member_count: count,
         });
@@ -121,6 +138,7 @@ async fn discover_groups(
             name: g.name,
             description: g.description,
             owner_id: g.owner_id,
+            community_id: g.community_id,
             created_at: g.created_at.to_rfc3339(),
             member_count: count,
         });
@@ -148,6 +166,7 @@ async fn get_group(
         name: group.name,
         description: group.description,
         owner_id: group.owner_id,
+        community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
         member_count: count,
     }))
@@ -183,6 +202,7 @@ async fn update_group(
         name: group.name,
         description: group.description,
         owner_id: group.owner_id,
+        community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
         member_count: count,
     }))
@@ -238,9 +258,16 @@ async fn join_group(
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     // Verify group exists
-    group_repo::get_group(&state.db, id)
+    let group = group_repo::get_group(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    // Verify caller is a member of the group's community
+    if !claims.is_admin
+        && !community_repo::is_community_member(&state.db, group.community_id, claims.sub).await?
+    {
+        return Err(AppError::Forbidden);
+    }
 
     group_repo::join_group(&state.db, id, claims.sub).await?;
     Ok(())
@@ -600,6 +627,19 @@ async fn accept_invite(
         }
     }
 
+    // Verify user is a member of the group's community
+    let group = group_repo::get_group(&state.db, invite.group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    if !claims.is_admin
+        && !community_repo::is_community_member(&state.db, group.community_id, claims.sub).await?
+    {
+        return Err(AppError::Validation(
+            "you must be a member of this community to join this group".to_string(),
+        ));
+    }
+
     // Check if already a member
     if group_repo::is_member(&state.db, invite.group_id, claims.sub).await? {
         return Err(AppError::Conflict("already a member of this group".to_string()));
@@ -610,10 +650,6 @@ async fn accept_invite(
 
     // Increment usage
     invite_repo::increment_usage(&state.db, invite.id).await?;
-
-    let group = group_repo::get_group(&state.db, invite.group_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
 
     Ok(Json(AcceptInviteResponse {
         group_id: group.id,

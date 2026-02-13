@@ -24,9 +24,11 @@
 	import { userStore } from '$lib/stores/users.svelte';
 	import { notificationStore, type NotificationLevel } from '$lib/stores/notification.svelte';
 	import { listGroups, createGroup as apiCreateGroup, joinGroup, leaveGroup, deleteGroup, discoverGroups, listGroupChannels, createGroupChannel, updateChannel as apiUpdateChannel, deleteChannel as apiDeleteChannel, listGroupMembers, createInvite, acceptInvite, getInviteInfo, type Group, type GroupMember, type InviteInfo } from '$lib/api/groups';
+	import { listCommunities, listCommunityGroups, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
 	import { groupStore } from '$lib/stores/groups.svelte';
+	import { communityStore } from '$lib/stores/communities.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
 	import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
@@ -107,6 +109,11 @@
 	let showJoinInvite = $state(false);
 	let joinInviteCode = $state('');
 	let invitePreview = $state<InviteInfo | null>(null);
+
+	// Community invite state
+	let showJoinCommunity = $state(false);
+	let joinCommunityCode = $state('');
+	let communityInvitePreview = $state<{ community_name: string; community_description: string | null; member_count: number; code: string } | null>(null);
 
 	// Notification dropdown state
 	let showNotifDropdown = $state(false);
@@ -315,36 +322,31 @@
 		wsClient.onAuthenticated(subscribeToAllChannels);
 		wsClient.connect();
 
-		// Load channels + DMs + groups
+		// Load communities + channels + DMs
 		try {
-			const [channels, dms, groups] = await Promise.all([
+			const [communities, channels, dms] = await Promise.all([
+				listCommunities(),
 				listChannels(),
-				listDms(),
-				listGroups()
+				listDms()
 			]);
 
+			communityStore.setCommunities(communities);
 			channelStore.setChannels(channels);
 			dmChannels = dms;
-			groupStore.setGroups(groups);
+
+			// Auto-select first community if none saved
+			if (!communityStore.activeCommunityId && communities.length > 0) {
+				communityStore.setActive(communities[0].id);
+			}
+
+			// Load groups for the active community
+			let groups: Group[] = [];
+			if (communityStore.activeCommunityId) {
+				groups = await loadCommunityGroups(communityStore.activeCommunityId);
+			}
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
-
-			// Load channels for each group
-			const groupChannelPromises = groups.map(async (g) => {
-				const chs = await listGroupChannels(g.id);
-				return [g.id, chs] as [string, Channel[]];
-			});
-			const results = await Promise.all(groupChannelPromises);
-			const newMap = new Map<string, Channel[]>();
-			for (const [gid, chs] of results) {
-				newMap.set(gid, chs);
-				// Also add group channels to channel store so they can be selected
-				for (const ch of chs) {
-					channelStore.addChannel(ch);
-				}
-			}
-			groupChannelsMap = newMap;
 
 			// Restore previous session state or fall back to defaults
 			const savedChannel = localStorage.getItem('chatalot:activeChannel');
@@ -354,7 +356,6 @@
 			if (savedExpanded) {
 				try {
 					const ids = JSON.parse(savedExpanded) as string[];
-					// Only restore groups that still exist
 					const validIds = ids.filter(id => groups.some(g => g.id === id));
 					if (validIds.length > 0) {
 						expandedGroupIds = new Set(validIds);
@@ -372,13 +373,13 @@
 			const allChannelIds = new Set([
 				...channels.map(c => c.id),
 				...dms.map(d => d.channel.id),
-				...Array.from(newMap.values()).flat().map(c => c.id)
+				...Array.from(groupChannelsMap.values()).flat().map(c => c.id)
 			]);
 
 			if (savedChannel && allChannelIds.has(savedChannel)) {
 				selectChannel(savedChannel);
 			} else if (groups.length > 0) {
-				const firstGroupChannels = newMap.get(groups[0].id);
+				const firstGroupChannels = groupChannelsMap.get(groups[0].id);
 				if (firstGroupChannels && firstGroupChannels.length > 0) {
 					selectChannel(firstGroupChannels[0].id);
 				}
@@ -1159,6 +1160,83 @@
 		}
 	}
 
+	// Community functions
+	async function loadCommunityGroups(communityId: string): Promise<Group[]> {
+		const groups = await listCommunityGroups(communityId);
+		groupStore.setGroups(groups);
+
+		// Load channels for each group
+		const groupChannelPromises = groups.map(async (g) => {
+			const chs = await listGroupChannels(g.id);
+			return [g.id, chs] as [string, Channel[]];
+		});
+		const results = await Promise.all(groupChannelPromises);
+		const newMap = new Map<string, Channel[]>();
+		for (const [gid, chs] of results) {
+			newMap.set(gid, chs);
+			for (const ch of chs) {
+				channelStore.addChannel(ch);
+			}
+		}
+		groupChannelsMap = newMap;
+
+		// Subscribe to new channels
+		const allGroupChannelIds = Array.from(newMap.values()).flat().map(c => c.id);
+		if (allGroupChannelIds.length > 0) {
+			wsClient.send({ type: 'subscribe', channel_ids: allGroupChannelIds });
+		}
+
+		return groups;
+	}
+
+	async function switchCommunity(communityId: string) {
+		if (communityId === communityStore.activeCommunityId) return;
+		communityStore.setActive(communityId);
+		sidebarTab = 'groups';
+
+		try {
+			const groups = await loadCommunityGroups(communityId);
+			// Expand the first group by default
+			if (groups.length > 0) {
+				expandedGroupIds = new Set([groups[0].id]);
+				const firstChs = groupChannelsMap.get(groups[0].id);
+				if (firstChs && firstChs.length > 0) {
+					selectChannel(firstChs[0].id);
+				}
+			}
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to load community');
+		}
+	}
+
+	async function handlePreviewCommunityInvite() {
+		if (!joinCommunityCode.trim()) return;
+		try {
+			communityInvitePreview = await getCommunityInviteInfo(joinCommunityCode.trim());
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Invalid invite code');
+			communityInvitePreview = null;
+		}
+	}
+
+	async function handleAcceptCommunityInvite() {
+		if (!joinCommunityCode.trim()) return;
+		try {
+			const result = await acceptCommunityInvite(joinCommunityCode.trim());
+			// Reload communities
+			const communities = await listCommunities();
+			communityStore.setCommunities(communities);
+			// Switch to the new community
+			await switchCommunity(result.community_id);
+			showJoinCommunity = false;
+			joinCommunityCode = '';
+			communityInvitePreview = null;
+			toastStore.success(`Joined "${result.community_name}"`);
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to join community');
+		}
+	}
+
 	// Group functions
 	async function toggleGroupExpand(groupId: string) {
 		const next = new Set(expandedGroupIds);
@@ -1188,9 +1266,9 @@
 	async function handleCreateGroup(e: SubmitEvent) {
 		e.preventDefault();
 		const name = newGroupName.trim();
-		if (!name) return;
+		if (!name || !communityStore.activeCommunityId) return;
 		try {
-			const group = await apiCreateGroup(name, newGroupDescription.trim() || undefined);
+			const group = await apiCreateGroup(communityStore.activeCommunityId, name, newGroupDescription.trim() || undefined);
 			groupStore.addGroup(group);
 			// Load the auto-created #general channel
 			const chs = await listGroupChannels(group.id);
@@ -1492,10 +1570,51 @@
 			></button>
 		{/if}
 
+		<!-- Community Rail + Sidebar wrapper -->
+		<div class="fixed inset-y-0 left-0 z-40 flex transition-transform md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
+
+		<!-- Community Rail -->
+		<nav class="flex w-[72px] flex-col items-center gap-2 overflow-y-auto border-r border-white/10 bg-[var(--bg-primary)] py-3 scrollbar-none">
+			{#each communityStore.communities as community (community.id)}
+				{@const isActive = communityStore.activeCommunityId === community.id}
+				<div class="group relative flex items-center">
+					<!-- Active indicator pill -->
+					<div class="absolute left-0 w-1 rounded-r-full bg-[var(--text-primary)] transition-all {isActive ? 'h-10' : 'h-0 group-hover:h-5'}"></div>
+					<button
+						onclick={() => switchCommunity(community.id)}
+						class="ml-3 flex h-12 w-12 items-center justify-center overflow-hidden transition-all {isActive ? 'rounded-2xl bg-[var(--accent)]' : 'rounded-[24px] bg-[var(--bg-secondary)] hover:rounded-2xl hover:bg-[var(--accent)]'}"
+						title={community.name}
+					>
+						{#if community.icon_url}
+							<img src={community.icon_url} alt={community.name} class="h-full w-full object-cover" />
+						{:else}
+							<span class="text-sm font-bold text-[var(--text-primary)]">{community.name.slice(0, 2).toUpperCase()}</span>
+						{/if}
+					</button>
+				</div>
+			{/each}
+
+			<!-- Separator -->
+			<div class="mx-auto h-0.5 w-8 rounded-full bg-white/10"></div>
+
+			<!-- Join Community button -->
+			<div class="group relative flex items-center">
+				<button
+					onclick={() => { showJoinCommunity = !showJoinCommunity; communityInvitePreview = null; joinCommunityCode = ''; }}
+					class="ml-3 flex h-12 w-12 items-center justify-center rounded-[24px] bg-[var(--bg-secondary)] text-[var(--success)] transition-all hover:rounded-2xl hover:bg-[var(--success)] hover:text-white"
+					title="Join a Community"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+				</button>
+			</div>
+		</nav>
+
 		<!-- Sidebar -->
-		<aside class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-white/10 bg-[var(--bg-secondary)] transition-transform md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
+		<aside class="flex w-60 flex-col border-r border-white/10 bg-[var(--bg-secondary)]">
 			<div class="flex h-14 items-center justify-between border-b border-white/10 px-4">
-				<h1 class="text-lg font-bold text-[var(--text-primary)]">Chatalot</h1>
+				<h1 class="truncate text-lg font-bold text-[var(--text-primary)]" title={communityStore.activeCommunity?.name ?? 'Chatalot'}>{communityStore.activeCommunity?.name ?? 'Chatalot'}</h1>
 				<div class="flex items-center gap-1">
 					{#if authStore.user?.is_admin}
 						<button
@@ -1508,10 +1627,21 @@
 							</svg>
 						</button>
 					{/if}
+					{#if communityStore.activeCommunityId}
+						<button
+							onclick={() => goto('/community')}
+							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							title="Community Settings"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+							</svg>
+						</button>
+					{/if}
 					<button
 						onclick={() => goto('/settings')}
 						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						title="Settings"
+						title="User Settings"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -1957,6 +2087,38 @@
 				</button>
 			</div>
 		</aside>
+
+		</div><!-- end community rail + sidebar wrapper -->
+
+		<!-- Join Community modal (overlays the sidebar area) -->
+		{#if showJoinCommunity}
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" transition:fade={{ duration: 150 }}>
+				<div class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" onclick={(e) => e.stopPropagation()}>
+					<div class="mb-4 flex items-center justify-between">
+						<h3 class="text-lg font-bold text-[var(--text-primary)]">Join a Community</h3>
+						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">&times;</button>
+					</div>
+					<input
+						type="text"
+						bind:value={joinCommunityCode}
+						placeholder="Enter invite code..."
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+					/>
+					{#if communityInvitePreview}
+						<div class="mt-3 rounded-lg bg-white/5 p-3">
+							<div class="font-medium text-[var(--text-primary)]">{communityInvitePreview.community_name}</div>
+							{#if communityInvitePreview.community_description}
+								<div class="mt-1 text-sm text-[var(--text-secondary)]">{communityInvitePreview.community_description}</div>
+							{/if}
+							<div class="mt-1 text-xs text-[var(--text-secondary)]">{communityInvitePreview.member_count} members</div>
+						</div>
+						<button onclick={handleAcceptCommunityInvite} class="mt-3 w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]">Join Community</button>
+					{:else}
+						<button onclick={handlePreviewCommunityInvite} class="mt-3 w-full rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:bg-white/15">Look Up</button>
+					{/if}
+				</div>
+			</div>
+		{/if}
 
 		<!-- Main chat area -->
 		<main

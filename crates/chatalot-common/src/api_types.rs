@@ -244,6 +244,7 @@ pub struct FeedbackResponse {
 pub struct CreateGroupRequest {
     pub name: String,
     pub description: Option<String>,
+    pub community_id: Uuid,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -258,6 +259,7 @@ pub struct GroupResponse {
     pub name: String,
     pub description: Option<String>,
     pub owner_id: Uuid,
+    pub community_id: Uuid,
     pub created_at: String,
     pub member_count: i64,
 }
@@ -394,6 +396,11 @@ pub struct SetAdminRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ResetPasswordRequest {
+    pub new_password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AdminUsersQuery {
     pub search: Option<String>,
     pub limit: Option<i64>,
@@ -433,4 +440,92 @@ pub struct HealthResponse {
     pub status: String,
     pub version: String,
     pub uptime_secs: u64,
+}
+
+// ── Communities ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateCommunityRequest {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateCommunityRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub icon_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub icon_url: Option<String>,
+    pub owner_id: Uuid,
+    pub created_at: String,
+    pub member_count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityMemberResponse {
+    pub user_id: Uuid,
+    pub username: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub nickname: Option<String>,
+    pub joined_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetCommunityRoleRequest {
+    pub role: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetNicknameRequest {
+    pub nickname: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityBanRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateCommunityInviteRequest {
+    pub max_uses: Option<i32>,
+    pub expires_in_hours: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityInviteResponse {
+    pub id: Uuid,
+    pub code: String,
+    pub community_id: Uuid,
+    pub max_uses: Option<i32>,
+    pub used_count: i32,
+    pub expires_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityInviteInfoResponse {
+    pub community_name: String,
+    pub community_description: Option<String>,
+    pub member_count: i64,
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AcceptCommunityInviteResponse {
+    pub community_id: Uuid,
+    pub community_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransferCommunityOwnershipRequest {
+    pub new_owner_id: Uuid,
 }

@@ -6,7 +6,7 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{UserPublic, UserSearchQuery};
-use chatalot_db::repos::user_repo;
+use chatalot_db::repos::{community_repo, user_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -20,12 +20,20 @@ pub fn routes() -> Router<Arc<AppState>> {
 
 async fn get_user(
     State(state): State<Arc<AppState>>,
-    Extension(_claims): Extension<AccessClaims>,
+    Extension(claims): Extension<AccessClaims>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<UserPublic>, AppError> {
     let user = user_repo::find_by_id(&state.db, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    // Only visible if caller shares a community with the target (or is admin)
+    if !claims.is_admin
+        && claims.sub != user_id
+        && !community_repo::shares_community(&state.db, claims.sub, user_id).await?
+    {
+        return Err(AppError::NotFound("user not found".to_string()));
+    }
 
     Ok(Json(UserPublic {
         id: user.id,
@@ -40,7 +48,7 @@ async fn get_user(
 
 async fn search_users(
     State(state): State<Arc<AppState>>,
-    Extension(_claims): Extension<AccessClaims>,
+    Extension(claims): Extension<AccessClaims>,
     Query(query): Query<UserSearchQuery>,
 ) -> Result<Json<Vec<UserPublic>>, AppError> {
     if query.q.len() < 2 {
@@ -49,7 +57,13 @@ async fn search_users(
         ));
     }
 
-    let users = user_repo::search_users(&state.db, &query.q, 20).await?;
+    // Instance admins can search all users; everyone else only sees community peers
+    let users = if claims.is_admin {
+        user_repo::search_users(&state.db, &query.q, 20).await?
+    } else {
+        community_repo::search_visible_users(&state.db, claims.sub, &query.q, 20).await?
+    };
+
     let results = users
         .iter()
         .map(|u| UserPublic {

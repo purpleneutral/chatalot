@@ -15,6 +15,7 @@ pub struct Config {
     pub forgejo_repo_name: Option<String>,
     pub admin_username: Option<String>,
     pub registration_mode: String,
+    pub community_creation_mode: String,
 }
 
 impl Config {
@@ -42,6 +43,8 @@ impl Config {
             admin_username: std::env::var("ADMIN_USERNAME").ok(),
             registration_mode: std::env::var("REGISTRATION_MODE")
                 .unwrap_or_else(|_| "invite_only".to_string()),
+            community_creation_mode: std::env::var("COMMUNITY_CREATION_MODE")
+                .unwrap_or_else(|_| "admin_only".to_string()),
         })
     }
 }

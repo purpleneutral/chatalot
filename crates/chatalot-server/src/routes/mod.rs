@@ -2,6 +2,7 @@ pub mod account;
 pub mod admin;
 pub mod auth;
 pub mod channels;
+pub mod communities;
 pub mod dms;
 pub mod feedback;
 pub mod groups;
@@ -24,6 +25,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::app_state::AppState;
 use crate::middleware::auth::auth_middleware;
+use crate::middleware::community_gate::community_gate_middleware;
 use crate::middleware::rate_limit::{auth_rate_limit_middleware, rate_limit_middleware};
 use crate::middleware::security::security_headers;
 use crate::ws::session::ws_upgrade;
@@ -39,6 +41,14 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(health::routes())
         .merge(account::public_routes());
 
+    // Community-gated routes (require auth + community membership)
+    let community_gated_routes = Router::new()
+        .merge(communities::gated_routes())
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            community_gate_middleware,
+        ));
+
     // Protected routes (auth required)
     let protected_routes = Router::new()
         .merge(channels::routes())
@@ -53,6 +63,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(link_preview::routes())
         .merge(account::routes())
         .merge(admin::routes())
+        .merge(communities::public_routes())
+        .merge(community_gated_routes)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
