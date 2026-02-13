@@ -47,6 +47,13 @@ export async function setAdmin(
 	return api.put(`/admin/users/${userId}/admin`, { is_admin: isAdmin });
 }
 
+export async function resetUserPassword(
+	userId: string,
+	newPassword: string
+): Promise<void> {
+	return api.put(`/admin/users/${userId}/password`, { new_password: newPassword });
+}
+
 // ── Registration Invites ──
 
 export interface RegistrationInvite {

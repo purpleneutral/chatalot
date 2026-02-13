@@ -7,13 +7,14 @@ use uuid::Uuid;
 
 use chatalot_common::api_types::{
     AdminUserResponse, AdminUsersQuery, CreateRegistrationInviteRequest,
-    RegistrationInviteResponse, SetAdminRequest, SuspendUserRequest,
+    RegistrationInviteResponse, ResetPasswordRequest, SetAdminRequest, SuspendUserRequest,
 };
 use chatalot_db::repos::{registration_invite_repo, user_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
+use crate::services::auth_service;
 
 /// Guard: returns Forbidden if the caller is not an admin.
 fn require_admin(claims: &AccessClaims) -> Result<(), AppError> {
@@ -44,6 +45,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/admin/users/{id}/unsuspend", post(unsuspend_user))
         .route("/admin/users/{id}", delete(delete_user))
         .route("/admin/users/{id}/admin", put(set_admin))
+        .route("/admin/users/{id}/password", put(reset_password))
         .route(
             "/admin/invites",
             get(list_registration_invites).post(create_registration_invite),
@@ -222,6 +224,44 @@ async fn set_admin(
         Uuid::now_v7(),
         Some(claims.sub),
         action,
+        None,
+        None,
+        Some(serde_json::json!({ "target_user_id": user_id })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn reset_password(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(user_id): Path<Uuid>,
+    Json(req): Json<ResetPasswordRequest>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    if user_id == claims.sub {
+        return Err(AppError::Validation(
+            "you cannot reset your own password here — use account settings".to_string(),
+        ));
+    }
+
+    user_repo::find_by_id(&state.db, user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    auth_service::validate_password(&req.new_password)?;
+
+    let new_hash = auth_service::hash_password(&req.new_password)?;
+    user_repo::update_password(&state.db, user_id, &new_hash).await?;
+    user_repo::revoke_all_refresh_tokens(&state.db, user_id).await?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_reset_password",
         None,
         None,
         Some(serde_json::json!({ "target_user_id": user_id })),

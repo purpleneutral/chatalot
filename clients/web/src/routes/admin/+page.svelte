@@ -3,7 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import {
-		listUsers, suspendUser, unsuspendUser, deleteUser, setAdmin, type AdminUser,
+		listUsers, suspendUser, unsuspendUser, deleteUser, setAdmin, resetUserPassword, type AdminUser,
 		createRegistrationInvite, listRegistrationInvites, deleteRegistrationInvite,
 		type RegistrationInvite
 	} from '$lib/api/admin';
@@ -90,6 +90,19 @@
 			await loadUsers();
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to update admin status');
+		}
+	}
+
+	async function handleResetPassword(user: AdminUser) {
+		const newPassword = prompt(
+			`Reset password for ${user.username}\n\nRequirements: 8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character\n\nEnter new password:`
+		);
+		if (!newPassword) return;
+		try {
+			await resetUserPassword(user.id, newPassword);
+			toastStore.success(`Password reset for ${user.username} — they will need to log in again`);
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to reset password');
 		}
 	}
 
@@ -249,6 +262,12 @@
 															Suspend
 														</button>
 													{/if}
+													<button
+														onclick={() => handleResetPassword(user)}
+														class="rounded px-2 py-1 text-xs text-orange-400 transition hover:bg-orange-500/10"
+													>
+														Reset Password
+													</button>
 													<button
 														onclick={() => handleToggleAdmin(user)}
 														class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
