@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
+use axum::body::Body;
 use axum::extract::{Path, State};
+use axum::http::header;
 use axum::routing::{delete, get, post, put};
 use axum::{Extension, Json, Router};
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
@@ -20,10 +23,16 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/account/password", put(change_password))
         .route("/account/profile", put(update_profile))
+        .route("/account/avatar", post(upload_avatar))
         .route("/account", delete(delete_account))
         .route("/account/logout-all", post(logout_all))
         .route("/account/sessions", get(list_sessions))
         .route("/account/sessions/{id}", delete(revoke_session))
+}
+
+/// Public route for serving avatar images (no auth required).
+pub fn public_routes() -> Router<Arc<AppState>> {
+    Router::new().route("/avatars/{filename}", get(serve_avatar))
 }
 
 async fn change_password(
@@ -107,6 +116,141 @@ async fn update_profile(
         custom_status: user.custom_status,
         is_admin: user.is_admin,
     }))
+}
+
+const MAX_AVATAR_SIZE: usize = 2 * 1024 * 1024; // 2MB
+const ALLOWED_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+async fn upload_avatar(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<UserPublic>, AppError> {
+    let mut file_data: Option<Vec<u8>> = None;
+    let mut content_type: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::Validation(format!("multipart error: {e}")))?
+    {
+        if field.name() == Some("avatar") {
+            content_type = field.content_type().map(|s| s.to_string());
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
+            if bytes.len() > MAX_AVATAR_SIZE {
+                return Err(AppError::Validation("avatar too large (max 2 MB)".into()));
+            }
+            file_data = Some(bytes.to_vec());
+        }
+    }
+
+    let data = file_data.ok_or_else(|| AppError::Validation("no avatar field".into()))?;
+    let ct = content_type
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+
+    if !ALLOWED_TYPES.contains(&ct) {
+        return Err(AppError::Validation(
+            "invalid image type (allowed: png, jpg, webp, gif)".into(),
+        ));
+    }
+
+    let ext = match ct {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "bin",
+    };
+
+    // Store in avatars/ subdirectory
+    let avatar_dir =
+        std::path::Path::new(&state.config.file_storage_path).join("avatars");
+    tokio::fs::create_dir_all(&avatar_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create avatar dir: {e}")))?;
+
+    let filename = format!("{}.{ext}", claims.sub);
+    let file_path = avatar_dir.join(&filename);
+
+    let mut f = tokio::fs::File::create(&file_path)
+        .await
+        .map_err(|e| AppError::Internal(format!("create avatar file: {e}")))?;
+    f.write_all(&data)
+        .await
+        .map_err(|e| AppError::Internal(format!("write avatar: {e}")))?;
+    f.flush()
+        .await
+        .map_err(|e| AppError::Internal(format!("flush avatar: {e}")))?;
+
+    // Update user's avatar_url to the public serving path
+    let avatar_url = format!("/api/avatars/{filename}");
+    let user = user_repo::update_profile(
+        &state.db,
+        claims.sub,
+        None,
+        Some(Some(&avatar_url)),
+        None,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("user not found".into()))?;
+
+    Ok(Json(UserPublic {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        status: user.status,
+        custom_status: user.custom_status,
+        is_admin: user.is_admin,
+    }))
+}
+
+async fn serve_avatar(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<([(header::HeaderName, String); 2], Body), AppError> {
+    // Sanitize filename to prevent path traversal
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err(AppError::Validation("invalid filename".into()));
+    }
+
+    let avatar_path = std::path::Path::new(&state.config.file_storage_path)
+        .join("avatars")
+        .join(&filename);
+
+    let file = tokio::fs::File::open(&avatar_path)
+        .await
+        .map_err(|_| AppError::NotFound("avatar not found".into()))?;
+
+    let content_type = if filename.ends_with(".png") {
+        "image/png"
+    } else if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if filename.ends_with(".webp") {
+        "image/webp"
+    } else if filename.ends_with(".gif") {
+        "image/gif"
+    } else {
+        "application/octet-stream"
+    };
+
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, content_type.to_string()),
+            (
+                header::CACHE_CONTROL,
+                "public, max-age=3600".to_string(),
+            ),
+        ],
+        body,
+    ))
 }
 
 async fn delete_account(

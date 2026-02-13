@@ -8,7 +8,7 @@
 
 	onMount(() => {
 		// Ensure theme is applied on mount
-		document.documentElement.setAttribute('data-theme', themeStore.current);
+		document.documentElement.setAttribute('data-theme', themeStore.resolved);
 	});
 </script>
 

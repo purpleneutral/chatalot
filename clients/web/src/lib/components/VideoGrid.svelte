@@ -2,6 +2,7 @@
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { userStore } from '$lib/stores/users.svelte';
+	import Avatar from '$lib/components/Avatar.svelte';
 
 	let localVideoEl: HTMLVideoElement | undefined = $state();
 	let screenVideoEl: HTMLVideoElement | undefined = $state();
@@ -74,11 +75,9 @@
 						class="h-full w-full object-cover"
 					></video>
 				{:else}
-					<div class="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)]">
-						<span class="text-2xl font-bold text-white">
-							{authStore.user?.display_name?.[0]?.toUpperCase() ?? '?'}
-						</span>
-					</div>
+					{#if authStore.user}
+						<Avatar userId={authStore.user.id} size="lg" />
+					{/if}
 				{/if}
 				<div class="absolute bottom-1 left-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
 					You {voiceStore.activeCall?.audioEnabled ? '' : '(muted)'}

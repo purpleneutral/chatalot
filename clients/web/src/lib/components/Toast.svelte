@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { fly } from 'svelte/transition';
 
 	const typeStyles: Record<string, string> = {
 		success: 'border-green-500/30 bg-green-500/10 text-green-400',
@@ -18,7 +19,8 @@
 	<div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
 		{#each toastStore.toasts as toast (toast.id)}
 			<div
-				class="flex items-center gap-3 rounded-lg border px-4 py-3 shadow-xl backdrop-blur-sm transition-all animate-in {typeStyles[toast.type]}"
+				class="flex items-center gap-3 rounded-lg border px-4 py-3 shadow-xl backdrop-blur-sm {typeStyles[toast.type]}"
+				transition:fly={{ x: 100, duration: 200 }}
 				role="alert"
 			>
 				<svg
@@ -47,20 +49,3 @@
 		{/each}
 	</div>
 {/if}
-
-<style>
-	.animate-in {
-		animation: slide-in 0.3s ease-out;
-	}
-
-	@keyframes slide-in {
-		from {
-			opacity: 0;
-			transform: translateX(100%);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(0);
-		}
-	}
-</style>

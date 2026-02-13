@@ -1,4 +1,6 @@
 import { api } from './client';
+import { apiBase } from '$lib/env';
+import { authStore } from '$lib/stores/auth.svelte';
 import type { UserPublic } from './users';
 
 export interface SessionInfo {
@@ -41,4 +43,28 @@ export async function listSessions(): Promise<SessionInfo[]> {
 
 export async function revokeSession(sessionId: string): Promise<void> {
 	return api.delete(`/account/sessions/${sessionId}`);
+}
+
+export async function uploadAvatar(file: File): Promise<UserPublic> {
+	const formData = new FormData();
+	formData.append('avatar', file);
+
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const response = await fetch(`${apiBase()}/account/avatar`, {
+		method: 'POST',
+		headers,
+		body: formData
+	});
+
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+
+	return response.json();
 }

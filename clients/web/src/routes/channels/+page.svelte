@@ -15,6 +15,8 @@
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import CallControls from '$lib/components/CallControls.svelte';
 	import VideoGrid from '$lib/components/VideoGrid.svelte';
+	import Avatar from '$lib/components/Avatar.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { submitFeedback } from '$lib/api/feedback';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { memberStore } from '$lib/stores/members.svelte';
@@ -25,6 +27,7 @@
 	import DOMPurify from 'dompurify';
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
+	import { fade, slide, fly, scale } from 'svelte/transition';
 
 	let messageInput = $state('');
 	let newChannelName = $state('');
@@ -98,6 +101,15 @@
 
 	// Notification dropdown state
 	let showNotifDropdown = $state(false);
+
+	// Status picker state
+	let showStatusPicker = $state(false);
+	const statusOptions = [
+		{ value: 'online', label: 'Online', desc: 'Available', color: 'bg-[var(--success)]' },
+		{ value: 'idle', label: 'Away', desc: 'Be right back', color: 'bg-yellow-400' },
+		{ value: 'dnd', label: 'Do Not Disturb', desc: 'Leave me alone', color: 'bg-[var(--danger)]' },
+		{ value: 'invisible', label: 'Invisible', desc: 'Appear offline', color: 'bg-gray-500' }
+	] as const;
 
 	// Search state
 	let showSearch = $state(false);
@@ -242,6 +254,21 @@
 				channel_ids: allIds
 			});
 		}
+
+		// Restore saved presence status
+		const savedStatus = localStorage.getItem('chatalot:status') as 'online' | 'idle' | 'dnd' | 'invisible' | null;
+		if (savedStatus && savedStatus !== 'online') {
+			wsClient.send({ type: 'update_presence', status: savedStatus });
+		}
+	}
+
+	function setUserStatus(status: 'online' | 'idle' | 'dnd' | 'invisible') {
+		wsClient.send({ type: 'update_presence', status });
+		localStorage.setItem('chatalot:status', status);
+		if (authStore.user) {
+			presenceStore.setStatus(authStore.user.id, status);
+		}
+		showStatusPicker = false;
 	}
 
 	onMount(async () => {
@@ -396,6 +423,7 @@
 		reactionPickerMessageId = null;
 		fullEmojiPickerMessageId = null;
 		showNotifDropdown = false;
+		showStatusPicker = false;
 	}
 
 	function openFullEmojiPicker(messageId: string) {
@@ -1356,6 +1384,7 @@
 		{#if sidebarOpen}
 			<button
 				class="fixed inset-0 z-30 bg-black/50 md:hidden"
+				transition:fade={{ duration: 150 }}
 				onclick={() => (sidebarOpen = false)}
 				aria-label="Close sidebar"
 			></button>
@@ -1475,9 +1504,7 @@
 									onclick={() => startDm(user)}
 									class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 								>
-									<div class="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-										<span class="text-xs font-medium">{user.display_name[0]?.toUpperCase()}</span>
-									</div>
+									<Avatar userId={user.id} size="xs" showStatus />
 									<span>{user.display_name}</span>
 									<span class="text-xs text-[var(--text-secondary)]">@{user.username}</span>
 								</button>
@@ -1745,11 +1772,7 @@
 							onclick={() => { channelStore.addChannel(dm.channel); selectChannel(dm.channel.id); }}
 							class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition {channelStore.activeChannelId === dm.channel.id ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 						>
-							<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-								<span class="text-xs font-medium text-[var(--text-secondary)]">
-									{getDmDisplayName(dm)[0]?.toUpperCase() ?? '?'}
-								</span>
-							</div>
+							<Avatar userId={dm.other_user.id} size="xs" showStatus />
 							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}">{getDmDisplayName(dm)}</span>
 							{#if unreadCount > 0 && channelStore.activeChannelId !== dm.channel.id}
 								<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
@@ -1765,17 +1788,39 @@
 			</div>
 
 			<!-- User info -->
-			<div class="flex items-center gap-3 border-t border-white/10 p-3">
-				<div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)]">
-					<span class="text-sm font-medium text-white">
-						{authStore.user?.display_name?.[0]?.toUpperCase() ?? '?'}
-					</span>
-				</div>
+			<div class="relative flex items-center gap-3 border-t border-white/10 p-3">
+				{#if authStore.user}
+					<button onclick={() => (showStatusPicker = !showStatusPicker)} class="rounded-full transition hover:ring-2 hover:ring-[var(--accent)]/50" title="Set status">
+						<Avatar userId={authStore.user.id} size="sm" showStatus />
+					</button>
+				{/if}
 				<div class="flex-1 overflow-hidden">
 					<div class="truncate text-sm font-medium text-[var(--text-primary)]">
 						{authStore.user?.display_name}
 					</div>
+					<div class="truncate text-xs text-[var(--text-secondary)]">
+						{statusOptions.find(s => s.value === (authStore.user ? presenceStore.getStatus(authStore.user.id) : 'offline'))?.label ?? 'Online'}
+					</div>
 				</div>
+
+				<!-- Status picker dropdown -->
+				{#if showStatusPicker}
+					<div class="absolute bottom-full left-2 mb-2 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" transition:scale={{ start: 0.95, duration: 150 }}>
+						<div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Set Status</div>
+						{#each statusOptions as opt (opt.value)}
+							<button
+								onclick={() => setUserStatus(opt.value)}
+								class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition hover:bg-white/5"
+							>
+								<span class="h-2.5 w-2.5 rounded-full {opt.color}"></span>
+								<div>
+									<div class="font-medium text-[var(--text-primary)]">{opt.label}</div>
+									<div class="text-xs text-[var(--text-secondary)]">{opt.desc}</div>
+								</div>
+							</button>
+						{/each}
+					</div>
+				{/if}
 				<button
 					onclick={() => (showFeedback = true)}
 					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--accent)]"
@@ -1904,7 +1949,7 @@
 
 				<!-- Search panel -->
 				{#if showSearch}
-					<div class="border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-3">
+					<div class="border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-3" transition:slide={{ duration: 150 }}>
 						<input
 							type="text"
 							bind:value={searchQuery}
@@ -1941,9 +1986,7 @@
 				<!-- Messages -->
 				<div bind:this={messageListEl} class="flex-1 overflow-y-auto px-6 py-4" onscroll={handleMessageScroll}>
 					{#if loadingOlder}
-						<div class="flex justify-center py-2">
-							<span class="text-xs text-[var(--text-secondary)]">Loading older messages...</span>
-						</div>
+						<Skeleton variant="message" count={3} />
 					{/if}
 					{#each messages as msg, idx (msg.id)}
 						<!-- Date separator -->
@@ -1960,11 +2003,7 @@
 							role="article"
 							aria-label="Message from {userStore.getDisplayName(msg.senderId)}"
 						>
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-								<span class="text-sm font-medium text-[var(--text-secondary)]">
-									{userStore.getInitial(msg.senderId)}
-								</span>
-							</div>
+							<Avatar userId={msg.senderId} size="md" />
 							<div class="min-w-0 flex-1">
 								{#if msg.replyToId}
 									{@const repliedMsg = messages.find(m => m.id === msg.replyToId)}
@@ -2193,6 +2232,7 @@
 							{#if reactionPickerMessageId === msg.id}
 								<div
 									class="absolute right-2 top-8 z-10 flex items-center gap-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-xl"
+									transition:scale={{ start: 0.9, duration: 150 }}
 									role="toolbar"
 									aria-label="Reaction picker"
 								>
@@ -2222,6 +2262,7 @@
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
 									class="absolute right-2 top-8 z-20"
+									transition:scale={{ start: 0.9, duration: 150 }}
 									onclick={(e) => e.stopPropagation()}
 								>
 									<emoji-picker
@@ -2279,9 +2320,7 @@
 										<span class="font-semibold text-yellow-400">@{member.username}</span>
 										<span class="text-xs opacity-50">{member.description}</span>
 									{:else}
-										<div class="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-											<span class="text-xs font-medium">{member.display_name[0]?.toUpperCase()}</span>
-										</div>
+										<Avatar userId={member.user_id} size="xs" />
 										<span class="font-medium">{member.display_name}</span>
 										<span class="text-xs opacity-60">@{member.username}</span>
 									{/if}
@@ -2325,13 +2364,22 @@
 							Send
 						</button>
 					</div>
-					<div class="mt-1 flex items-center gap-3 text-[10px] text-[var(--text-secondary)]/50">
-						<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> send</span>
-						<span><kbd class="rounded bg-white/5 px-1">Shift+Enter</kbd> new line</span>
-						<span><kbd class="rounded bg-white/5 px-1">Ctrl+B</kbd> bold</span>
-						<span><kbd class="rounded bg-white/5 px-1">Ctrl+I</kbd> italic</span>
-						<span><kbd class="rounded bg-white/5 px-1">Ctrl+E</kbd> code</span>
-						<span><kbd class="rounded bg-white/5 px-1">↑</kbd> edit last</span>
+					<div class="mt-1 flex items-center gap-1">
+						<div class="flex items-center gap-0.5">
+							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Bold (Ctrl+B)">B</button>
+							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Italic (Ctrl+I)">I</button>
+							<button type="button" onclick={() => wrapSelection('~~', '~~')} class="rounded px-1.5 py-0.5 text-xs line-through text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Strikethrough">S</button>
+							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Code (Ctrl+E)">&lt;&gt;</button>
+							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Link (Ctrl+K)">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+							</button>
+						</div>
+						<span class="mx-1 h-3 w-px bg-white/10"></span>
+						<div class="flex items-center gap-2 text-[10px] text-[var(--text-secondary)]/50">
+							<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> send</span>
+							<span><kbd class="rounded bg-white/5 px-1">Shift+Enter</kbd> new line</span>
+							<span class="hidden sm:inline"><kbd class="rounded bg-white/5 px-1">↑</kbd> edit last</span>
+						</div>
 					</div>
 				</form>
 			{:else}
@@ -2363,15 +2411,11 @@
 						Members ({channelMembers.length})
 					</h3>
 					{#if membersLoading}
-						<p class="text-sm text-[var(--text-secondary)]">Loading...</p>
+						<Skeleton variant="member" count={4} />
 					{:else}
 						{#each channelMembers as member (member.user_id)}
 							<div class="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
-								<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-									<span class="text-xs font-medium text-[var(--text-secondary)]">
-										{member.display_name[0]?.toUpperCase() ?? '?'}
-									</span>
-								</div>
+								<Avatar userId={member.user_id} size="sm" showStatus />
 								<div class="min-w-0 flex-1">
 									<div class="flex items-center gap-1.5">
 										<span class="truncate text-sm text-[var(--text-primary)]">
@@ -2426,8 +2470,8 @@
 
 	<!-- Feedback modal -->
 	{#if showFeedback}
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-			<div class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl">
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }}>
+			<div class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" transition:scale={{ start: 0.95, duration: 200 }}>
 				<h2 class="mb-1 text-lg font-semibold text-[var(--text-primary)]">Send Feedback</h2>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">Help us improve Chatalot. Your feedback creates an issue for the developers.</p>
 

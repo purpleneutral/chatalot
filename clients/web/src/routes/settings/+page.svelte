@@ -6,8 +6,9 @@
 	import { soundStore } from '$lib/stores/sound.svelte';
 	import { notificationStore } from '$lib/stores/notification.svelte';
 	import { setupTotp, verifyTotp, disableTotp, type TotpSetup } from '$lib/api/totp';
-	import { changePassword, updateProfile, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
+	import { changePassword, updateProfile, uploadAvatar, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount } from 'svelte';
 
 	let isDesktop = $derived(isTauri());
@@ -27,6 +28,10 @@
 	let profileSaving = $state(false);
 	let profileMessage = $state('');
 	let profileError = $state('');
+
+	// Avatar upload
+	let avatarInputEl: HTMLInputElement | undefined = $state();
+	let avatarUploading = $state(false);
 
 	// Change password
 	let currentPassword = $state('');
@@ -71,6 +76,39 @@
 			sessionsError = err instanceof Error ? err.message : 'Failed to load sessions';
 		} finally {
 			sessionsLoading = false;
+		}
+	}
+
+	async function handleAvatarUpload(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		avatarUploading = true;
+		profileError = '';
+		try {
+			const updated = await uploadAvatar(file);
+			authStore.updateUser(updated);
+			profileMessage = 'Avatar updated.';
+		} catch (err) {
+			profileError = err instanceof Error ? err.message : 'Failed to upload avatar';
+		} finally {
+			avatarUploading = false;
+			if (avatarInputEl) avatarInputEl.value = '';
+		}
+	}
+
+	async function handleRemoveAvatar() {
+		profileSaving = true;
+		profileError = '';
+		try {
+			const updated = await updateProfile({ avatar_url: null });
+			authStore.updateUser(updated);
+			profileMessage = 'Avatar removed.';
+		} catch (err) {
+			profileError = err instanceof Error ? err.message : 'Failed to remove avatar';
+		} finally {
+			profileSaving = false;
 		}
 	}
 
@@ -230,13 +268,38 @@
 				{/if}
 
 				<div class="mb-4 flex items-center gap-4">
-					<div class="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)]">
-						<span class="text-2xl font-bold text-white">
-							{authStore.user?.display_name?.[0]?.toUpperCase() ?? '?'}
-						</span>
+					<div class="group relative">
+						{#if authStore.user}
+							<Avatar userId={authStore.user.id} size="lg" />
+						{/if}
+						<button
+							onclick={() => avatarInputEl?.click()}
+							disabled={avatarUploading}
+							class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-wait"
+							title="Change avatar"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+							</svg>
+						</button>
+						<input
+							bind:this={avatarInputEl}
+							type="file"
+							accept="image/png,image/jpeg,image/webp,image/gif"
+							onchange={handleAvatarUpload}
+							class="hidden"
+						/>
 					</div>
 					<div>
 						<div class="text-sm text-[var(--text-secondary)]">@{authStore.user?.username}</div>
+						{#if authStore.user?.avatar_url}
+							<button
+								onclick={handleRemoveAvatar}
+								class="mt-1 text-xs text-[var(--danger)] hover:underline"
+							>
+								Remove avatar
+							</button>
+						{/if}
 					</div>
 				</div>
 
@@ -352,28 +415,35 @@
 					<div>
 						<div class="font-medium">Theme</div>
 						<div class="text-sm text-[var(--text-secondary)]">
-							{themeStore.current === 'dark' ? 'Dark mode' : 'Light mode'}
+							{themeStore.current === 'system' ? `System (${themeStore.resolved === 'dark' ? 'Dark' : 'Light'})` : themeStore.resolved === 'dark' ? 'Dark mode' : 'Light mode'}
 						</div>
 					</div>
-					<button
-						onclick={() => themeStore.toggle()}
-						class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
-						aria-label="Toggle theme"
-					>
-						<span
-							class="absolute top-1 left-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--text-primary)] transition-transform {themeStore.current === 'light' ? 'translate-x-6' : ''}"
+					<div class="flex rounded-lg border border-white/10 overflow-hidden">
+						<button
+							onclick={() => themeStore.set('dark')}
+							class="px-3 py-1.5 text-sm transition {themeStore.current === 'dark' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
 						>
-							{#if themeStore.current === 'dark'}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--bg-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-								</svg>
-							{:else}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--bg-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-								</svg>
-							{/if}
-						</span>
-					</button>
+							<svg xmlns="http://www.w3.org/2000/svg" class="inline h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+							</svg>
+						</button>
+						<button
+							onclick={() => themeStore.set('light')}
+							class="border-x border-white/10 px-3 py-1.5 text-sm transition {themeStore.current === 'light' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="inline h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+							</svg>
+						</button>
+						<button
+							onclick={() => themeStore.set('system')}
+							class="px-3 py-1.5 text-sm transition {themeStore.current === 'system' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="inline h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+							</svg>
+						</button>
+					</div>
 				</div>
 			</section>
 

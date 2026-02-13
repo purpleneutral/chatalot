@@ -35,7 +35,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .layer(axum::middleware::from_fn(auth_rate_limit_middleware));
 
     // Public routes (no auth required)
-    let public_routes = auth_routes.merge(health::routes());
+    let public_routes = auth_routes
+        .merge(health::routes())
+        .merge(account::public_routes());
 
     // Protected routes (auth required)
     let protected_routes = Router::new()
