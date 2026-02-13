@@ -17,6 +17,7 @@
 	import VideoGrid from '$lib/components/VideoGrid.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
+	import { getMe } from '$lib/api/account';
 	import { submitFeedback } from '$lib/api/feedback';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { memberStore } from '$lib/stores/members.svelte';
@@ -279,6 +280,12 @@
 			goto('/login');
 			return;
 		}
+
+		// Refresh user data from server (keeps is_admin, avatar_url etc. current)
+		try {
+			const me = await getMe();
+			authStore.updateUser(me);
+		} catch {}
 
 		// Populate user cache with current user
 		if (authStore.user) {

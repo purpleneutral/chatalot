@@ -3,6 +3,10 @@ import { apiBase } from '$lib/env';
 import { authStore } from '$lib/stores/auth.svelte';
 import type { UserPublic } from './users';
 
+export async function getMe(): Promise<UserPublic> {
+	return api.get('/account/me');
+}
+
 export interface SessionInfo {
 	id: string;
 	device_name: string | null;

@@ -21,6 +21,7 @@ use crate::services::auth_service;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
+        .route("/account/me", get(get_me))
         .route("/account/password", put(change_password))
         .route("/account/profile", put(update_profile))
         .route("/account/avatar", post(upload_avatar))
@@ -33,6 +34,25 @@ pub fn routes() -> Router<Arc<AppState>> {
 /// Public route for serving avatar images (no auth required).
 pub fn public_routes() -> Router<Arc<AppState>> {
     Router::new().route("/avatars/{filename}", get(serve_avatar))
+}
+
+async fn get_me(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<UserPublic>, AppError> {
+    let user = user_repo::find_by_id(&state.db, claims.sub)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    Ok(Json(UserPublic {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: user.avatar_url,
+        status: user.status,
+        custom_status: user.custom_status,
+        is_admin: user.is_admin,
+    }))
 }
 
 async fn change_password(
