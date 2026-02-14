@@ -500,10 +500,9 @@ class WebRTCManager {
 			const participantSet = new Set(participants);
 
 			// Remove peers who are no longer in the participant list
-			for (const [userId] of this.peers) {
-				if (!participantSet.has(userId)) {
-					this.onUserLeft(userId);
-				}
+			const toRemove = [...this.peers.keys()].filter(id => !participantSet.has(id));
+			for (const userId of toRemove) {
+				this.onUserLeft(userId);
 			}
 
 			// Establish connections with new participants
@@ -511,7 +510,11 @@ class WebRTCManager {
 				if (userId !== myId && !this.peers.has(userId)) {
 					// Only the impolite peer (higher ID) creates offers
 					if (!this.isPolite(userId)) {
-						await this.createAndSendOffer(userId);
+						try {
+							await this.createAndSendOffer(userId);
+						} catch (err) {
+							console.error(`Failed to create offer for ${userId}:`, err);
+						}
 					}
 				}
 			}

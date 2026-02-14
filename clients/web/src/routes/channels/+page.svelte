@@ -295,6 +295,9 @@
 	let showMemberPanel = $state(false);
 	let membersLoading = $state(false);
 
+	// Chat collapse state (during voice calls)
+	let chatCollapsed = $state(false);
+
 	// Feedback modal state
 	let showFeedback = $state(false);
 	let feedbackTitle = $state('');
@@ -1467,6 +1470,15 @@
 
 	const SPECIAL_MENTIONS = ['everyone', 'here', 'channel'];
 
+	function getUserColor(userId: string): string {
+		let hash = 0;
+		for (let i = 0; i < userId.length; i++) {
+			hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+		}
+		const hue = ((hash % 360) + 360) % 360;
+		return `hsl(${hue}, 70%, 65%)`;
+	}
+
 	function isEncryptedMessage(text: string): boolean {
 		if (!text.startsWith('{"v":')) return false;
 		try {
@@ -2287,14 +2299,14 @@
 	}
 
 	// ── Tab notifications ──
+	let dmUnreadTotal = $derived(
+		dmChannels.reduce((sum, dm) => sum + messageStore.getUnreadCount(dm.channel.id), 0)
+	);
+	let channelUnreadTotal = $derived(
+		channelStore.channels.filter(c => c.channel_type !== 'dm').reduce((sum, c) => sum + messageStore.getUnreadCount(c.id), 0)
+	);
 	$effect(() => {
-		let total = 0;
-		for (const ch of channelStore.channels) {
-			total += messageStore.getUnreadCount(ch.id);
-		}
-		for (const dm of dmChannels) {
-			total += messageStore.getUnreadCount(dm.channel.id);
-		}
+		const total = channelUnreadTotal + dmUnreadTotal;
 		document.title = total > 0 ? `(${total}) Chatalot` : 'Chatalot';
 	});
 
@@ -2459,15 +2471,25 @@
 				</button>
 				<button
 					onclick={() => (sidebarTab = 'channels')}
-					class="flex-1 px-3 py-2 text-sm font-medium transition {sidebarTab === 'channels' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
+					class="flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition inline-flex {sidebarTab === 'channels' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 				>
 					Channels
+					{#if channelUnreadTotal > 0 && sidebarTab !== 'channels'}
+						<span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+							{channelUnreadTotal > 99 ? '99+' : channelUnreadTotal}
+						</span>
+					{/if}
 				</button>
 				<button
 					onclick={() => (sidebarTab = 'dms')}
-					class="flex-1 px-3 py-2 text-sm font-medium transition {sidebarTab === 'dms' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
+					class="flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition inline-flex {sidebarTab === 'dms' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 				>
 					DMs
+					{#if dmUnreadTotal > 0 && sidebarTab !== 'dms'}
+						<span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+							{dmUnreadTotal > 99 ? '99+' : dmUnreadTotal}
+						</span>
+					{/if}
 				</button>
 			</div>
 
@@ -3295,8 +3317,25 @@
 				{/if}
 
 				<!-- Video grid (visible when in a call) -->
-				<VideoGrid />
+				<VideoGrid expanded={chatCollapsed} />
 
+				<!-- Chat collapse toggle (only during voice calls) -->
+				{#if voiceStore.isInCall}
+					<button
+						onclick={() => (chatCollapsed = !chatCollapsed)}
+						class="flex w-full items-center justify-center gap-1.5 border-b border-white/10 bg-[var(--bg-secondary)] py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						{#if chatCollapsed}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+							Show Chat
+						{:else}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+							Hide Chat
+						{/if}
+					</button>
+				{/if}
+
+				{#if !chatCollapsed}
 				<!-- Messages -->
 				<div bind:this={messageListEl} class="flex-1 overflow-y-auto px-6 py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
 					{#if loadingOlder}
@@ -3321,7 +3360,8 @@
 							</div>
 						{/if}
 						<div
-							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 transition hover:bg-white/[0.02] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
+							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 pl-3 transition hover:bg-white/[0.04] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
+							style="border-left: 2px solid {getUserColor(msg.senderId)}; background: {getUserColor(msg.senderId).replace('65%)', '65% / 0.06)')};"
 							oncontextmenu={(e) => showContextMenu(e, msg.id)}
 							role="article"
 							aria-label="Message from {getDisplayNameForContext(msg.senderId)}"
@@ -3357,7 +3397,8 @@
 									{/if}
 									<div class="flex items-baseline gap-2">
 										<button
-											class="text-sm font-semibold text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0"
+											class="text-sm font-semibold hover:underline cursor-pointer bg-transparent border-none p-0"
+											style="color: {getUserColor(msg.senderId)}"
 											onclick={(e) => { e.stopPropagation(); openProfileCard(msg.senderId, e); }}
 										>
 											{getDisplayNameForContext(msg.senderId)}
@@ -4000,6 +4041,7 @@
 					</div>
 				{/if}
 				</form>
+				{/if}
 			{:else}
 				<div class="flex flex-1 flex-col items-center justify-center gap-4">
 					<!-- Mobile menu button when no channel selected -->
@@ -4086,6 +4128,16 @@
 			{/snippet}
 
 			<aside class="hidden w-60 flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto md:block">
+				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
+					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Members</h3>
+					<button
+						onclick={toggleMemberPanel}
+						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						title="Collapse"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+					</button>
+				</div>
 				<div class="p-4">
 					<input
 						type="text"

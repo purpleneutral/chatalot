@@ -4,6 +4,8 @@
 	import { userStore } from '$lib/stores/users.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
 
+	let { expanded = false }: { expanded?: boolean } = $props();
+
 	let localVideoEl: HTMLVideoElement | undefined = $state();
 	let screenVideoEl: HTMLVideoElement | undefined = $state();
 	let remoteVideoEls = $state<Map<string, HTMLVideoElement>>(new Map());
@@ -91,7 +93,7 @@
 </script>
 
 {#if voiceStore.isInCall}
-	<div class="border-b border-white/10 bg-[var(--bg-secondary)]">
+	<div class="{expanded ? 'flex-1' : ''} border-b border-white/10 bg-[var(--bg-secondary)] {expanded ? 'flex flex-col' : ''}">
 		<!-- Screen share area (local or remote) — shown prominently above participant tiles -->
 		{#if hasAnyScreenShare}
 			<div class="p-2">
@@ -131,9 +133,9 @@
 		{/if}
 
 		<!-- Participant tiles -->
-		<div class="grid {gridCols} gap-1 p-2" style="max-height: {hasAnyScreenShare ? '150px' : '400px'};">
+		<div class="grid {gridCols} gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : `max-height: ${hasAnyScreenShare ? '150px' : '400px'};`}">
 			<!-- Local video/avatar -->
-			<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : '120px'};">
+			<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : expanded ? '200px' : '120px'};">
 				{#if hasVideo}
 					<!-- svelte-ignore element_invalid_self_closing_tag -->
 					<video
@@ -161,7 +163,7 @@
 
 			<!-- Remote participants -->
 			{#each remoteEntries as [userId, _stream] (userId)}
-				<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : '120px'};">
+				<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : expanded ? '200px' : '120px'};">
 					{#if !voiceStore.hasRemoteVideo(userId)}
 						<Avatar {userId} size="lg" />
 					{/if}
