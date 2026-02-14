@@ -14,6 +14,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.5.1',
+			date: '2026-02-14',
+			changes: [
+				'Fixed video cameras not showing for either party when toggled on',
+				'Fixed audio pipeline rebuilds (device switch, noise suppression change) breaking video',
+				'Mute state now preserved when switching audio devices or noise suppression',
+			]
+		},
+		{
 			version: '0.5.0',
 			date: '2026-02-14',
 			changes: [

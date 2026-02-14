@@ -25,6 +25,18 @@ let speexWasm: ArrayBuffer | null = null;
 // Track which worklet modules have been registered on a given AudioContext
 const registeredModules = new WeakSet<AudioContext>();
 
+/// Convert data: URLs to blob: URLs so AudioWorklet modules pass CSP checks.
+/// CSP allows blob: but not data: in script-src.
+function toBlobUrl(url: string): string {
+	if (!url.startsWith('data:')) return url;
+	const [header, base64] = url.split(',');
+	const mime = header.split(':')[1].split(';')[0];
+	const binary = atob(base64);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+	return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
+
 interface SuppressionState {
 	source: MediaStreamAudioSourceNode;
 	workletNode: AudioWorkletNode;
@@ -37,9 +49,9 @@ let currentState: SuppressionState | null = null;
 async function ensureWorkletModules(ctx: AudioContext): Promise<void> {
 	if (registeredModules.has(ctx)) return;
 	await Promise.all([
-		ctx.audioWorklet.addModule(noiseGateWorkletUrl),
-		ctx.audioWorklet.addModule(rnnoiseWorkletUrl),
-		ctx.audioWorklet.addModule(speexWorkletUrl)
+		ctx.audioWorklet.addModule(toBlobUrl(noiseGateWorkletUrl)),
+		ctx.audioWorklet.addModule(toBlobUrl(rnnoiseWorkletUrl)),
+		ctx.audioWorklet.addModule(toBlobUrl(speexWorkletUrl))
 	]);
 	registeredModules.add(ctx);
 }

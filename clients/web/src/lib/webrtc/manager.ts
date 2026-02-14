@@ -189,28 +189,34 @@ class WebRTCManager {
 
 		// Rebuild the full pipeline with new suppression level
 		removeNoiseSuppression();
-		const newStream = await this.buildAudioPipeline(this.rawStream);
-		const audioTrack = newStream.getAudioTracks()[0];
-		if (!audioTrack) return;
+		const pipelineStream = await this.buildAudioPipeline(this.rawStream);
+		const newAudioTrack = pipelineStream.getAudioTracks()[0];
+		if (!newAudioTrack) return;
+
+		// Swap audio track in existing local stream (preserves stream ID for peers)
+		const localStream = voiceStore.activeCall.localStream;
+		if (localStream) {
+			const oldAudioTrack = localStream.getAudioTracks()[0];
+			if (oldAudioTrack) localStream.removeTrack(oldAudioTrack);
+			localStream.addTrack(newAudioTrack);
+			// Preserve mute state
+			if (!voiceStore.activeCall.audioEnabled) {
+				newAudioTrack.enabled = false;
+			}
+		}
 
 		// Replace audio track on all peer connections (no renegotiation needed)
 		for (const pc of this.peers.values()) {
 			for (const sender of pc.getSenders()) {
 				if (sender.track?.kind === 'audio') {
-					await sender.replaceTrack(audioTrack);
+					await sender.replaceTrack(newAudioTrack);
 				}
 			}
 		}
 
-		// Update voice store with new stream
-		voiceStore.setCallState({
-			...voiceStore.activeCall,
-			localStream: newStream
-		});
-
-		// Re-monitor with processed stream
+		// Re-monitor with existing stream
 		const myId = authStore.user?.id;
-		if (myId) this.monitorStream(myId, newStream);
+		if (myId && localStream) this.monitorStream(myId, localStream);
 	}
 
 	/// Set microphone input gain (0-200, where 100 = normal).
@@ -250,31 +256,33 @@ class WebRTCManager {
 
 		// Rebuild pipeline with new raw stream
 		removeNoiseSuppression();
-		const newStream = await this.buildAudioPipeline(newRawStream);
-		const audioTrack = newStream.getAudioTracks()[0];
-		if (!audioTrack) return;
+		const pipelineStream = await this.buildAudioPipeline(newRawStream);
+		const newAudioTrack = pipelineStream.getAudioTracks()[0];
+		if (!newAudioTrack) return;
+
+		// Swap audio track in existing local stream (preserves stream ID for peers)
+		const localStream = voiceStore.activeCall.localStream;
+		if (localStream) {
+			const oldAudioTrack = localStream.getAudioTracks()[0];
+			if (oldAudioTrack) localStream.removeTrack(oldAudioTrack);
+			localStream.addTrack(newAudioTrack);
+			// Preserve mute state
+			if (!voiceStore.activeCall.audioEnabled) {
+				newAudioTrack.enabled = false;
+			}
+		}
 
 		// Replace on all peers
 		for (const pc of this.peers.values()) {
 			for (const sender of pc.getSenders()) {
 				if (sender.track?.kind === 'audio') {
-					await sender.replaceTrack(audioTrack);
+					await sender.replaceTrack(newAudioTrack);
 				}
 			}
 		}
 
-		// Preserve video tracks
-		const oldLocal = voiceStore.activeCall.localStream;
-		if (oldLocal) {
-			for (const vt of oldLocal.getVideoTracks()) {
-				newStream.addTrack(vt);
-			}
-		}
-
-		voiceStore.setCallState({ ...voiceStore.activeCall, localStream: newStream });
-
 		const myId = authStore.user?.id;
-		if (myId) this.monitorStream(myId, newStream);
+		if (myId && localStream) this.monitorStream(myId, localStream);
 	}
 
 	/// Toggle video.
@@ -514,12 +522,13 @@ class WebRTCManager {
 		let pc = this.peers.get(fromUserId);
 
 		if (pc) {
-			// Existing connection — this is a renegotiation
-			if (!this.isPolite(fromUserId)) {
-				// We're the impolite peer and sent our own offer — ignore theirs
+			// Existing connection — this is a renegotiation.
+			// Only reject if there's an actual offer collision: we're the impolite
+			// peer AND we already sent our own offer (have-local-offer).
+			if (!this.isPolite(fromUserId) && pc.signalingState === 'have-local-offer') {
 				return;
 			}
-			// We're the polite peer — rollback our offer if needed, accept theirs
+			// Accept their offer. Roll back our pending offer if needed (polite peer yields).
 			if (pc.signalingState === 'have-local-offer') {
 				await pc.setLocalDescription({ type: 'rollback' });
 			}

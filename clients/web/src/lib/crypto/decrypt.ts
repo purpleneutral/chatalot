@@ -37,13 +37,14 @@ export async function decryptMessage(
 			console.error('DM decryption failed, falling back to UTF-8:', err);
 		}
 	} else {
-		// Group channel — try Sender Key decryption
+		// Group channel — try Sender Key decryption (plain text messages are expected
+		// to fail JSON.parse here; that's normal until E2E is fully wired)
 		try {
 			await initCrypto();
 			const sm = getSessionManager();
 			return await sm.decryptGroupMessage(channelId, senderId, bytes, messageId);
-		} catch (err) {
-			console.error('Group decryption failed, falling back to UTF-8:', err);
+		} catch {
+			// Expected for unencrypted messages — fall through to UTF-8
 		}
 	}
 
