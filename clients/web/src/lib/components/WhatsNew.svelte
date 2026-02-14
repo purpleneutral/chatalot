@@ -14,6 +14,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.4.1',
+			date: '2026-02-14',
+			changes: [
+				'Fixed phantom unread badges sticking after selecting a channel',
+			]
+		},
+		{
 			version: '0.4.0',
 			date: '2026-02-14',
 			changes: [

@@ -636,6 +636,11 @@
 				if (res.ok) {
 					const counts = await res.json();
 					messageStore.setUnreadCounts(counts);
+					// Re-clear the active channel since setUnreadCounts replaces the entire map
+					const active = channelStore.activeChannelId;
+					if (active) {
+						messageStore.clearUnread(active);
+					}
 				}
 			} catch { /* ignore */ }
 		} catch (err) {
@@ -824,6 +829,13 @@
 				console.error('Failed to load messages:', err);
 			} finally {
 				messageStore.setLoading(channelId, false);
+			}
+		} else {
+			// History already loaded — still send mark_read to update server cursor
+			const msgs = messageStore.getMessages(channelId);
+			if (msgs.length > 0) {
+				const lastMsg = msgs[msgs.length - 1];
+				wsClient.send({ type: 'mark_read', channel_id: channelId, message_id: lastMsg.id });
 			}
 		}
 
