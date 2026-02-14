@@ -14,6 +14,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.5.2',
+			date: '2026-02-14',
+			changes: [
+				'Right-click voice participants in sidebar for volume control and kick',
+				'Scroll position preserved when switching between channels',
+				'Voice calls now auto-rejoin after server restarts',
+				'Fixed service worker serving stale code after deploys',
+				'Fixed Chrome caching causing 404 errors on updates',
+			]
+		},
+		{
 			version: '0.5.1',
 			date: '2026-02-14',
 			changes: [
