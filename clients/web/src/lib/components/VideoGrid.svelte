@@ -87,10 +87,13 @@
 			<!-- Remote participants -->
 			{#each remoteEntries as [userId, _stream] (userId)}
 				<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: 120px;">
+					{#if !voiceStore.hasRemoteVideo(userId)}
+						<Avatar {userId} size="lg" />
+					{/if}
 					<video
 						autoplay
 						playsinline
-						class="h-full w-full object-cover"
+						class="{voiceStore.hasRemoteVideo(userId) ? 'h-full w-full object-cover' : 'absolute h-0 w-0 opacity-0'}"
 						use:bindRemoteVideo={userId}
 					></video>
 					<div class="absolute bottom-1 left-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">

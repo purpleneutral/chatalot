@@ -251,6 +251,7 @@ class WebRTCManager {
 	/// Called when a user leaves the voice channel.
 	onUserLeft(userId: string): void {
 		this.stopMonitoringStream(userId);
+		voiceStore.setRemoteVideo(userId, false);
 		const pc = this.peers.get(userId);
 		if (pc) {
 			pc.close();
@@ -407,6 +408,20 @@ class WebRTCManager {
 			if (stream) {
 				voiceStore.addRemoteStream(userId, stream);
 				this.monitorStream(userId, stream);
+
+				// Track remote video state
+				if (event.track.kind === 'video') {
+					voiceStore.setRemoteVideo(userId, true);
+					event.track.onended = () => {
+						voiceStore.setRemoteVideo(userId, false);
+					};
+					event.track.onmute = () => {
+						voiceStore.setRemoteVideo(userId, false);
+					};
+					event.track.onunmute = () => {
+						voiceStore.setRemoteVideo(userId, true);
+					};
+				}
 			}
 		};
 

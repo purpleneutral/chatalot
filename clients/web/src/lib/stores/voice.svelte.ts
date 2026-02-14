@@ -23,6 +23,9 @@ class VoiceStore {
 	// Currently speaking users (based on audio level detection)
 	activeSpeakers = $state<Set<string>>(new Set());
 
+	// Which remote users have video enabled
+	remoteVideoEnabled = $state<Set<string>>(new Set());
+
 	get isInCall(): boolean {
 		return this.activeCall !== null;
 	}
@@ -133,6 +136,20 @@ class VoiceStore {
 
 	clearActiveSpeakers() {
 		this.activeSpeakers = new Set();
+	}
+
+	setRemoteVideo(userId: string, hasVideo: boolean) {
+		const next = new Set(this.remoteVideoEnabled);
+		if (hasVideo) {
+			next.add(userId);
+		} else {
+			next.delete(userId);
+		}
+		this.remoteVideoEnabled = next;
+	}
+
+	hasRemoteVideo(userId: string): boolean {
+		return this.remoteVideoEnabled.has(userId);
 	}
 }
 
