@@ -2527,12 +2527,21 @@
 						maxlength="64"
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
-					<button
-						type="submit"
-						class="mt-2 w-full rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
-					>
-						Create
-					</button>
+					<div class="mt-2 flex gap-2">
+						<button
+							type="button"
+							onclick={() => { showCreateChannel = false; newChannelName = ''; }}
+							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						>
+							Cancel
+						</button>
+						<button
+							type="submit"
+							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+						>
+							Create
+						</button>
+					</div>
 				</form>
 			{/if}
 
@@ -2551,24 +2560,42 @@
 						placeholder="Description (optional)..."
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
-					<button
-						type="submit"
-						class="w-full rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
-					>
-						Create Group
-					</button>
+					<div class="flex gap-2">
+						<button
+							type="button"
+							onclick={() => { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; }}
+							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						>
+							Cancel
+						</button>
+						<button
+							type="submit"
+							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+						>
+							Create Group
+						</button>
+					</div>
 				</form>
 			{/if}
 
 			{#if showNewDm && sidebarTab === 'dms'}
 				<div class="border-b border-white/10 p-3">
-					<input
-						type="text"
-						bind:value={dmSearchQuery}
-						oninput={handleDmSearch}
-						placeholder="Search users..."
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-					/>
+					<div class="flex items-center gap-2">
+						<input
+							type="text"
+							bind:value={dmSearchQuery}
+							oninput={handleDmSearch}
+							placeholder="Search users..."
+							class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+						/>
+						<button
+							onclick={() => { showNewDm = false; dmSearchQuery = ''; dmSearchResults = []; }}
+							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							title="Cancel"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+						</button>
+					</div>
 					{#if dmSearchResults.length > 0}
 						<div class="mt-2 space-y-1">
 							{#each dmSearchResults as user (user.id)}
