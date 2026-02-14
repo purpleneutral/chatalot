@@ -1124,6 +1124,15 @@
 		return userStore.getDisplayName(userId);
 	}
 
+	function copyMessageText(msgId: string) {
+		const msg = messages.find(m => m.id === msgId);
+		if (msg) {
+			navigator.clipboard.writeText(msg.content);
+			toastStore.success('Message text copied');
+		}
+		contextMenuMessageId = null;
+	}
+
 	async function saveTopic() {
 		if (!activeChannel?.group_id || !channelStore.activeChannelId) return;
 		try {
@@ -2273,7 +2282,10 @@
 					{/each}
 
 					{#if groupStore.groups.length === 0}
-						<p class="px-2 text-sm text-[var(--text-secondary)]">No groups yet. Create one or discover existing groups.</p>
+						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
+							<p class="text-sm text-[var(--text-secondary)]">No groups yet</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Create a group, discover existing ones, or join via an invite link.</p>
+						</div>
 					{/if}
 
 					<!-- Discover groups modal -->
@@ -2343,7 +2355,10 @@
 						{/if}
 					{/each}
 					{#if channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id).length === 0}
-						<p class="px-2 text-sm text-[var(--text-secondary)]">No channels yet.</p>
+						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
+							<p class="text-sm text-[var(--text-secondary)]">No standalone channels</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Channels here are outside of groups. Try the Groups tab instead.</p>
+						</div>
 					{/if}
 				{:else}
 					<h2 class="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
@@ -2365,7 +2380,10 @@
 						</button>
 					{/each}
 					{#if dmChannels.length === 0}
-						<p class="px-2 text-sm text-[var(--text-secondary)]">No direct messages yet.</p>
+						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
+							<p class="text-sm text-[var(--text-secondary)]">No conversations yet</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Click the + button above to start a DM, or click a user's name to message them.</p>
+						</div>
 					{/if}
 				{/if}
 			</div>
@@ -2753,7 +2771,7 @@
 						{/if}
 						<div
 							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 transition hover:bg-white/[0.02] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : 'mb-4 gap-3 py-1'}"
-							oncontextmenu={(e) => { if (msg.senderId === authStore.user?.id) showContextMenu(e, msg.id); }}
+							oncontextmenu={(e) => showContextMenu(e, msg.id)}
 							role="article"
 							aria-label="Message from {getDisplayNameForContext(msg.senderId)}"
 						>
@@ -3067,11 +3085,116 @@
 					{/each}
 
 					{#if messages.length === 0}
-						<div class="flex h-full items-center justify-center">
-							<p class="text-[var(--text-secondary)]">No messages yet. Say something!</p>
+						<div class="flex h-full flex-col items-center justify-center gap-3">
+							<div class="rounded-full bg-white/5 p-4">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+								</svg>
+							</div>
+							<h3 class="text-lg font-semibold text-[var(--text-primary)]">
+								{#if activeChannel?.channel_type === 'dm'}
+									Start a conversation
+								{:else}
+									Welcome to #{getChannelDisplayName()}
+								{/if}
+							</h3>
+							<p class="max-w-sm text-center text-sm text-[var(--text-secondary)]">
+								{#if activeChannel?.channel_type === 'dm'}
+									This is the beginning of your direct message history.
+								{:else}
+									This is the start of the channel. Send a message, share a file, or use /shrug for fun.
+								{/if}
+							</p>
 						</div>
 					{/if}
 				</div>
+
+				<!-- Context menu -->
+				{#if contextMenuMessageId}
+					{@const ctxMsg = messages.find(m => m.id === contextMenuMessageId)}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="fixed inset-0 z-40"
+						onclick={() => contextMenuMessageId = null}
+						oncontextmenu={(e) => { e.preventDefault(); contextMenuMessageId = null; }}
+						onkeydown={(e) => { if (e.key === 'Escape') contextMenuMessageId = null; }}
+					></div>
+					<div
+						class="fixed z-50 min-w-[180px] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
+						style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px;"
+						transition:scale={{ start: 0.9, duration: 100 }}
+					>
+						{#if ctxMsg}
+							<button
+								onclick={() => { if (ctxMsg) startReply(ctxMsg); contextMenuMessageId = null; }}
+								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
+								Reply
+							</button>
+							<button
+								onclick={() => { if (ctxMsg) forwardMessage(ctxMsg); }}
+								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
+								Forward
+							</button>
+							<button
+								onclick={() => copyMessageText(contextMenuMessageId!)}
+								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+								Copy Text
+							</button>
+							{#if (myRole === 'owner' || myRole === 'admin') && channelStore.activeChannelId}
+								<div class="my-1 border-t border-white/10"></div>
+								{#if messageStore.isPinned(channelStore.activeChannelId, ctxMsg.id)}
+									<button
+										onclick={() => { handleUnpinMessage(ctxMsg.id); contextMenuMessageId = null; }}
+										class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-yellow-400 hover:bg-white/5"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
+										Unpin
+									</button>
+								{:else}
+									<button
+										onclick={() => { handlePinMessage(ctxMsg.id); contextMenuMessageId = null; }}
+										class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
+										Pin
+									</button>
+								{/if}
+							{/if}
+							{#if ctxMsg.senderId === authStore.user?.id}
+								<div class="my-1 border-t border-white/10"></div>
+								<button
+									onclick={() => { startEditMessage(ctxMsg); contextMenuMessageId = null; }}
+									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+									Edit
+								</button>
+								<button
+									onclick={() => { handleDeleteMessage(ctxMsg.id); contextMenuMessageId = null; }}
+									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+									Delete
+								</button>
+							{:else if myRole === 'owner' || myRole === 'admin'}
+								<div class="my-1 border-t border-white/10"></div>
+								<button
+									onclick={() => { handleDeleteMessage(ctxMsg.id); contextMenuMessageId = null; }}
+									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+									Delete (mod)
+								</button>
+							{/if}
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Scroll to bottom button -->
 				{#if showScrollBottom}
@@ -3091,10 +3214,23 @@
 
 				<!-- Typing indicator -->
 				{#if typingUsers.length > 0}
-					<div class="px-6 py-1 text-xs text-[var(--text-secondary)]">
-						{typingUsers.length === 1
-							? `${userStore.getDisplayName(typingUsers[0])} is typing...`
-							: `${typingUsers.length} people are typing...`}
+					<div class="flex items-center gap-1.5 px-6 py-1 text-xs text-[var(--text-secondary)]">
+						<span class="flex gap-0.5">
+							<span class="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-secondary)]" style="animation-delay: 0ms"></span>
+							<span class="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-secondary)]" style="animation-delay: 150ms"></span>
+							<span class="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--text-secondary)]" style="animation-delay: 300ms"></span>
+						</span>
+						<span>
+							{#if typingUsers.length === 1}
+								<strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[0])}</strong> is typing...
+							{:else if typingUsers.length === 2}
+								<strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[0])}</strong> and <strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[1])}</strong> are typing...
+							{:else if typingUsers.length === 3}
+								<strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[0])}</strong>, <strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[1])}</strong>, and <strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[2])}</strong> are typing...
+							{:else}
+								<strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[0])}</strong>, <strong class="font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(typingUsers[1])}</strong>, and {typingUsers.length - 2} others are typing...
+							{/if}
+						</span>
 					</div>
 				{/if}
 
@@ -3208,11 +3344,17 @@
 						Open channels
 					</button>
 					<div class="text-center">
+						<div class="mx-auto mb-4 rounded-full bg-white/5 p-5">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+							</svg>
+						</div>
 						<h2 class="mb-2 text-2xl font-bold text-[var(--text-primary)]">Welcome to Chatalot</h2>
-						<p class="text-[var(--text-secondary)]">
-							{channelStore.channels.length === 0
-								? 'Create a channel to get started.'
-								: 'Select a channel to start chatting.'}
+						<p class="max-w-sm text-[var(--text-secondary)]">
+							Select a channel from the sidebar to start chatting, or create a new group to get organized.
+						</p>
+						<p class="mt-2 text-xs text-[var(--text-secondary)]/60">
+							Press <kbd class="rounded bg-white/10 px-1 py-0.5 text-[var(--text-primary)]">?</kbd> for keyboard shortcuts
 						</p>
 					</div>
 				</div>
