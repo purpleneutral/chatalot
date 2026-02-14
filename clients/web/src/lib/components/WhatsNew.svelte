@@ -118,6 +118,7 @@
 	];
 
 	let show = $state(false);
+	let showAll = $state(false);
 
 	$effect(() => {
 		const lastSeen = localStorage.getItem(STORAGE_KEY);
@@ -126,9 +127,15 @@
 		}
 	});
 
+	export function open() {
+		showAll = true;
+		show = true;
+	}
+
 	function dismiss() {
 		localStorage.setItem(STORAGE_KEY, APP_VERSION);
 		show = false;
+		showAll = false;
 	}
 
 	function handleBackdropKeydown(e: KeyboardEvent) {
@@ -165,14 +172,35 @@
 				</div>
 			</div>
 
-			<ul class="mb-6 space-y-2.5 pl-1">
-				{#each currentEntry.changes as change}
-					<li class="flex items-start gap-2.5 text-sm text-[var(--text-primary)]">
-						<span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"></span>
-						<span>{change}</span>
-					</li>
-				{/each}
-			</ul>
+			{#if showAll}
+				<div class="mb-6 max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+					{#each changelog as entry}
+						<div>
+							<div class="mb-1.5 flex items-baseline gap-2">
+								<span class="text-sm font-semibold text-[var(--text-primary)]">v{entry.version}</span>
+								<span class="text-xs text-[var(--text-secondary)]">{entry.date}</span>
+							</div>
+							<ul class="space-y-1.5 pl-1">
+								{#each entry.changes as change}
+									<li class="flex items-start gap-2.5 text-sm text-[var(--text-primary)]">
+										<span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"></span>
+										<span>{change}</span>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<ul class="mb-6 space-y-2.5 pl-1">
+					{#each currentEntry.changes as change}
+						<li class="flex items-start gap-2.5 text-sm text-[var(--text-primary)]">
+							<span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"></span>
+							<span>{change}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 
 			<div class="flex justify-end">
 				<button

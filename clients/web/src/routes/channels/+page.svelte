@@ -77,6 +77,7 @@
 	hljs.registerLanguage('md', markdown);
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { communityStore } from '$lib/stores/communities.svelte';
+	declare const __APP_VERSION__: string;
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
 	import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
@@ -87,6 +88,7 @@
 	let newChannelName = $state('');
 	let showCreateChannel = $state(false);
 	let messageListEl: HTMLDivElement | undefined = $state();
+	let whatsNewRef: WhatsNew | undefined = $state();
 	let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 	let unsubWs: (() => void) | null = null;
 
@@ -3173,6 +3175,13 @@
 					</div>
 				{/if}
 				<button
+					onclick={() => whatsNewRef?.open()}
+					class="rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--accent)]"
+					title="Changelog"
+				>
+					v{__APP_VERSION__}
+				</button>
+				<button
 					onclick={() => (showFeedback = true)}
 					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--accent)]"
 					title="Send feedback"
@@ -4752,5 +4761,5 @@
 	{/if}
 
 	<!-- What's New changelog modal -->
-	<WhatsNew />
+	<WhatsNew bind:this={whatsNewRef} />
 {/if}
