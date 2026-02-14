@@ -308,20 +308,48 @@ cd clients/web && npm run build
 
 ### Manual Testing Checklist
 
+**Core messaging:**
 1. Register two users in separate browsers/incognito windows
-2. Create a channel with user A
-3. Join the channel with user B
+2. Create a community, group, and channel with user A
+3. Invite and join with user B
 4. Send messages between A and B (verify real-time delivery)
-5. Edit a message (verify the edit appears for both users)
-6. Delete a message (verify removal for both users)
-7. Add/remove reactions
-8. Test typing indicators
-9. Upload a file and verify it appears as a file message
-10. Test voice call (join from both users)
-11. Enable 2FA on one account and verify login requires the code
-12. Switch themes (light/dark) and verify all pages render correctly
-13. Test on mobile viewport (sidebar should collapse)
-14. Open multiple tabs — messages should appear in all tabs
+5. Edit a message (verify the "(edited)" indicator appears with hover tooltip for both users)
+6. Delete a message (verify confirmation dialog and removal for both users)
+7. Reply to a message (verify inline quote preview)
+8. Forward a message to another channel
+
+**Rich content:**
+9. Send a message with markdown formatting (bold, italic, code block)
+10. Send a code block with a language tag — verify syntax highlighting and copy button
+11. Paste or drag-and-drop an image — verify inline preview and lightbox on click
+12. Send a URL — verify link preview appears (if enabled in preferences)
+13. Upload a video file — verify inline player
+14. Upload an audio file — verify inline player with controls
+15. Search for and send a GIF (requires `TENOR_API_KEY`)
+16. Type `:wave` — verify emoji autocomplete popup
+
+**Interactions:**
+17. Add/remove reactions (verify tooltip shows who reacted)
+18. Pin a message as admin (verify pin icon and pinned panel)
+19. Click a username — verify profile card with correct info
+20. Right-click a message — verify context menu actions
+21. Test typing indicators (verify names appear)
+22. Test message grouping (send multiple messages quickly from same user)
+
+**Settings and UX:**
+23. Switch themes (dark/light) and accent colors — verify all pages render correctly
+24. Change message density, font size, and time format
+25. Toggle link previews and formatting toolbar
+26. Enable 2FA on one account and verify login requires the code
+27. Test notification permission prompt (clear localStorage, send a message)
+28. Test per-channel notification levels (all / mentions / nothing)
+
+**Infrastructure:**
+29. Upload a file and verify the download link works
+30. Test voice call (join from both users)
+31. Test on mobile viewport (sidebar should collapse)
+32. Open multiple tabs — messages should appear in all tabs
+33. Verify unread counts and unread separator on channel switch
 
 ## Code Style
 

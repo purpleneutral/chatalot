@@ -212,6 +212,15 @@
 	let emojiResults = $state<{ name: string; emoji: string }[]>([]);
 	let emojiIndex = $state(0);
 
+	// Image lightbox state
+	let lightboxImage = $state<{ src: string; alt: string } | null>(null);
+
+	// Notification permission prompt
+	let showNotifPrompt = $state(false);
+	let notifPromptDismissed = $state(
+		typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:notifPromptDismissed') === 'true'
+	);
+
 	// Confirmation dialog state
 	let confirmDialog = $state<{
 		title: string;
@@ -226,6 +235,34 @@
 	function showConfirmDialog(opts: typeof confirmDialog & {}) {
 		confirmInput = '';
 		confirmDialog = opts;
+	}
+
+	function openLightbox(src: string, alt: string = 'Image') {
+		lightboxImage = { src, alt };
+	}
+
+	function closeLightbox() {
+		lightboxImage = null;
+	}
+
+	function maybeShowNotifPrompt() {
+		if (notifPromptDismissed) return;
+		if (notificationStore.permissionState === 'granted') return;
+		if (notificationStore.permissionState === 'unsupported') return;
+		showNotifPrompt = true;
+	}
+
+	async function acceptNotifPrompt() {
+		await notificationStore.requestPermission();
+		showNotifPrompt = false;
+		notifPromptDismissed = true;
+		localStorage.setItem('chatalot:notifPromptDismissed', 'true');
+	}
+
+	function dismissNotifPrompt() {
+		showNotifPrompt = false;
+		notifPromptDismissed = true;
+		localStorage.setItem('chatalot:notifPromptDismissed', 'true');
 	}
 
 	// Status picker state
@@ -831,6 +868,9 @@
 
 		// Clear reply state
 		replyingTo = null;
+
+		// Prompt for notification permission on first message
+		maybeShowNotifPrompt();
 
 		// Clear typing indicator
 		if (typingTimeout) {
@@ -1465,6 +1505,7 @@
 		}
 		// Escape to close modals
 		if (e.key === 'Escape') {
+			if (lightboxImage) { closeLightbox(); e.preventDefault(); return; }
 			if (showGifPicker) { showGifPicker = false; e.preventDefault(); }
 			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); }
 		}
@@ -2614,9 +2655,21 @@
 						</button>
 					{/each}
 					{#if dmChannels.length === 0}
-						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
-							<p class="text-sm text-[var(--text-secondary)]">No conversations yet</p>
-							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Click the + button above to start a DM, or click a user's name to message them.</p>
+						<div class="rounded-lg border border-dashed border-white/10 p-6 text-center">
+							<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-10 w-10 text-[var(--text-secondary)]/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+							</svg>
+							<p class="text-sm font-medium text-[var(--text-primary)]">No conversations yet</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]">Start chatting with someone!</p>
+							<button
+								onclick={() => { showNewDm = true; }}
+								class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" />
+								</svg>
+								Find someone to chat with
+							</button>
 						</div>
 					{/if}
 				{/if}
@@ -3050,7 +3103,7 @@
 											{formatTime(msg.createdAt)}
 										</span>
 										{#if msg.editedAt}
-											<span class="text-xs text-[var(--text-secondary)]">(edited)</span>
+											<span class="text-xs text-[var(--text-secondary)] cursor-default" title="Edited {formatFullTimestamp(msg.editedAt)}">(edited)</span>
 										{/if}
 										{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" title="Pinned"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
@@ -3083,9 +3136,14 @@
 												<span class="text-xs text-[var(--text-secondary)]">Loading image...</span>
 											</div>
 											{:then blobUrl}
-											<a href={blobUrl} target="_blank" rel="noopener noreferrer">
-												<img src={blobUrl} alt={fileInfo.filename} class="max-h-80 max-w-sm rounded-lg border border-white/10" />
-											</a>
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+											<img
+												src={blobUrl}
+												alt={fileInfo.filename}
+												class="max-h-80 max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
+												onclick={() => openLightbox(blobUrl, fileInfo.filename)}
+												onkeydown={(e) => { if (e.key === 'Enter') openLightbox(blobUrl, fileInfo.filename); }}
+											/>
 											{:catch}
 											<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
 												<span class="text-sm text-[var(--text-secondary)]">Failed to load image</span>
@@ -3171,15 +3229,16 @@
 									{#if imageUrls.length > 0}
 										<div class="mt-2 flex flex-col gap-2">
 											{#each imageUrls as imgUrl}
-												<a href={imgUrl} target="_blank" rel="noopener noreferrer">
-													<img
-														src={imgUrl}
-														alt="Linked image"
-														class="max-h-80 max-w-sm rounded-lg border border-white/10"
-														loading="lazy"
-														onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-													/>
-												</a>
+												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+												<img
+													src={imgUrl}
+													alt="Linked image"
+													class="max-h-80 max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
+													loading="lazy"
+													onclick={() => openLightbox(imgUrl, 'Image')}
+													onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }}
+													onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+												/>
 											{/each}
 										</div>
 									{/if}
@@ -3988,5 +4047,68 @@
 			onclose={closeProfileCard}
 			onstartdm={startDmFromProfileCard}
 		/>
+	{/if}
+
+	<!-- Image Lightbox -->
+	{#if lightboxImage}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+			onclick={closeLightbox}
+			onkeydown={(e) => { if (e.key === 'Escape') closeLightbox(); }}
+			transition:fade={{ duration: 150 }}
+		>
+			<button
+				onclick={closeLightbox}
+				class="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
+				title="Close"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+				</svg>
+			</button>
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+			<img
+				src={lightboxImage.src}
+				alt={lightboxImage.alt}
+				class="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl"
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			/>
+			<div class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-4 py-1.5 text-sm text-white/80">
+				{lightboxImage.alt}
+			</div>
+		</div>
+	{/if}
+
+	<!-- Notification Permission Prompt -->
+	{#if showNotifPrompt}
+		<div class="fixed bottom-6 right-6 z-[90] w-80 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 shadow-2xl" transition:fly={{ y: 20, duration: 200 }}>
+			<div class="mb-2 flex items-start gap-3">
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+					</svg>
+				</div>
+				<div>
+					<h4 class="text-sm font-semibold text-[var(--text-primary)]">Enable notifications?</h4>
+					<p class="mt-0.5 text-xs text-[var(--text-secondary)]">Get notified when you receive new messages, even when this tab is in the background.</p>
+				</div>
+			</div>
+			<div class="flex justify-end gap-2">
+				<button
+					onclick={dismissNotifPrompt}
+					class="rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+				>
+					No thanks
+				</button>
+				<button
+					onclick={acceptNotifPrompt}
+					class="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]"
+				>
+					Enable
+				</button>
+			</div>
+		</div>
 	{/if}
 {/if}

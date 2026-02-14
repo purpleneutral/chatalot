@@ -126,15 +126,23 @@ Return tokens + user info          Store refresh hash + audit log
 
 The web client uses Svelte 5 runes for reactive state management. Each domain has its own store:
 
-| Store | State | Purpose |
-|-------|-------|---------|
-| `authStore` | tokens, user info | Auth state, persisted to localStorage |
-| `channelStore` | channel list, active channel | Channel navigation |
-| `messageStore` | messages by channel, unread counts | Message display + caching |
-| `presenceStore` | online status, typing indicators | Real-time presence |
-| `voiceStore` | voice participants, local media state | Voice/video calls |
-| `themeStore` | dark/light | Theme preference, persisted to localStorage |
-| `toastStore` | notification queue | Transient UI notifications |
+| Store | Purpose |
+|-------|---------|
+| `authStore` | Auth state (tokens, user info), persisted to localStorage |
+| `channelStore` | Channel list and active channel navigation |
+| `messageStore` | Messages by channel, unread counts, pinned message tracking |
+| `presenceStore` | Online status and typing indicators |
+| `voiceStore` | Voice/video call participants and local media state |
+| `themeStore` | Dark/light theme preference, persisted to localStorage |
+| `toastStore` | Transient UI notifications |
+| `userStore` | User profile cache (display names, avatars) |
+| `memberStore` | Channel member lists and roles |
+| `communityMemberStore` | Community member lists and nicknames |
+| `preferencesStore` | User customization (accent color, density, font size, etc.), synced to server |
+| `notificationStore` | Desktop notification preferences and per-channel levels |
+| `soundStore` | Notification sound playback and volume |
+| `groupsStore` | Group metadata and membership |
+| `communitiesStore` | Community list and active community |
 
 Stores use `$state` for reactive properties and expose methods for mutations. Components access store state directly (it's reactive via Svelte 5's fine-grained reactivity).
 
