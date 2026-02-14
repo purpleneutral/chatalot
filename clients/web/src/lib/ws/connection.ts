@@ -74,10 +74,12 @@ class WebSocketClient {
 		this.connected = false;
 	}
 
-	send(msg: ClientMessage) {
+	send(msg: ClientMessage): boolean {
 		if (this.ws?.readyState === WebSocket.OPEN) {
 			this.ws.send(JSON.stringify(msg));
+			return true;
 		}
+		return false;
 	}
 
 	private dispatch(msg: ServerMessage) {

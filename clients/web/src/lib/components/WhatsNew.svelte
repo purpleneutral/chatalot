@@ -14,6 +14,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.3.3',
+			date: '2026-02-14',
+			changes: [
+				'Messages during a deploy no longer get stuck as greyed-out',
+				'Update banner now appears immediately on reconnect',
+			]
+		},
+		{
 			version: '0.3.2',
 			date: '2026-02-14',
 			changes: [

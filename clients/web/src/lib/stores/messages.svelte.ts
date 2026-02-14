@@ -120,6 +120,16 @@ class MessageStore {
 		this.messagesByChannel = next;
 	}
 
+	// Remove a message from a specific channel (e.g. failed pending message)
+	removeMessage(channelId: string, messageId: string) {
+		const next = new Map(this.messagesByChannel);
+		const messages = next.get(channelId);
+		if (messages) {
+			next.set(channelId, messages.filter(m => m.id !== messageId));
+			this.messagesByChannel = next;
+		}
+	}
+
 	// Delete a message
 	deleteMessage(messageId: string) {
 		const next = new Map(this.messagesByChannel);

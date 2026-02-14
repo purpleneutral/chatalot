@@ -538,6 +538,9 @@
 			console.error('Failed to initialize crypto:', err);
 		}
 
+		// Listen for version update events BEFORE connecting WS to avoid race
+		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
+
 		// Connect WebSocket (or re-register handler if already connected)
 		unsubWs = wsClient.onMessage(handleServerMessage);
 		wsClient.onAuthenticated(subscribeToAllChannels);
@@ -647,9 +650,6 @@
 
 		// New DM channel → add to sidebar
 		window.addEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
-
-		// Version update — reload seamlessly (defer if in a voice call)
-		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
 	});
 
 	onDestroy(() => {
@@ -948,7 +948,7 @@
 		if (messageInputEl) messageInputEl.style.height = 'auto';
 
 		// Send via WebSocket
-		wsClient.send({
+		const sent = wsClient.send({
 			type: 'send_message',
 			channel_id: channelStore.activeChannelId,
 			ciphertext,
@@ -957,6 +957,14 @@
 			reply_to: replyingTo?.id ?? null,
 			sender_key_id: null
 		});
+
+		if (!sent) {
+			// Remove the optimistic pending message
+			messageStore.removeMessage(channelStore.activeChannelId, tempId);
+			messageInput = text;
+			console.warn('Message not sent — connection lost');
+			return;
+		}
 
 		// Clear reply state
 		replyingTo = null;
@@ -1131,7 +1139,7 @@
 			const ciphertext = Array.from(encoder.encode(fileMsg));
 			const nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
 
-			wsClient.send({
+			const fileSent = wsClient.send({
 				type: 'send_message',
 				channel_id: channelStore.activeChannelId,
 				ciphertext,
@@ -1140,6 +1148,11 @@
 				reply_to: null,
 				sender_key_id: null
 			});
+
+			if (!fileSent) {
+				console.warn('File message not sent — connection lost');
+				return;
+			}
 
 			// Optimistic add
 			messageStore.addMessage(channelStore.activeChannelId, {
