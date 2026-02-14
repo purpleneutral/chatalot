@@ -14,11 +14,11 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.2.1',
+			version: '0.2.2',
 			date: '2026-02-14',
 			changes: [
-				'Auto-updates no longer interrupt voice calls',
-				'Update applies seamlessly when you leave the call',
+				'Updates no longer interrupt voice calls or auto-reload',
+				'Clickable banner appears when update is ready — you choose when to refresh',
 			]
 		},
 		{
