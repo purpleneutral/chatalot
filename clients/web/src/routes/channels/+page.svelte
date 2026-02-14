@@ -4161,10 +4161,10 @@
 				</form>
 				{/if}
 				{#if chatCollapsed && voiceStore.isInCall}
-					<div class="flex items-center justify-center p-3">
+					<div class="shrink-0 border-t border-white/10 bg-[var(--bg-primary)] p-3">
 						<button
 							onclick={() => (chatCollapsed = false)}
-							class="flex items-center gap-2 rounded-lg border border-white/10 bg-transparent px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							class="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-4 py-2.5 text-sm text-[var(--text-primary)] transition hover:bg-white/10"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
 							Show Chat
