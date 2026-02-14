@@ -345,6 +345,8 @@ class WebRTCManager {
 				}
 				screenStream.getTracks().forEach(t => t.stop());
 			}
+			this.systemAudioStream?.getTracks().forEach(t => t.stop());
+			this.systemAudioStream = null;
 			voiceStore.setScreenSharing(false, null);
 			await this.renegotiateAll();
 		} else {
@@ -355,6 +357,15 @@ class WebRTCManager {
 					// Request system audio capture (Chrome 105+, works with PipeWire on Linux)
 					systemAudio: 'include',
 				} as DisplayMediaStreamOptions & { systemAudio: string });
+
+				// If getDisplayMedia didn't capture audio, try system audio via monitor device
+				if (screenStream.getAudioTracks().length === 0) {
+					const systemTrack = await this.captureSystemAudio();
+					if (systemTrack) {
+						screenStream.addTrack(systemTrack);
+					}
+				}
+
 				voiceStore.setScreenSharing(true, screenStream);
 
 				// When user stops sharing via browser UI
@@ -375,6 +386,37 @@ class WebRTCManager {
 		}
 	}
 
+	/// Try to capture system audio via a PipeWire/PulseAudio monitor device.
+	/// These devices mirror audio output and show up as audio inputs on Linux.
+	private systemAudioStream: MediaStream | null = null;
+
+	private async captureSystemAudio(): Promise<MediaStreamTrack | null> {
+		try {
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			const monitors = devices.filter(d =>
+				d.kind === 'audioinput' &&
+				d.label.toLowerCase().includes('monitor')
+			);
+
+			if (monitors.length === 0) return null;
+
+			// Capture from the first monitor device (system audio output)
+			this.systemAudioStream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					deviceId: { exact: monitors[0].deviceId },
+					// Disable processing — we want raw system audio
+					echoCancellation: false,
+					noiseSuppression: false,
+					autoGainControl: false,
+				}
+			});
+
+			return this.systemAudioStream.getAudioTracks()[0] ?? null;
+		} catch {
+			return null;
+		}
+	}
+
 	/// Stop screen sharing (called by browser "stop sharing" button).
 	private async stopScreenShare(): Promise<void> {
 		if (!voiceStore.activeCall?.screenSharing) return;
@@ -389,6 +431,8 @@ class WebRTCManager {
 			}
 			screenStream.getTracks().forEach(t => t.stop());
 		}
+		this.systemAudioStream?.getTracks().forEach(t => t.stop());
+		this.systemAudioStream = null;
 		voiceStore.setScreenSharing(false, null);
 		await this.renegotiateAll();
 	}

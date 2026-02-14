@@ -14,13 +14,12 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.5.7',
+			version: '0.5.8',
 			date: '2026-02-14',
 			changes: [
-				'Screen share now requests system audio capture (works with PipeWire on Linux)',
-				'Shows "No audio" badge when screen share has no audio tracks',
-				'Tooltip hint: share a browser tab for audio support',
-				'Right-click screen share overlay for volume/mute controls',
+				'Screen share auto-captures system audio via PipeWire/PulseAudio monitor device on Linux',
+				'Falls back gracefully if no monitor device found — shows "No audio" badge',
+				'Right-click screen share for volume/mute controls',
 			]
 		},
 		{
