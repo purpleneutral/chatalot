@@ -20,6 +20,9 @@ class VoiceStore {
 	// Voice participants per channel (for showing who's in a call even if we aren't)
 	channelVoiceParticipants = $state<Map<string, string[]>>(new Map());
 
+	// Currently speaking users (based on audio level detection)
+	activeSpeakers = $state<Set<string>>(new Set());
+
 	get isInCall(): boolean {
 		return this.activeCall !== null;
 	}
@@ -112,6 +115,24 @@ class VoiceStore {
 
 	getChannelParticipants(channelId: string): string[] {
 		return this.channelVoiceParticipants.get(channelId) ?? [];
+	}
+
+	setSpeaking(userId: string, speaking: boolean) {
+		const next = new Set(this.activeSpeakers);
+		if (speaking) {
+			next.add(userId);
+		} else {
+			next.delete(userId);
+		}
+		this.activeSpeakers = next;
+	}
+
+	isSpeaking(userId: string): boolean {
+		return this.activeSpeakers.has(userId);
+	}
+
+	clearActiveSpeakers() {
+		this.activeSpeakers = new Set();
 	}
 }
 

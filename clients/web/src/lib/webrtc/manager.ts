@@ -7,6 +7,9 @@ const ICE_SERVERS: RTCIceServer[] = [
 	{ urls: 'stun:stun1.l.google.com:19302' }
 ];
 
+const SPEAKING_THRESHOLD = 15; // RMS level (0-255) above which user is "speaking"
+const SPEAKING_CHECK_INTERVAL = 100; // ms between audio level checks
+
 /// Manages WebRTC peer connections for voice/video calls.
 /// Uses full-mesh topology: each participant connects to every other participant.
 /// Uses "polite peer" pattern: the peer with the lower user ID is the polite peer
@@ -16,6 +19,11 @@ class WebRTCManager {
 	private pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
 	private sessionId: string | null = null;
 	private channelId: string | null = null;
+
+	// Audio level monitoring
+	private audioContext: AudioContext | null = null;
+	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
+	private levelCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 	/// Join a voice channel: acquire media, tell server, set up peers.
 	async joinCall(channelId: string, withVideo: boolean = false): Promise<void> {
@@ -50,6 +58,9 @@ class WebRTCManager {
 			screenSharing: false
 		});
 
+		// Start audio level monitoring
+		this.startAudioLevelMonitoring();
+
 		// Tell the server we're joining
 		wsClient.send({ type: 'join_voice', channel_id: channelId });
 	}
@@ -57,6 +68,9 @@ class WebRTCManager {
 	/// Leave the current call and clean up all peer connections.
 	async leaveCall(): Promise<void> {
 		if (!this.channelId) return;
+
+		// Stop audio monitoring
+		this.stopAudioLevelMonitoring();
 
 		// Tell server we're leaving
 		wsClient.send({ type: 'leave_voice', channel_id: this.channelId });
@@ -144,6 +158,79 @@ class WebRTCManager {
 		}
 	}
 
+	/// Start monitoring audio levels for all streams.
+	private startAudioLevelMonitoring(): void {
+		if (this.levelCheckInterval) return;
+
+		this.audioContext = new AudioContext();
+
+		// Monitor local stream
+		const localStream = voiceStore.activeCall?.localStream;
+		const myId = authStore.user?.id;
+		if (localStream && myId) {
+			this.monitorStream(myId, localStream);
+		}
+
+		// Poll audio levels periodically
+		this.levelCheckInterval = setInterval(() => {
+			const buffer = new Uint8Array(64);
+			for (const [userId, { analyser }] of this.analysers) {
+				analyser.getByteTimeDomainData(buffer);
+				// Calculate RMS
+				let sum = 0;
+				for (let i = 0; i < buffer.length; i++) {
+					const val = buffer[i] - 128;
+					sum += val * val;
+				}
+				const rms = Math.sqrt(sum / buffer.length);
+				voiceStore.setSpeaking(userId, rms > SPEAKING_THRESHOLD);
+			}
+		}, SPEAKING_CHECK_INTERVAL);
+	}
+
+	/// Monitor audio level for a specific stream.
+	private monitorStream(userId: string, stream: MediaStream): void {
+		if (!this.audioContext || stream.getAudioTracks().length === 0) return;
+
+		// Clean up existing monitor for this user
+		this.stopMonitoringStream(userId);
+
+		const source = this.audioContext.createMediaStreamSource(stream);
+		const analyser = this.audioContext.createAnalyser();
+		analyser.fftSize = 256;
+		analyser.smoothingTimeConstant = 0.3;
+		source.connect(analyser);
+
+		this.analysers.set(userId, { analyser, source });
+	}
+
+	/// Stop monitoring a specific stream.
+	private stopMonitoringStream(userId: string): void {
+		const existing = this.analysers.get(userId);
+		if (existing) {
+			existing.source.disconnect();
+			this.analysers.delete(userId);
+		}
+		voiceStore.setSpeaking(userId, false);
+	}
+
+	/// Stop all audio level monitoring.
+	private stopAudioLevelMonitoring(): void {
+		if (this.levelCheckInterval) {
+			clearInterval(this.levelCheckInterval);
+			this.levelCheckInterval = null;
+		}
+		for (const [userId] of this.analysers) {
+			this.stopMonitoringStream(userId);
+		}
+		this.analysers.clear();
+		if (this.audioContext) {
+			this.audioContext.close();
+			this.audioContext = null;
+		}
+		voiceStore.clearActiveSpeakers();
+	}
+
 	/// Determine if we are the "polite" peer (lower user ID yields on collision).
 	private isPolite(remoteUserId: string): boolean {
 		const myId = authStore.user?.id ?? '';
@@ -163,6 +250,7 @@ class WebRTCManager {
 
 	/// Called when a user leaves the voice channel.
 	onUserLeft(userId: string): void {
+		this.stopMonitoringStream(userId);
 		const pc = this.peers.get(userId);
 		if (pc) {
 			pc.close();
@@ -318,6 +406,7 @@ class WebRTCManager {
 			const [stream] = event.streams;
 			if (stream) {
 				voiceStore.addRemoteStream(userId, stream);
+				this.monitorStream(userId, stream);
 			}
 		};
 
@@ -325,6 +414,7 @@ class WebRTCManager {
 		pc.onconnectionstatechange = () => {
 			if (pc.connectionState === 'failed') {
 				console.warn(`Peer connection to ${userId} failed, cleaning up`);
+				this.stopMonitoringStream(userId);
 				pc.close();
 				this.peers.delete(userId);
 				this.pendingCandidates.delete(userId);

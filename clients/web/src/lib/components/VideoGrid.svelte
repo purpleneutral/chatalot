@@ -64,7 +64,7 @@
 	<div class="border-b border-white/10 bg-[var(--bg-secondary)]">
 		<div class="grid {gridCols} gap-1 p-2" style="max-height: 400px;">
 			<!-- Local video/avatar -->
-			<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden" style="aspect-ratio: 16/9; min-height: 120px;">
+			<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: 120px;">
 				{#if hasVideo}
 					<!-- svelte-ignore element_invalid_self_closing_tag -->
 					<video
@@ -86,7 +86,7 @@
 
 			<!-- Remote participants -->
 			{#each remoteEntries as [userId, _stream] (userId)}
-				<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden" style="aspect-ratio: 16/9; min-height: 120px;">
+				<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: 120px;">
 					<video
 						autoplay
 						playsinline
