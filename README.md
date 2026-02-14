@@ -27,7 +27,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 For a complete feature list, see [docs/features.md](docs/features.md).
 
-> \* *DM messages are end-to-end encrypted using the Signal protocol (X3DH + Double Ratchet + ChaCha20-Poly1305), compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay. Group encryption (Sender Keys) is planned for a future release — group messages are currently protected by TLS in transit.*
+> \* *All messages are end-to-end encrypted. DMs use the Signal protocol (X3DH + Double Ratchet), group channels use Sender Keys — both compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay.*
 
 ## Quick Start
 
@@ -173,7 +173,7 @@ Requires Rust 1.84+, Node.js 22+, and platform-specific dependencies (WebKitGTK 
 The server is designed as an **untrusted relay** — it stores and routes messages but is architecturally separated from plaintext content.
 
 - **DMs**: X3DH key agreement + Double Ratchet — forward secrecy and break-in recovery, compiled to WASM and running client-side
-- **Groups**: Sender Keys (planned) — currently protected by TLS in transit
+- **Groups**: Sender Keys — each member distributes a symmetric chain key; key rotation on member removal
 - **Cipher**: ChaCha20-Poly1305 (AEAD)
 - **Key exchange**: X25519
 - **Signatures**: Ed25519

@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     TransferOwnershipRequest, UpdateRoleRequest,
 };
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, unread_repo};
+use chatalot_db::repos::{channel_repo, sender_key_repo, unread_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -228,6 +228,16 @@ async fn kick_member(
         },
     );
 
+    // Delete kicked user's sender key and trigger rotation for remaining members
+    let _ = sender_key_repo::delete_distribution(&state.db, channel_id, target_user_id).await;
+    state.connections.broadcast_to_channel(
+        channel_id,
+        ServerMessage::SenderKeyRotationRequired {
+            channel_id,
+            reason: "member_removed".to_string(),
+        },
+    );
+
     Ok(())
 }
 
@@ -264,6 +274,16 @@ async fn ban_member(
             channel_id,
             user_id: target_user_id,
             banned_by: claims.sub,
+        },
+    );
+
+    // Delete banned user's sender key and trigger rotation for remaining members
+    let _ = sender_key_repo::delete_distribution(&state.db, channel_id, target_user_id).await;
+    state.connections.broadcast_to_channel(
+        channel_id,
+        ServerMessage::SenderKeyRotationRequired {
+            channel_id,
+            reason: "member_removed".to_string(),
         },
     );
 

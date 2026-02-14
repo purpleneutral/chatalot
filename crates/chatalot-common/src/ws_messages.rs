@@ -232,6 +232,18 @@ pub enum ServerMessage {
         other_user_avatar_url: Option<String>,
     },
 
+    // Sender Keys (Group E2E)
+    SenderKeyUpdated {
+        channel_id: Uuid,
+        user_id: Uuid,
+        chain_id: i32,
+        distribution: serde_json::Value,
+    },
+    SenderKeyRotationRequired {
+        channel_id: Uuid,
+        reason: String,
+    },
+
     // System
     Error {
         code: String,

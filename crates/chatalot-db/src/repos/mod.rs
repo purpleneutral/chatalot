@@ -10,6 +10,7 @@ pub mod pin_repo;
 pub mod preferences_repo;
 pub mod reaction_repo;
 pub mod registration_invite_repo;
+pub mod sender_key_repo;
 pub mod unread_repo;
 pub mod user_repo;
 pub mod voice_repo;

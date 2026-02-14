@@ -532,6 +532,24 @@ pub struct TransferCommunityOwnershipRequest {
     pub new_owner_id: Uuid,
 }
 
+// ── Sender Keys ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UploadSenderKeyRequest {
+    pub chain_id: i32,
+    pub distribution: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SenderKeyDistributionResponse {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
+    pub chain_id: i32,
+    pub distribution: serde_json::Value,
+    pub created_at: String,
+}
+
 // ── Pinned Messages ──
 
 #[derive(Debug, Serialize, Deserialize)]

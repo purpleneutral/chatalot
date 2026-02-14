@@ -14,6 +14,7 @@ import { getUser } from '$lib/api/users';
 import { wsClient } from './connection';
 import type { ServerMessage } from './types';
 import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
+import { decryptMessage } from '$lib/crypto/decrypt';
 
 /** Fetch and cache user info if not already in the store. */
 async function ensureUser(userId: string) {
@@ -24,34 +25,6 @@ async function ensureUser(userId: string) {
 	} catch {
 		// User lookup failed — display will fall back to truncated ID
 	}
-}
-
-/** Decrypt message ciphertext: E2E for DMs, plain UTF-8 for channels. */
-async function decryptMessage(
-	channelId: string,
-	senderId: string,
-	ciphertext: number[],
-	messageId?: string,
-): Promise<string> {
-	const channel = channelStore.channels.find((c) => c.id === channelId);
-	const isDm = channel?.channel_type === 'dm';
-
-	if (isDm) {
-		try {
-			await initCrypto();
-			const sm = getSessionManager();
-			return await sm.decryptOrFallback(
-				senderId,
-				new Uint8Array(ciphertext),
-				messageId,
-				channelId,
-			);
-		} catch (err) {
-			console.error('DM decryption failed, falling back to UTF-8:', err);
-		}
-	}
-
-	return new TextDecoder().decode(new Uint8Array(ciphertext));
 }
 
 /// Handle incoming server WebSocket messages, updating the appropriate stores.
@@ -297,6 +270,36 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		case 'message_unpinned': {
 			messageStore.removePinned(msg.channel_id, msg.message_id);
+			break;
+		}
+
+		case 'sender_key_updated': {
+			// Another user uploaded/rotated their sender key
+			if (msg.user_id !== authStore.user?.id) {
+				try {
+					await initCrypto();
+					const sm = getSessionManager();
+					await sm.processSenderKeyDistribution(
+						msg.channel_id,
+						msg.user_id,
+						JSON.stringify(msg.distribution),
+					);
+				} catch (err) {
+					console.error('Failed to process sender key distribution:', err);
+				}
+			}
+			break;
+		}
+
+		case 'sender_key_rotation_required': {
+			// A member was removed — rotate our sender key
+			try {
+				await initCrypto();
+				const sm = getSessionManager();
+				await sm.rotateSenderKeys(msg.channel_id);
+			} catch (err) {
+				console.error('Failed to rotate sender keys:', err);
+			}
 			break;
 		}
 

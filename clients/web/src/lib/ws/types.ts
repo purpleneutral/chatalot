@@ -43,6 +43,8 @@ export type ServerMessage =
 	| { type: 'new_dm_channel'; channel_id: string; channel_name: string | null; created_at: string; other_user_id: string; other_user_username: string; other_user_display_name: string | null; other_user_avatar_url: string | null }
 	| { type: 'message_pinned'; message_id: string; channel_id: string; pinned_by: string; pinned_at: string }
 	| { type: 'message_unpinned'; message_id: string; channel_id: string }
+	| { type: 'sender_key_updated'; channel_id: string; user_id: string; chain_id: number; distribution: object }
+	| { type: 'sender_key_rotation_required'; channel_id: string; reason: string }
 	| { type: 'error'; code: string; message: string }
 	| { type: 'pong'; timestamp: number }
 	| { type: 'keys_low'; remaining: number };

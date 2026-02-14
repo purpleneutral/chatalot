@@ -1,5 +1,5 @@
 const DB_NAME = 'chatalot-crypto';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface IdentityKeys {
 	signingKey: Uint8Array;
@@ -52,6 +52,13 @@ export class CryptoStorage {
 				}
 				if (!db.objectStoreNames.contains('decryptedMessages')) {
 					db.createObjectStore('decryptedMessages');
+				}
+				// v2: Sender Keys for group E2E
+				if (!db.objectStoreNames.contains('senderKeyStates')) {
+					db.createObjectStore('senderKeyStates');
+				}
+				if (!db.objectStoreNames.contains('receiverKeyStates')) {
+					db.createObjectStore('receiverKeyStates');
 				}
 			};
 
@@ -165,6 +172,49 @@ export class CryptoStorage {
 
 	async setDecryptedMessage(messageId: string, content: string, channelId: string): Promise<void> {
 		return this.put('decryptedMessages', messageId, { messageId, content, channelId });
+	}
+
+	// ─── Sender Key States (our keys, one per channel) ──────────
+
+	async getSenderKeyState(channelId: string): Promise<string | null> {
+		return this.get('senderKeyStates', channelId);
+	}
+
+	async setSenderKeyState(channelId: string, stateJson: string): Promise<void> {
+		return this.put('senderKeyStates', channelId, stateJson);
+	}
+
+	async deleteSenderKeyState(channelId: string): Promise<void> {
+		return this.delete('senderKeyStates', channelId);
+	}
+
+	// ─── Receiver Key States (other members' keys) ───────────────
+
+	async getReceiverKeyState(channelId: string, senderId: string): Promise<string | null> {
+		return this.get('receiverKeyStates', `${channelId}:${senderId}`);
+	}
+
+	async setReceiverKeyState(channelId: string, senderId: string, stateJson: string): Promise<void> {
+		return this.put('receiverKeyStates', `${channelId}:${senderId}`, stateJson);
+	}
+
+	async deleteAllReceiverKeyStatesForChannel(channelId: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const tx = this.db!.transaction('receiverKeyStates', 'readwrite');
+			const store = tx.objectStore('receiverKeyStates');
+			const request = store.openCursor();
+			request.onsuccess = () => {
+				const cursor = request.result;
+				if (cursor) {
+					if (typeof cursor.key === 'string' && cursor.key.startsWith(`${channelId}:`)) {
+						cursor.delete();
+					}
+					cursor.continue();
+				}
+			};
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
 	}
 
 	// ─── Wipe ─────────────────────────────────────────────────────

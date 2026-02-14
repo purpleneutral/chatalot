@@ -7,6 +7,7 @@ pub mod message;
 pub mod pin;
 pub mod reaction;
 pub mod registration_invite;
+pub mod sender_key;
 pub mod user;
 pub mod user_preferences;
 pub mod voice;

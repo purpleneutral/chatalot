@@ -6,6 +6,7 @@ use x25519_dalek::{PublicKey as X25519Public, StaticSecret};
 
 use chatalot_crypto::double_ratchet::{EncryptedMessage, RatchetSession};
 use chatalot_crypto::identity;
+use chatalot_crypto::sender_keys::{ReceiverKeyState, SenderKeyDistribution, SenderKeyMessage, SenderKeyState};
 use chatalot_crypto::x3dh::{self, PrekeyBundle};
 
 // ─── Identity key generation ───────────────────────────────────────
@@ -360,6 +361,126 @@ pub fn ratchet_decrypt(session_json: &str, encrypted_message_json: &str) -> Resu
 
     let result = RatchetDecryptResult {
         session_json: new_session_json,
+        plaintext,
+    };
+    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// ─── Sender Keys (Group E2E) ──────────────────────────────────────
+
+#[derive(Serialize)]
+struct SenderKeyGenerateResult {
+    state_json: String,
+    distribution_json: String,
+}
+
+/// Generate a new SenderKeyState for use in a group channel.
+/// Returns the serialized state (store locally) and the distribution (share with members).
+#[wasm_bindgen]
+pub fn sender_key_generate(sender_id: &[u8]) -> Result<JsValue, JsValue> {
+    let (state, distribution) = SenderKeyState::generate(sender_id);
+
+    let state_json = String::from_utf8(
+        state
+            .serialize()
+            .map_err(|e| JsValue::from_str(&format!("serialize state: {e}")))?,
+    )
+    .map_err(|e| JsValue::from_str(&format!("state not UTF-8: {e}")))?;
+
+    let distribution_json = serde_json::to_string(&distribution)
+        .map_err(|e| JsValue::from_str(&format!("serialize dist: {e}")))?;
+
+    let result = SenderKeyGenerateResult {
+        state_json,
+        distribution_json,
+    };
+    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[derive(Serialize)]
+struct SenderKeyEncryptResult {
+    state_json: String,
+    message_json: String,
+}
+
+/// Encrypt a plaintext message using a SenderKeyState.
+/// Returns the updated state and the encrypted SenderKeyMessage.
+#[wasm_bindgen]
+pub fn sender_key_encrypt(state_json: &str, plaintext: &[u8]) -> Result<JsValue, JsValue> {
+    let mut state = SenderKeyState::deserialize(state_json.as_bytes())
+        .map_err(|e| JsValue::from_str(&format!("deserialize state: {e}")))?;
+
+    let message = state
+        .encrypt(plaintext)
+        .map_err(|e| JsValue::from_str(&format!("encrypt: {e}")))?;
+
+    let new_state_json = String::from_utf8(
+        state
+            .serialize()
+            .map_err(|e| JsValue::from_str(&format!("serialize state: {e}")))?,
+    )
+    .map_err(|e| JsValue::from_str(&format!("state not UTF-8: {e}")))?;
+
+    let message_json = serde_json::to_string(&message)
+        .map_err(|e| JsValue::from_str(&format!("serialize message: {e}")))?;
+
+    let result = SenderKeyEncryptResult {
+        state_json: new_state_json,
+        message_json,
+    };
+    serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Initialize a ReceiverKeyState from a SenderKeyDistribution and return it serialized.
+#[wasm_bindgen]
+pub fn sender_key_from_distribution(distribution_json: &str) -> Result<String, JsValue> {
+    let dist: SenderKeyDistribution = serde_json::from_str(distribution_json)
+        .map_err(|e| JsValue::from_str(&format!("parse distribution: {e}")))?;
+
+    let state = ReceiverKeyState::from_distribution(&dist);
+
+    let state_json = String::from_utf8(
+        state
+            .serialize()
+            .map_err(|e| JsValue::from_str(&format!("serialize: {e}")))?,
+    )
+    .map_err(|e| JsValue::from_str(&format!("not UTF-8: {e}")))?;
+
+    Ok(state_json)
+}
+
+#[derive(Serialize)]
+struct SenderKeyDecryptResult {
+    state_json: String,
+    plaintext: Vec<u8>,
+}
+
+/// Decrypt a SenderKeyMessage using a ReceiverKeyState.
+/// Returns the updated state and plaintext.
+#[wasm_bindgen]
+pub fn sender_key_decrypt(
+    receiver_state_json: &str,
+    message_json: &str,
+) -> Result<JsValue, JsValue> {
+    let mut state = ReceiverKeyState::deserialize(receiver_state_json.as_bytes())
+        .map_err(|e| JsValue::from_str(&format!("deserialize state: {e}")))?;
+
+    let message: SenderKeyMessage = serde_json::from_str(message_json)
+        .map_err(|e| JsValue::from_str(&format!("parse message: {e}")))?;
+
+    let plaintext = state
+        .decrypt(&message)
+        .map_err(|e| JsValue::from_str(&format!("decrypt: {e}")))?;
+
+    let new_state_json = String::from_utf8(
+        state
+            .serialize()
+            .map_err(|e| JsValue::from_str(&format!("serialize: {e}")))?,
+    )
+    .map_err(|e| JsValue::from_str(&format!("not UTF-8: {e}")))?;
+
+    let result = SenderKeyDecryptResult {
+        state_json: new_state_json,
         plaintext,
     };
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))

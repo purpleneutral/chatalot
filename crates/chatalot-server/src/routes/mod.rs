@@ -12,6 +12,7 @@ pub mod health;
 pub mod link_preview;
 pub mod keys;
 pub mod messages;
+pub mod sender_keys;
 pub mod totp;
 pub mod users;
 
@@ -56,6 +57,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(groups::routes())
         .merge(messages::routes())
         .merge(keys::routes())
+        .merge(sender_keys::routes())
         .merge(dms::routes())
         .merge(files::routes())
         .merge(totp::routes())

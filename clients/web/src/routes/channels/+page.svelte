@@ -79,6 +79,8 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
 	import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
+	import { decryptMessage } from '$lib/crypto/decrypt';
+	import { getSenderKeys } from '$lib/api/sender-keys';
 
 	let messageInput = $state('');
 	let newChannelName = $state('');
@@ -181,7 +183,7 @@
 
 	// Pinned messages state
 	let showPinnedPanel = $state(false);
-	let pinnedMessages = $state<PinnedMessage[]>([]);
+	let pinnedMessages = $state<(PinnedMessage & { _decryptedContent?: string })[]>([]);
 	let loadingPins = $state(false);
 
 	// Scroll-to-bottom button
@@ -719,16 +721,21 @@
 						createdAt: m.created_at,
 					})));
 				} else {
-					chatMessages = reversed.map(m => ({
+					chatMessages = await Promise.all(reversed.map(async (m) => ({
 						id: m.id,
 						channelId: m.channel_id,
 						senderId: m.sender_id,
-						content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+						content: await decryptMessage(
+							m.channel_id,
+							m.sender_id,
+							m.ciphertext,
+							m.id,
+						),
 						messageType: m.message_type,
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
 						createdAt: m.created_at,
-					}));
+					})));
 				}
 				messageStore.setMessages(channelId, chatMessages, FETCH_LIMIT);
 
@@ -736,6 +743,26 @@
 				if (chatMessages.length > 0) {
 					const lastMsg = chatMessages[chatMessages.length - 1];
 					wsClient.send({ type: 'mark_read', channel_id: channelId, message_id: lastMsg.id });
+				}
+
+				// Load sender keys for group channels
+				if (!isDmChannel) {
+					try {
+						await initCrypto();
+						const distributions = await getSenderKeys(channelId);
+						const sm = getSessionManager();
+						for (const dist of distributions) {
+							if (dist.user_id !== authStore.user?.id) {
+								await sm.processSenderKeyDistribution(
+									channelId,
+									dist.user_id,
+									JSON.stringify(dist.distribution),
+								);
+							}
+						}
+					} catch (err) {
+						console.error('Failed to load sender keys:', err);
+					}
 				}
 			} catch (err) {
 				console.error('Failed to load messages:', err);
@@ -833,9 +860,18 @@
 				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
 			}
 		} else {
-			const encoder = new TextEncoder();
-			ciphertext = Array.from(encoder.encode(text));
-			nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			// Group channel: use Sender Key encryption
+			try {
+				await initCrypto();
+				const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId, text);
+				ciphertext = encrypted.ciphertext;
+				nonce = encrypted.nonce;
+			} catch (err) {
+				console.error('Group encryption failed, sending plaintext:', err);
+				const encoder = new TextEncoder();
+				ciphertext = Array.from(encoder.encode(text));
+				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			}
 		}
 
 		// Optimistic add
@@ -1158,9 +1194,17 @@
 				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
 			}
 		} else {
-			const encoder = new TextEncoder();
-			ciphertext = Array.from(encoder.encode(text));
-			nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			// Group channel: use Sender Key encryption
+			try {
+				await initCrypto();
+				const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId!, text);
+				ciphertext = encrypted.ciphertext;
+				nonce = encrypted.nonce;
+			} catch {
+				const encoder = new TextEncoder();
+				ciphertext = Array.from(encoder.encode(text));
+				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			}
 		}
 
 		wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
@@ -1278,7 +1322,18 @@
 		loadingPins = true;
 		try {
 			const pins = await getPinnedMessages(channelStore.activeChannelId);
-			pinnedMessages = pins;
+			pinnedMessages = await Promise.all(pins.map(async (pin) => ({
+				...pin,
+				_decryptedContent: await decryptMessage(
+					pin.channel_id,
+					pin.sender_id ?? '',
+					pin.ciphertext,
+					pin.id,
+					pin.sender_id === authStore.user?.id
+						? getPeerUserIdForDm(channelStore.activeChannelId)
+						: undefined,
+				),
+			})));
 			messageStore.setPinnedIds(channelStore.activeChannelId, pins.map(p => p.id));
 		} catch (err) {
 			console.error('Failed to load pins:', err);
@@ -2018,16 +2073,22 @@
 			searching = true;
 			try {
 				const raw = await searchMessages(channelStore.activeChannelId, searchQuery.trim());
-				searchResults = raw.reverse().map(m => ({
+				searchResults = await Promise.all(raw.reverse().map(async (m) => ({
 					id: m.id,
 					channelId: m.channel_id,
 					senderId: m.sender_id,
-					content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+					content: await decryptMessage(
+						m.channel_id,
+						m.sender_id,
+						m.ciphertext,
+						m.id,
+						m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelStore.activeChannelId) : undefined,
+					),
 					messageType: m.message_type,
 					replyToId: m.reply_to_id,
 					editedAt: m.edited_at,
 					createdAt: m.created_at
-				}));
+				})));
 			} catch (err) {
 				console.error('Search failed:', err);
 				searchResults = [];
@@ -2087,16 +2148,22 @@
 		const prevHeight = el.scrollHeight;
 		try {
 			const raw = await getMessages(channelStore.activeChannelId, oldestMsg.id, FETCH_LIMIT);
-			const olderMessages: ChatMessage[] = raw.reverse().map(m => ({
+			const olderMessages: ChatMessage[] = await Promise.all(raw.reverse().map(async (m) => ({
 				id: m.id,
 				channelId: m.channel_id,
 				senderId: m.sender_id,
-				content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+				content: await decryptMessage(
+					m.channel_id,
+					m.sender_id,
+					m.ciphertext,
+					m.id,
+					m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelStore.activeChannelId) : undefined,
+				),
 				messageType: m.message_type,
 				replyToId: m.reply_to_id,
 				editedAt: m.edited_at,
 				createdAt: m.created_at
-			}));
+			})));
 			messageStore.prependMessages(channelStore.activeChannelId, olderMessages, FETCH_LIMIT);
 			// Preserve scroll position
 			await tick();
@@ -3011,7 +3078,7 @@
 												<span class="text-xs font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(pin.sender_id ?? '')}</span>
 												<span class="text-xs text-[var(--text-secondary)]">{formatTime(pin.created_at)}</span>
 											</div>
-											<p class="mt-0.5 text-sm text-[var(--text-secondary)] truncate">(encrypted message)</p>
+											<p class="mt-0.5 text-sm text-[var(--text-secondary)] truncate">{pin._decryptedContent ?? '(encrypted message)'}</p>
 										</div>
 										{#if myRole === 'owner' || myRole === 'admin'}
 											<button
