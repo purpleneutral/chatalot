@@ -31,6 +31,17 @@
 			}
 		}
 	});
+
+	// Apply per-user volume changes
+	$effect(() => {
+		for (const [userId] of voiceStore.remoteStreams) {
+			const el = audioEls.get(userId);
+			if (el) {
+				// HTMLAudioElement.volume is 0-1, our scale is 0-200
+				el.volume = Math.min(1, voiceStore.getUserVolume(userId) / 100);
+			}
+		}
+	});
 </script>
 
 {#if voiceStore.isInCall}

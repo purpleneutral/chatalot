@@ -14,10 +14,12 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.3.4',
+			version: '0.4.0',
 			date: '2026-02-14',
 			changes: [
-				'Voice controls (mute, camera, screen share, disconnect) now persist in sidebar when browsing other channels',
+				'Right-click a participant in voice to adjust their volume (0-200%)',
+				'Fixed "Encrypted message" showing in group channels',
+				'Voice controls persist in sidebar when browsing other channels',
 			]
 		},
 		{

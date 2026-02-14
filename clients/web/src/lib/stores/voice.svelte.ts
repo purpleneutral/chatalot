@@ -29,6 +29,9 @@ class VoiceStore {
 	// Which remote users have video enabled
 	remoteVideoEnabled = $state<Set<string>>(new Set());
 
+	// Per-user volume (0-200, default 100)
+	userVolumes = $state<Map<string, number>>(new Map());
+
 	get isInCall(): boolean {
 		return this.activeCall !== null;
 	}
@@ -166,6 +169,16 @@ class VoiceStore {
 
 	hasRemoteVideo(userId: string): boolean {
 		return this.remoteVideoEnabled.has(userId);
+	}
+
+	getUserVolume(userId: string): number {
+		return this.userVolumes.get(userId) ?? 100;
+	}
+
+	setUserVolume(userId: string, volume: number) {
+		const next = new Map(this.userVolumes);
+		next.set(userId, Math.max(0, Math.min(200, volume)));
+		this.userVolumes = next;
 	}
 }
 

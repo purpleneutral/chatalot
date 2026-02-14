@@ -916,18 +916,10 @@
 				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
 			}
 		} else {
-			// Group channel: use Sender Key encryption
-			try {
-				await initCrypto();
-				const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId, text);
-				ciphertext = encrypted.ciphertext;
-				nonce = encrypted.nonce;
-			} catch (err) {
-				console.error('Group encryption failed, sending plaintext:', err);
-				const encoder = new TextEncoder();
-				ciphertext = Array.from(encoder.encode(text));
-				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-			}
+			// Group channel: plaintext (E2E sender-key encryption not yet fully wired)
+			const encoder = new TextEncoder();
+			ciphertext = Array.from(encoder.encode(text));
+			nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
 		}
 
 		// Optimistic add
