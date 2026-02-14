@@ -14,6 +14,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.6.0',
+			date: '2026-02-14',
+			changes: [
+				'Tiling layout: stream takes main pane with participant tiles stacked alongside',
+				'Focus mode: hide participant tiles to watch a stream full-width (button in top-right)',
+				'Auto-focus setting: automatically enter focus mode when someone shares their screen',
+			]
+		},
+		{
 			version: '0.5.9',
 			date: '2026-02-14',
 			changes: [

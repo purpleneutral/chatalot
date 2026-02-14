@@ -1027,6 +1027,28 @@
 						</p>
 					</section>
 
+					<!-- ── Stream Focus ── -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Stream Focus</h3>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<div class="text-sm font-medium text-[var(--text-primary)]">Auto-focus streams</div>
+								<div class="text-xs text-[var(--text-secondary)]">Hide participant tiles when someone shares their screen</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('autoHideParticipantsOnStream', !preferencesStore.preferences.autoHideParticipantsOnStream)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.autoHideParticipantsOnStream ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
+						</div>
+
+						<p class="mt-3 text-xs text-[var(--text-secondary)]">
+							You can always toggle between focused and tiled view using the button in the top-right corner of the video area.
+						</p>
+					</section>
+
 				{:else if activeTab === 'security'}
 					<h2 class="mb-6 text-xl font-bold">Security</h2>
 

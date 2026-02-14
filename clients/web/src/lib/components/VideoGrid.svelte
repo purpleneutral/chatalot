@@ -20,6 +20,9 @@
 	// Hidden audio elements for screen share audio (separate from muted video)
 	let screenAudioEls = $state<Map<string, HTMLAudioElement>>(new Map());
 
+	// Focus mode: hide participant tiles, show only stream
+	let focusStream = $state(false);
+
 	// Attach local stream to video element
 	$effect(() => {
 		if (localVideoEl && voiceStore.activeCall?.localStream) {
@@ -65,6 +68,16 @@
 				el.muted = voiceStore.isScreenShareMuted(userId);
 				el.volume = voiceStore.getScreenShareVolume(userId) / 100;
 			}
+		}
+	});
+
+	// Auto-enter focus mode when preference is on and a screen share appears
+	$effect(() => {
+		if (hasAnyScreenShare && preferencesStore.preferences.autoHideParticipantsOnStream) {
+			focusStream = true;
+		}
+		if (!hasAnyScreenShare) {
+			focusStream = false;
 		}
 	});
 
@@ -144,6 +157,12 @@
 		'grid-cols-3'
 	);
 
+	// All participant IDs (for focus mode avatar strip)
+	let allParticipantIds = $derived([
+		authStore.user?.id ?? '',
+		...remoteEntries.map(([id]) => id)
+	]);
+
 	// Context menu state
 	let menuUserId = $state<string | null>(null);
 	let menuPos = $state({ x: 0, y: 0 });
@@ -170,137 +189,318 @@
 
 {#if voiceStore.isInCall}
 	<div class="{expanded ? 'flex-1' : ''} border-b border-white/10 bg-[var(--bg-secondary)] {expanded ? 'flex flex-col' : ''}">
-		<!-- Screen share area (local or remote) — shown prominently above participant tiles -->
-		{#if hasAnyScreenShare}
-			<div class="p-2">
-				{#if voiceStore.activeCall?.screenSharing}
-					<div class="relative">
-						<video
-							bind:this={screenVideoEl}
-							autoplay
-							muted
-							playsinline
-							class="w-full rounded-lg"
-							style="max-height: 400px;"
-						></video>
-						<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-red-500/90 px-2 py-1 text-xs font-medium text-white">
-							<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
-							You are sharing your screen
+
+		{#if hasAnyScreenShare && !focusStream}
+			<!-- ═══ TILED MODE: Stream as master pane + participant tiles stacked on right ═══ -->
+			<div class="relative flex gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: 500px;'}">
+				<!-- Master pane: screen shares -->
+				<div class="flex min-w-0 flex-1 flex-col gap-1">
+					{#if voiceStore.activeCall?.screenSharing}
+						<div class="relative flex-1">
+							<video
+								bind:this={screenVideoEl}
+								autoplay
+								muted
+								playsinline
+								class="h-full w-full rounded-lg object-contain"
+							></video>
+							<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-red-500/90 px-2 py-1 text-xs font-medium text-white">
+								<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
+								You are sharing your screen
+							</div>
+							{#if voiceStore.activeCall?.screenStream && voiceStore.activeCall.screenStream.getAudioTracks().length === 0}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300">
+									No audio — share a tab for sound
+								</div>
+							{/if}
 						</div>
-						{#if voiceStore.activeCall?.screenStream && voiceStore.activeCall.screenStream.getAudioTracks().length === 0}
-							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300">
-								No audio — share a tab for sound
+					{/if}
+
+					{#each remoteScreenEntries as [userId, _stream] (userId)}
+						<div class="relative flex-1">
+							<video
+								autoplay
+								muted
+								playsinline
+								class="h-full w-full rounded-lg object-contain"
+								use:bindRemoteScreen={userId}
+							></video>
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="absolute inset-0 rounded-lg"
+								oncontextmenu={(e) => openScreenMenu(e, userId)}
+							></div>
+							<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-[var(--accent)]/90 px-2 py-1 text-xs font-medium text-white pointer-events-none">
+								<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
+								{userStore.getDisplayName(userId)} is sharing their screen
+							</div>
+							{#if !screenShareHasAudio().get(userId)}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300 pointer-events-none">
+									No audio
+								</div>
+							{:else if voiceStore.isScreenShareMuted(userId)}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
+									Audio muted
+								</div>
+							{:else if voiceStore.getScreenShareVolume(userId) !== 100}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
+									{voiceStore.getScreenShareVolume(userId)}%
+								</div>
+							{/if}
+							<!-- svelte-ignore element_invalid_self_closing_tag -->
+							<audio autoplay use:bindScreenAudio={userId} class="hidden"></audio>
+						</div>
+					{/each}
+				</div>
+
+				<!-- Participant tiles stacked on the right -->
+				<div class="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto">
+					<!-- Local tile -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+						style="aspect-ratio: 16/9;"
+						oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
+					>
+						{#if hasVideo}
+							<!-- svelte-ignore element_invalid_self_closing_tag -->
+							<video
+								bind:this={localVideoEl}
+								autoplay
+								muted
+								playsinline
+								class="h-full w-full object-cover"
+							></video>
+						{:else}
+							{#if authStore.user}
+								<Avatar userId={authStore.user.id} size="md" />
+							{/if}
+						{/if}
+						<div class="absolute top-0.5 right-0.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+							You {voiceStore.activeCall?.audioEnabled ? '' : '(muted)'}
+						</div>
+						{#if voiceStore.activeCall?.screenSharing}
+							<div class="absolute top-0.5 left-0.5 flex items-center gap-0.5 rounded bg-red-500/80 px-1 py-0.5 text-[9px] text-white">
+								<span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
+								LIVE
 							</div>
 						{/if}
 					</div>
-				{/if}
 
-				{#each remoteScreenEntries as [userId, _stream] (userId)}
-					<div class="relative mt-1">
-						<!-- Video: muted (audio handled by hidden <audio> element below) -->
+					<!-- Remote participant tiles -->
+					{#each remoteEntries as [userId, _stream] (userId)}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+							style="aspect-ratio: 16/9;"
+							oncontextmenu={(e) => openVolumeMenu(e, userId)}
+						>
+							{#if !voiceStore.hasRemoteVideo(userId)}
+								<Avatar {userId} size="md" />
+							{/if}
+							<video
+								autoplay
+								muted
+								playsinline
+								class="{voiceStore.hasRemoteVideo(userId) ? 'h-full w-full object-cover' : 'absolute h-0 w-0 opacity-0'}"
+								use:bindRemoteVideo={userId}
+							></video>
+							<div class="absolute top-0.5 right-0.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+								{userStore.getDisplayName(userId)}
+								{#if voiceStore.getUserVolume(userId) !== 100}
+									<span class="ml-0.5 opacity-70">{voiceStore.getUserVolume(userId)}%</span>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+
+				<!-- Focus toggle button -->
+				<button
+					onclick={() => focusStream = true}
+					class="absolute top-3 right-3 z-10 rounded-lg bg-black/50 p-1.5 text-white/70 transition hover:bg-black/70 hover:text-white"
+					title="Focus on stream (hide participants)"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+					</svg>
+				</button>
+			</div>
+
+		{:else if hasAnyScreenShare && focusStream}
+			<!-- ═══ FOCUS MODE: Stream full-width, participant avatars in strip below ═══ -->
+			<div class="relative flex flex-col {expanded ? 'flex-1' : ''} p-2">
+				<!-- Screen shares -->
+				<div class="flex-1">
+					{#if voiceStore.activeCall?.screenSharing}
+						<div class="relative">
+							<video
+								bind:this={screenVideoEl}
+								autoplay
+								muted
+								playsinline
+								class="w-full rounded-lg"
+								style="{expanded ? '' : 'max-height: 70vh;'}"
+							></video>
+							<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-red-500/90 px-2 py-1 text-xs font-medium text-white">
+								<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
+								You are sharing your screen
+							</div>
+							{#if voiceStore.activeCall?.screenStream && voiceStore.activeCall.screenStream.getAudioTracks().length === 0}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300">
+									No audio — share a tab for sound
+								</div>
+							{/if}
+						</div>
+					{/if}
+
+					{#each remoteScreenEntries as [userId, _stream] (userId)}
+						<div class="relative mt-1">
+							<video
+								autoplay
+								muted
+								playsinline
+								class="w-full rounded-lg"
+								style="{expanded ? '' : 'max-height: 70vh;'}"
+								use:bindRemoteScreen={userId}
+							></video>
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="absolute inset-0 rounded-lg"
+								oncontextmenu={(e) => openScreenMenu(e, userId)}
+							></div>
+							<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-[var(--accent)]/90 px-2 py-1 text-xs font-medium text-white pointer-events-none">
+								<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
+								{userStore.getDisplayName(userId)} is sharing their screen
+							</div>
+							{#if !screenShareHasAudio().get(userId)}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300 pointer-events-none">
+									No audio
+								</div>
+							{:else if voiceStore.isScreenShareMuted(userId)}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
+									Audio muted
+								</div>
+							{:else if voiceStore.getScreenShareVolume(userId) !== 100}
+								<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
+									{voiceStore.getScreenShareVolume(userId)}%
+								</div>
+							{/if}
+							<!-- svelte-ignore element_invalid_self_closing_tag -->
+							<audio autoplay use:bindScreenAudio={userId} class="hidden"></audio>
+						</div>
+					{/each}
+				</div>
+
+				<!-- Participant avatar strip -->
+				<div class="mt-1 flex items-center gap-2 rounded-lg bg-[var(--bg-tertiary)]/80 px-3 py-1.5">
+					{#each allParticipantIds as userId (userId)}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="relative shrink-0"
+							oncontextmenu={(e) => openVolumeMenu(e, userId)}
+							title={userId === authStore.user?.id ? 'You' : userStore.getDisplayName(userId)}
+						>
+							<div class="h-7 w-7 rounded-full overflow-hidden transition-shadow {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_6px_var(--success)]' : ''}">
+								<Avatar {userId} size="sm" />
+							</div>
+							{#if userId === authStore.user?.id && !voiceStore.activeCall?.audioEnabled}
+								<div class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-[var(--bg-secondary)] flex items-center justify-center">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-2 w-2 text-[var(--danger)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+									</svg>
+								</div>
+							{/if}
+						</div>
+					{/each}
+					<div class="ml-auto text-[10px] text-[var(--text-secondary)]">
+						{totalParticipants} in call
+					</div>
+				</div>
+
+				<!-- Unfocus toggle button -->
+				<button
+					onclick={() => focusStream = false}
+					class="absolute top-3 right-3 z-10 rounded-lg bg-black/50 p-1.5 text-white/70 transition hover:bg-black/70 hover:text-white"
+					title="Show participants (tiled view)"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+					</svg>
+				</button>
+			</div>
+
+			<!-- Hidden video elements to keep remote streams attached (audio handled by PersistentAudio) -->
+			{#each remoteEntries as [userId, _stream] (userId)}
+				<video
+					autoplay
+					muted
+					playsinline
+					class="absolute h-0 w-0 opacity-0"
+					use:bindRemoteVideo={userId}
+				></video>
+			{/each}
+
+		{:else}
+			<!-- ═══ STANDARD MODE: No screen share — normal participant grid ═══ -->
+			<div class="grid {gridCols} gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: 400px;'}">
+				<!-- Local video/avatar -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+					style="aspect-ratio: 16/9; min-height: {expanded ? '200px' : '120px'};"
+					oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
+				>
+					{#if hasVideo}
+						<!-- svelte-ignore element_invalid_self_closing_tag -->
+						<video
+							bind:this={localVideoEl}
+							autoplay
+							muted
+							playsinline
+							class="h-full w-full object-cover"
+						></video>
+					{:else}
+						{#if authStore.user}
+							<Avatar userId={authStore.user.id} size="lg" />
+						{/if}
+					{/if}
+					<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+						You {voiceStore.activeCall?.audioEnabled ? '' : '(muted)'}
+						{#if preferencesStore.preferences.inputGain !== 100}
+							<span class="ml-1 opacity-70">{preferencesStore.preferences.inputGain}%</span>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Remote participants -->
+				{#each remoteEntries as [userId, _stream] (userId)}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+						style="aspect-ratio: 16/9; min-height: {expanded ? '200px' : '120px'};"
+						oncontextmenu={(e) => openVolumeMenu(e, userId)}
+					>
+						{#if !voiceStore.hasRemoteVideo(userId)}
+							<Avatar {userId} size="lg" />
+						{/if}
 						<video
 							autoplay
 							muted
 							playsinline
-							class="w-full rounded-lg"
-							style="max-height: 400px;"
-							use:bindRemoteScreen={userId}
+							class="{voiceStore.hasRemoteVideo(userId) ? 'h-full w-full object-cover' : 'absolute h-0 w-0 opacity-0'}"
+							use:bindRemoteVideo={userId}
 						></video>
-						<!-- Transparent overlay for right-click (prevents browser's native video menu) -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="absolute inset-0 rounded-lg"
-							oncontextmenu={(e) => openScreenMenu(e, userId)}
-						></div>
-						<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-[var(--accent)]/90 px-2 py-1 text-xs font-medium text-white pointer-events-none">
-							<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
-							{userStore.getDisplayName(userId)} is sharing their screen
+						<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+							{userStore.getDisplayName(userId)}
+							{#if voiceStore.getUserVolume(userId) !== 100}
+								<span class="ml-1 opacity-70">{voiceStore.getUserVolume(userId)}%</span>
+							{/if}
 						</div>
-						{#if !screenShareHasAudio().get(userId)}
-							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300 pointer-events-none">
-								No audio
-							</div>
-						{:else if voiceStore.isScreenShareMuted(userId)}
-							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
-								Audio muted
-							</div>
-						{:else if voiceStore.getScreenShareVolume(userId) !== 100}
-							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
-								{voiceStore.getScreenShareVolume(userId)}%
-							</div>
-						{/if}
-						<!-- Hidden audio element for screen share sound -->
-						<!-- svelte-ignore element_invalid_self_closing_tag -->
-						<audio autoplay use:bindScreenAudio={userId} class="hidden"></audio>
 					</div>
 				{/each}
 			</div>
 		{/if}
-
-		<!-- Participant tiles -->
-		<div class="grid {gridCols} gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : `max-height: ${hasAnyScreenShare ? '150px' : '400px'};`}">
-			<!-- Local video/avatar -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-				style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : expanded ? '200px' : '120px'};"
-				oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
-			>
-				{#if hasVideo}
-					<!-- svelte-ignore element_invalid_self_closing_tag -->
-					<video
-						bind:this={localVideoEl}
-						autoplay
-						muted
-						playsinline
-						class="h-full w-full object-cover"
-					></video>
-				{:else}
-					{#if authStore.user}
-						<Avatar userId={authStore.user.id} size="lg" />
-					{/if}
-				{/if}
-				<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
-					You {voiceStore.activeCall?.audioEnabled ? '' : '(muted)'}
-					{#if preferencesStore.preferences.inputGain !== 100}
-						<span class="ml-1 opacity-70">{preferencesStore.preferences.inputGain}%</span>
-					{/if}
-				</div>
-				{#if voiceStore.activeCall?.screenSharing}
-					<div class="absolute top-1 left-1 flex items-center gap-1 rounded bg-red-500/80 px-1.5 py-0.5 text-[10px] text-white">
-						<span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
-						LIVE
-					</div>
-				{/if}
-			</div>
-
-			<!-- Remote participants -->
-			{#each remoteEntries as [userId, _stream] (userId)}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-					style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : expanded ? '200px' : '120px'};"
-					oncontextmenu={(e) => openVolumeMenu(e, userId)}
-				>
-					{#if !voiceStore.hasRemoteVideo(userId)}
-						<Avatar {userId} size="lg" />
-					{/if}
-					<video
-						autoplay
-						muted
-						playsinline
-						class="{voiceStore.hasRemoteVideo(userId) ? 'h-full w-full object-cover' : 'absolute h-0 w-0 opacity-0'}"
-						use:bindRemoteVideo={userId}
-					></video>
-					<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
-						{userStore.getDisplayName(userId)}
-						{#if voiceStore.getUserVolume(userId) !== 100}
-							<span class="ml-1 opacity-70">{voiceStore.getUserVolume(userId)}%</span>
-						{/if}
-					</div>
-				</div>
-			{/each}
-		</div>
 
 		<!-- Context menu -->
 		{#if menuUserId}

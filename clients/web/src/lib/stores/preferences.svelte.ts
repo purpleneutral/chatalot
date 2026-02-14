@@ -31,6 +31,7 @@ export interface UserPreferences {
 	outputVolume: number;
 	echoCancellation: boolean;
 	autoGainControl: boolean;
+	autoHideParticipantsOnStream: boolean;
 }
 
 const DEFAULTS: UserPreferences = {
@@ -48,7 +49,8 @@ const DEFAULTS: UserPreferences = {
 	inputGain: 100,
 	outputVolume: 100,
 	echoCancellation: true,
-	autoGainControl: true
+	autoGainControl: true,
+	autoHideParticipantsOnStream: false
 };
 
 export const ACCENT_COLORS: Record<
