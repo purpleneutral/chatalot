@@ -14,11 +14,11 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.2.3',
+			version: '0.3.0',
 			date: '2026-02-14',
 			changes: [
-				'GIF search is now working (Tenor API configured)',
-				'Updates no longer interrupt voice calls — clickable banner instead',
+				'GIF search now powered by GIPHY',
+				'Non-intrusive update banner — you choose when to refresh',
 			]
 		},
 		{

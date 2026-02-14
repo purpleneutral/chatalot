@@ -28,15 +28,15 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/gifs/trending", get(trending_gifs))
 }
 
-fn get_tenor_key() -> Option<String> {
-    std::env::var("TENOR_API_KEY").ok().filter(|k| !k.is_empty())
+fn get_giphy_key() -> Option<String> {
+    std::env::var("GIPHY_API_KEY").ok().filter(|k| !k.is_empty())
 }
 
 async fn search_gifs(
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<GifSearchQuery>,
 ) -> Result<Json<GifSearchResponse>, AppError> {
-    let api_key = get_tenor_key()
+    let api_key = get_giphy_key()
         .ok_or_else(|| AppError::Validation("GIF search is not configured on this server".into()))?;
 
     let q = query.q.unwrap_or_default();
@@ -44,7 +44,8 @@ async fn search_gifs(
         return Ok(Json(GifSearchResponse { results: vec![], next: None }));
     }
     let limit = query.limit.unwrap_or(20).min(50);
-    let cache_key = format!("search:{}:{}:{}", q, limit, query.pos.as_deref().unwrap_or(""));
+    let offset = query.pos.as_deref().and_then(|p| p.parse::<u32>().ok()).unwrap_or(0);
+    let cache_key = format!("search:{}:{}:{}", q, limit, offset);
 
     if let Some(entry) = GIF_CACHE.get(&cache_key) {
         if entry.created.elapsed() < CACHE_TTL {
@@ -57,18 +58,15 @@ async fn search_gifs(
         GIF_CACHE.remove(&cache_key);
     }
 
-    let mut params: Vec<(&str, String)> = vec![
+    let params: Vec<(&str, String)> = vec![
         ("q", q),
-        ("key", api_key),
-        ("client_key", "chatalot".into()),
+        ("api_key", api_key),
         ("limit", limit.to_string()),
-        ("media_filter", "gif,tinygif".into()),
+        ("offset", offset.to_string()),
+        ("rating", "g".into()),
     ];
-    if let Some(ref pos) = query.pos {
-        params.push(("pos", pos.clone()));
-    }
 
-    let response = fetch_tenor("https://tenor.googleapis.com/v2/search", &params).await?;
+    let response = fetch_giphy("https://api.giphy.com/v1/gifs/search", &params).await?;
     cache_gif_response(&cache_key, &response);
     Ok(Json(response))
 }
@@ -77,11 +75,12 @@ async fn trending_gifs(
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<GifSearchQuery>,
 ) -> Result<Json<GifSearchResponse>, AppError> {
-    let api_key = get_tenor_key()
+    let api_key = get_giphy_key()
         .ok_or_else(|| AppError::Validation("GIF search is not configured on this server".into()))?;
 
     let limit = query.limit.unwrap_or(20).min(50);
-    let cache_key = format!("trending:{}:{}", limit, query.pos.as_deref().unwrap_or(""));
+    let offset = query.pos.as_deref().and_then(|p| p.parse::<u32>().ok()).unwrap_or(0);
+    let cache_key = format!("trending:{}:{}", limit, offset);
 
     if let Some(entry) = GIF_CACHE.get(&cache_key) {
         if entry.created.elapsed() < CACHE_TTL {
@@ -94,61 +93,66 @@ async fn trending_gifs(
         GIF_CACHE.remove(&cache_key);
     }
 
-    let mut params: Vec<(&str, String)> = vec![
-        ("key", api_key),
-        ("client_key", "chatalot".into()),
+    let params: Vec<(&str, String)> = vec![
+        ("api_key", api_key),
         ("limit", limit.to_string()),
-        ("media_filter", "gif,tinygif".into()),
+        ("offset", offset.to_string()),
+        ("rating", "g".into()),
     ];
-    if let Some(ref pos) = query.pos {
-        params.push(("pos", pos.clone()));
-    }
 
-    let response = fetch_tenor("https://tenor.googleapis.com/v2/featured", &params).await?;
+    let response = fetch_giphy("https://api.giphy.com/v1/gifs/trending", &params).await?;
     cache_gif_response(&cache_key, &response);
     Ok(Json(response))
 }
 
-async fn fetch_tenor(base_url: &str, params: &[(&str, String)]) -> Result<GifSearchResponse, AppError> {
+async fn fetch_giphy(base_url: &str, params: &[(&str, String)]) -> Result<GifSearchResponse, AppError> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
 
     let resp = client.get(base_url).query(params).send().await.map_err(|e| {
-        tracing::warn!("Tenor API request failed: {e}");
+        tracing::warn!("GIPHY API request failed: {e}");
         AppError::Internal("Failed to fetch GIFs".into())
     })?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        tracing::warn!("Tenor API returned status {status}");
-        return Err(AppError::Internal(format!("Tenor API error: {status}")));
+        tracing::warn!("GIPHY API returned status {status}");
+        return Err(AppError::Internal(format!("GIPHY API error: {status}")));
     }
 
     let body: serde_json::Value = resp.json().await.map_err(|e| {
-        AppError::Internal(format!("Failed to parse Tenor response: {e}"))
+        AppError::Internal(format!("Failed to parse GIPHY response: {e}"))
     })?;
 
-    let results = body["results"]
+    let results = body["data"]
         .as_array()
         .unwrap_or(&vec![])
         .iter()
         .filter_map(|item| {
             let id = item["id"].as_str()?.to_string();
             let title = item["title"].as_str().unwrap_or("").to_string();
-            let gif = &item["media_formats"]["gif"];
-            let tinygif = &item["media_formats"]["tinygif"];
-            let url = gif["url"].as_str()?.to_string();
-            let preview_url = tinygif["url"].as_str().unwrap_or(&url).to_string();
-            let dims = gif["dims"].as_array()?;
-            let width = dims.first()?.as_u64()? as u32;
-            let height = dims.get(1)?.as_u64()? as u32;
+            let original = &item["images"]["original"];
+            let preview = &item["images"]["fixed_width_small"];
+            let url = original["url"].as_str()?.to_string();
+            let preview_url = preview["url"].as_str().unwrap_or(&url).to_string();
+            let width = original["width"].as_str()?.parse::<u32>().ok()?;
+            let height = original["height"].as_str()?.parse::<u32>().ok()?;
             Some(GifResult { id, title, preview_url, url, width, height })
         })
         .collect();
 
-    let next = body["next"].as_str().map(|s| s.to_string()).filter(|s| !s.is_empty());
+    // GIPHY uses offset-based pagination
+    let pagination = &body["pagination"];
+    let total = pagination["total_count"].as_u64().unwrap_or(0);
+    let offset = pagination["offset"].as_u64().unwrap_or(0);
+    let count = pagination["count"].as_u64().unwrap_or(0);
+    let next = if offset + count < total {
+        Some((offset + count).to_string())
+    } else {
+        None
+    };
 
     Ok(GifSearchResponse { results, next })
 }

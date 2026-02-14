@@ -3971,7 +3971,7 @@
 								{/if}
 							</div>
 							<div class="border-t border-white/10 px-3 py-1.5 text-right">
-								<span class="text-[10px] text-[var(--text-secondary)]/50">Powered by Tenor</span>
+								<span class="text-[10px] text-[var(--text-secondary)]/50">Powered by GIPHY</span>
 							</div>
 						</div>
 					{/if}
