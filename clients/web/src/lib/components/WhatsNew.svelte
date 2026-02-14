@@ -14,6 +14,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.3.4',
+			date: '2026-02-14',
+			changes: [
+				'Voice controls (mute, camera, screen share, disconnect) now persist in sidebar when browsing other channels',
+			]
+		},
+		{
 			version: '0.3.3',
 			date: '2026-02-14',
 			changes: [

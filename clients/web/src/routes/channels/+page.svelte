@@ -2966,8 +2966,64 @@
 							Voice Connected
 						</button>
 						<button
+							onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
+							class="truncate text-[10px] text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+						>
+							{voiceChannel?.name ?? 'Voice'} / {voiceStore.activeCall.participants.length}
+						</button>
+					</div>
+					<div class="mt-1.5 flex items-center justify-center gap-1">
+						<!-- Mute -->
+						<button
+							onclick={() => webrtcManager.toggleAudio()}
+							class="rounded-md p-1.5 transition {voiceStore.activeCall?.audioEnabled ? 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]' : 'bg-red-500/20 text-red-400'}"
+							title={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}
+						>
+							{#if voiceStore.activeCall?.audioEnabled}
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+									<path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+								</svg>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<line x1="1" y1="1" x2="23" y2="23" />
+									<path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+									<path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .4-.03.8-.1 1.17" />
+									<line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+								</svg>
+							{/if}
+						</button>
+						<!-- Video -->
+						<button
+							onclick={() => webrtcManager.toggleVideo()}
+							class="rounded-md p-1.5 transition {voiceStore.activeCall?.videoEnabled ? 'text-[var(--text-primary)] hover:bg-white/10' : 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'}"
+							title={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
+						>
+							{#if voiceStore.activeCall?.videoEnabled}
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+								</svg>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" />
+									<line x1="1" y1="1" x2="23" y2="23" />
+								</svg>
+							{/if}
+						</button>
+						<!-- Screen share -->
+						<button
+							onclick={() => webrtcManager.toggleScreenShare()}
+							class="rounded-md p-1.5 transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'}"
+							title={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+							</svg>
+						</button>
+						<!-- Disconnect -->
+						<button
 							onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; }}
-							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-red-500/20 hover:text-red-400"
+							class="rounded-md bg-red-500/20 p-1.5 text-red-400 transition hover:bg-red-500/30"
 							title="Disconnect"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2976,12 +3032,6 @@
 							</svg>
 						</button>
 					</div>
-					<button
-						onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
-						class="mt-0.5 truncate text-xs text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-					>
-						{voiceChannel?.name ?? 'Voice Channel'} / {voiceStore.activeCall.participants.length} connected
-					</button>
 				</div>
 			{/if}
 
