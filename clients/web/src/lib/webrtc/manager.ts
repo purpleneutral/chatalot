@@ -333,7 +333,7 @@ class WebRTCManager {
 		if (!voiceStore.activeCall) return;
 
 		if (voiceStore.activeCall.screenSharing) {
-			// Stop sharing — remove screen tracks from peers
+			// Stop sharing — remove screen tracks from peers, renegotiate, THEN stop tracks
 			const screenStream = voiceStore.activeCall.screenStream;
 			if (screenStream) {
 				for (const pc of this.peers.values()) {
@@ -343,12 +343,13 @@ class WebRTCManager {
 						}
 					}
 				}
-				screenStream.getTracks().forEach(t => t.stop());
 			}
-			this.systemAudioStream?.getTracks().forEach(t => t.stop());
-			this.systemAudioStream = null;
 			voiceStore.setScreenSharing(false, null);
 			await this.renegotiateAll();
+			// Stop tracks after renegotiation so the removal is properly signaled
+			screenStream?.getTracks().forEach(t => t.stop());
+			this.systemAudioStream?.getTracks().forEach(t => t.stop());
+			this.systemAudioStream = null;
 		} else {
 			try {
 				const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -429,12 +430,13 @@ class WebRTCManager {
 					}
 				}
 			}
-			screenStream.getTracks().forEach(t => t.stop());
 		}
-		this.systemAudioStream?.getTracks().forEach(t => t.stop());
-		this.systemAudioStream = null;
 		voiceStore.setScreenSharing(false, null);
 		await this.renegotiateAll();
+		// Stop tracks after renegotiation so the removal is properly signaled
+		screenStream?.getTracks().forEach(t => t.stop());
+		this.systemAudioStream?.getTracks().forEach(t => t.stop());
+		this.systemAudioStream = null;
 	}
 
 	/// Renegotiate all peer connections (after adding/removing tracks).
@@ -779,9 +781,30 @@ class WebRTCManager {
 				// Different stream = screen share
 				voiceStore.addRemoteScreenStream(userId, stream);
 
-				// Clean up when screen share track ends
-				event.track.onended = () => {
+				// Clean up when screen share stops — multiple mechanisms because
+				// browsers vary in which events they fire on renegotiation
+				const cleanupScreen = () => {
 					voiceStore.removeRemoteScreenStream(userId);
+				};
+
+				// Direct track end (e.g., sender stopped the track)
+				event.track.onended = cleanupScreen;
+
+				// Track muted = sender removed it during renegotiation
+				event.track.onmute = () => {
+					// Verify after a brief delay (avoids false positives from network glitches)
+					setTimeout(() => {
+						if (event.track.readyState === 'ended' || event.track.muted) {
+							cleanupScreen();
+						}
+					}, 500);
+				};
+
+				// Track removed from the stream entirely
+				stream.onremovetrack = () => {
+					if (stream.getTracks().length === 0) {
+						cleanupScreen();
+					}
 				};
 			}
 
