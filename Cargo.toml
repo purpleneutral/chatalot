@@ -46,7 +46,7 @@ validator = { version = "0.19", features = ["derive"] }
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 base32 = "0.5"
 data-encoding = "2"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
 
 # Shared crates
 chatalot-db = { path = "crates/chatalot-db" }

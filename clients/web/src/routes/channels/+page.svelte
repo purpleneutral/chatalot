@@ -301,6 +301,34 @@
 	let feedbackDescription = $state('');
 	let feedbackCategory = $state('bug');
 	let feedbackSubmitting = $state(false);
+	let feedbackScreenshot = $state<File | null>(null);
+	let feedbackScreenshotPreview = $state<string | null>(null);
+	let feedbackFileInput = $state<HTMLInputElement | null>(null);
+
+	function setFeedbackScreenshot(file: File | null) {
+		if (feedbackScreenshotPreview) {
+			URL.revokeObjectURL(feedbackScreenshotPreview);
+			feedbackScreenshotPreview = null;
+		}
+		feedbackScreenshot = file;
+		if (file) {
+			feedbackScreenshotPreview = URL.createObjectURL(file);
+		}
+	}
+
+	function handleFeedbackPaste(e: ClipboardEvent) {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				const file = item.getAsFile();
+				if (file) {
+					setFeedbackScreenshot(file);
+					break;
+				}
+			}
+		}
+	}
 
 	async function handleFeedbackSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -310,13 +338,15 @@
 			const res = await submitFeedback({
 				title: feedbackTitle.trim(),
 				description: feedbackDescription.trim(),
-				category: feedbackCategory
+				category: feedbackCategory,
+				screenshot: feedbackScreenshot
 			});
 			toastStore.success(res.message);
 			showFeedback = false;
 			feedbackTitle = '';
 			feedbackDescription = '';
 			feedbackCategory = 'bug';
+			setFeedbackScreenshot(null);
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to submit feedback');
 		} finally {
@@ -4090,7 +4120,8 @@
 
 	<!-- Feedback modal -->
 	{#if showFeedback}
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }}>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onpaste={handleFeedbackPaste}>
 			<div class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" transition:scale={{ start: 0.95, duration: 200 }}>
 				<h2 class="mb-1 text-lg font-semibold text-[var(--text-primary)]">Send Feedback</h2>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">Help us improve Chatalot. Your feedback creates an issue for the developers.</p>
@@ -4134,10 +4165,47 @@
 						></textarea>
 					</div>
 
+					<!-- Screenshot attachment -->
+					<div>
+						<label class="mb-1 block text-sm font-medium text-[var(--text-secondary)]">Screenshot (optional)</label>
+						<input
+							bind:this={feedbackFileInput}
+							type="file"
+							accept="image/png,image/jpeg,image/webp"
+							class="hidden"
+							onchange={(e) => {
+								const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+								setFeedbackScreenshot(file);
+							}}
+						/>
+						{#if feedbackScreenshotPreview}
+							<div class="relative inline-block">
+								<img src={feedbackScreenshotPreview} alt="Screenshot preview" class="max-h-40 rounded-lg border border-white/10" />
+								<button
+									type="button"
+									onclick={() => { setFeedbackScreenshot(null); if (feedbackFileInput) feedbackFileInput.value = ''; }}
+									class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow hover:bg-red-600"
+									title="Remove screenshot"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+								</button>
+							</div>
+						{:else}
+							<button
+								type="button"
+								onclick={() => feedbackFileInput?.click()}
+								class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-white/20 px-3 py-3 text-sm text-[var(--text-secondary)] transition hover:border-[var(--accent)] hover:text-[var(--text-primary)]"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+								Attach screenshot or paste from clipboard
+							</button>
+						{/if}
+					</div>
+
 					<div class="flex justify-end gap-3">
 						<button
 							type="button"
-							onclick={() => (showFeedback = false)}
+							onclick={() => { showFeedback = false; setFeedbackScreenshot(null); }}
 							class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						>
 							Cancel

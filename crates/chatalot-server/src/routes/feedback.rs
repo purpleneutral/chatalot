@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Multipart, State};
 use axum::routing::post;
 use axum::{Extension, Json, Router};
-use chatalot_common::api_types::{CreateFeedbackRequest, FeedbackResponse};
+use chatalot_common::api_types::FeedbackResponse;
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -13,26 +13,80 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new().route("/feedback", post(submit_feedback))
 }
 
+const MAX_SCREENSHOT_SIZE: usize = 5 * 1024 * 1024; // 5MB
+
 async fn submit_feedback(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
-    Json(req): Json<CreateFeedbackRequest>,
+    mut multipart: Multipart,
 ) -> Result<Json<FeedbackResponse>, AppError> {
+    let mut title = String::new();
+    let mut description = String::new();
+    let mut category = String::new();
+    let mut screenshot: Option<(String, Vec<u8>)> = None; // (filename, bytes)
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::Validation(format!("invalid form data: {e}")))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "title" => {
+                title = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::Validation(format!("invalid title: {e}")))?;
+            }
+            "description" => {
+                description = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::Validation(format!("invalid description: {e}")))?;
+            }
+            "category" => {
+                category = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::Validation(format!("invalid category: {e}")))?;
+            }
+            "screenshot" => {
+                let filename = field
+                    .file_name()
+                    .unwrap_or("screenshot.png")
+                    .to_string();
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::Validation(format!("failed to read screenshot: {e}")))?;
+                if data.len() > MAX_SCREENSHOT_SIZE {
+                    return Err(AppError::Validation(
+                        "screenshot must be under 5MB".to_string(),
+                    ));
+                }
+                if !data.is_empty() {
+                    screenshot = Some((filename, data.to_vec()));
+                }
+            }
+            _ => {}
+        }
+    }
+
     // Validate
-    let title = req.title.trim();
+    let title = title.trim();
     if title.is_empty() || title.len() > 200 {
         return Err(AppError::Validation(
             "title must be 1-200 characters".to_string(),
         ));
     }
-    let description = req.description.trim();
+    let description = description.trim();
     if description.is_empty() || description.len() > 5000 {
         return Err(AppError::Validation(
             "description must be 1-5000 characters".to_string(),
         ));
     }
     let valid_categories = ["bug", "feature", "ui", "other"];
-    if !valid_categories.contains(&req.category.as_str()) {
+    if !valid_categories.contains(&category.as_str()) {
         return Err(AppError::Validation(
             "category must be one of: bug, feature, ui, other".to_string(),
         ));
@@ -54,7 +108,7 @@ async fn submit_feedback(
     };
 
     // Build issue body
-    let category_label = match req.category.as_str() {
+    let category_label = match category.as_str() {
         "bug" => "Bug Report",
         "feature" => "Feature Request",
         "ui" => "UI/UX",
@@ -67,15 +121,11 @@ async fn submit_feedback(
 
     // Create Forgejo issue via API
     let client = reqwest::Client::new();
-    let url = format!(
-        "{}/api/v1/repos/{}/{}/issues",
-        api_url.trim_end_matches('/'),
-        repo_owner,
-        repo_name
-    );
+    let base_url = api_url.trim_end_matches('/');
+    let issues_url = format!("{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues");
 
     let response = client
-        .post(&url)
+        .post(&issues_url)
         .header("Authorization", format!("token {api_token}"))
         .header("Content-Type", "application/json")
         .json(&serde_json::json!({
@@ -101,6 +151,51 @@ async fn submit_feedback(
         .map_err(|e| AppError::Internal(format!("Invalid response from issue tracker: {e}")))?;
 
     let issue_number = issue["number"].as_u64();
+
+    // Upload screenshot as issue attachment if provided
+    if let (Some((filename, data)), Some(issue_idx)) = (screenshot, issue_number) {
+        let mime = if filename.ends_with(".png") {
+            "image/png"
+        } else if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+            "image/jpeg"
+        } else if filename.ends_with(".webp") {
+            "image/webp"
+        } else {
+            "image/png"
+        };
+
+        let part = reqwest::multipart::Part::bytes(data)
+            .file_name(filename)
+            .mime_str(mime)
+            .unwrap_or_else(|_| reqwest::multipart::Part::bytes(vec![]));
+
+        let form = reqwest::multipart::Form::new().part("attachment", part);
+
+        let attach_url = format!(
+            "{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues/{issue_idx}/assets"
+        );
+
+        let attach_resp = client
+            .post(&attach_url)
+            .header("Authorization", format!("token {api_token}"))
+            .multipart(form)
+            .send()
+            .await;
+
+        match attach_resp {
+            Ok(resp) if !resp.status().is_success() => {
+                tracing::warn!(
+                    "Failed to attach screenshot to issue #{}: {}",
+                    issue_idx,
+                    resp.status()
+                );
+            }
+            Err(e) => {
+                tracing::warn!("Failed to attach screenshot to issue: {e}");
+            }
+            _ => {}
+        }
+    }
 
     Ok(Json(FeedbackResponse {
         success: true,
