@@ -2861,6 +2861,38 @@
 				{/if}
 			</div>
 
+			<!-- Voice connected bar -->
+			{#if voiceStore.activeCall}
+				{@const voiceChannel = channelStore.channels.find(c => c.id === voiceStore.activeCall?.channelId)}
+				<div class="border-t border-white/10 bg-[var(--success)]/10 px-3 py-2">
+					<div class="flex items-center justify-between">
+						<button
+							onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
+							class="flex items-center gap-2 text-left text-xs font-medium text-[var(--success)] transition hover:brightness-110"
+						>
+							<span class="flex h-2 w-2 animate-pulse rounded-full bg-[var(--success)]"></span>
+							Voice Connected
+						</button>
+						<button
+							onclick={() => webrtcManager.leaveCall()}
+							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-red-500/20 hover:text-red-400"
+							title="Disconnect"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+								<line x1="23" y1="1" x2="1" y2="23" />
+							</svg>
+						</button>
+					</div>
+					<button
+						onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
+						class="mt-0.5 truncate text-xs text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+					>
+						{voiceChannel?.name ?? 'Voice Channel'} / {voiceStore.activeCall.participants.length} connected
+					</button>
+				</div>
+			{/if}
+
 			<!-- User info -->
 			<div class="relative flex items-center gap-3 border-t border-white/10 p-3">
 				{#if authStore.user}
