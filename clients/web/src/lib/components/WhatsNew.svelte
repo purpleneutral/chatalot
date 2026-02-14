@@ -14,16 +14,25 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.1.0',
-			date: '2025-06-01',
+			version: '0.2.0',
+			date: '2026-02-14',
 			changes: [
-				'Voice calls now support 3+ participants (full mesh)',
+				'Auto-update: app reloads automatically when a new version is deployed',
+				'Collapsible chat during voice calls (button next to Send)',
 				'Per-user colored message bubbles',
 				'Unread badges on Channels/DMs tabs',
-				'Collapsible chat during voice calls',
 				'Collapsible member panel',
+				'What\'s New changelog on each update',
+			]
+		},
+		{
+			version: '0.1.0',
+			date: '2026-02-12',
+			changes: [
+				'Voice calls now support 3+ participants (full mesh)',
 				'Feedback form with screenshot support',
-				'Instance owner role & community isolation'
+				'Instance owner role & community isolation',
+				'PWA support for mobile install'
 			]
 		}
 	];
