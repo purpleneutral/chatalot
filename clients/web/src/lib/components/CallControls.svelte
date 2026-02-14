@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { voiceStore } from '$lib/stores/voice.svelte';
+	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { nextLevel, SUPPRESSION_LABELS } from '$lib/webrtc/noise-suppression';
 
 	interface Props {
 		channelId: string;
@@ -13,6 +15,8 @@
 	let voiceParticipants = $derived(voiceStore.getChannelParticipants(channelId));
 	let isInThisCall = $derived(voiceStore.activeCall?.channelId === channelId);
 	let callActive = $derived(voiceParticipants.length > 0);
+	let nsLevel = $derived(preferencesStore.preferences.noiseSuppression);
+	let nsActive = $derived(nsLevel !== 'off');
 
 	async function joinCall(withVideo: boolean) {
 		try {
@@ -24,6 +28,12 @@
 
 	async function leaveCall() {
 		await webrtcManager.leaveCall();
+	}
+
+	async function cycleNoiseSuppression() {
+		const next = nextLevel(nsLevel);
+		preferencesStore.set('noiseSuppression', next);
+		await webrtcManager.setNoiseSuppressionLevel(next);
 	}
 </script>
 
@@ -58,6 +68,22 @@
 							<path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .4-.03.8-.1 1.17" />
 							<line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
 						</svg>
+					{/if}
+				</button>
+
+				<!-- Noise suppression toggle -->
+				<button
+					onclick={cycleNoiseSuppression}
+					class="relative rounded-lg p-2 text-sm transition {nsActive ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
+					title="Noise suppression: {SUPPRESSION_LABELS[nsLevel]}"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+					</svg>
+					{#if nsActive}
+						<span class="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--accent)] text-[7px] font-bold text-white">
+							{nsLevel === 'noise-gate' ? 'G' : nsLevel === 'standard' ? 'S' : 'M'}
+						</span>
 					{/if}
 				</button>
 

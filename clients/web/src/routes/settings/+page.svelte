@@ -5,14 +5,16 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { soundStore } from '$lib/stores/sound.svelte';
 	import { notificationStore } from '$lib/stores/notification.svelte';
-	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, type AccentColor } from '$lib/stores/preferences.svelte';
+	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, type AccentColor, type NoiseSuppression } from '$lib/stores/preferences.svelte';
+	import { webrtcManager } from '$lib/webrtc/manager';
+	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { setupTotp, verifyTotp, disableTotp, type TotpSetup } from '$lib/api/totp';
 	import { changePassword, updateProfile, uploadAvatar, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount } from 'svelte';
 
-	type Tab = 'profile' | 'appearance' | 'notifications' | 'chat' | 'security' | 'account';
+	type Tab = 'profile' | 'appearance' | 'notifications' | 'chat' | 'voice' | 'security' | 'account';
 	let activeTab = $state<Tab>('profile');
 
 	let isDesktop = $derived(isTauri());
@@ -68,8 +70,16 @@
 		{ id: 'appearance', label: 'Appearance', icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z' },
 		{ id: 'notifications', label: 'Notifications', icon: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0' },
 		{ id: 'chat', label: 'Chat', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+		{ id: 'voice', label: 'Voice', icon: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8' },
 		{ id: 'security', label: 'Security', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
 		{ id: 'account', label: 'Account', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z' },
+	];
+
+	const nsLevels: { id: NoiseSuppression; label: string; desc: string; cpu: string }[] = [
+		{ id: 'off', label: 'Off', desc: 'No noise processing', cpu: '' },
+		{ id: 'noise-gate', label: 'Noise Gate', desc: 'Silences audio below a volume threshold', cpu: 'Minimal CPU' },
+		{ id: 'standard', label: 'Standard', desc: 'DSP-based noise reduction (Speex)', cpu: 'Low CPU' },
+		{ id: 'maximum', label: 'Maximum', desc: 'ML-powered noise removal (RNNoise)', cpu: 'Moderate CPU' }
 	];
 
 	const accentColorList: { id: AccentColor; label: string }[] = [
@@ -763,6 +773,46 @@
 					</section>
 
 				<!-- ══════════════════ SECURITY TAB ══════════════════ -->
+				{:else if activeTab === 'voice'}
+					<h2 class="mb-6 text-xl font-bold">Voice & Audio</h2>
+
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Noise Suppression</h3>
+						<p class="mb-4 text-sm text-[var(--text-secondary)]">
+							Reduce background noise during voice calls. Higher levels use more CPU but produce cleaner audio. All processing happens on your device.
+						</p>
+
+						<div class="grid grid-cols-2 gap-3">
+							{#each nsLevels as level}
+								<button
+									onclick={async () => {
+										preferencesStore.set('noiseSuppression', level.id);
+										if (voiceStore.isInCall) {
+											await webrtcManager.setNoiseSuppressionLevel(level.id);
+										}
+									}}
+									class="rounded-lg border p-4 text-left transition
+										{preferencesStore.preferences.noiseSuppression === level.id
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
+								>
+									<div class="mb-1 text-sm font-medium">{level.label}</div>
+									<div class="text-xs text-[var(--text-secondary)]">{level.desc}</div>
+									{#if level.cpu}
+										<div class="mt-1.5 inline-block rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-[var(--text-secondary)]">{level.cpu}</div>
+									{/if}
+								</button>
+							{/each}
+						</div>
+
+						{#if voiceStore.isInCall}
+							<div class="mt-3 flex items-center gap-2 text-xs text-[var(--accent)]">
+								<span class="h-1.5 w-1.5 rounded-full bg-[var(--accent)] animate-pulse"></span>
+								Changes apply immediately to your active call
+							</div>
+						{/if}
+					</section>
+
 				{:else if activeTab === 'security'}
 					<h2 class="mb-6 text-xl font-bold">Security</h2>
 

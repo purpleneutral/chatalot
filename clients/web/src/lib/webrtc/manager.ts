@@ -1,6 +1,12 @@
 import { voiceStore } from '$lib/stores/voice.svelte';
 import { authStore } from '$lib/stores/auth.svelte';
+import { preferencesStore, type NoiseSuppression } from '$lib/stores/preferences.svelte';
 import { wsClient } from '$lib/ws/connection';
+import {
+	applyNoiseSuppression,
+	removeNoiseSuppression,
+	changeSuppressionLevel
+} from './noise-suppression';
 
 const ICE_SERVERS: RTCIceServer[] = [
 	{ urls: 'stun:stun.l.google.com:19302' },
@@ -23,6 +29,9 @@ class WebRTCManager {
 	// Track which stream IDs are the "main" stream per user (audio/camera)
 	private mainStreamIds = new Map<string, string>();
 
+	// Raw microphone stream (before noise suppression), kept for hot-swap
+	private rawStream: MediaStream | null = null;
+
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
 	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
@@ -37,18 +46,38 @@ class WebRTCManager {
 		this.channelId = channelId;
 		this.sessionId = crypto.randomUUID();
 
-		// Acquire local media
+		// Acquire local media — disable browser's built-in noise suppression
+		// so it doesn't conflict with our AudioWorklet pipeline
 		const constraints: MediaStreamConstraints = {
-			audio: true,
+			audio: { noiseSuppression: false, echoCancellation: true, autoGainControl: true },
 			video: withVideo ? { width: 640, height: 480 } : false
 		};
 
-		let localStream: MediaStream;
+		let rawStream: MediaStream;
 		try {
-			localStream = await navigator.mediaDevices.getUserMedia(constraints);
+			rawStream = await navigator.mediaDevices.getUserMedia(constraints);
 		} catch (err) {
 			console.error('Failed to access media devices:', err);
 			throw err;
+		}
+
+		this.rawStream = rawStream;
+
+		// Start audio level monitoring first (creates AudioContext)
+		this.audioContext = new AudioContext({ sampleRate: 48000 });
+
+		// Apply noise suppression if enabled
+		const level = preferencesStore.preferences.noiseSuppression;
+		let localStream: MediaStream;
+		if (level !== 'off' && this.audioContext) {
+			try {
+				localStream = await applyNoiseSuppression(this.audioContext, rawStream, level);
+			} catch (err) {
+				console.warn('Noise suppression failed, using raw stream:', err);
+				localStream = rawStream;
+			}
+		} else {
+			localStream = rawStream;
 		}
 
 		voiceStore.setCallState({
@@ -61,7 +90,7 @@ class WebRTCManager {
 			screenSharing: false
 		});
 
-		// Start audio level monitoring
+		// Start audio level monitoring (uses existing audioContext)
 		this.startAudioLevelMonitoring();
 
 		// Tell the server we're joining
@@ -74,6 +103,13 @@ class WebRTCManager {
 
 		// Stop audio monitoring
 		this.stopAudioLevelMonitoring();
+
+		// Clean up noise suppression
+		removeNoiseSuppression();
+
+		// Stop raw stream tracks
+		this.rawStream?.getTracks().forEach(t => t.stop());
+		this.rawStream = null;
 
 		// Tell server we're leaving
 		wsClient.send({ type: 'leave_voice', channel_id: this.channelId });
@@ -97,6 +133,45 @@ class WebRTCManager {
 	toggleAudio(): void {
 		if (!voiceStore.activeCall) return;
 		voiceStore.setAudioEnabled(!voiceStore.activeCall.audioEnabled);
+	}
+
+	/// Change noise suppression level mid-call.
+	async setNoiseSuppressionLevel(level: NoiseSuppression): Promise<void> {
+		if (!voiceStore.activeCall || !this.rawStream || !this.audioContext) return;
+
+		const newTrack = await changeSuppressionLevel(this.audioContext, this.rawStream, level);
+		// newTrack is null if 'off' — use raw stream's audio track
+		const audioTrack = newTrack ?? this.rawStream.getAudioTracks()[0];
+		if (!audioTrack) return;
+
+		// Build new localStream with the correct audio track + existing video tracks
+		const oldLocal = voiceStore.activeCall.localStream;
+		const newStream = new MediaStream();
+		newStream.addTrack(audioTrack);
+		if (oldLocal) {
+			for (const vt of oldLocal.getVideoTracks()) {
+				newStream.addTrack(vt);
+			}
+		}
+
+		// Replace audio track on all peer connections (no renegotiation needed)
+		for (const pc of this.peers.values()) {
+			for (const sender of pc.getSenders()) {
+				if (sender.track?.kind === 'audio') {
+					await sender.replaceTrack(audioTrack);
+				}
+			}
+		}
+
+		// Update voice store with new stream
+		voiceStore.setCallState({
+			...voiceStore.activeCall,
+			localStream: newStream
+		});
+
+		// Re-monitor with processed stream
+		const myId = authStore.user?.id;
+		if (myId) this.monitorStream(myId, newStream);
 	}
 
 	/// Toggle video.
@@ -227,7 +302,8 @@ class WebRTCManager {
 	private startAudioLevelMonitoring(): void {
 		if (this.levelCheckInterval) return;
 
-		this.audioContext = new AudioContext();
+		// AudioContext is created in joinCall() (shared with noise suppression)
+		if (!this.audioContext) this.audioContext = new AudioContext({ sampleRate: 48000 });
 
 		// Monitor local stream
 		const localStream = voiceStore.activeCall?.localStream;

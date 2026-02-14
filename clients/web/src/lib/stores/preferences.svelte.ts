@@ -13,6 +13,7 @@ export type MessageDensity = 'cozy' | 'compact';
 export type TimeFormat = '12h' | '24h';
 export type FontSize = 'small' | 'medium' | 'large';
 export type SendBehavior = 'enter' | 'ctrl-enter';
+export type NoiseSuppression = 'off' | 'noise-gate' | 'standard' | 'maximum';
 
 export interface UserPreferences {
 	accentColor: AccentColor;
@@ -25,6 +26,7 @@ export interface UserPreferences {
 	desktopNotifyDm: boolean;
 	desktopNotifyMention: boolean;
 	desktopNotifyChannel: boolean;
+	noiseSuppression: NoiseSuppression;
 }
 
 const DEFAULTS: UserPreferences = {
@@ -37,7 +39,8 @@ const DEFAULTS: UserPreferences = {
 	showFormattingToolbar: true,
 	desktopNotifyDm: true,
 	desktopNotifyMention: true,
-	desktopNotifyChannel: false
+	desktopNotifyChannel: false,
+	noiseSuppression: 'standard'
 };
 
 export const ACCENT_COLORS: Record<
