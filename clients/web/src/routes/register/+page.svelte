@@ -154,6 +154,9 @@
 						autocomplete="username"
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
 					/>
+					<p class="mt-1 text-xs text-[var(--text-secondary)]/70">
+						3-32 characters. Letters, numbers, underscores, hyphens, and dots.
+					</p>
 				</div>
 
 				<div>

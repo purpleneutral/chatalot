@@ -680,6 +680,7 @@
 		sidebarOpen = false;
 		memberFilter = '';
 		localStorage.setItem('chatalot:activeChannel', channelId);
+		tick().then(() => messageInputEl?.focus());
 
 		// Preload members for @mention autocomplete
 		getChannelMembers(channelId)
@@ -1562,11 +1563,14 @@
 			e.preventDefault();
 			showShortcutsModal = !showShortcutsModal;
 		}
-		// Escape to close modals
+		// Escape to close modals and panels
 		if (e.key === 'Escape') {
 			if (lightboxImage) { closeLightbox(); e.preventDefault(); return; }
-			if (showGifPicker) { showGifPicker = false; e.preventDefault(); }
-			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); }
+			if (showGifPicker) { showGifPicker = false; e.preventDefault(); return; }
+			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); return; }
+			if (showSearch) { showSearch = false; e.preventDefault(); return; }
+			if (showPinnedPanel) { showPinnedPanel = false; e.preventDefault(); return; }
+			if (showMemberPanel) { showMemberPanel = false; e.preventDefault(); return; }
 		}
 	}
 
