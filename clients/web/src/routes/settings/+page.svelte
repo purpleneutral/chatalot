@@ -8,6 +8,7 @@
 	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, type AccentColor, type NoiseSuppression } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { voiceStore } from '$lib/stores/voice.svelte';
+	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { setupTotp, verifyTotp, disableTotp, type TotpSetup } from '$lib/api/totp';
 	import { changePassword, updateProfile, uploadAvatar, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
@@ -74,6 +75,76 @@
 		{ id: 'security', label: 'Security', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
 		{ id: 'account', label: 'Account', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z' },
 	];
+
+	// Mic test state
+	let testStream: MediaStream | null = null;
+	let testAudioCtx: AudioContext | null = null;
+	let testAnalyser: AnalyserNode | null = null;
+	let testLevel = $state(0);
+	let testActive = $state(false);
+	let testRafId = 0;
+
+	async function startMicTest() {
+		try {
+			const constraints: MediaTrackConstraints = {
+				noiseSuppression: false,
+				echoCancellation: preferencesStore.preferences.echoCancellation,
+				autoGainControl: preferencesStore.preferences.autoGainControl,
+			};
+			const inputId = audioDeviceStore.selectedInputId;
+			if (inputId) constraints.deviceId = { exact: inputId };
+
+			testStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+			// Re-enumerate now that we have permission (labels become available)
+			audioDeviceStore.enumerateDevices();
+
+			testAudioCtx = new AudioContext({ sampleRate: 48000 });
+			const source = testAudioCtx.createMediaStreamSource(testStream);
+			testAnalyser = testAudioCtx.createAnalyser();
+			testAnalyser.fftSize = 256;
+			testAnalyser.smoothingTimeConstant = 0.5;
+			source.connect(testAnalyser);
+			testActive = true;
+			pollLevel();
+		} catch (err) {
+			console.error('Mic test failed:', err);
+			toastStore.error('Could not access microphone');
+		}
+	}
+
+	function pollLevel() {
+		if (!testActive || !testAnalyser) return;
+		const buffer = new Uint8Array(testAnalyser.frequencyBinCount);
+		testAnalyser.getByteTimeDomainData(buffer);
+		let sum = 0;
+		for (let i = 0; i < buffer.length; i++) {
+			const val = buffer[i] - 128;
+			sum += val * val;
+		}
+		const rms = Math.sqrt(sum / buffer.length);
+		testLevel = Math.min(100, Math.round(rms * 3));
+		testRafId = requestAnimationFrame(pollLevel);
+	}
+
+	function stopMicTest() {
+		testActive = false;
+		cancelAnimationFrame(testRafId);
+		testStream?.getTracks().forEach(t => t.stop());
+		testStream = null;
+		testAudioCtx?.close();
+		testAudioCtx = null;
+		testAnalyser = null;
+		testLevel = 0;
+	}
+
+	// Clean up mic test when leaving voice tab or unmounting
+	$effect(() => {
+		if (activeTab !== 'voice') stopMicTest();
+		return () => stopMicTest();
+	});
+
+	// Enumerate devices on mount
+	onMount(() => { audioDeviceStore.enumerateDevices(); });
 
 	const nsLevels: { id: NoiseSuppression; label: string; desc: string; cpu: string }[] = [
 		{ id: 'off', label: 'Off', desc: 'No noise processing', cpu: '' },
@@ -772,10 +843,118 @@
 						</div>
 					</section>
 
-				<!-- ══════════════════ SECURITY TAB ══════════════════ -->
+				<!-- ══════════════════ VOICE TAB ══════════════════ -->
 				{:else if activeTab === 'voice'}
 					<h2 class="mb-6 text-xl font-bold">Voice & Audio</h2>
 
+					<!-- ── Input Device ── -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Input Device</h3>
+
+						<div class="mb-4">
+							<label class="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Microphone</label>
+							<select
+								value={audioDeviceStore.selectedInputId}
+								onchange={(e) => {
+									const id = e.currentTarget.value;
+									audioDeviceStore.setInputDevice(id);
+									if (voiceStore.isInCall) webrtcManager.switchInputDevice(id);
+									if (testActive) { stopMicTest(); startMicTest(); }
+								}}
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+							>
+								<option value="">System Default</option>
+								{#each audioDeviceStore.inputDevices as device}
+									<option value={device.deviceId}>{device.label}</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="mb-4">
+							<div class="mb-2 flex items-center justify-between">
+								<span class="text-sm font-medium text-[var(--text-primary)]">Mic Test</span>
+								<button
+									onclick={() => testActive ? stopMicTest() : startMicTest()}
+									class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:bg-white/5 {testActive ? 'border-red-500/50 text-red-400' : ''}"
+								>
+									{testActive ? 'Stop Test' : 'Test Microphone'}
+								</button>
+							</div>
+							<div class="h-2.5 rounded-full bg-white/10 overflow-hidden">
+								<div
+									class="h-full rounded-full transition-all duration-75 {testLevel > 70 ? 'bg-yellow-400' : 'bg-green-400'}"
+									style="width: {testActive ? testLevel : 0}%"
+								></div>
+							</div>
+						</div>
+
+						<div>
+							<div class="mb-2 flex items-center justify-between">
+								<span class="text-sm font-medium text-[var(--text-primary)]">Input Volume</span>
+								<span class="text-sm text-[var(--text-secondary)]">{preferencesStore.preferences.inputGain}%</span>
+							</div>
+							<input
+								type="range"
+								min="0"
+								max="200"
+								value={preferencesStore.preferences.inputGain}
+								oninput={(e) => webrtcManager.setMicGain(parseInt(e.currentTarget.value))}
+								class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
+							/>
+							<div class="mt-1 flex justify-between text-[10px] text-[var(--text-secondary)]">
+								<span>0%</span>
+								<span>100%</span>
+								<span>200%</span>
+							</div>
+						</div>
+					</section>
+
+					<!-- ── Output Device ── -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Output Device</h3>
+
+						<div class="mb-4">
+							<label class="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Speaker</label>
+							{#if audioDeviceStore.supportsOutputSelection}
+								<select
+									value={audioDeviceStore.selectedOutputId}
+									onchange={(e) => audioDeviceStore.setOutputDevice(e.currentTarget.value)}
+									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+								>
+									<option value="">System Default</option>
+									{#each audioDeviceStore.outputDevices as device}
+										<option value={device.deviceId}>{device.label}</option>
+									{/each}
+								</select>
+							{:else}
+								<p class="text-sm text-[var(--text-secondary)]">
+									Your browser does not support output device selection. Use your system audio settings instead.
+								</p>
+							{/if}
+						</div>
+
+						<div>
+							<div class="mb-2 flex items-center justify-between">
+								<span class="text-sm font-medium text-[var(--text-primary)]">Output Volume</span>
+								<span class="text-sm text-[var(--text-secondary)]">{preferencesStore.preferences.outputVolume}%</span>
+							</div>
+							<input
+								type="range"
+								min="0"
+								max="200"
+								value={preferencesStore.preferences.outputVolume}
+								oninput={(e) => preferencesStore.set('outputVolume', parseInt(e.currentTarget.value))}
+								class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
+							/>
+							<div class="mt-1 flex justify-between text-[10px] text-[var(--text-secondary)]">
+								<span>0%</span>
+								<span>100%</span>
+								<span>200%</span>
+							</div>
+						</div>
+					</section>
+
+					<!-- ── Noise Suppression ── -->
 					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Noise Suppression</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
@@ -811,6 +990,41 @@
 								Changes apply immediately to your active call
 							</div>
 						{/if}
+					</section>
+
+					<!-- ── Advanced ── -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Advanced</h3>
+
+						<div class="mb-4 flex items-center justify-between">
+							<div>
+								<div class="text-sm font-medium text-[var(--text-primary)]">Echo Cancellation</div>
+								<div class="text-xs text-[var(--text-secondary)]">Removes echo from speakers feeding back into your mic</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('echoCancellation', !preferencesStore.preferences.echoCancellation)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.echoCancellation ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<div>
+								<div class="text-sm font-medium text-[var(--text-primary)]">Auto Gain Control</div>
+								<div class="text-xs text-[var(--text-secondary)]">Automatically adjusts mic sensitivity</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('autoGainControl', !preferencesStore.preferences.autoGainControl)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.autoGainControl ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
+						</div>
+
+						<p class="mt-3 text-xs text-[var(--text-secondary)]">
+							These settings take effect on your next call, or when switching input devices.
+						</p>
 					</section>
 
 				{:else if activeTab === 'security'}

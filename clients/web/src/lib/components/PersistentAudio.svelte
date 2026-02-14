@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { voiceStore } from '$lib/stores/voice.svelte';
+	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
+	import { preferencesStore } from '$lib/stores/preferences.svelte';
 
 	// Hidden <audio> elements for remote streams, persists across route changes.
 	// VideoGrid handles the visual part; this ensures audio never drops on navigation.
@@ -13,6 +15,12 @@
 
 		const stream = voiceStore.remoteStreams.get(userId);
 		if (stream) node.srcObject = stream;
+
+		// Set output device if supported
+		const sinkId = audioDeviceStore.selectedOutputId;
+		if (sinkId && 'setSinkId' in node) {
+			(node as any).setSinkId(sinkId).catch(() => {});
+		}
 
 		return {
 			destroy() {
@@ -32,13 +40,24 @@
 		}
 	});
 
-	// Apply per-user volume changes
+	// Apply per-user volume × master output volume
 	$effect(() => {
+		const masterVol = preferencesStore.preferences.outputVolume / 100;
 		for (const [userId] of voiceStore.remoteStreams) {
 			const el = audioEls.get(userId);
 			if (el) {
-				// HTMLAudioElement.volume is 0-1, our scale is 0-200
-				el.volume = Math.min(1, voiceStore.getUserVolume(userId) / 100);
+				const userVol = voiceStore.getUserVolume(userId) / 100;
+				el.volume = Math.min(1, userVol * masterVol);
+			}
+		}
+	});
+
+	// Apply output device changes to all audio elements
+	$effect(() => {
+		const sinkId = audioDeviceStore.selectedOutputId;
+		for (const [, el] of audioEls) {
+			if (el && 'setSinkId' in el) {
+				(el as any).setSinkId(sinkId).catch(() => {});
 			}
 		}
 	});

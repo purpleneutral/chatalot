@@ -2,6 +2,8 @@
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { userStore } from '$lib/stores/users.svelte';
+	import { preferencesStore } from '$lib/stores/preferences.svelte';
+	import { webrtcManager } from '$lib/webrtc/manager';
 	import Avatar from '$lib/components/Avatar.svelte';
 
 	let { expanded = false }: { expanded?: boolean } = $props();
@@ -91,9 +93,10 @@
 		'grid-cols-3'
 	);
 
-	// Per-user volume context menu
+	// Volume context menu (works for both self and remote)
 	let volumeMenuUserId = $state<string | null>(null);
 	let volumeMenuPos = $state({ x: 0, y: 0 });
+	let isSelfMenu = $derived(volumeMenuUserId === authStore.user?.id);
 
 	function openVolumeMenu(e: MouseEvent, userId: string) {
 		e.preventDefault();
@@ -149,7 +152,12 @@
 		<!-- Participant tiles -->
 		<div class="grid {gridCols} gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : `max-height: ${hasAnyScreenShare ? '150px' : '400px'};`}">
 			<!-- Local video/avatar -->
-			<div class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}" style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : expanded ? '200px' : '120px'};">
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+				style="aspect-ratio: 16/9; min-height: {hasAnyScreenShare ? '80px' : expanded ? '200px' : '120px'};"
+				oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
+			>
 				{#if hasVideo}
 					<!-- svelte-ignore element_invalid_self_closing_tag -->
 					<video
@@ -166,6 +174,9 @@
 				{/if}
 				<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
 					You {voiceStore.activeCall?.audioEnabled ? '' : '(muted)'}
+					{#if preferencesStore.preferences.inputGain !== 100}
+						<span class="ml-1 opacity-70">{preferencesStore.preferences.inputGain}%</span>
+					{/if}
 				</div>
 				{#if voiceStore.activeCall?.screenSharing}
 					<div class="absolute top-1 left-1 flex items-center gap-1 rounded bg-red-500/80 px-1.5 py-0.5 text-[10px] text-white">
@@ -203,7 +214,7 @@
 			{/each}
 		</div>
 
-		<!-- Per-user volume context menu -->
+		<!-- Volume context menu (self = mic gain, remote = playback volume) -->
 		{#if volumeMenuUserId}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -213,36 +224,69 @@
 			></div>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="fixed z-50 w-52 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
+				class="fixed z-50 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
 				style="left: {volumeMenuPos.x}px; top: {volumeMenuPos.y}px;"
 				onclick={(e) => e.stopPropagation()}
 			>
-				<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-					</svg>
-					{userStore.getDisplayName(volumeMenuUserId)}
-				</div>
-				<div class="flex items-center gap-2">
-					<input
-						type="range"
-						min="0"
-						max="200"
-						value={voiceStore.getUserVolume(volumeMenuUserId)}
-						oninput={(e) => { if (volumeMenuUserId) voiceStore.setUserVolume(volumeMenuUserId, parseInt(e.currentTarget.value)); }}
-						class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
-					/>
-					<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
-						{voiceStore.getUserVolume(volumeMenuUserId)}%
-					</span>
-				</div>
-				{#if voiceStore.getUserVolume(volumeMenuUserId) !== 100}
-					<button
-						onclick={() => { if (volumeMenuUserId) voiceStore.setUserVolume(volumeMenuUserId, 100); }}
-						class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-					>
-						Reset to 100%
-					</button>
+				{#if isSelfMenu}
+					<!-- Self: mic gain control -->
+					<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+						</svg>
+						Mic Volume
+					</div>
+					<div class="mb-1 text-[10px] text-[var(--text-secondary)]">What others hear from you</div>
+					<div class="flex items-center gap-2">
+						<input
+							type="range"
+							min="0"
+							max="200"
+							value={preferencesStore.preferences.inputGain}
+							oninput={(e) => webrtcManager.setMicGain(parseInt(e.currentTarget.value))}
+							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
+						/>
+						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
+							{preferencesStore.preferences.inputGain}%
+						</span>
+					</div>
+					{#if preferencesStore.preferences.inputGain !== 100}
+						<button
+							onclick={() => webrtcManager.setMicGain(100)}
+							class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						>
+							Reset to 100%
+						</button>
+					{/if}
+				{:else}
+					<!-- Remote: playback volume control -->
+					<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+						</svg>
+						{userStore.getDisplayName(volumeMenuUserId)}
+					</div>
+					<div class="flex items-center gap-2">
+						<input
+							type="range"
+							min="0"
+							max="200"
+							value={voiceStore.getUserVolume(volumeMenuUserId)}
+							oninput={(e) => { if (volumeMenuUserId) voiceStore.setUserVolume(volumeMenuUserId, parseInt(e.currentTarget.value)); }}
+							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
+						/>
+						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
+							{voiceStore.getUserVolume(volumeMenuUserId)}%
+						</span>
+					</div>
+					{#if voiceStore.getUserVolume(volumeMenuUserId) !== 100}
+						<button
+							onclick={() => { if (volumeMenuUserId) voiceStore.setUserVolume(volumeMenuUserId, 100); }}
+							class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						>
+							Reset to 100%
+						</button>
+					{/if}
 				{/if}
 			</div>
 		{/if}

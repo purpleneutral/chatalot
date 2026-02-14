@@ -27,6 +27,10 @@ export interface UserPreferences {
 	desktopNotifyMention: boolean;
 	desktopNotifyChannel: boolean;
 	noiseSuppression: NoiseSuppression;
+	inputGain: number;
+	outputVolume: number;
+	echoCancellation: boolean;
+	autoGainControl: boolean;
 }
 
 const DEFAULTS: UserPreferences = {
@@ -40,7 +44,11 @@ const DEFAULTS: UserPreferences = {
 	desktopNotifyDm: true,
 	desktopNotifyMention: true,
 	desktopNotifyChannel: false,
-	noiseSuppression: 'standard'
+	noiseSuppression: 'standard',
+	inputGain: 100,
+	outputVolume: 100,
+	echoCancellation: true,
+	autoGainControl: true
 };
 
 export const ACCENT_COLORS: Record<

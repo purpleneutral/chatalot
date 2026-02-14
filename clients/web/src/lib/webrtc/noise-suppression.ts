@@ -78,7 +78,8 @@ async function createWorkletNode(
 export async function applyNoiseSuppression(
 	ctx: AudioContext,
 	rawStream: MediaStream,
-	level: NoiseSuppression
+	level: NoiseSuppression,
+	gainNode?: GainNode
 ): Promise<MediaStream> {
 	if (level === 'off') return rawStream;
 
@@ -89,7 +90,12 @@ export async function applyNoiseSuppression(
 	const destination = ctx.createMediaStreamDestination();
 
 	source.connect(workletNode);
-	workletNode.connect(destination);
+	if (gainNode) {
+		workletNode.connect(gainNode);
+		gainNode.connect(destination);
+	} else {
+		workletNode.connect(destination);
+	}
 
 	currentState = { source, workletNode, destination, level };
 
@@ -117,14 +123,15 @@ export function removeNoiseSuppression(): void {
 export async function changeSuppressionLevel(
 	ctx: AudioContext,
 	rawStream: MediaStream,
-	newLevel: NoiseSuppression
+	newLevel: NoiseSuppression,
+	gainNode?: GainNode
 ): Promise<MediaStreamTrack | null> {
 	// Tear down existing pipeline
 	removeNoiseSuppression();
 
 	if (newLevel === 'off') return null;
 
-	const processed = await applyNoiseSuppression(ctx, rawStream, newLevel);
+	const processed = await applyNoiseSuppression(ctx, rawStream, newLevel, gainNode);
 	return processed.getAudioTracks()[0] ?? null;
 }
 

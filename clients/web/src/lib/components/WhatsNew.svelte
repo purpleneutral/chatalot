@@ -14,6 +14,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.5.0',
+			date: '2026-02-14',
+			changes: [
+				'Full voice settings: input/output device selection, mic test with level meter',
+				'Mic volume control — right-click your own tile to adjust what others hear',
+				'Master output volume and per-user volume sliders',
+				'Advanced audio toggles: echo cancellation, auto gain control',
+			]
+		},
+		{
 			version: '0.4.2',
 			date: '2026-02-14',
 			changes: [
