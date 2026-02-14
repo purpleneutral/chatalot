@@ -31,6 +31,7 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { searchEmoji } from '$lib/utils/emoji';
 	import UserProfileCard from '$lib/components/UserProfileCard.svelte';
+	import WhatsNew from '$lib/components/WhatsNew.svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
 	import hljs from 'highlight.js/lib/core';
@@ -2338,7 +2339,7 @@
 <svelte:window onkeydown={handleGlobalKeydown} />
 
 {#if authStore.isAuthenticated}
-	<div class="flex h-screen">
+	<div class="flex h-screen overflow-hidden">
 		<!-- Mobile sidebar overlay -->
 		{#if sidebarOpen}
 			<button
@@ -3097,7 +3098,7 @@
 
 		<!-- Main chat area -->
 		<main
-			class="relative flex flex-1 flex-col bg-[var(--bg-primary)]"
+			class="relative flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)]"
 			ondragenter={handleDragEnter}
 			ondragleave={handleDragLeave}
 			ondragover={handleDragOver}
@@ -4464,4 +4465,7 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- What's New changelog modal -->
+	<WhatsNew />
 {/if}
