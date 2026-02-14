@@ -14,11 +14,11 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.2.2',
+			version: '0.2.3',
 			date: '2026-02-14',
 			changes: [
-				'Updates no longer interrupt voice calls or auto-reload',
-				'Clickable banner appears when update is ready — you choose when to refresh',
+				'GIF search is now working (Tenor API configured)',
+				'Updates no longer interrupt voice calls — clickable banner instead',
 			]
 		},
 		{
