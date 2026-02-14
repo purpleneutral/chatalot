@@ -88,6 +88,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             header::HeaderValue::from_static("no-store"),
         ));
 
+    // Serve favicon.png at /favicon.ico to prevent Chrome's automatic 404
+    let favicon_route = Router::new()
+        .route_service("/favicon.ico", ServeFile::new(format!("{static_dir}/favicon.png")));
+
     let spa_fallback = ServeDir::new(&static_dir)
         .not_found_service(ServeFile::new(format!("{static_dir}/index.html")));
 
@@ -103,6 +107,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .nest("/api", public_routes.merge(protected_routes))
         .route("/ws", get(ws_upgrade))
         .merge(sw_route)
+        .merge(favicon_route)
         .fallback_service(spa_fallback)
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(axum::middleware::from_fn(security_headers))
