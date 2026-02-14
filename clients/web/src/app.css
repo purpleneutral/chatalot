@@ -2,30 +2,30 @@
 
 :root,
 [data-theme='dark'] {
-	--bg-primary: #1a1a2e;
-	--bg-secondary: #16213e;
-	--bg-tertiary: #0f3460;
-	--text-primary: #e4e4e7;
-	--text-secondary: #a1a1aa;
-	--accent: #6366f1;
-	--accent-hover: #818cf8;
-	--danger: #ef4444;
-	--success: #22c55e;
-	--border: rgba(255, 255, 255, 0.1);
-	--hover: rgba(255, 255, 255, 0.05);
+	--bg-primary: #08080f;
+	--bg-secondary: #0f0f1a;
+	--bg-tertiary: #1a1a2e;
+	--text-primary: #e2e0f0;
+	--text-secondary: #7a7a98;
+	--accent: #7c3aed;
+	--accent-hover: #9d5cff;
+	--danger: #ff3366;
+	--success: #00e68a;
+	--border: rgba(139, 92, 255, 0.12);
+	--hover: rgba(139, 92, 255, 0.06);
 	--font-size-base: 14px;
 }
 
 [data-theme='light'] {
-	--bg-primary: #f8fafc;
+	--bg-primary: #f5f3ff;
 	--bg-secondary: #ffffff;
-	--bg-tertiary: #e2e8f0;
-	--text-primary: #1e293b;
-	--text-secondary: #64748b;
-	--accent: #4f46e5;
-	--accent-hover: #6366f1;
-	--danger: #dc2626;
-	--success: #16a34a;
+	--bg-tertiary: #ede9fe;
+	--text-primary: #1a1035;
+	--text-secondary: #6b6190;
+	--accent: #6d28d9;
+	--accent-hover: #7c3aed;
+	--danger: #dc2660;
+	--success: #059669;
 	--border: rgba(0, 0, 0, 0.1);
 	--hover: rgba(0, 0, 0, 0.04);
 }
@@ -175,19 +175,19 @@ body {
 
 /* Mention styles */
 .mention {
-	background: rgba(99, 102, 241, 0.2);
+	background: rgba(124, 58, 237, 0.2);
 	color: var(--accent);
 	padding: 0 0.2em;
 	border-radius: 3px;
 	font-weight: 500;
 }
 .mention-self {
-	background: rgba(99, 102, 241, 0.35);
+	background: rgba(124, 58, 237, 0.35);
 	color: var(--accent-hover);
 }
 .mention-group {
-	background: rgba(234, 179, 8, 0.2);
-	color: #eab308;
+	background: rgba(255, 204, 0, 0.2);
+	color: #ffcc00;
 	font-weight: 600;
 }
 
@@ -199,19 +199,19 @@ body {
 	text-decoration: none !important;
 }
 
-/* Syntax highlighting (highlight.js) */
+/* Syntax highlighting (highlight.js) — cyberpunk neon */
 .hljs {
-	color: #abb2bf;
+	color: #b0b8cc;
 }
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-literal,
 .hljs-section,
 .hljs-link {
-	color: #c678dd;
+	color: #b57aff;
 }
 .hljs-function .hljs-keyword {
-	color: #c678dd;
+	color: #b57aff;
 }
 .hljs-string,
 .hljs-title.function_,
@@ -222,34 +222,34 @@ body {
 .hljs-symbol,
 .hljs-bullet,
 .hljs-addition {
-	color: #98c379;
+	color: #7ddfb0;
 }
 .hljs-variable,
 .hljs-template-variable,
 .hljs-type,
 .hljs-params {
-	color: #e06c75;
+	color: #ff6b8a;
 }
 .hljs-string {
-	color: #98c379;
+	color: #7ddfb0;
 }
 .hljs-number,
 .hljs-built_in,
 .hljs-name {
-	color: #d19a66;
+	color: #e0a66c;
 }
 .hljs-comment,
 .hljs-quote,
 .hljs-deletion,
 .hljs-meta {
-	color: #5c6370;
+	color: #555a70;
 	font-style: italic;
 }
 .hljs-title {
-	color: #61afef;
+	color: #5baaff;
 }
 .hljs-regexp {
-	color: #56b6c2;
+	color: #44d4c8;
 }
 [data-theme='light'] .hljs {
 	color: #383a42;
@@ -301,11 +301,11 @@ body {
 	background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.12);
+	background: rgba(139, 92, 255, 0.18);
 	border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-	background: rgba(255, 255, 255, 0.2);
+	background: rgba(139, 92, 255, 0.3);
 }
 ::-webkit-scrollbar-corner {
 	background: transparent;
@@ -319,7 +319,7 @@ body {
 /* Firefox scrollbar */
 * {
 	scrollbar-width: thin;
-	scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+	scrollbar-color: rgba(139, 92, 255, 0.18) transparent;
 }
 [data-theme='light'] * {
 	scrollbar-color: rgba(0, 0, 0, 0.12) transparent;

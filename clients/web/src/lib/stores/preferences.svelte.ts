@@ -44,14 +44,14 @@ export const ACCENT_COLORS: Record<
 	AccentColor,
 	{ main: string; hover: string; mainLight: string; hoverLight: string }
 > = {
-	blue: { main: '#3b82f6', hover: '#60a5fa', mainLight: '#2563eb', hoverLight: '#3b82f6' },
-	purple: { main: '#6366f1', hover: '#818cf8', mainLight: '#4f46e5', hoverLight: '#6366f1' },
-	green: { main: '#22c55e', hover: '#4ade80', mainLight: '#16a34a', hoverLight: '#22c55e' },
-	orange: { main: '#f97316', hover: '#fb923c', mainLight: '#ea580c', hoverLight: '#f97316' },
-	red: { main: '#ef4444', hover: '#f87171', mainLight: '#dc2626', hoverLight: '#ef4444' },
-	pink: { main: '#ec4899', hover: '#f472b6', mainLight: '#db2777', hoverLight: '#ec4899' },
-	teal: { main: '#14b8a6', hover: '#2dd4bf', mainLight: '#0d9488', hoverLight: '#14b8a6' },
-	cyan: { main: '#06b6d4', hover: '#22d3ee', mainLight: '#0891b2', hoverLight: '#06b6d4' }
+	blue: { main: '#2563ff', hover: '#5b8aff', mainLight: '#1d4ed8', hoverLight: '#2563ff' },
+	purple: { main: '#7c3aed', hover: '#9d5cff', mainLight: '#6d28d9', hoverLight: '#7c3aed' },
+	green: { main: '#00d68a', hover: '#33ffaa', mainLight: '#059669', hoverLight: '#00d68a' },
+	orange: { main: '#ff6b2b', hover: '#ff8f5c', mainLight: '#ea580c', hoverLight: '#ff6b2b' },
+	red: { main: '#ff3366', hover: '#ff6690', mainLight: '#dc2660', hoverLight: '#ff3366' },
+	pink: { main: '#ff2d9b', hover: '#ff66b8', mainLight: '#d6238a', hoverLight: '#ff2d9b' },
+	teal: { main: '#00d4aa', hover: '#33ffd4', mainLight: '#0d9488', hoverLight: '#00d4aa' },
+	cyan: { main: '#00bbff', hover: '#44d4ff', mainLight: '#0284c7', hoverLight: '#00bbff' }
 };
 
 export const FONT_SIZES: Record<FontSize, string> = {
