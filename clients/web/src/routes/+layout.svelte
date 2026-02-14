@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import Toast from '$lib/components/Toast.svelte';
+	import PersistentAudio from '$lib/components/PersistentAudio.svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import { onMount } from 'svelte';
 
@@ -18,3 +19,4 @@
 
 {@render children()}
 <Toast />
+<PersistentAudio />
