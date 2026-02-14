@@ -14,9 +14,11 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.4.1',
+			version: '0.4.2',
 			date: '2026-02-14',
 			changes: [
+				'Participant name badges moved to top-right of video tiles',
+				'Message input bar now has a solid background',
 				'Fixed phantom unread badges sticking after selecting a channel',
 			]
 		},

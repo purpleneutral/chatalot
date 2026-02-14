@@ -3989,7 +3989,7 @@
 				{/if}
 
 				<!-- Message input -->
-				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative p-4">
+				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative bg-[var(--bg-primary)] p-4">
 					<!-- Emoji autocomplete popup -->
 					{#if showEmojiPopup && emojiResults.length > 0}
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-10">

@@ -164,11 +164,11 @@
 						<Avatar userId={authStore.user.id} size="lg" />
 					{/if}
 				{/if}
-				<div class="absolute bottom-1 left-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+				<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
 					You {voiceStore.activeCall?.audioEnabled ? '' : '(muted)'}
 				</div>
 				{#if voiceStore.activeCall?.screenSharing}
-					<div class="absolute top-1 right-1 flex items-center gap-1 rounded bg-red-500/80 px-1.5 py-0.5 text-[10px] text-white">
+					<div class="absolute top-1 left-1 flex items-center gap-1 rounded bg-red-500/80 px-1.5 py-0.5 text-[10px] text-white">
 						<span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
 						LIVE
 					</div>
@@ -193,7 +193,7 @@
 						class="{voiceStore.hasRemoteVideo(userId) ? 'h-full w-full object-cover' : 'absolute h-0 w-0 opacity-0'}"
 						use:bindRemoteVideo={userId}
 					></video>
-					<div class="absolute bottom-1 left-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+					<div class="absolute top-1 right-1 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
 						{userStore.getDisplayName(userId)}
 						{#if voiceStore.getUserVolume(userId) !== 100}
 							<span class="ml-1 opacity-70">{voiceStore.getUserVolume(userId)}%</span>
