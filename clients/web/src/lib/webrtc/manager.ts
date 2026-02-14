@@ -50,6 +50,9 @@ class WebRTCManager {
 		this.channelId = channelId;
 		this.sessionId = crypto.randomUUID();
 
+		// Enumerate devices first so we can validate the saved selection
+		await audioDeviceStore.enumerateDevices();
+
 		// Acquire local media — disable browser's built-in noise suppression
 		// so it doesn't conflict with our AudioWorklet pipeline
 		const audioConstraints: MediaTrackConstraints = {
@@ -70,13 +73,29 @@ class WebRTCManager {
 		try {
 			rawStream = await navigator.mediaDevices.getUserMedia(constraints);
 		} catch (err) {
-			console.error('Failed to access media devices:', err);
-			throw err;
+			// If the saved device is unavailable, fall back to system default
+			if (selectedInput) {
+				console.warn(`Saved audio device ${selectedInput} unavailable, using default`);
+				audioDeviceStore.setInputDevice('');
+				delete (audioConstraints as Record<string, unknown>).deviceId;
+				try {
+					rawStream = await navigator.mediaDevices.getUserMedia({
+						audio: audioConstraints,
+						video: withVideo ? { width: 640, height: 480 } : false
+					});
+				} catch (fallbackErr) {
+					console.error('Failed to access media devices:', fallbackErr);
+					throw fallbackErr;
+				}
+			} else {
+				console.error('Failed to access media devices:', err);
+				throw err;
+			}
 		}
 
 		this.rawStream = rawStream;
 
-		// Enumerate devices now that we have permission (labels become available)
+		// Re-enumerate now that we have permission (labels become available)
 		audioDeviceStore.enumerateDevices();
 
 		// Start audio level monitoring first (creates AudioContext)
