@@ -192,11 +192,11 @@
 
 		{#if hasAnyScreenShare && !focusStream}
 			<!-- ═══ TILED MODE: Stream as master pane + participant tiles stacked on right ═══ -->
-			<div class="relative flex gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: 500px;'}">
+			<div class="relative flex gap-1 p-2 {expanded ? 'flex-1 min-h-0' : ''}" style="{expanded ? '' : 'max-height: 500px;'}">
 				<!-- Master pane: screen shares -->
-				<div class="flex min-w-0 flex-1 flex-col gap-1">
+				<div class="flex min-w-0 flex-1 flex-col gap-1 min-h-0">
 					{#if voiceStore.activeCall?.screenSharing}
-						<div class="relative flex-1">
+						<div class="relative min-h-0 flex-1 overflow-hidden">
 							<video
 								bind:this={screenVideoEl}
 								autoplay
@@ -217,7 +217,7 @@
 					{/if}
 
 					{#each remoteScreenEntries as [userId, _stream] (userId)}
-						<div class="relative flex-1">
+						<div class="relative min-h-0 flex-1 overflow-hidden">
 							<video
 								autoplay
 								muted
