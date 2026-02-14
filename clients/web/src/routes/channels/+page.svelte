@@ -2543,6 +2543,20 @@
 											</button>
 										{/if}
 									</div>
+									<!-- Voice participants (grouped channels) -->
+									{#if channel.channel_type === 'voice'}
+										{@const voiceUsers = voiceStore.getChannelParticipants(channel.id)}
+										{#if voiceUsers.length > 0}
+											<div class="ml-8 space-y-0.5 pb-1">
+												{#each voiceUsers as uid (uid)}
+													<div class="flex items-center gap-1.5 px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+														<div class="h-1.5 w-1.5 rounded-full bg-[var(--success)]"></div>
+														<span class="truncate">{userStore.getDisplayName(uid)}</span>
+													</div>
+												{/each}
+											</div>
+										{/if}
+									{/if}
 								{/each}
 
 								<!-- Add channel button (owner/admin) -->

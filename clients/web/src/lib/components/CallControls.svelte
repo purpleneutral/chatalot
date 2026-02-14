@@ -27,7 +27,7 @@
 	}
 </script>
 
-{#if channelType === 'voice' || channelType === 'text'}
+{#if channelType === 'voice' || (channelType === 'text' && (callActive || isInThisCall))}
 	<div class="flex items-center gap-2">
 		{#if callActive && !isInThisCall}
 			<div class="flex items-center gap-2">
