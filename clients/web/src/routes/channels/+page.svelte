@@ -2315,7 +2315,7 @@
 		dmChannels.reduce((sum, dm) => sum + messageStore.getUnreadCount(dm.channel.id), 0)
 	);
 	let channelUnreadTotal = $derived(
-		channelStore.channels.filter(c => c.channel_type !== 'dm').reduce((sum, c) => sum + messageStore.getUnreadCount(c.id), 0)
+		Array.from(groupChannelsMap.values()).flat().reduce((sum, c) => sum + messageStore.getUnreadCount(c.id), 0)
 	);
 	$effect(() => {
 		const total = channelUnreadTotal + dmUnreadTotal;

@@ -14,6 +14,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.3.2',
+			date: '2026-02-14',
+			changes: [
+				'Fixed phantom unread badges on Channels tab',
+				'Unread counts now skip your own messages',
+			]
+		},
+		{
 			version: '0.3.1',
 			date: '2026-02-14',
 			changes: [

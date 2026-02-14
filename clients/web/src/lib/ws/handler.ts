@@ -55,8 +55,8 @@ export async function handleServerMessage(msg: ServerMessage) {
 			const isViewingChannel = !notificationStore.pageHidden
 				&& channelStore.activeChannelId === msg.channel_id;
 
-			// Only increment unread if not viewing the channel
-			if (!isViewingChannel) {
+			// Only increment unread if not viewing the channel and not own message
+			if (!isViewingChannel && msg.sender_id !== authStore.user?.id) {
 				messageStore.incrementUnread(msg.channel_id);
 			}
 
