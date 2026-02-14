@@ -351,7 +351,7 @@ class WebRTCManager {
 			try {
 				const screenStream = await navigator.mediaDevices.getDisplayMedia({
 					video: true,
-					audio: false
+					audio: true
 				});
 				voiceStore.setScreenSharing(true, screenStream);
 
@@ -360,10 +360,11 @@ class WebRTCManager {
 					this.stopScreenShare();
 				};
 
-				// Add screen track to all peers and renegotiate
-				const screenTrack = screenStream.getVideoTracks()[0];
+				// Add all screen tracks (video + audio) to all peers and renegotiate
 				for (const pc of this.peers.values()) {
-					pc.addTrack(screenTrack, screenStream);
+					for (const track of screenStream.getTracks()) {
+						pc.addTrack(track, screenStream);
+					}
 				}
 				await this.renegotiateAll();
 			} catch (err) {
