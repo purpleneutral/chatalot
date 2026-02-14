@@ -197,6 +197,22 @@
 	// Forwarding
 	let forwardingMsg = $state<ChatMessage | null>(null);
 
+	// Confirmation dialog state
+	let confirmDialog = $state<{
+		title: string;
+		message: string;
+		confirmLabel?: string;
+		danger?: boolean;
+		inputPlaceholder?: string;
+		onConfirm: (inputValue?: string) => void;
+	} | null>(null);
+	let confirmInput = $state('');
+
+	function showConfirmDialog(opts: typeof confirmDialog & {}) {
+		confirmInput = '';
+		confirmDialog = opts;
+	}
+
 	// Status picker state
 	let showStatusPicker = $state(false);
 	const statusOptions = [
@@ -286,29 +302,43 @@
 		}
 	}
 
-	async function handleKick(userId: string, displayName: string) {
+	function handleKick(userId: string, displayName: string) {
 		if (!channelStore.activeChannelId) return;
-		if (!confirm(`Kick ${displayName} from this channel?`)) return;
-		try {
-			await kickMember(channelStore.activeChannelId, userId);
-			memberStore.removeMember(channelStore.activeChannelId, userId);
-			toastStore.success(`${displayName} was kicked`);
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to kick member');
-		}
+		showConfirmDialog({
+			title: 'Kick Member',
+			message: `Are you sure you want to kick ${displayName} from this channel?`,
+			confirmLabel: 'Kick',
+			danger: true,
+			onConfirm: async () => {
+				try {
+					await kickMember(channelStore.activeChannelId!, userId);
+					memberStore.removeMember(channelStore.activeChannelId!, userId);
+					toastStore.success(`${displayName} was kicked`);
+				} catch (err: any) {
+					toastStore.error(err?.message || 'Failed to kick member');
+				}
+			}
+		});
 	}
 
-	async function handleBan(userId: string, displayName: string) {
+	function handleBan(userId: string, displayName: string) {
 		if (!channelStore.activeChannelId) return;
-		const reason = prompt(`Ban ${displayName}? Enter an optional reason:`);
-		if (reason === null) return; // cancelled
-		try {
-			await banMember(channelStore.activeChannelId, userId, reason || undefined);
-			memberStore.removeMember(channelStore.activeChannelId, userId);
-			toastStore.success(`${displayName} was banned`);
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to ban member');
-		}
+		showConfirmDialog({
+			title: 'Ban Member',
+			message: `Ban ${displayName} from this channel? You can optionally provide a reason.`,
+			confirmLabel: 'Ban',
+			danger: true,
+			inputPlaceholder: 'Reason (optional)',
+			onConfirm: async (reason) => {
+				try {
+					await banMember(channelStore.activeChannelId!, userId, reason || undefined);
+					memberStore.removeMember(channelStore.activeChannelId!, userId);
+					toastStore.success(`${displayName} was banned`);
+				} catch (err: any) {
+					toastStore.error(err?.message || 'Failed to ban member');
+				}
+			}
+		});
 	}
 
 	const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
@@ -1640,48 +1670,60 @@
 		}
 	}
 
-	async function handleLeaveGroup(group: Group) {
-		if (!confirm(`Leave "${group.name}"?`)) return;
-		try {
-			await leaveGroup(group.id);
-			groupStore.removeGroup(group.id);
-			const chs = groupChannelsMap.get(group.id) ?? [];
-			const newMap = new Map(groupChannelsMap);
-			newMap.delete(group.id);
-			groupChannelsMap = newMap;
-			// Remove group channels from channel store
-			for (const ch of chs) {
-				channelStore.removeChannel(ch.id);
+	function handleLeaveGroup(group: Group) {
+		showConfirmDialog({
+			title: 'Leave Group',
+			message: `Are you sure you want to leave "${group.name}"?`,
+			confirmLabel: 'Leave',
+			danger: true,
+			onConfirm: async () => {
+				try {
+					await leaveGroup(group.id);
+					groupStore.removeGroup(group.id);
+					const chs = groupChannelsMap.get(group.id) ?? [];
+					const newMap = new Map(groupChannelsMap);
+					newMap.delete(group.id);
+					groupChannelsMap = newMap;
+					for (const ch of chs) {
+						channelStore.removeChannel(ch.id);
+					}
+					if (chs.some(c => c.id === channelStore.activeChannelId)) {
+						channelStore.setActive(null);
+					}
+					toastStore.success(`Left "${group.name}"`);
+				} catch (err: any) {
+					toastStore.error(err?.message || 'Failed to leave group');
+				}
 			}
-			// If viewing a channel in this group, deselect
-			if (chs.some(c => c.id === channelStore.activeChannelId)) {
-				channelStore.setActive(null);
-			}
-			toastStore.success(`Left "${group.name}"`);
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to leave group');
-		}
+		});
 	}
 
-	async function handleDeleteGroup(group: Group) {
-		if (!confirm(`Delete "${group.name}"? This will delete all channels in the group.`)) return;
-		try {
-			await deleteGroup(group.id);
-			groupStore.removeGroup(group.id);
-			const chs = groupChannelsMap.get(group.id) ?? [];
-			const newMap = new Map(groupChannelsMap);
-			newMap.delete(group.id);
-			groupChannelsMap = newMap;
-			for (const ch of chs) {
-				channelStore.removeChannel(ch.id);
+	function handleDeleteGroup(group: Group) {
+		showConfirmDialog({
+			title: 'Delete Group',
+			message: `Delete "${group.name}"? This will permanently delete all channels in the group. This cannot be undone.`,
+			confirmLabel: 'Delete Group',
+			danger: true,
+			onConfirm: async () => {
+				try {
+					await deleteGroup(group.id);
+					groupStore.removeGroup(group.id);
+					const chs = groupChannelsMap.get(group.id) ?? [];
+					const newMap = new Map(groupChannelsMap);
+					newMap.delete(group.id);
+					groupChannelsMap = newMap;
+					for (const ch of chs) {
+						channelStore.removeChannel(ch.id);
+					}
+					if (chs.some(c => c.id === channelStore.activeChannelId)) {
+						channelStore.setActive(null);
+					}
+					toastStore.success(`Deleted "${group.name}"`);
+				} catch (err: any) {
+					toastStore.error(err?.message || 'Failed to delete group');
+				}
 			}
-			if (chs.some(c => c.id === channelStore.activeChannelId)) {
-				channelStore.setActive(null);
-			}
-			toastStore.success(`Deleted "${group.name}"`);
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to delete group');
-		}
+		});
 	}
 
 	async function handleCreateGroupChannel(e: SubmitEvent, groupId: string) {
@@ -1706,22 +1748,30 @@
 		}
 	}
 
-	async function handleDeleteGroupChannel(groupId: string, channelId: string) {
-		if (!confirm('Delete this channel?')) return;
-		try {
-			await apiDeleteChannel(groupId, channelId);
-			channelStore.removeChannel(channelId);
-			const newMap = new Map(groupChannelsMap);
-			const existing = newMap.get(groupId) ?? [];
-			newMap.set(groupId, existing.filter(c => c.id !== channelId));
-			groupChannelsMap = newMap;
-			if (channelStore.activeChannelId === channelId) {
-				channelStore.setActive(null);
+	function handleDeleteGroupChannel(groupId: string, channelId: string) {
+		const ch = (groupChannelsMap.get(groupId) ?? []).find(c => c.id === channelId);
+		showConfirmDialog({
+			title: 'Delete Channel',
+			message: `Delete "${ch?.name ?? 'this channel'}"? All messages will be permanently lost.`,
+			confirmLabel: 'Delete',
+			danger: true,
+			onConfirm: async () => {
+				try {
+					await apiDeleteChannel(groupId, channelId);
+					channelStore.removeChannel(channelId);
+					const newMap = new Map(groupChannelsMap);
+					const existing = newMap.get(groupId) ?? [];
+					newMap.set(groupId, existing.filter(c => c.id !== channelId));
+					groupChannelsMap = newMap;
+					if (channelStore.activeChannelId === channelId) {
+						channelStore.setActive(null);
+					}
+					toastStore.success('Channel deleted');
+				} catch (err: any) {
+					toastStore.error(err?.message || 'Failed to delete channel');
+				}
 			}
-			toastStore.success('Channel deleted');
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to delete channel');
-		}
+		});
 	}
 
 	async function handleDiscoverGroups() {
@@ -1791,6 +1841,14 @@
 				searching = false;
 			}
 		}, 300);
+	}
+
+	function highlightSearchMatch(text: string, query: string): string {
+		if (!query.trim()) return DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+		const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const regex = new RegExp(`(${escaped})`, 'gi');
+		const sanitized = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] });
+		return sanitized.replace(regex, '<mark class="rounded bg-yellow-500/30 text-[var(--text-primary)] px-0.5">$1</mark>');
 	}
 
 	function jumpToSearchResult(msgId: string) {
@@ -2689,7 +2747,7 @@
 											<span class="text-xs font-semibold text-[var(--text-primary)]">{userStore.getDisplayName(result.senderId)}</span>
 											<span class="text-xs text-[var(--text-secondary)]">{formatTime(result.createdAt)}</span>
 										</div>
-										<span class="truncate text-sm text-[var(--text-secondary)]">{result.content}</span>
+										<span class="truncate text-sm text-[var(--text-secondary)]">{@html highlightSearchMatch(result.content, searchQuery)}</span>
 									</button>
 								{/each}
 							</div>
@@ -3501,6 +3559,50 @@
 						</button>
 					</div>
 				</form>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Confirmation Dialog -->
+	{#if confirmDialog}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			transition:fade={{ duration: 150 }}
+			onclick={() => confirmDialog = null}
+			onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-5 shadow-2xl"
+				transition:scale={{ start: 0.95, duration: 200 }}
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
+				<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">{confirmDialog.title}</h3>
+				<p class="mb-4 text-sm text-[var(--text-secondary)]">{confirmDialog.message}</p>
+				{#if confirmDialog.inputPlaceholder}
+					<input
+						type="text"
+						bind:value={confirmInput}
+						placeholder={confirmDialog.inputPlaceholder}
+						class="mb-4 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+					/>
+				{/if}
+				<div class="flex justify-end gap-2">
+					<button
+						onclick={() => confirmDialog = null}
+						class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={() => { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; }}
+						class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}"
+					>
+						{confirmDialog.confirmLabel ?? 'Confirm'}
+					</button>
+				</div>
 			</div>
 		</div>
 	{/if}
