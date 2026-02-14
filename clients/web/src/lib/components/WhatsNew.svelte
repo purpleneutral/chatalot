@@ -14,6 +14,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.5.3',
+			date: '2026-02-14',
+			changes: [
+				'Volume amplification now goes up to 500% using real audio processing',
+				'Screen sharing now transmits audio along with video',
+				'Fixed favicon 404 error in Chrome',
+			]
+		},
+		{
 			version: '0.5.2',
 			date: '2026-02-14',
 			changes: [
@@ -56,7 +65,7 @@
 			version: '0.4.0',
 			date: '2026-02-14',
 			changes: [
-				'Right-click a participant in voice to adjust their volume (0-200%)',
+				'Right-click a participant in voice to adjust their volume',
 				'Fixed "Encrypted message" showing in group channels',
 				'Voice controls persist in sidebar when browsing other channels',
 			]
