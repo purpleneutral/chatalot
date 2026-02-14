@@ -4727,7 +4727,7 @@
 					<input
 						type="range"
 						min="0"
-						max="200"
+						max="500"
 						value={voiceStore.getUserVolume(voiceContextMenu.userId)}
 						oninput={(e) => { if (voiceContextMenu) voiceStore.setUserVolume(voiceContextMenu.userId, parseInt(e.currentTarget.value)); }}
 						class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"

@@ -177,7 +177,7 @@ class VoiceStore {
 
 	setUserVolume(userId: string, volume: number) {
 		const next = new Map(this.userVolumes);
-		next.set(userId, Math.max(0, Math.min(200, volume)));
+		next.set(userId, Math.max(0, Math.min(500, volume)));
 		this.userVolumes = next;
 	}
 }
