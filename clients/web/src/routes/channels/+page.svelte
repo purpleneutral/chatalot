@@ -501,10 +501,15 @@
 			console.error('Failed to initialize crypto:', err);
 		}
 
-		// Connect WebSocket
+		// Connect WebSocket (or re-register handler if already connected)
 		unsubWs = wsClient.onMessage(handleServerMessage);
 		wsClient.onAuthenticated(subscribeToAllChannels);
-		wsClient.connect();
+		if (wsClient.isConnected) {
+			// Already connected (navigated back from admin/settings) — re-subscribe
+			subscribeToAllChannels();
+		} else {
+			wsClient.connect();
+		}
 
 		// Load communities + channels + DMs
 		try {
@@ -609,8 +614,9 @@
 
 	onDestroy(() => {
 		unsubWs?.();
-		webrtcManager.leaveCall();
-		wsClient.disconnect();
+		// Don't disconnect WS or leave voice call on navigation —
+		// only on explicit logout (handled in the logout button handler).
+		// This keeps voice calls alive when visiting admin/settings.
 		document.removeEventListener('click', closeContextMenu);
 		window.removeEventListener('chatalot:navigate-channel', handleNotifNavigate as EventListener);
 		window.removeEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
@@ -2903,7 +2909,7 @@
 					</svg>
 				</button>
 				<button
-					onclick={() => { authStore.logout(); wsClient.disconnect(); goto('/login'); }}
+					onclick={() => { webrtcManager.leaveCall(); authStore.logout(); wsClient.disconnect(); goto('/login'); }}
 					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--danger)]"
 					title="Sign out"
 				>
