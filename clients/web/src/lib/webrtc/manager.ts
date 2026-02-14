@@ -505,16 +505,28 @@ class WebRTCManager {
 				this.onUserLeft(userId);
 			}
 
-			// Establish connections with new participants
+			// Establish connections with new participants (or reconnect stale ones)
 			for (const userId of participants) {
-				if (userId !== myId && !this.peers.has(userId)) {
-					// Only the impolite peer (higher ID) creates offers
-					if (!this.isPolite(userId)) {
-						try {
-							await this.createAndSendOffer(userId);
-						} catch (err) {
-							console.error(`Failed to create offer for ${userId}:`, err);
-						}
+				if (userId === myId) continue;
+
+				// Check for stale peer connections (failed/closed/disconnected)
+				const existingPc = this.peers.get(userId);
+				if (existingPc) {
+					const state = existingPc.connectionState ?? existingPc.iceConnectionState;
+					if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+						console.info(`Cleaning up stale peer connection for ${userId} (state: ${state})`);
+						this.onUserLeft(userId);
+					} else {
+						continue; // healthy connection, skip
+					}
+				}
+
+				// Only the impolite peer (higher ID) creates offers
+				if (!this.isPolite(userId)) {
+					try {
+						await this.createAndSendOffer(userId);
+					} catch (err) {
+						console.error(`Failed to create offer for ${userId}:`, err);
 					}
 				}
 			}
