@@ -14,6 +14,7 @@ pub struct AppState {
     pub jwt_decoding_key: DecodingKey,
     pub start_time: Instant,
     pub connections: ConnectionManager,
+    pub client_version: String,
 }
 
 impl AppState {
@@ -24,6 +25,15 @@ impl AppState {
         let jwt_encoding_key = EncodingKey::from_ed_pem(private_pem.as_bytes())?;
         let jwt_decoding_key = DecodingKey::from_ed_pem(public_pem.as_bytes())?;
 
+        // Read client version from static/version.json (written by Vite build)
+        let static_dir = std::env::var("STATIC_FILES_PATH")
+            .unwrap_or_else(|_| "./static".to_string());
+        let client_version = std::fs::read_to_string(format!("{static_dir}/version.json"))
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| v["version"].as_str().map(String::from))
+            .unwrap_or_else(|| "unknown".to_string());
+
         Ok(Self {
             config,
             db,
@@ -31,6 +41,7 @@ impl AppState {
             jwt_decoding_key,
             start_time,
             connections: ConnectionManager::new(),
+            client_version,
         })
     }
 }

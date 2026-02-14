@@ -2,6 +2,8 @@ import { authStore } from '$lib/stores/auth.svelte';
 import { wsUrl } from '$lib/env';
 import type { ClientMessage, ServerMessage } from './types';
 
+declare const __APP_VERSION__: string;
+
 type MessageHandler = (msg: ServerMessage) => void | Promise<void>;
 
 class WebSocketClient {
@@ -83,6 +85,18 @@ class WebSocketClient {
 			this.connected = true;
 			this.startHeartbeat();
 			this.authenticatedCallback?.();
+
+			// Auto-reload if the server was updated with a new client build
+			if (
+				msg.server_version &&
+				msg.server_version !== 'unknown' &&
+				msg.server_version !== __APP_VERSION__
+			) {
+				console.info(
+					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}. Reloading...`,
+				);
+				setTimeout(() => location.reload(), 1500);
+			}
 		}
 
 		for (const handler of this.handlers) {

@@ -101,6 +101,7 @@ pub enum ServerMessage {
     // Auth response
     Authenticated {
         user_id: Uuid,
+        server_version: String,
     },
 
     // Messaging

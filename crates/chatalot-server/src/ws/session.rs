@@ -38,6 +38,7 @@ async fn handle_ws_auth(
                             // Send authenticated confirmation
                             let confirm = chatalot_common::ws_messages::ServerMessage::Authenticated {
                                 user_id: claims.sub,
+                                server_version: state.client_version.clone(),
                             };
                             if let Ok(json) = serde_json::to_string(&confirm) {
                                 let _ = socket.send(Message::Text(json.into())).await;
