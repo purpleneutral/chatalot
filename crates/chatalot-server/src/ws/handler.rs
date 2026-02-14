@@ -382,6 +382,22 @@ async fn handle_client_message(
                     continue;
                 }
 
+                // Send current voice state if there's an active voice session
+                if let Ok(Some(session)) =
+                    voice_repo::get_active_session(&state.db, channel_id).await
+                {
+                    if let Ok(participants) =
+                        voice_repo::get_participants(&state.db, session.id).await
+                    {
+                        if !participants.is_empty() {
+                            let _ = tx.send(ServerMessage::VoiceStateUpdate {
+                                channel_id,
+                                participants,
+                            });
+                        }
+                    }
+                }
+
                 let mut rx = conn_mgr.subscribe_channel(channel_id);
                 let tx = tx.clone();
                 let uid = user_id;
