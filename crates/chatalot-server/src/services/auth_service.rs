@@ -88,7 +88,7 @@ fn user_to_public(user: &chatalot_db::models::user::User, is_admin: bool) -> Use
     }
 }
 
-/// Validate username format: alphanumeric, underscores, hyphens, 3-32 chars.
+/// Validate username format: alphanumeric, underscores, hyphens, dots, 3-32 chars.
 fn validate_username(username: &str) -> Result<(), AppError> {
     if username.len() < 3 || username.len() > 32 {
         return Err(AppError::Validation(
@@ -97,15 +97,25 @@ fn validate_username(username: &str) -> Result<(), AppError> {
     }
     if !username
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
     {
         return Err(AppError::Validation(
-            "username may only contain letters, numbers, underscores, and hyphens".to_string(),
+            "username may only contain letters, numbers, underscores, hyphens, and dots".to_string(),
         ));
     }
     if !username.starts_with(|c: char| c.is_ascii_alphanumeric()) {
         return Err(AppError::Validation(
             "username must start with a letter or number".to_string(),
+        ));
+    }
+    if username.ends_with('.') {
+        return Err(AppError::Validation(
+            "username must not end with a dot".to_string(),
+        ));
+    }
+    if username.contains("..") {
+        return Err(AppError::Validation(
+            "username must not contain consecutive dots".to_string(),
         ));
     }
     Ok(())
