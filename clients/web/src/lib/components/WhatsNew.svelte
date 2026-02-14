@@ -93,7 +93,7 @@
 {#if show}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+		class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
 		transition:fade={{ duration: 150 }}
 		onclick={dismiss}
 		onkeydown={handleBackdropKeydown}
