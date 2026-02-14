@@ -2811,12 +2811,21 @@
 													🔊 Voice
 												</button>
 											</div>
-											<button
-												type="submit"
-												class="w-full rounded bg-[var(--accent)] px-2 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]"
-											>
-												Create
-											</button>
+											<div class="flex gap-1">
+												<button
+													type="button"
+													onclick={() => { showGroupChannelCreate = null; newGroupChannelName = ''; }}
+													class="flex-1 rounded border border-white/10 px-2 py-1 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+												>
+													Cancel
+												</button>
+												<button
+													type="submit"
+													class="flex-1 rounded bg-[var(--accent)] px-2 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]"
+												>
+													Create
+												</button>
+											</div>
 										</form>
 									{:else}
 										<button
