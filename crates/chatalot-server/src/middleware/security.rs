@@ -5,8 +5,23 @@ use axum::response::Response;
 
 /// Add security headers to all responses.
 pub async fn security_headers(request: Request, next: Next) -> Response {
+    let path = request.uri().path().to_string();
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
+
+    // Cache control: immutable hashed assets get long cache, HTML gets no-cache
+    if path.starts_with("/_app/immutable/") {
+        headers.insert(
+            "Cache-Control",
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+    } else if !path.starts_with("/api") {
+        // HTML pages and other static assets: always revalidate
+        headers.insert(
+            "Cache-Control",
+            HeaderValue::from_static("no-cache"),
+        );
+    }
 
     headers.insert(
         "X-Content-Type-Options",
