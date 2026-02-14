@@ -1101,7 +1101,7 @@
 				id: `temp-${Date.now()}`,
 				channelId: channelStore.activeChannelId,
 				senderId: authStore.user?.id ?? '',
-				content: `[File: ${file.name}]`,
+				content: fileMsg,
 				messageType: 'file',
 				replyToId: null,
 				editedAt: null,
@@ -2655,10 +2655,10 @@
 										{#if voiceStore.getChannelParticipants(channel.id).length > 0}
 											<div class="ml-8 space-y-0.5 pb-1">
 												{#each voiceStore.getChannelParticipants(channel.id) as uid (uid)}
-													<div class="flex items-center gap-1.5 px-2 py-0.5 text-xs text-[var(--text-secondary)]">
-														<div class="h-1.5 w-1.5 rounded-full bg-[var(--success)]"></div>
+													<button class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]" onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}>
+														<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
 														<span class="truncate">{userStore.getDisplayName(uid)}</span>
-													</div>
+													</button>
 												{/each}
 											</div>
 										{/if}
@@ -2806,10 +2806,10 @@
 							{#if voiceStore.getChannelParticipants(channel.id).length > 0}
 								<div class="ml-6 space-y-0.5 pb-1">
 									{#each voiceStore.getChannelParticipants(channel.id) as uid (uid)}
-										<div class="flex items-center gap-1.5 px-2 py-0.5 text-xs text-[var(--text-secondary)]">
-											<div class="h-1.5 w-1.5 rounded-full bg-[var(--success)]"></div>
+										<button class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]" onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}>
+											<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
 											<span class="truncate">{userStore.getDisplayName(uid)}</span>
-										</div>
+										</button>
 									{/each}
 								</div>
 							{/if}
