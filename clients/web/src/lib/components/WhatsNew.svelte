@@ -14,12 +14,12 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.5.5',
+			version: '0.5.6',
 			date: '2026-02-14',
 			changes: [
-				'Fixed screen share audio not playing for viewers',
-				'Right-click directly on a screen share video to adjust volume or mute',
-				'Screen share volume control (0-100%) independent from voice volume',
+				'Fixed screen share audio: video stays muted for autoplay, audio plays via separate element',
+				'Fixed right-click on screen shares: transparent overlay prevents browser video menu',
+				'Screen share volume (0-100%) and mute toggle via right-click context menu',
 			]
 		},
 		{

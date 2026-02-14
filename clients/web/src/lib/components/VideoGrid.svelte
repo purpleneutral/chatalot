@@ -17,6 +17,9 @@
 	let remoteVideoEls = $state<Map<string, HTMLVideoElement>>(new Map());
 	let remoteScreenEls = $state<Map<string, HTMLVideoElement>>(new Map());
 
+	// Hidden audio elements for screen share audio (separate from muted video)
+	let screenAudioEls = $state<Map<string, HTMLAudioElement>>(new Map());
+
 	// Attach local stream to video element
 	$effect(() => {
 		if (localVideoEl && voiceStore.activeCall?.localStream) {
@@ -41,7 +44,7 @@
 		}
 	});
 
-	// Attach remote screen share streams
+	// Attach remote screen share streams to video elements
 	$effect(() => {
 		for (const [userId, stream] of voiceStore.remoteScreenStreams) {
 			const el = remoteScreenEls.get(userId);
@@ -51,16 +54,16 @@
 		}
 	});
 
-	// Apply screen share volume/mute to video elements
+	// Attach remote screen share streams to audio elements and apply volume/mute
 	$effect(() => {
-		for (const [userId] of voiceStore.remoteScreenStreams) {
-			const el = remoteScreenEls.get(userId);
+		for (const [userId, stream] of voiceStore.remoteScreenStreams) {
+			const el = screenAudioEls.get(userId);
 			if (el) {
-				const muted = voiceStore.isScreenShareMuted(userId);
-				el.muted = muted;
-				if (!muted) {
-					el.volume = voiceStore.getScreenShareVolume(userId) / 100;
+				if (el.srcObject !== stream) {
+					el.srcObject = stream;
 				}
+				el.muted = voiceStore.isScreenShareMuted(userId);
+				el.volume = voiceStore.getScreenShareVolume(userId) / 100;
 			}
 		}
 	});
@@ -89,20 +92,34 @@
 		remoteScreenEls = next;
 
 		const stream = voiceStore.remoteScreenStreams.get(userId);
-		if (stream) {
-			node.srcObject = stream;
-			// Apply initial volume/mute
-			node.muted = voiceStore.isScreenShareMuted(userId);
-			if (!node.muted) {
-				node.volume = voiceStore.getScreenShareVolume(userId) / 100;
-			}
-		}
+		if (stream) node.srcObject = stream;
 
 		return {
 			destroy() {
 				const next = new Map(remoteScreenEls);
 				next.delete(userId);
 				remoteScreenEls = next;
+			}
+		};
+	}
+
+	function bindScreenAudio(node: HTMLAudioElement, userId: string) {
+		const next = new Map(screenAudioEls);
+		next.set(userId, node);
+		screenAudioEls = next;
+
+		const stream = voiceStore.remoteScreenStreams.get(userId);
+		if (stream) {
+			node.srcObject = stream;
+			node.muted = voiceStore.isScreenShareMuted(userId);
+			node.volume = voiceStore.getScreenShareVolume(userId) / 100;
+		}
+
+		return {
+			destroy() {
+				const next = new Map(screenAudioEls);
+				next.delete(userId);
+				screenAudioEls = next;
 			}
 		};
 	}
@@ -165,30 +182,38 @@
 				{/if}
 
 				{#each remoteScreenEntries as [userId, _stream] (userId)}
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="relative mt-1">
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<!-- Video: muted (audio handled by hidden <audio> element below) -->
 						<video
 							autoplay
+							muted
 							playsinline
 							class="w-full rounded-lg"
 							style="max-height: 400px;"
-							oncontextmenu={(e) => openScreenMenu(e, userId)}
 							use:bindRemoteScreen={userId}
 						></video>
-						<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-[var(--accent)]/90 px-2 py-1 text-xs font-medium text-white">
+						<!-- Transparent overlay for right-click (prevents browser's native video menu) -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="absolute inset-0 rounded-lg"
+							oncontextmenu={(e) => openScreenMenu(e, userId)}
+						></div>
+						<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-[var(--accent)]/90 px-2 py-1 text-xs font-medium text-white pointer-events-none">
 							<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
 							{userStore.getDisplayName(userId)} is sharing their screen
 						</div>
 						{#if voiceStore.isScreenShareMuted(userId)}
-							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white">
+							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
 								Audio muted
 							</div>
 						{:else if voiceStore.getScreenShareVolume(userId) !== 100}
-							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white">
+							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
 								{voiceStore.getScreenShareVolume(userId)}%
 							</div>
 						{/if}
+						<!-- Hidden audio element for screen share sound -->
+						<!-- svelte-ignore element_invalid_self_closing_tag -->
+						<audio autoplay use:bindScreenAudio={userId} class="hidden"></audio>
 					</div>
 				{/each}
 			</div>
