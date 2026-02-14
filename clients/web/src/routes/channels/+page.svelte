@@ -92,6 +92,9 @@
 	let typingTimeout: ReturnType<typeof setTimeout> | null = null;
 	let unsubWs: (() => void) | null = null;
 
+	// App initialization flag — prevents empty-state flash before data loads
+	let initialized = $state(false);
+
 	// DM state
 	let dmChannels = $state<DmChannel[]>([]);
 	let showNewDm = $state(false);
@@ -683,6 +686,8 @@
 		} catch (err) {
 			console.error('Failed to load channels:', err);
 		}
+
+		initialized = true;
 
 		// Close context menu on click outside
 		document.addEventListener('click', closeContextMenu);
@@ -2930,7 +2935,14 @@
 						{/if}
 					{/each}
 
-					{#if groupStore.groups.length === 0}
+					{#if !initialized}
+						<!-- Loading skeleton -->
+						<div class="space-y-2">
+							{#each [1, 2, 3] as _}
+								<div class="h-9 animate-pulse rounded-lg bg-white/5"></div>
+							{/each}
+						</div>
+					{:else if groupStore.groups.length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
 							<p class="text-sm text-[var(--text-secondary)]">No groups yet</p>
 							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Create a group, discover existing ones, or join via an invite link.</p>
@@ -3010,7 +3022,13 @@
 							{/if}
 						{/if}
 					{/each}
-					{#if channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id).length === 0}
+					{#if !initialized}
+						<div class="space-y-2">
+							{#each [1, 2, 3] as _}
+								<div class="h-9 animate-pulse rounded-lg bg-white/5"></div>
+							{/each}
+						</div>
+					{:else if channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id).length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
 							<p class="text-sm text-[var(--text-secondary)]">No standalone channels</p>
 							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Channels here are outside of groups. Try the Groups tab instead.</p>
@@ -3035,7 +3053,13 @@
 							{/if}
 						</button>
 					{/each}
-					{#if dmChannels.length === 0}
+					{#if !initialized}
+						<div class="space-y-2">
+							{#each [1, 2, 3] as _}
+								<div class="h-9 animate-pulse rounded-lg bg-white/5"></div>
+							{/each}
+						</div>
+					{:else if dmChannels.length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-6 text-center">
 							<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-10 w-10 text-[var(--text-secondary)]/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -4250,27 +4274,29 @@
 				{/if}
 			{:else}
 				<div class="flex flex-1 flex-col items-center justify-center gap-4">
-					<!-- Mobile menu button when no channel selected -->
-					<button
-						onclick={() => (sidebarOpen = true)}
-						class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
-					>
-						Open channels
-					</button>
-					<div class="text-center">
-						<div class="mx-auto mb-4 rounded-full bg-white/5 p-5">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-							</svg>
+					{#if initialized}
+						<!-- Mobile menu button when no channel selected -->
+						<button
+							onclick={() => (sidebarOpen = true)}
+							class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
+						>
+							Open channels
+						</button>
+						<div class="text-center">
+							<div class="mx-auto mb-4 rounded-full bg-white/5 p-5">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+								</svg>
+							</div>
+							<h2 class="mb-2 text-2xl font-bold text-[var(--text-primary)]">Welcome to Chatalot</h2>
+							<p class="max-w-sm text-[var(--text-secondary)]">
+								Select a channel from the sidebar to start chatting, or create a new group to get organized.
+							</p>
+							<p class="mt-2 text-xs text-[var(--text-secondary)]/60">
+								Press <kbd class="rounded bg-white/10 px-1 py-0.5 text-[var(--text-primary)]">?</kbd> for keyboard shortcuts
+							</p>
 						</div>
-						<h2 class="mb-2 text-2xl font-bold text-[var(--text-primary)]">Welcome to Chatalot</h2>
-						<p class="max-w-sm text-[var(--text-secondary)]">
-							Select a channel from the sidebar to start chatting, or create a new group to get organized.
-						</p>
-						<p class="mt-2 text-xs text-[var(--text-secondary)]/60">
-							Press <kbd class="rounded bg-white/10 px-1 py-0.5 text-[var(--text-primary)]">?</kbd> for keyboard shortcuts
-						</p>
-					</div>
+					{/if}
 				</div>
 			{/if}
 		</main>
