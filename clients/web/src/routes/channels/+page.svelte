@@ -145,8 +145,9 @@
 	let contextMenuMessageId = $state<string | null>(null);
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
-	// Voice kick context menu state
-	let voiceKickMenu = $state<{ userId: string; channelId: string; x: number; y: number } | null>(null);
+	// Voice context menu state (volume + kick)
+	let voiceContextMenu = $state<{ userId: string; channelId: string; x: number; y: number } | null>(null);
+	let isVoiceMenuSelf = $derived(voiceContextMenu?.userId === authStore.user?.id);
 
 	// Mobile sidebar state
 	let sidebarOpen = $state(false);
@@ -423,7 +424,7 @@
 		const displayName = userStore.getDisplayName(userId);
 		wsClient.send({ type: 'kick_from_voice', channel_id: channelId, user_id: userId });
 		toastStore.success(`${displayName} was kicked from voice`);
-		voiceKickMenu = null;
+		voiceContextMenu = null;
 	}
 
 	function handleBan(userId: string, displayName: string) {
@@ -465,19 +466,21 @@
 			? memberStore.getMyRole(channelStore.activeChannelId, authStore.user.id)
 			: 'member'
 	);
-	// Can the current user kick others from voice? (group owner check)
-	let canKickFromVoice = $derived.by(() => {
-		const callChannelId = voiceStore.activeCall?.channelId;
-		if (!callChannelId || !authStore.user?.id) return false;
-		// Find which group owns the voice channel
+	// Can the current user kick others from voice in a given channel?
+	function canKickInChannel(channelId: string): boolean {
+		if (!authStore.user?.id) return false;
 		for (const [groupId, channels] of groupChannelsMap) {
-			if (channels.some(c => c.id === callChannelId)) {
+			if (channels.some(c => c.id === channelId)) {
 				const group = groupStore.groups.find(g => g.id === groupId);
 				return group?.owner_id === authStore.user.id;
 			}
 		}
 		return false;
-	});
+	}
+	// Derived for VideoGrid (checks active call channel)
+	let canKickFromVoice = $derived(
+		voiceStore.activeCall?.channelId ? canKickInChannel(voiceStore.activeCall.channelId) : false
+	);
 
 	let channelMembers = $derived(
 		channelStore.activeChannelId
@@ -2806,11 +2809,9 @@
 														class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]"
 														onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}
 														oncontextmenu={(e) => {
-															if (uid !== authStore.user?.id && group.owner_id === authStore.user?.id) {
-																e.preventDefault();
-																e.stopPropagation();
-																voiceKickMenu = { userId: uid, channelId: channel.id, x: e.clientX, y: e.clientY };
-															}
+															e.preventDefault();
+															e.stopPropagation();
+															voiceContextMenu = { userId: uid, channelId: channel.id, x: e.clientX, y: e.clientY };
 														}}
 													>
 														<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
@@ -2972,7 +2973,15 @@
 							{#if voiceStore.getChannelParticipants(channel.id).length > 0}
 								<div class="ml-6 space-y-0.5 pb-1">
 									{#each voiceStore.getChannelParticipants(channel.id) as uid (uid)}
-										<button class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]" onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}>
+										<button
+											class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]"
+											onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}
+											oncontextmenu={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+												voiceContextMenu = { userId: uid, channelId: channel.id, x: e.clientX, y: e.clientY };
+											}}
+										>
 											<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
 											<span class="truncate">{userStore.getDisplayName(uid)}</span>
 										</button>
@@ -4635,27 +4644,92 @@
 		</div>
 	{/if}
 
-	<!-- Voice kick context menu -->
-	{#if voiceKickMenu}
+	<!-- Voice context menu (volume + kick) -->
+	{#if voiceContextMenu}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-40"
-			onclick={() => voiceKickMenu = null}
-			oncontextmenu={(e) => { e.preventDefault(); voiceKickMenu = null; }}
+			onclick={() => voiceContextMenu = null}
+			oncontextmenu={(e) => { e.preventDefault(); voiceContextMenu = null; }}
 		></div>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="fixed z-50 min-w-[160px] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
-			style="left: {voiceKickMenu.x}px; top: {voiceKickMenu.y}px;"
+			class="fixed z-50 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
+			style="left: {voiceContextMenu.x}px; top: {voiceContextMenu.y}px;"
+			onclick={(e) => e.stopPropagation()}
 		>
-			<button
-				onclick={() => { if (voiceKickMenu) handleVoiceKick(voiceKickMenu.userId, voiceKickMenu.channelId); }}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" />
-				</svg>
-				Kick from voice
-			</button>
+			{#if isVoiceMenuSelf}
+				<!-- Self: mic gain control -->
+				<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+					</svg>
+					Mic Volume
+				</div>
+				<div class="mb-1 text-[10px] text-[var(--text-secondary)]">What others hear from you</div>
+				<div class="flex items-center gap-2">
+					<input
+						type="range"
+						min="0"
+						max="200"
+						value={preferencesStore.preferences.inputGain}
+						oninput={(e) => webrtcManager.setMicGain(parseInt(e.currentTarget.value))}
+						class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
+					/>
+					<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
+						{preferencesStore.preferences.inputGain}%
+					</span>
+				</div>
+				{#if preferencesStore.preferences.inputGain !== 100}
+					<button
+						onclick={() => webrtcManager.setMicGain(100)}
+						class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						Reset to 100%
+					</button>
+				{/if}
+			{:else}
+				<!-- Remote: playback volume control -->
+				<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+					</svg>
+					{userStore.getDisplayName(voiceContextMenu.userId)}
+				</div>
+				<div class="flex items-center gap-2">
+					<input
+						type="range"
+						min="0"
+						max="200"
+						value={voiceStore.getUserVolume(voiceContextMenu.userId)}
+						oninput={(e) => { if (voiceContextMenu) voiceStore.setUserVolume(voiceContextMenu.userId, parseInt(e.currentTarget.value)); }}
+						class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
+					/>
+					<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
+						{voiceStore.getUserVolume(voiceContextMenu.userId)}%
+					</span>
+				</div>
+				{#if voiceStore.getUserVolume(voiceContextMenu.userId) !== 100}
+					<button
+						onclick={() => { if (voiceContextMenu) voiceStore.setUserVolume(voiceContextMenu.userId, 100); }}
+						class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						Reset to 100%
+					</button>
+				{/if}
+				{#if canKickInChannel(voiceContextMenu.channelId)}
+					<div class="my-1.5 border-t border-white/10"></div>
+					<button
+						onclick={() => { if (voiceContextMenu) { handleVoiceKick(voiceContextMenu.userId, voiceContextMenu.channelId); } }}
+						class="flex w-full items-center gap-2 rounded px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-white/5"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" />
+						</svg>
+						Kick from voice
+					</button>
+				{/if}
+			{/if}
 		</div>
 	{/if}
 

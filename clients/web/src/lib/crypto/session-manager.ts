@@ -352,9 +352,8 @@ export class SessionManager {
 
 				return plaintext;
 			}
-		} catch (e) {
+		} catch {
 			// Not a SenderKeyWireMessage or decryption failed — fall through to UTF-8
-			console.error('Group decryption failed, falling back to UTF-8:', e);
 		}
 
 		// Legacy message: raw UTF-8 plaintext
