@@ -458,6 +458,20 @@ class WebRTCManager {
 		}
 	}
 
+	/// Check if a remote screen share stream has gone stale (all tracks ended/muted)
+	/// and clean it up. Called after renegotiation since track events are unreliable.
+	private cleanupStaleScreenShares(userId: string): void {
+		const screenStream = voiceStore.remoteScreenStreams.get(userId);
+		if (!screenStream) return;
+
+		const activeTracks = screenStream.getTracks().filter(
+			t => t.readyState === 'live' && !t.muted
+		);
+		if (activeTracks.length === 0) {
+			voiceStore.removeRemoteScreenStream(userId);
+		}
+	}
+
 	/// Start monitoring audio levels for all streams.
 	private startAudioLevelMonitoring(): void {
 		if (this.levelCheckInterval) return;
@@ -577,6 +591,7 @@ class WebRTCManager {
 		if (!voiceStore.activeCall?.localStream) return;
 
 		let pc = this.peers.get(fromUserId);
+		const isRenegotiation = !!pc;
 
 		if (pc) {
 			// Existing connection — this is a renegotiation.
@@ -621,6 +636,15 @@ class WebRTCManager {
 			session_id: sessionId,
 			sdp: JSON.stringify(answer)
 		});
+
+		// After renegotiation, check for stale screen shares. Track events
+		// (onended/onmute) don't fire reliably across browsers when the sender
+		// removes tracks, so we actively check after a short delay.
+		if (isRenegotiation) {
+			setTimeout(() => {
+				this.cleanupStaleScreenShares(fromUserId);
+			}, 1000);
+		}
 	}
 
 	/// Handle an incoming RTC answer.
