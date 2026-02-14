@@ -29,8 +29,12 @@ class VoiceStore {
 	// Which remote users have video enabled
 	remoteVideoEnabled = $state<Set<string>>(new Set());
 
-	// Per-user volume (0-200, default 100)
+	// Per-user volume (0-500, default 100)
 	userVolumes = $state<Map<string, number>>(new Map());
+
+	// Screen share audio: separate volume + mute per user
+	screenShareVolumes = $state<Map<string, number>>(new Map());
+	screenShareMuted = $state<Set<string>>(new Set());
 
 	get isInCall(): boolean {
 		return this.activeCall !== null;
@@ -179,6 +183,30 @@ class VoiceStore {
 		const next = new Map(this.userVolumes);
 		next.set(userId, Math.max(0, Math.min(500, volume)));
 		this.userVolumes = next;
+	}
+
+	getScreenShareVolume(userId: string): number {
+		return this.screenShareVolumes.get(userId) ?? 100;
+	}
+
+	setScreenShareVolume(userId: string, volume: number) {
+		const next = new Map(this.screenShareVolumes);
+		next.set(userId, Math.max(0, Math.min(500, volume)));
+		this.screenShareVolumes = next;
+	}
+
+	isScreenShareMuted(userId: string): boolean {
+		return this.screenShareMuted.has(userId);
+	}
+
+	toggleScreenShareMute(userId: string) {
+		const next = new Set(this.screenShareMuted);
+		if (next.has(userId)) {
+			next.delete(userId);
+		} else {
+			next.add(userId);
+		}
+		this.screenShareMuted = next;
 	}
 }
 

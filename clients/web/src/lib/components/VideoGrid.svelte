@@ -97,19 +97,27 @@
 		'grid-cols-3'
 	);
 
-	// Volume context menu (works for both self and remote)
-	let volumeMenuUserId = $state<string | null>(null);
-	let volumeMenuPos = $state({ x: 0, y: 0 });
-	let isSelfMenu = $derived(volumeMenuUserId === authStore.user?.id);
+	// Context menu state
+	let menuUserId = $state<string | null>(null);
+	let menuPos = $state({ x: 0, y: 0 });
+	let menuType = $state<'self' | 'remote' | 'screen'>('remote');
 
 	function openVolumeMenu(e: MouseEvent, userId: string) {
 		e.preventDefault();
-		volumeMenuUserId = userId;
-		volumeMenuPos = { x: e.clientX, y: e.clientY };
+		menuUserId = userId;
+		menuPos = { x: e.clientX, y: e.clientY };
+		menuType = userId === authStore.user?.id ? 'self' : 'remote';
 	}
 
-	function closeVolumeMenu() {
-		volumeMenuUserId = null;
+	function openScreenMenu(e: MouseEvent, userId: string) {
+		e.preventDefault();
+		menuUserId = userId;
+		menuPos = { x: e.clientX, y: e.clientY };
+		menuType = 'screen';
+	}
+
+	function closeMenu() {
+		menuUserId = null;
 	}
 </script>
 
@@ -136,9 +144,14 @@
 				{/if}
 
 				{#each remoteScreenEntries as [userId, _stream] (userId)}
-					<div class="relative mt-1">
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="relative mt-1"
+						oncontextmenu={(e) => openScreenMenu(e, userId)}
+					>
 						<video
 							autoplay
+							muted
 							playsinline
 							class="w-full rounded-lg"
 							style="max-height: 400px;"
@@ -148,6 +161,15 @@
 							<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
 							{userStore.getDisplayName(userId)} is sharing their screen
 						</div>
+						{#if voiceStore.isScreenShareMuted(userId)}
+							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white">
+								Audio muted
+							</div>
+						{:else if voiceStore.getScreenShareVolume(userId) !== 100}
+							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white">
+								{voiceStore.getScreenShareVolume(userId)}%
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -218,21 +240,21 @@
 			{/each}
 		</div>
 
-		<!-- Volume context menu (self = mic gain, remote = playback volume) -->
-		{#if volumeMenuUserId}
+		<!-- Context menu -->
+		{#if menuUserId}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="fixed inset-0 z-40"
-				onclick={closeVolumeMenu}
-				oncontextmenu={(e) => { e.preventDefault(); closeVolumeMenu(); }}
+				onclick={closeMenu}
+				oncontextmenu={(e) => { e.preventDefault(); closeMenu(); }}
 			></div>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="fixed z-50 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
-				style="left: {volumeMenuPos.x}px; top: {volumeMenuPos.y}px;"
+				style="left: {menuPos.x}px; top: {menuPos.y}px;"
 				onclick={(e) => e.stopPropagation()}
 			>
-				{#if isSelfMenu}
+				{#if menuType === 'self'}
 					<!-- Self: mic gain control -->
 					<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -262,30 +284,80 @@
 							Reset to 100%
 						</button>
 					{/if}
+				{:else if menuType === 'screen'}
+					<!-- Screen share: audio volume + mute -->
+					<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+						</svg>
+						{userStore.getDisplayName(menuUserId)}'s Stream
+					</div>
+					<div class="mb-2 flex items-center gap-2">
+						<input
+							type="range"
+							min="0"
+							max="500"
+							value={voiceStore.getScreenShareVolume(menuUserId)}
+							disabled={voiceStore.isScreenShareMuted(menuUserId)}
+							oninput={(e) => { if (menuUserId) voiceStore.setScreenShareVolume(menuUserId, parseInt(e.currentTarget.value)); }}
+							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)] disabled:opacity-40"
+						/>
+						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
+							{voiceStore.isScreenShareMuted(menuUserId) ? '---' : `${voiceStore.getScreenShareVolume(menuUserId)}%`}
+						</span>
+					</div>
+					<button
+						onclick={() => { if (menuUserId) voiceStore.toggleScreenShareMute(menuUserId); }}
+						class="w-full rounded px-2 py-1.5 text-left text-xs transition hover:bg-white/5 {voiceStore.isScreenShareMuted(menuUserId) ? 'text-[var(--danger)]' : 'text-[var(--text-secondary)]'}"
+					>
+						{#if voiceStore.isScreenShareMuted(menuUserId)}
+							<span class="flex items-center gap-2">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+								</svg>
+								Unmute stream audio
+							</span>
+						{:else}
+							<span class="flex items-center gap-2">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+								</svg>
+								Mute stream audio
+							</span>
+						{/if}
+					</button>
+					{#if voiceStore.getScreenShareVolume(menuUserId) !== 100}
+						<button
+							onclick={() => { if (menuUserId) voiceStore.setScreenShareVolume(menuUserId, 100); }}
+							class="w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						>
+							Reset to 100%
+						</button>
+					{/if}
 				{:else}
 					<!-- Remote: playback volume control -->
 					<div class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
 						</svg>
-						{userStore.getDisplayName(volumeMenuUserId)}
+						{userStore.getDisplayName(menuUserId)}
 					</div>
 					<div class="flex items-center gap-2">
 						<input
 							type="range"
 							min="0"
 							max="500"
-							value={voiceStore.getUserVolume(volumeMenuUserId)}
-							oninput={(e) => { if (volumeMenuUserId) voiceStore.setUserVolume(volumeMenuUserId, parseInt(e.currentTarget.value)); }}
+							value={voiceStore.getUserVolume(menuUserId)}
+							oninput={(e) => { if (menuUserId) voiceStore.setUserVolume(menuUserId, parseInt(e.currentTarget.value)); }}
 							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
 						/>
 						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
-							{voiceStore.getUserVolume(volumeMenuUserId)}%
+							{voiceStore.getUserVolume(menuUserId)}%
 						</span>
 					</div>
-					{#if voiceStore.getUserVolume(volumeMenuUserId) !== 100}
+					{#if voiceStore.getUserVolume(menuUserId) !== 100}
 						<button
-							onclick={() => { if (volumeMenuUserId) voiceStore.setUserVolume(volumeMenuUserId, 100); }}
+							onclick={() => { if (menuUserId) voiceStore.setUserVolume(menuUserId, 100); }}
 							class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						>
 							Reset to 100%
@@ -294,7 +366,7 @@
 					{#if canKick && onKickFromVoice}
 						<div class="my-1.5 border-t border-white/10"></div>
 						<button
-							onclick={() => { if (volumeMenuUserId && onKickFromVoice) { onKickFromVoice(volumeMenuUserId); closeVolumeMenu(); } }}
+							onclick={() => { if (menuUserId && onKickFromVoice) { onKickFromVoice(menuUserId); closeMenu(); } }}
 							class="w-full rounded px-2 py-1 text-left text-xs text-[var(--danger)] transition hover:bg-white/5"
 						>
 							Kick from voice
