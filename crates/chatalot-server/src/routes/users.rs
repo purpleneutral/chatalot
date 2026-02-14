@@ -43,6 +43,7 @@ async fn get_user(
         status: user.status,
         custom_status: user.custom_status,
         is_admin: user.is_admin,
+        created_at: Some(user.created_at.to_rfc3339()),
     }))
 }
 
@@ -74,6 +75,7 @@ async fn search_users(
             status: u.status.clone(),
             custom_status: u.custom_status.clone(),
             is_admin: u.is_admin,
+            created_at: Some(u.created_at.to_rfc3339()),
         })
         .collect();
 

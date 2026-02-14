@@ -8,6 +8,7 @@ export interface UserPublic {
 	status: string;
 	custom_status: string | null;
 	is_admin?: boolean;
+	created_at?: string;
 }
 
 export async function searchUsers(query: string): Promise<UserPublic[]> {

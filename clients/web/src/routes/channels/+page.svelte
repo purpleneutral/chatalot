@@ -1297,7 +1297,8 @@
 	}
 
 	const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
-	const VIDEO_EXTS = /\.(mp4|webm|mov|ogg)$/i;
+	const VIDEO_EXTS = /\.(mp4|webm|mov)$/i;
+	const AUDIO_EXTS = /\.(mp3|wav|ogg|flac|m4a|aac|opus|wma)$/i;
 	const IMAGE_URL_REGEX = /https?:\/\/[^\s<>"']+\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?[^\s<>"']*)?/gi;
 	const URL_REGEX = /https?:\/\/[^\s<>"'\)]+/gi;
 
@@ -3119,6 +3120,28 @@
 													<a href={blobUrl} download={fileInfo.filename} class="text-[var(--accent)] hover:underline">Download</a>
 												{/await}
 											</div>
+										</div>
+									{:else if fileInfo && AUDIO_EXTS.test(fileInfo.filename)}
+										<div class="mt-1 max-w-sm">
+											<div class="flex items-center gap-3 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5">
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+													<path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+												</svg>
+												<div class="min-w-0 flex-1">
+													<p class="truncate text-sm font-medium text-[var(--text-primary)]">{fileInfo.filename}</p>
+													<p class="text-xs text-[var(--text-secondary)]">{formatFileSize(fileInfo.size)}</p>
+												</div>
+												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
+													<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
+												{/await}
+											</div>
+											{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
+												<div class="mt-1 h-8 rounded bg-[var(--bg-secondary)]"></div>
+											{:then blobUrl}
+												<audio src={blobUrl} controls class="mt-1 w-full rounded" style="height: 32px;"></audio>
+											{:catch}
+												<p class="mt-1 text-xs text-[var(--text-secondary)]">Could not load audio</p>
+											{/await}
 										</div>
 									{:else if fileInfo}
 										<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">

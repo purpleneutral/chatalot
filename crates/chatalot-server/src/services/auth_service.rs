@@ -84,6 +84,7 @@ fn user_to_public(user: &chatalot_db::models::user::User, is_admin: bool) -> Use
         status: user.status.clone(),
         custom_status: user.custom_status.clone(),
         is_admin,
+        created_at: Some(user.created_at.to_rfc3339()),
     }
 }
 

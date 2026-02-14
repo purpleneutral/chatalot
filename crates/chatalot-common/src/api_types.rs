@@ -70,6 +70,8 @@ pub struct UserPublic {
     pub custom_status: Option<String>,
     #[serde(default)]
     pub is_admin: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
 }
 
 // ── Keys ──

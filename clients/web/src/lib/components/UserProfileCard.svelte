@@ -82,6 +82,12 @@
 		return `left: ${x}px; top: ${y}px;`;
 	});
 
+	const joinedDate = $derived.by(() => {
+		if (!user?.created_at) return null;
+		const d = new Date(user.created_at);
+		return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+	});
+
 	function handleCopyId() {
 		navigator.clipboard.writeText(userId);
 		toastStore.success('User ID copied');
@@ -161,6 +167,14 @@
 					</span>
 				{/if}
 			</div>
+
+			<!-- Member since -->
+			{#if joinedDate}
+				<div class="mb-3 text-xs text-[var(--text-secondary)]">
+					<span class="font-medium uppercase tracking-wider">Member Since</span>
+					<p class="mt-0.5 text-[var(--text-primary)]">{joinedDate}</p>
+				</div>
+			{/if}
 
 			<!-- Separator -->
 			<div class="mb-3 border-t border-white/10"></div>

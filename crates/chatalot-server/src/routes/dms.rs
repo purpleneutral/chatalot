@@ -99,5 +99,6 @@ fn user_to_public(u: &User) -> UserPublic {
         status: u.status.clone(),
         custom_status: u.custom_status.clone(),
         is_admin: u.is_admin,
+        created_at: Some(u.created_at.to_rfc3339()),
     }
 }
