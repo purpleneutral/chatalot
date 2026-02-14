@@ -15,7 +15,8 @@
 		<div style="display: contents">%sveltekit.body%</div>
 		<script>
 			if ('serviceWorker' in navigator) {
-				navigator.serviceWorker.register('/sw.js');
+				navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+					.then(function(reg) { reg.update(); });
 			}
 		</script>
 	</body>

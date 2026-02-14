@@ -18,10 +18,12 @@ pub mod users;
 
 use std::sync::Arc;
 
+use axum::http::header;
 use axum::routing::get;
 use axum::Router;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
@@ -76,6 +78,16 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     // Static file serving for the SPA (Svelte build output)
     let static_dir = std::env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "./static".to_string());
+
+    // Service worker must never be cached by browsers or CDNs
+    let sw_service = ServeFile::new(format!("{static_dir}/sw.js"));
+    let sw_route = Router::new()
+        .route_service("/sw.js", sw_service)
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            header::HeaderValue::from_static("no-store"),
+        ));
+
     let spa_fallback = ServeDir::new(&static_dir)
         .not_found_service(ServeFile::new(format!("{static_dir}/index.html")));
 
@@ -90,6 +102,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
         .nest("/api", public_routes.merge(protected_routes))
         .route("/ws", get(ws_upgrade))
+        .merge(sw_route)
         .fallback_service(spa_fallback)
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(axum::middleware::from_fn(security_headers))
