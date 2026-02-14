@@ -20,6 +20,9 @@ class WebRTCManager {
 	private sessionId: string | null = null;
 	private channelId: string | null = null;
 
+	// Track which stream IDs are the "main" stream per user (audio/camera)
+	private mainStreamIds = new Map<string, string>();
+
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
 	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
@@ -79,9 +82,11 @@ class WebRTCManager {
 		for (const [userId, pc] of this.peers) {
 			pc.close();
 			voiceStore.removeRemoteStream(userId);
+			voiceStore.removeRemoteScreenStream(userId);
 		}
 		this.peers.clear();
 		this.pendingCandidates.clear();
+		this.mainStreamIds.clear();
 
 		voiceStore.clearCall();
 		this.channelId = null;
@@ -101,12 +106,21 @@ class WebRTCManager {
 		if (!stream) return;
 
 		if (voiceStore.activeCall.videoEnabled) {
-			// Turn off video
+			// Turn off video — remove tracks from peers, then stop
+			for (const pc of this.peers.values()) {
+				for (const sender of pc.getSenders()) {
+					if (sender.track && sender.track.kind === 'video'
+						&& stream.getVideoTracks().includes(sender.track)) {
+						pc.removeTrack(sender);
+					}
+				}
+			}
 			stream.getVideoTracks().forEach(t => {
 				t.stop();
 				stream.removeTrack(t);
 			});
 			voiceStore.setVideoEnabled(false);
+			await this.renegotiateAll();
 		} else {
 			// Turn on video
 			try {
@@ -121,6 +135,7 @@ class WebRTCManager {
 				for (const pc of this.peers.values()) {
 					pc.addTrack(videoTrack, stream);
 				}
+				await this.renegotiateAll();
 			} catch (err) {
 				console.error('Failed to enable video:', err);
 			}
@@ -132,8 +147,20 @@ class WebRTCManager {
 		if (!voiceStore.activeCall) return;
 
 		if (voiceStore.activeCall.screenSharing) {
-			voiceStore.activeCall.screenStream?.getTracks().forEach(t => t.stop());
+			// Stop sharing — remove screen tracks from peers
+			const screenStream = voiceStore.activeCall.screenStream;
+			if (screenStream) {
+				for (const pc of this.peers.values()) {
+					for (const sender of pc.getSenders()) {
+						if (sender.track && screenStream.getTracks().includes(sender.track)) {
+							pc.removeTrack(sender);
+						}
+					}
+				}
+				screenStream.getTracks().forEach(t => t.stop());
+			}
 			voiceStore.setScreenSharing(false, null);
+			await this.renegotiateAll();
 		} else {
 			try {
 				const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -144,16 +171,54 @@ class WebRTCManager {
 
 				// When user stops sharing via browser UI
 				screenStream.getVideoTracks()[0].onended = () => {
-					voiceStore.setScreenSharing(false, null);
+					this.stopScreenShare();
 				};
 
-				// Add screen track to all peers
+				// Add screen track to all peers and renegotiate
 				const screenTrack = screenStream.getVideoTracks()[0];
 				for (const pc of this.peers.values()) {
 					pc.addTrack(screenTrack, screenStream);
 				}
+				await this.renegotiateAll();
 			} catch (err) {
 				console.error('Failed to share screen:', err);
+			}
+		}
+	}
+
+	/// Stop screen sharing (called by browser "stop sharing" button).
+	private async stopScreenShare(): Promise<void> {
+		if (!voiceStore.activeCall?.screenSharing) return;
+		const screenStream = voiceStore.activeCall.screenStream;
+		if (screenStream) {
+			for (const pc of this.peers.values()) {
+				for (const sender of pc.getSenders()) {
+					if (sender.track && screenStream.getTracks().includes(sender.track)) {
+						pc.removeTrack(sender);
+					}
+				}
+			}
+			screenStream.getTracks().forEach(t => t.stop());
+		}
+		voiceStore.setScreenSharing(false, null);
+		await this.renegotiateAll();
+	}
+
+	/// Renegotiate all peer connections (after adding/removing tracks).
+	private async renegotiateAll(): Promise<void> {
+		for (const [userId, pc] of this.peers) {
+			if (pc.signalingState !== 'stable') continue;
+			try {
+				const offer = await pc.createOffer();
+				await pc.setLocalDescription(offer);
+				wsClient.send({
+					type: 'rtc_offer',
+					target_user_id: userId,
+					session_id: this.sessionId!,
+					sdp: JSON.stringify(offer)
+				});
+			} catch (err) {
+				console.error(`Renegotiation with ${userId} failed:`, err);
 			}
 		}
 	}
@@ -252,6 +317,8 @@ class WebRTCManager {
 	onUserLeft(userId: string): void {
 		this.stopMonitoringStream(userId);
 		voiceStore.setRemoteVideo(userId, false);
+		voiceStore.removeRemoteScreenStream(userId);
+		this.mainStreamIds.delete(userId);
 		const pc = this.peers.get(userId);
 		if (pc) {
 			pc.close();
@@ -261,21 +328,37 @@ class WebRTCManager {
 		}
 	}
 
-	/// Handle an incoming RTC offer.
+	/// Handle an incoming RTC offer (initial or renegotiation).
 	async handleOffer(fromUserId: string, sessionId: string, sdpJson: string): Promise<void> {
 		if (!voiceStore.activeCall?.localStream) return;
 
-		// If we already have a connection and we're the impolite peer, ignore this offer (we sent ours first).
-		const existing = this.peers.get(fromUserId);
-		if (existing && !this.isPolite(fromUserId)) {
-			return;
-		}
+		let pc = this.peers.get(fromUserId);
 
-		const pc = this.createPeerConnection(fromUserId);
+		if (pc) {
+			// Existing connection — this is a renegotiation
+			if (!this.isPolite(fromUserId)) {
+				// We're the impolite peer and sent our own offer — ignore theirs
+				return;
+			}
+			// We're the polite peer — rollback our offer if needed, accept theirs
+			if (pc.signalingState === 'have-local-offer') {
+				await pc.setLocalDescription({ type: 'rollback' });
+			}
+		} else {
+			// New connection
+			pc = this.createPeerConnection(fromUserId);
 
-		// Add our local tracks
-		for (const track of voiceStore.activeCall.localStream.getTracks()) {
-			pc.addTrack(track, voiceStore.activeCall.localStream);
+			// Add our local tracks
+			for (const track of voiceStore.activeCall.localStream.getTracks()) {
+				pc.addTrack(track, voiceStore.activeCall.localStream);
+			}
+
+			// Also add screen share tracks if we're currently sharing
+			if (voiceStore.activeCall.screenSharing && voiceStore.activeCall.screenStream) {
+				for (const track of voiceStore.activeCall.screenStream.getTracks()) {
+					pc.addTrack(track, voiceStore.activeCall.screenStream);
+				}
+			}
 		}
 
 		const offer = JSON.parse(sdpJson) as RTCSessionDescriptionInit;
@@ -360,6 +443,13 @@ class WebRTCManager {
 			pc.addTrack(track, voiceStore.activeCall.localStream);
 		}
 
+		// Also add screen share tracks if we're currently sharing
+		if (voiceStore.activeCall.screenSharing && voiceStore.activeCall.screenStream) {
+			for (const track of voiceStore.activeCall.screenStream.getTracks()) {
+				pc.addTrack(track, voiceStore.activeCall.screenStream);
+			}
+		}
+
 		// Create and send offer
 		const offer = await pc.createOffer();
 		await pc.setLocalDescription(offer);
@@ -402,15 +492,34 @@ class WebRTCManager {
 			}
 		};
 
-		// Remote track handling
+		// Remote track handling — distinguish main stream from screen share
 		pc.ontrack = (event) => {
 			const [stream] = event.streams;
-			if (stream) {
+			if (!stream) return;
+
+			const knownMainId = this.mainStreamIds.get(userId);
+
+			if (!knownMainId) {
+				// First stream from this user = main stream (audio/camera)
+				this.mainStreamIds.set(userId, stream.id);
 				voiceStore.addRemoteStream(userId, stream);
 				this.monitorStream(userId, stream);
+			} else if (stream.id === knownMainId) {
+				// Additional track on the main stream (e.g., camera toggled on)
+				voiceStore.addRemoteStream(userId, stream);
+			} else {
+				// Different stream = screen share
+				voiceStore.addRemoteScreenStream(userId, stream);
 
-				// Track remote video state
-				if (event.track.kind === 'video') {
+				// Clean up when screen share track ends
+				event.track.onended = () => {
+					voiceStore.removeRemoteScreenStream(userId);
+				};
+			}
+
+			// Track remote video state (only for main stream)
+			if (event.track.kind === 'video' && stream.id === (this.mainStreamIds.get(userId) ?? stream.id)) {
+				if (stream.id === this.mainStreamIds.get(userId)) {
 					voiceStore.setRemoteVideo(userId, true);
 					event.track.onended = () => {
 						voiceStore.setRemoteVideo(userId, false);
@@ -430,10 +539,12 @@ class WebRTCManager {
 			if (pc.connectionState === 'failed') {
 				console.warn(`Peer connection to ${userId} failed, cleaning up`);
 				this.stopMonitoringStream(userId);
+				this.mainStreamIds.delete(userId);
 				pc.close();
 				this.peers.delete(userId);
 				this.pendingCandidates.delete(userId);
 				voiceStore.removeRemoteStream(userId);
+				voiceStore.removeRemoteScreenStream(userId);
 			} else if (pc.connectionState === 'disconnected') {
 				console.warn(`Peer connection to ${userId} disconnected`);
 			}

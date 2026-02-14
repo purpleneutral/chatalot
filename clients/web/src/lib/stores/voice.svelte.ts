@@ -17,6 +17,9 @@ class VoiceStore {
 	// Remote streams keyed by user ID
 	remoteStreams = $state<Map<string, MediaStream>>(new Map());
 
+	// Remote screen share streams keyed by user ID
+	remoteScreenStreams = $state<Map<string, MediaStream>>(new Map());
+
 	// Voice participants per channel (for showing who's in a call even if we aren't)
 	channelVoiceParticipants = $state<Map<string, string[]>>(new Map());
 
@@ -44,6 +47,7 @@ class VoiceStore {
 		this.activeCall?.screenStream?.getTracks().forEach(t => t.stop());
 		this.activeCall = null;
 		this.remoteStreams = new Map();
+		this.remoteScreenStreams = new Map();
 	}
 
 	setAudioEnabled(enabled: boolean) {
@@ -77,6 +81,18 @@ class VoiceStore {
 		const next = new Map(this.remoteStreams);
 		next.delete(userId);
 		this.remoteStreams = next;
+	}
+
+	addRemoteScreenStream(userId: string, stream: MediaStream) {
+		const next = new Map(this.remoteScreenStreams);
+		next.set(userId, stream);
+		this.remoteScreenStreams = next;
+	}
+
+	removeRemoteScreenStream(userId: string) {
+		const next = new Map(this.remoteScreenStreams);
+		next.delete(userId);
+		this.remoteScreenStreams = next;
 	}
 
 	setChannelParticipants(channelId: string, participants: string[]) {
