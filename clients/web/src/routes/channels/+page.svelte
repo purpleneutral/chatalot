@@ -2942,7 +2942,7 @@
 							Voice Connected
 						</button>
 						<button
-							onclick={() => webrtcManager.leaveCall()}
+							onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; }}
 							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-red-500/20 hover:text-red-400"
 							title="Disconnect"
 						>
@@ -3324,13 +3324,13 @@
 				{#if voiceStore.isInCall}
 					<button
 						onclick={() => (chatCollapsed = !chatCollapsed)}
-						class="flex w-full items-center justify-center gap-1.5 border-b border-white/10 bg-[var(--bg-secondary)] py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						class="flex w-full items-center justify-center gap-2 border-y border-white/10 bg-[var(--bg-tertiary)] py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--accent)]/10 hover:text-[var(--text-primary)] cursor-pointer"
 					>
 						{#if chatCollapsed}
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
 							Show Chat
 						{:else}
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
 							Hide Chat
 						{/if}
 					</button>
