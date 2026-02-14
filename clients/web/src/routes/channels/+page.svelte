@@ -31,6 +31,47 @@
 	import UserProfileCard from '$lib/components/UserProfileCard.svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
+	import hljs from 'highlight.js/lib/core';
+	import javascript from 'highlight.js/lib/languages/javascript';
+	import typescript from 'highlight.js/lib/languages/typescript';
+	import python from 'highlight.js/lib/languages/python';
+	import rust from 'highlight.js/lib/languages/rust';
+	import css from 'highlight.js/lib/languages/css';
+	import xml from 'highlight.js/lib/languages/xml';
+	import json from 'highlight.js/lib/languages/json';
+	import bash from 'highlight.js/lib/languages/bash';
+	import sql from 'highlight.js/lib/languages/sql';
+	import yaml from 'highlight.js/lib/languages/yaml';
+	import go from 'highlight.js/lib/languages/go';
+	import java from 'highlight.js/lib/languages/java';
+	import cpp from 'highlight.js/lib/languages/cpp';
+	import markdown from 'highlight.js/lib/languages/markdown';
+
+	// Register highlight.js languages
+	hljs.registerLanguage('javascript', javascript);
+	hljs.registerLanguage('js', javascript);
+	hljs.registerLanguage('typescript', typescript);
+	hljs.registerLanguage('ts', typescript);
+	hljs.registerLanguage('python', python);
+	hljs.registerLanguage('py', python);
+	hljs.registerLanguage('rust', rust);
+	hljs.registerLanguage('rs', rust);
+	hljs.registerLanguage('css', css);
+	hljs.registerLanguage('html', xml);
+	hljs.registerLanguage('xml', xml);
+	hljs.registerLanguage('json', json);
+	hljs.registerLanguage('bash', bash);
+	hljs.registerLanguage('sh', bash);
+	hljs.registerLanguage('shell', bash);
+	hljs.registerLanguage('sql', sql);
+	hljs.registerLanguage('yaml', yaml);
+	hljs.registerLanguage('yml', yaml);
+	hljs.registerLanguage('go', go);
+	hljs.registerLanguage('java', java);
+	hljs.registerLanguage('cpp', cpp);
+	hljs.registerLanguage('c', cpp);
+	hljs.registerLanguage('markdown', markdown);
+	hljs.registerLanguage('md', markdown);
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { communityStore } from '$lib/stores/communities.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
@@ -136,6 +177,21 @@
 	let showPinnedPanel = $state(false);
 	let pinnedMessages = $state<PinnedMessage[]>([]);
 	let loadingPins = $state(false);
+
+	// Scroll-to-bottom button
+	let showScrollBottom = $state(false);
+
+	// Unread separator: track the first unread message ID per channel switch
+	let unreadSeparatorMsgId = $state<string | null>(null);
+
+	// Member list filter
+	let memberFilter = $state('');
+
+	// Keyboard shortcuts modal
+	let showShortcutsModal = $state(false);
+
+	// Forwarding
+	let forwardingMsg = $state<ChatMessage | null>(null);
 
 	// Status picker state
 	let showStatusPicker = $state(false);
@@ -274,6 +330,15 @@
 		channelStore.activeChannelId
 			? memberStore.getMembers(channelStore.activeChannelId)
 			: []
+	);
+	let filteredMembers = $derived(
+		memberFilter.trim()
+			? channelMembers.filter(m => {
+				const q = memberFilter.toLowerCase();
+				return m.username.toLowerCase().includes(q)
+					|| m.display_name.toLowerCase().includes(q);
+			})
+			: channelMembers
 	);
 
 	function subscribeToAllChannels() {
@@ -501,9 +566,19 @@
 	}
 
 	async function selectChannel(channelId: string) {
+		// Compute unread separator before clearing
+		const unreadCount = messageStore.getUnreadCount(channelId);
+		const existingMsgs = messageStore.getMessages(channelId);
+		if (unreadCount > 0 && existingMsgs.length >= unreadCount) {
+			// The separator goes before the first unread message
+			unreadSeparatorMsgId = existingMsgs[existingMsgs.length - unreadCount].id;
+		} else {
+			unreadSeparatorMsgId = null;
+		}
 		channelStore.setActive(channelId);
 		messageStore.clearUnread(channelId);
 		sidebarOpen = false;
+		memberFilter = '';
 		localStorage.setItem('chatalot:activeChannel', channelId);
 
 		// Preload members for @mention autocomplete
@@ -1118,7 +1193,24 @@
 			}
 			return match;
 		});
-		const html = marked.parse(processed) as string;
+
+		// Configure marked with syntax highlighting
+		const renderer = new marked.Renderer();
+		renderer.code = ({ text: code, lang }: { text: string; lang?: string }) => {
+			if (lang && hljs.getLanguage(lang)) {
+				const highlighted = hljs.highlight(code, { language: lang }).value;
+				return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+			}
+			// Auto-detect for unlabeled code blocks
+			try {
+				const result = hljs.highlightAuto(code);
+				return `<pre><code class="hljs">${result.value}</code></pre>`;
+			} catch {
+				return `<pre><code>${code}</code></pre>`;
+			}
+		};
+
+		const html = marked.parse(processed, { renderer }) as string;
 		return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class'] });
 	}
 
@@ -1130,6 +1222,48 @@
 
 	function cancelReply() {
 		replyingTo = null;
+	}
+
+	function forwardMessage(msg: ChatMessage) {
+		const senderName = getDisplayNameForContext(msg.senderId);
+		const preview = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
+		messageInput = `> **${senderName}**: ${preview}\n\n`;
+		contextMenuMessageId = null;
+		messageInputEl?.focus();
+		// Move cursor to end
+		tick().then(() => {
+			if (messageInputEl) {
+				messageInputEl.selectionStart = messageInput.length;
+				messageInputEl.selectionEnd = messageInput.length;
+			}
+		});
+	}
+
+	function handlePaste(e: ClipboardEvent) {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				e.preventDefault();
+				const file = item.getAsFile();
+				if (file) handleFileUpload(file);
+				return;
+			}
+		}
+	}
+
+	function handleGlobalKeydown(e: KeyboardEvent) {
+		// ? or Ctrl+/ to show shortcuts
+		if ((e.key === '?' && !e.ctrlKey && !e.metaKey) || (e.key === '/' && (e.ctrlKey || e.metaKey))) {
+			const tag = (e.target as HTMLElement)?.tagName;
+			if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+			e.preventDefault();
+			showShortcutsModal = !showShortcutsModal;
+		}
+		// Escape to close modals
+		if (e.key === 'Escape') {
+			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); }
+		}
 	}
 
 	// Special mention entries for autocomplete
@@ -1600,6 +1734,8 @@
 	// ── Infinite scroll ──
 	async function handleMessageScroll(e: Event) {
 		const el = e.target as HTMLDivElement;
+		// Show/hide scroll-to-bottom button
+		showScrollBottom = el.scrollHeight - el.scrollTop - el.clientHeight > 300;
 		if (el.scrollTop > 200 || loadingOlder || !channelStore.activeChannelId) return;
 		if (!messageStore.hasMore(channelStore.activeChannelId)) return;
 
@@ -1679,6 +1815,8 @@
 		}
 	});
 </script>
+
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 {#if authStore.isAuthenticated}
 	<div class="flex h-screen">
@@ -2502,6 +2640,14 @@
 						<Skeleton variant="message" count={3} />
 					{/if}
 					{#each messages as msg, idx (msg.id)}
+						<!-- Unread separator -->
+						{#if unreadSeparatorMsgId && msg.id === unreadSeparatorMsgId}
+							<div class="my-3 flex items-center gap-4">
+								<div class="flex-1 border-t border-[var(--danger)]"></div>
+								<span class="text-xs font-semibold text-[var(--danger)]">NEW MESSAGES</span>
+								<div class="flex-1 border-t border-[var(--danger)]"></div>
+							</div>
+						{/if}
 						<!-- Date separator -->
 						{#if shouldShowDateSeparator(messages, idx)}
 							<div class="my-4 flex items-center gap-4">
@@ -2716,6 +2862,13 @@
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 									</button>
+									<button
+										onclick={() => forwardMessage(msg)}
+										class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+										title="Forward"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
+									</button>
 									{#if (myRole === 'owner' || myRole === 'admin') && channelStore.activeChannelId}
 										{#if messageStore.isPinned(channelStore.activeChannelId, msg.id)}
 											<button
@@ -2825,6 +2978,22 @@
 					{/if}
 				</div>
 
+				<!-- Scroll to bottom button -->
+				{#if showScrollBottom}
+					<div class="relative">
+						<button
+							onclick={() => scrollToBottom()}
+							class="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-lg transition hover:bg-[var(--bg-tertiary)]"
+							title="Scroll to bottom"
+							transition:scale={{ start: 0.8, duration: 150 }}
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<polyline points="6 9 12 15 18 9" />
+							</svg>
+						</button>
+					</div>
+				{/if}
+
 				<!-- Typing indicator -->
 				{#if typingUsers.length > 0}
 					<div class="px-6 py-1 text-xs text-[var(--text-secondary)]">
@@ -2896,6 +3065,7 @@
 							bind:value={messageInput}
 							oninput={(e) => { handleMentionInput(); autoResizeTextarea(); }}
 							onkeydown={(e) => { handleMentionKeydown(e); if (!showMentionPopup) handleInputKeydown(e); }}
+							onpaste={handlePaste}
 							placeholder="Message {activeChannel.channel_type === 'dm' ? '@' : '#'}{getChannelDisplayName()}..."
 							rows="1"
 							class="flex-1 resize-none rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
@@ -2958,13 +3128,19 @@
 		{#if showMemberPanel && activeChannel && activeChannel.channel_type !== 'dm'}
 			<aside class="hidden w-60 flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto md:block">
 				<div class="p-4">
-					<h3 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+					<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Members ({channelMembers.length})
 					</h3>
+					<input
+						type="text"
+						bind:value={memberFilter}
+						placeholder="Filter members..."
+						class="mb-2 w-full rounded-md border border-white/10 bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
+					/>
 					{#if membersLoading}
 						<Skeleton variant="member" count={4} />
 					{:else}
-						{#each channelMembers as member (member.user_id)}
+						{#each filteredMembers as member (member.user_id)}
 							<div class="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
 								<Avatar userId={member.user_id} size="sm" showStatus />
 								<div class="min-w-0 flex-1">
@@ -3088,6 +3264,77 @@
 						</button>
 					</div>
 				</form>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Keyboard Shortcuts Modal -->
+	{#if showShortcutsModal}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			transition:fade={{ duration: 150 }}
+			onclick={() => showShortcutsModal = false}
+			onkeydown={(e) => { if (e.key === 'Escape') showShortcutsModal = false; }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-lg rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
+				transition:scale={{ start: 0.95, duration: 200 }}
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
+				<div class="mb-4 flex items-center justify-between">
+					<h2 class="text-lg font-bold text-[var(--text-primary)]">Keyboard Shortcuts</h2>
+					<button onclick={() => showShortcutsModal = false} class="rounded p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+					</button>
+				</div>
+				<div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+					<div class="col-span-2 mt-1 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Messages</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Send message</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{preferencesStore.preferences.sendBehavior === 'enter' ? 'Enter' : 'Ctrl+Enter'}</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">New line</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{preferencesStore.preferences.sendBehavior === 'enter' ? 'Shift+Enter' : 'Enter'}</kbd>
+					</div>
+					<div class="col-span-2 mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Formatting</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Bold</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+B</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Italic</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+I</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Inline code</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+E</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Link</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+K</kbd>
+					</div>
+					<div class="col-span-2 mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigation</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Search messages</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+F</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Show shortcuts</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">?</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Close modal</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Esc</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Upload file</span>
+						<span class="text-xs text-[var(--text-secondary)]">Paste image</span>
+					</div>
+				</div>
 			</div>
 		</div>
 	{/if}
