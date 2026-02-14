@@ -711,6 +711,11 @@
 		}
 	}
 
+	function isNearBottom(): boolean {
+		if (!messageListEl) return true;
+		return messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight < 150;
+	}
+
 	function processSlashCommands(text: string): string {
 		if (text.startsWith('/me ')) {
 			return `*${text.slice(4)}*`;
@@ -1035,8 +1040,16 @@
 
 	// Message actions
 	function handleDeleteMessage(messageId: string) {
-		wsClient.send({ type: 'delete_message', message_id: messageId });
-		messageStore.deleteMessage(messageId);
+		showConfirmDialog({
+			title: 'Delete Message',
+			message: 'Are you sure you want to delete this message? This cannot be undone.',
+			confirmLabel: 'Delete',
+			danger: true,
+			onConfirm: () => {
+				wsClient.send({ type: 'delete_message', message_id: messageId });
+				messageStore.deleteMessage(messageId);
+			}
+		});
 		contextMenuMessageId = null;
 	}
 
@@ -1940,11 +1953,20 @@
 		localStorage.setItem('chatalot:expandedGroups', JSON.stringify([...expandedGroupIds]));
 	});
 
-	// Auto-scroll when new messages arrive
+	// Auto-scroll when new messages arrive (only if near bottom)
+	let prevMessageCount = $state(0);
 	$effect(() => {
-		if (messages.length > 0) {
+		const count = messages.length;
+		if (count > prevMessageCount && prevMessageCount > 0) {
+			// New message arrived — only scroll if user is near the bottom
+			if (isNearBottom()) {
+				tick().then(scrollToBottom);
+			}
+		} else if (count > 0 && prevMessageCount === 0) {
+			// Initial load — scroll to bottom
 			tick().then(scrollToBottom);
 		}
+		prevMessageCount = count;
 	});
 </script>
 
@@ -2973,7 +2995,7 @@
 											{/each}
 										</div>
 									{/if}
-									{#if linkUrls.length > 0}
+									{#if linkUrls.length > 0 && preferencesStore.preferences.showLinkPreviews}
 										{#each linkUrls.slice(0, 3) as linkUrl}
 											{#await fetchLinkPreview(linkUrl) then preview}
 												{#if preview && (preview.title || preview.description)}
