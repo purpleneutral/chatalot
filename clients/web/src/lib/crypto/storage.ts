@@ -246,7 +246,14 @@ export class CryptoStorage {
 	private put(storeName: string, key: IDBValidKey, value: unknown): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const tx = this.db!.transaction(storeName, 'readwrite');
-			tx.objectStore(storeName).put(value, key);
+			const store = tx.objectStore(storeName);
+			// Stores with a keyPath derive the key from the value — passing
+			// an explicit key throws DataError per the IndexedDB spec.
+			if (store.keyPath != null) {
+				store.put(value);
+			} else {
+				store.put(value, key);
+			}
 			tx.oncomplete = () => resolve();
 			tx.onerror = () => reject(tx.error);
 		});
