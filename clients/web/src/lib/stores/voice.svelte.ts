@@ -191,7 +191,7 @@ class VoiceStore {
 
 	setScreenShareVolume(userId: string, volume: number) {
 		const next = new Map(this.screenShareVolumes);
-		next.set(userId, Math.max(0, Math.min(500, volume)));
+		next.set(userId, Math.max(0, Math.min(100, volume)));
 		this.screenShareVolumes = next;
 	}
 

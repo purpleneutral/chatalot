@@ -51,6 +51,20 @@
 		}
 	});
 
+	// Apply screen share volume/mute to video elements
+	$effect(() => {
+		for (const [userId] of voiceStore.remoteScreenStreams) {
+			const el = remoteScreenEls.get(userId);
+			if (el) {
+				const muted = voiceStore.isScreenShareMuted(userId);
+				el.muted = muted;
+				if (!muted) {
+					el.volume = voiceStore.getScreenShareVolume(userId) / 100;
+				}
+			}
+		}
+	});
+
 	function bindRemoteVideo(node: HTMLVideoElement, userId: string) {
 		const next = new Map(remoteVideoEls);
 		next.set(userId, node);
@@ -75,7 +89,14 @@
 		remoteScreenEls = next;
 
 		const stream = voiceStore.remoteScreenStreams.get(userId);
-		if (stream) node.srcObject = stream;
+		if (stream) {
+			node.srcObject = stream;
+			// Apply initial volume/mute
+			node.muted = voiceStore.isScreenShareMuted(userId);
+			if (!node.muted) {
+				node.volume = voiceStore.getScreenShareVolume(userId) / 100;
+			}
+		}
 
 		return {
 			destroy() {
@@ -145,16 +166,14 @@
 
 				{#each remoteScreenEntries as [userId, _stream] (userId)}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
-						class="relative mt-1"
-						oncontextmenu={(e) => openScreenMenu(e, userId)}
-					>
+					<div class="relative mt-1">
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<video
 							autoplay
-							muted
 							playsinline
 							class="w-full rounded-lg"
 							style="max-height: 400px;"
+							oncontextmenu={(e) => openScreenMenu(e, userId)}
 							use:bindRemoteScreen={userId}
 						></video>
 						<div class="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-[var(--accent)]/90 px-2 py-1 text-xs font-medium text-white">
@@ -296,8 +315,8 @@
 						<input
 							type="range"
 							min="0"
-							max="500"
-							value={voiceStore.getScreenShareVolume(menuUserId)}
+							max="100"
+							value={voiceStore.isScreenShareMuted(menuUserId) ? 0 : voiceStore.getScreenShareVolume(menuUserId)}
 							disabled={voiceStore.isScreenShareMuted(menuUserId)}
 							oninput={(e) => { if (menuUserId) voiceStore.setScreenShareVolume(menuUserId, parseInt(e.currentTarget.value)); }}
 							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)] disabled:opacity-40"

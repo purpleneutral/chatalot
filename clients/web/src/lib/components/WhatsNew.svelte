@@ -14,12 +14,12 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.5.4',
+			version: '0.5.5',
 			date: '2026-02-14',
 			changes: [
-				'Screen share audio now plays through the volume pipeline with full amplification',
-				'Right-click a screen share to adjust its volume or mute its audio',
-				'Screen share volume is independent from voice volume per user',
+				'Fixed screen share audio not playing for viewers',
+				'Right-click directly on a screen share video to adjust volume or mute',
+				'Screen share volume control (0-100%) independent from voice volume',
 			]
 		},
 		{
