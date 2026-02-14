@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chatalot-v1';
+const CACHE_NAME = 'chatalot-v2';
 const STATIC_ASSETS = [
 	'/',
 	'/manifest.json',
@@ -25,15 +25,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
 	const url = new URL(event.request.url);
 
+	// Only handle requests from our own origin
+	if (url.origin !== self.location.origin) return;
+
 	// Don't cache API or WebSocket requests
-	if (url.pathname.startsWith('/api') || url.pathname === '/ws') {
-		return;
-	}
+	if (url.pathname.startsWith('/api') || url.pathname === '/ws') return;
+
+	// Don't cache Vite's hashed chunks — browser HTTP cache handles these
+	// via content-hash filenames. SW caching them causes stale code after deploys.
+	if (url.pathname.startsWith('/_app/')) return;
 
 	event.respondWith(
 		fetch(event.request)
 			.then((response) => {
-				// Cache successful GET responses
 				if (event.request.method === 'GET' && response.status === 200) {
 					const clone = response.clone();
 					caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
@@ -41,7 +45,6 @@ self.addEventListener('fetch', (event) => {
 				return response;
 			})
 			.catch(() => {
-				// Serve from cache when offline
 				return caches.match(event.request).then((cached) => {
 					return cached || caches.match('/');
 				});
