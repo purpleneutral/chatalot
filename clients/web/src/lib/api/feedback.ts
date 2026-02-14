@@ -7,6 +7,20 @@ export interface FeedbackResponse {
 	message: string;
 }
 
+async function doFeedbackRequest(form: FormData): Promise<Response> {
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	return fetch(`${apiBase()}/feedback`, {
+		method: 'POST',
+		headers,
+		body: form
+	});
+}
+
 export async function submitFeedback(params: {
 	title: string;
 	description: string;
@@ -21,17 +35,35 @@ export async function submitFeedback(params: {
 		form.append('screenshot', params.screenshot);
 	}
 
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
+	let response = await doFeedbackRequest(form);
 
-	const response = await fetch(`${apiBase()}/feedback`, {
-		method: 'POST',
-		headers,
-		body: form
-	});
+	// Handle expired token — refresh and retry
+	if (response.status === 401) {
+		const refreshToken = authStore.refreshToken;
+		if (refreshToken) {
+			const refreshResp = await fetch(`${apiBase()}/auth/refresh`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ refresh_token: refreshToken })
+			});
+			if (refreshResp.ok) {
+				const data = await refreshResp.json();
+				authStore.setTokens(data.access_token, data.refresh_token);
+				// Rebuild form since the original body stream is consumed
+				const retryForm = new FormData();
+				retryForm.append('title', params.title);
+				retryForm.append('description', params.description);
+				retryForm.append('category', params.category);
+				if (params.screenshot) {
+					retryForm.append('screenshot', params.screenshot);
+				}
+				response = await doFeedbackRequest(retryForm);
+			} else {
+				authStore.logout();
+				throw new Error('Session expired');
+			}
+		}
+	}
 
 	if (!response.ok) {
 		const body = await response.json().catch(() => ({}));
