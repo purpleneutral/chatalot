@@ -299,6 +299,9 @@
 	// Chat collapse state (during voice calls)
 	let chatCollapsed = $state(false);
 
+	// Deferred update reload (don't interrupt voice calls)
+	let pendingUpdate = $state(false);
+
 	// Feedback modal state
 	let showFeedback = $state(false);
 	let feedbackTitle = $state('');
@@ -644,6 +647,9 @@
 
 		// New DM channel → add to sidebar
 		window.addEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
+
+		// Version update — reload seamlessly (defer if in a voice call)
+		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
 	});
 
 	onDestroy(() => {
@@ -654,7 +660,18 @@
 		document.removeEventListener('click', closeContextMenu);
 		window.removeEventListener('chatalot:navigate-channel', handleNotifNavigate as EventListener);
 		window.removeEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
+		window.removeEventListener('chatalot:update-available', handleUpdateAvailable);
 	});
+
+	function handleUpdateAvailable() {
+		if (voiceStore.isInCall) {
+			pendingUpdate = true;
+			toastStore.info('A new version is available — it will apply when you leave the call.');
+		} else {
+			toastStore.info('Updating to the latest version...');
+			setTimeout(() => location.reload(), 1000);
+		}
+	}
 
 	function handleNotifNavigate(e: CustomEvent<string>) {
 		selectChannel(e.detail);
@@ -2942,7 +2959,7 @@
 							Voice Connected
 						</button>
 						<button
-							onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; }}
+							onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; if (pendingUpdate) location.reload(); }}
 							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-red-500/20 hover:text-red-400"
 							title="Disconnect"
 						>

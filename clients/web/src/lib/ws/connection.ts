@@ -93,9 +93,9 @@ class WebSocketClient {
 				msg.server_version !== __APP_VERSION__
 			) {
 				console.info(
-					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}. Reloading...`,
+					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
-				setTimeout(() => location.reload(), 1500);
+				window.dispatchEvent(new CustomEvent('chatalot:update-available'));
 			}
 		}
 
