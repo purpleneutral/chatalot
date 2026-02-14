@@ -173,6 +173,10 @@
 	let profileCardUserId = $state<string | null>(null);
 	let profileCardAnchor = $state({ x: 0, y: 0 });
 
+	// Topic editing state
+	let editingTopic = $state(false);
+	let topicInput = $state('');
+
 	// Pinned messages state
 	let showPinnedPanel = $state(false);
 	let pinnedMessages = $state<PinnedMessage[]>([]);
@@ -677,10 +681,36 @@
 		}
 	}
 
+	function processSlashCommands(text: string): string {
+		if (text.startsWith('/me ')) {
+			return `*${text.slice(4)}*`;
+		}
+		if (text === '/shrug' || text.startsWith('/shrug ')) {
+			const rest = text.slice(6).trim();
+			return rest ? `${rest} ¯\\_(ツ)_/¯` : '¯\\_(ツ)_/¯';
+		}
+		if (text === '/tableflip' || text.startsWith('/tableflip ')) {
+			const rest = text.slice(10).trim();
+			return rest ? `${rest} (╯°□°)╯︵ ┻━┻` : '(╯°□°)╯︵ ┻━┻';
+		}
+		if (text === '/unflip' || text.startsWith('/unflip ')) {
+			const rest = text.slice(7).trim();
+			return rest ? `${rest} ┬─┬ノ( º _ ºノ)` : '┬─┬ノ( º _ ºノ)';
+		}
+		if (text === '/lenny' || text.startsWith('/lenny ')) {
+			const rest = text.slice(6).trim();
+			return rest ? `${rest} ( ͡° ͜ʖ ͡°)` : '( ͡° ͜ʖ ͡°)';
+		}
+		return text;
+	}
+
 	async function sendMessage(e: SubmitEvent) {
 		e.preventDefault();
-		const text = messageInput.trim();
+		let text = messageInput.trim();
 		if (!text || !channelStore.activeChannelId) return;
+
+		// Process slash commands
+		text = processSlashCommands(text);
 
 		// Encrypt DMs with E2E Double Ratchet; group channels use plain UTF-8
 		const channel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
@@ -1077,6 +1107,14 @@
 		return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !use24h });
 	}
 
+	function formatFullTimestamp(isoString: string): string {
+		const d = new Date(isoString);
+		const use24h = preferencesStore.preferences.timeFormat === '24h';
+		return d.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+			+ ' at '
+			+ d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: !use24h });
+	}
+
 	/** Get display name respecting community nicknames. */
 	function getDisplayNameForContext(userId: string): string {
 		if (communityStore.activeCommunityId) {
@@ -1084,6 +1122,24 @@
 			if (nickname) return nickname;
 		}
 		return userStore.getDisplayName(userId);
+	}
+
+	async function saveTopic() {
+		if (!activeChannel?.group_id || !channelStore.activeChannelId) return;
+		try {
+			const updated = await apiUpdateChannel(activeChannel.group_id, channelStore.activeChannelId, undefined, topicInput.trim() || undefined);
+			channelStore.updateChannel(updated);
+			// Also update in groupChannelsMap
+			const groupChannels = groupChannelsMap.get(activeChannel.group_id);
+			if (groupChannels) {
+				const idx = groupChannels.findIndex(c => c.id === channelStore.activeChannelId);
+				if (idx >= 0) groupChannels[idx] = updated;
+			}
+			toastStore.success('Topic updated');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to update topic');
+		}
+		editingTopic = false;
 	}
 
 	function openProfileCard(userId: string, event: MouseEvent) {
@@ -1118,9 +1174,18 @@
 
 	async function handlePinMessage(messageId: string) {
 		if (!channelStore.activeChannelId) return;
+		const pinCount = messageStore.getPinnedCount(channelStore.activeChannelId);
+		if (pinCount >= 50) {
+			toastStore.error('Pin limit reached (50 per channel). Unpin a message first.');
+			return;
+		}
 		try {
 			await apiPinMessage(channelStore.activeChannelId, messageId);
-			toastStore.success('Message pinned');
+			if (pinCount >= 45) {
+				toastStore.success(`Message pinned (${pinCount + 1}/50 pins used)`);
+			} else {
+				toastStore.success('Message pinned');
+			}
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to pin message');
 		}
@@ -2482,8 +2547,33 @@
 							<span class="mr-2 text-[var(--text-secondary)]">#</span>
 						{/if}
 						<h2 class="font-semibold text-[var(--text-primary)]">{getChannelDisplayName()}</h2>
-						{#if activeChannel.topic}
-							<span class="ml-4 truncate text-sm text-[var(--text-secondary)]">{activeChannel.topic}</span>
+						{#if editingTopic}
+							<div class="ml-4 flex items-center gap-1">
+								<input
+									type="text"
+									bind:value={topicInput}
+									onkeydown={(e) => { if (e.key === 'Enter') saveTopic(); if (e.key === 'Escape') editingTopic = false; }}
+									class="w-48 rounded border border-[var(--accent)] bg-[var(--bg-primary)] px-2 py-0.5 text-sm text-[var(--text-primary)] outline-none"
+									placeholder="Set a topic..."
+								/>
+								<button onclick={saveTopic} class="rounded px-1.5 py-0.5 text-xs text-[var(--accent)] hover:bg-white/5">Save</button>
+								<button onclick={() => editingTopic = false} class="rounded px-1.5 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5">Cancel</button>
+							</div>
+						{:else if activeChannel.topic}
+							<button
+								onclick={() => { if ((myRole === 'owner' || myRole === 'admin') && activeChannel?.group_id) { topicInput = activeChannel.topic ?? ''; editingTopic = true; } }}
+								class="ml-4 truncate text-sm text-[var(--text-secondary)] {(myRole === 'owner' || myRole === 'admin') && activeChannel.group_id ? 'cursor-pointer hover:text-[var(--text-primary)]' : 'cursor-default'}"
+								title={(myRole === 'owner' || myRole === 'admin') && activeChannel.group_id ? 'Click to edit topic' : activeChannel.topic}
+							>
+								{activeChannel.topic}
+							</button>
+						{:else if (myRole === 'owner' || myRole === 'admin') && activeChannel.group_id}
+							<button
+								onclick={() => { topicInput = ''; editingTopic = true; }}
+								class="ml-4 truncate text-sm text-[var(--text-secondary)]/50 hover:text-[var(--text-secondary)] cursor-pointer"
+							>
+								Set a topic...
+							</button>
 						{/if}
 					</div>
 					<div class="flex items-center gap-1">
@@ -2595,7 +2685,12 @@
 				{#if showPinnedPanel}
 					<div class="border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-3" transition:slide={{ duration: 150 }}>
 						<div class="flex items-center justify-between mb-2">
-							<h3 class="text-sm font-semibold text-[var(--text-primary)]">Pinned Messages</h3>
+							<h3 class="text-sm font-semibold text-[var(--text-primary)]">
+								Pinned Messages
+								{#if channelStore.activeChannelId}
+									<span class="ml-1 text-xs font-normal text-[var(--text-secondary)]">({messageStore.getPinnedCount(channelStore.activeChannelId)}/50)</span>
+								{/if}
+							</h3>
 							<button onclick={() => showPinnedPanel = false} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 							</button>
@@ -2688,7 +2783,7 @@
 									>
 										{getDisplayNameForContext(msg.senderId)}
 									</button>
-									<span class="text-xs text-[var(--text-secondary)]">
+									<span class="text-xs text-[var(--text-secondary)]" title={formatFullTimestamp(msg.createdAt)}>
 										{formatTime(msg.createdAt)}
 									</span>
 									{#if msg.editedAt}

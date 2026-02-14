@@ -18,6 +18,10 @@ class ChannelStore {
 		}
 	}
 
+	updateChannel(channel: Channel) {
+		this.channels = this.channels.map(c => c.id === channel.id ? channel : c);
+	}
+
 	removeChannel(channelId: string) {
 		this.channels = this.channels.filter(c => c.id !== channelId);
 		if (this.activeChannelId === channelId) {
