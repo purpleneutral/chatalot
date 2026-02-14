@@ -14,10 +14,11 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 ### What you get
 
-- **Communities** — Discord-style server organization with groups, channels, and roles
+- **Communities** — server organization with groups, channels, and roles
 - **Channels and DMs** — organized conversations with roles, permissions, and invite links
 - **Voice and video calls** — peer-to-peer WebRTC, no third-party TURN servers phoning home
 - **End-to-end encryption** — Signal-grade cryptography (X3DH + Double Ratchet) for DMs, compiled to WASM *
+- **GIF search** — built-in GIF picker powered by Tenor with search and trending
 - **File sharing** — encrypted uploads with drag-and-drop and clipboard paste
 - **Pinned messages** — pin important messages with real-time updates across all connected clients
 - **User profile cards** — click any username to view profile, roles, status, and start a DM
@@ -264,6 +265,7 @@ chatalot/
 | `MAX_FILE_SIZE_MB` | `100` | Max upload size in MB |
 | `RUST_LOG` | `info` | Log level |
 | `CLOUDFLARE_TUNNEL_TOKEN` | *optional* | For production Cloudflare Tunnel profile |
+| `TENOR_API_KEY` | *optional* | Google API key for GIF search ([get one free](https://developers.google.com/tenor/guides/quickstart)) |
 
 ## Development
 

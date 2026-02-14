@@ -559,3 +559,28 @@ pub struct PreferencesResponse {
 pub struct UpdatePreferencesRequest {
     pub preferences: serde_json::Value,
 }
+
+// ── GIFs ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GifSearchQuery {
+    pub q: Option<String>,
+    pub limit: Option<u32>,
+    pub pos: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GifResult {
+    pub id: String,
+    pub title: String,
+    pub preview_url: String,
+    pub url: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GifSearchResponse {
+    pub results: Vec<GifResult>,
+    pub next: Option<String>,
+}

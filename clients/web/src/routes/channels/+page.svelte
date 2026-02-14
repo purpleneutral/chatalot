@@ -26,8 +26,10 @@
 	import { listGroups, createGroup as apiCreateGroup, joinGroup, leaveGroup, deleteGroup, discoverGroups, listGroupChannels, createGroupChannel, updateChannel as apiUpdateChannel, deleteChannel as apiDeleteChannel, listGroupMembers, createInvite, acceptInvite, getInviteInfo, type Group, type GroupMember, type InviteInfo } from '$lib/api/groups';
 	import { listCommunities, listCommunityGroups, listMembers as listCommunityMembers, createCommunity, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
 	import { getPinnedMessages, pinMessage as apiPinMessage, unpinMessage as apiUnpinMessage, type PinnedMessage } from '$lib/api/channels';
+	import { searchGifs, getTrendingGifs, type GifResult } from '$lib/api/gifs';
 	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
+	import { searchEmoji } from '$lib/utils/emoji';
 	import UserProfileCard from '$lib/components/UserProfileCard.svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
@@ -196,6 +198,19 @@
 
 	// Forwarding
 	let forwardingMsg = $state<ChatMessage | null>(null);
+
+	// GIF picker state
+	let showGifPicker = $state(false);
+	let gifSearchQuery = $state('');
+	let gifResults = $state<GifResult[]>([]);
+	let gifLoading = $state(false);
+	let gifSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Emoji autocomplete state
+	let showEmojiPopup = $state(false);
+	let emojiQuery = $state('');
+	let emojiResults = $state<{ name: string; emoji: string }[]>([]);
+	let emojiIndex = $state(0);
 
 	// Confirmation dialog state
 	let confirmDialog = $state<{
@@ -1390,6 +1405,55 @@
 		}
 	}
 
+	// GIF picker functions
+	async function toggleGifPicker() {
+		showGifPicker = !showGifPicker;
+		if (showGifPicker && gifResults.length === 0) {
+			await loadTrendingGifs();
+		}
+	}
+
+	async function loadTrendingGifs() {
+		gifLoading = true;
+		try {
+			const resp = await getTrendingGifs(20);
+			gifResults = resp.results;
+		} catch {
+			gifResults = [];
+		}
+		gifLoading = false;
+	}
+
+	function handleGifSearch(query: string) {
+		gifSearchQuery = query;
+		if (gifSearchDebounceTimer) clearTimeout(gifSearchDebounceTimer);
+		if (!query.trim()) {
+			loadTrendingGifs();
+			return;
+		}
+		gifSearchDebounceTimer = setTimeout(async () => {
+			gifLoading = true;
+			try {
+				const resp = await searchGifs(query.trim(), 20);
+				gifResults = resp.results;
+			} catch {
+				gifResults = [];
+			}
+			gifLoading = false;
+		}, 300);
+	}
+
+	function selectGif(gif: GifResult) {
+		messageInput = gif.url;
+		showGifPicker = false;
+		gifSearchQuery = '';
+		// Auto-send the GIF
+		tick().then(() => {
+			const form = document.querySelector('form[onsubmit]') as HTMLFormElement;
+			form?.requestSubmit();
+		});
+	}
+
 	function handleGlobalKeydown(e: KeyboardEvent) {
 		// ? or Ctrl+/ to show shortcuts
 		if ((e.key === '?' && !e.ctrlKey && !e.metaKey) || (e.key === '/' && (e.ctrlKey || e.metaKey))) {
@@ -1400,6 +1464,7 @@
 		}
 		// Escape to close modals
 		if (e.key === 'Escape') {
+			if (showGifPicker) { showGifPicker = false; e.preventDefault(); }
 			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); }
 		}
 	}
@@ -1437,8 +1502,22 @@
 		if (!messageInputEl) return;
 		const val = messageInputEl.value;
 		const pos = messageInputEl.selectionStart ?? val.length;
-		// Find @ before cursor
 		const before = val.slice(0, pos);
+		// Check for :emoji pattern first
+		const emojiMatch = before.match(/:(\w{2,})$/);
+		if (emojiMatch) {
+			emojiQuery = emojiMatch[1];
+			emojiResults = searchEmoji(emojiQuery, 8);
+			showEmojiPopup = emojiResults.length > 0;
+			emojiIndex = 0;
+			if (showEmojiPopup) {
+				showMentionPopup = false;
+				return;
+			}
+		} else {
+			showEmojiPopup = false;
+		}
+		// Find @ before cursor
 		const match = before.match(/@(\w*)$/);
 		if (match) {
 			mentionQuery = match[1];
@@ -1461,7 +1540,46 @@
 		tick().then(() => messageInputEl?.focus());
 	}
 
+	function selectEmoji(emoji: string) {
+		if (!messageInputEl) return;
+		const val = messageInputEl.value;
+		const pos = messageInputEl.selectionStart ?? val.length;
+		const before = val.slice(0, pos);
+		const after = val.slice(pos);
+		const replaced = before.replace(/:\w{2,}$/, emoji);
+		messageInput = replaced + after;
+		showEmojiPopup = false;
+		tick().then(() => {
+			messageInputEl?.focus();
+			const newPos = replaced.length;
+			messageInputEl!.selectionStart = newPos;
+			messageInputEl!.selectionEnd = newPos;
+		});
+	}
+
 	function handleMentionKeydown(e: KeyboardEvent) {
+		// Handle emoji autocomplete first
+		if (showEmojiPopup && emojiResults.length > 0) {
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				emojiIndex = (emojiIndex + 1) % emojiResults.length;
+				return;
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				emojiIndex = (emojiIndex - 1 + emojiResults.length) % emojiResults.length;
+				return;
+			} else if (e.key === 'Tab' || e.key === 'Enter') {
+				if (emojiResults[emojiIndex]) {
+					e.preventDefault();
+					selectEmoji(emojiResults[emojiIndex].emoji);
+					return;
+				}
+			} else if (e.key === 'Escape') {
+				e.preventDefault();
+				showEmojiPopup = false;
+				return;
+			}
+		}
 		if (!showMentionPopup) return;
 		const results = mentionResults();
 		if (results.length === 0) return;
@@ -3378,6 +3496,20 @@
 
 				<!-- Message input -->
 				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative p-4">
+					<!-- Emoji autocomplete popup -->
+					{#if showEmojiPopup && emojiResults.length > 0}
+						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-10">
+							{#each emojiResults as entry, i (entry.name)}
+								<button
+									onclick={() => selectEmoji(entry.emoji)}
+									class="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition {i === emojiIndex ? 'bg-[var(--accent)]/20 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
+								>
+									<span class="text-lg">{entry.emoji}</span>
+									<span class="font-medium">:{entry.name}:</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
 					<!-- Mention autocomplete popup -->
 					{#if showMentionPopup && mentionResults().length > 0}
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden">
@@ -3401,6 +3533,57 @@
 							{/each}
 						</div>
 					{/if}
+					<!-- GIF picker panel -->
+					{#if showGifPicker}
+						<div class="absolute bottom-full left-0 right-0 z-20 mb-1 mx-4 max-h-[360px] rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
+							<div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+								<input
+									type="text"
+									value={gifSearchQuery}
+									oninput={(e) => handleGifSearch((e.target as HTMLInputElement).value)}
+									placeholder="Search for GIFs..."
+									class="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50"
+								/>
+								<button type="button" onclick={() => { showGifPicker = false; }} class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+								</button>
+							</div>
+							<div class="flex-1 overflow-y-auto p-2">
+								{#if gifLoading}
+									<div class="flex items-center justify-center py-8">
+										<div class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+									</div>
+								{:else if gifResults.length === 0}
+									<div class="flex flex-col items-center justify-center py-8 text-[var(--text-secondary)]">
+										<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-8 w-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" /><text x="12" y="16" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-weight="bold">GIF</text></svg>
+										<p class="text-sm">{gifSearchQuery ? 'No GIFs found' : 'Search for a GIF'}</p>
+									</div>
+								{:else}
+									<div class="grid grid-cols-2 gap-1.5">
+										{#each gifResults as gif (gif.id)}
+											<button
+												type="button"
+												onclick={() => selectGif(gif)}
+												class="group/gif relative overflow-hidden rounded-lg transition hover:ring-2 hover:ring-[var(--accent)]"
+												title={gif.title}
+											>
+												<img
+													src={gif.preview_url}
+													alt={gif.title}
+													class="h-24 w-full object-cover"
+													loading="lazy"
+												/>
+											</button>
+										{/each}
+									</div>
+								{/if}
+							</div>
+							<div class="border-t border-white/10 px-3 py-1.5 text-right">
+								<span class="text-[10px] text-[var(--text-secondary)]/50">Powered by Tenor</span>
+							</div>
+						</div>
+					{/if}
 					<div class="flex gap-2">
 						<!-- File upload button -->
 						<button
@@ -3413,6 +3596,15 @@
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
 							</svg>
+						</button>
+						<!-- GIF button -->
+						<button
+							type="button"
+							onclick={toggleGifPicker}
+							class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showGifPicker ? 'border-[var(--accent)] text-[var(--accent)]' : ''}"
+							title="GIF"
+						>
+							<span class="text-xs font-bold">GIF</span>
 						</button>
 						<input
 							bind:this={fileInputEl}

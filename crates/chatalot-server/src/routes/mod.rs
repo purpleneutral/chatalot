@@ -5,6 +5,7 @@ pub mod channels;
 pub mod communities;
 pub mod dms;
 pub mod feedback;
+pub mod gifs;
 pub mod groups;
 pub mod files;
 pub mod health;
@@ -60,6 +61,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(totp::routes())
         .merge(users::routes())
         .merge(feedback::routes())
+        .merge(gifs::routes())
         .merge(link_preview::routes())
         .merge(account::routes())
         .merge(admin::routes())

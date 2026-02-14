@@ -22,6 +22,7 @@ services:
       FORGEJO_API_TOKEN: ${FORGEJO_API_TOKEN:-}
       FORGEJO_REPO_OWNER: ${FORGEJO_REPO_OWNER:-}
       FORGEJO_REPO_NAME: ${FORGEJO_REPO_NAME:-}
+      TENOR_API_KEY: ${TENOR_API_KEY:-}
     volumes:
       - file_storage:/app/data/files
     secrets:
