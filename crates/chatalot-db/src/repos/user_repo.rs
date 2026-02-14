@@ -309,6 +309,16 @@ pub async fn set_admin(pool: &PgPool, user_id: Uuid, is_admin: bool) -> Result<(
     Ok(())
 }
 
+/// Set a user's instance owner flag.
+pub async fn set_owner(pool: &PgPool, user_id: Uuid, is_owner: bool) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET is_owner = $1, updated_at = NOW() WHERE id = $2")
+        .bind(is_owner)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 /// Ensure a user is admin by username (for env-var seeding).
 pub async fn ensure_admin(pool: &PgPool, username: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(

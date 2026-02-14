@@ -27,8 +27,8 @@ async fn get_user(
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
 
-    // Only visible if caller shares a community with the target (or is admin)
-    if !claims.is_admin
+    // Only visible if caller shares a community with the target (or is instance owner)
+    if !claims.is_owner
         && claims.sub != user_id
         && !community_repo::shares_community(&state.db, claims.sub, user_id).await?
     {
@@ -43,6 +43,7 @@ async fn get_user(
         status: user.status,
         custom_status: user.custom_status,
         is_admin: user.is_admin,
+        is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
     }))
 }
@@ -58,8 +59,8 @@ async fn search_users(
         ));
     }
 
-    // Instance admins can search all users; everyone else only sees community peers
-    let users = if claims.is_admin {
+    // Instance owner can search all users; everyone else only sees community peers
+    let users = if claims.is_owner {
         user_repo::search_users(&state.db, &query.q, 20).await?
     } else {
         community_repo::search_visible_users(&state.db, claims.sub, &query.q, 20).await?
@@ -75,6 +76,7 @@ async fn search_users(
             status: u.status.clone(),
             custom_status: u.custom_status.clone(),
             is_admin: u.is_admin,
+            is_owner: u.is_owner,
             created_at: Some(u.created_at.to_rfc3339()),
         })
         .collect();

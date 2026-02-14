@@ -63,8 +63,8 @@ pub async fn community_gate_middleware(
         .ok_or(AppError::Unauthorized)?
         .clone();
 
-    // Instance admin bypasses all checks
-    if claims.is_admin {
+    // Instance owner bypasses all checks (god role)
+    if claims.is_owner {
         request.extensions_mut().insert(CommunityContext {
             community_id,
             role: "instance_admin".to_string(),

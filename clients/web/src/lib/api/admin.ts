@@ -13,6 +13,7 @@ export interface AdminUser {
 	email: string;
 	avatar_url: string | null;
 	is_admin: boolean;
+	is_owner: boolean;
 	suspended_at: string | null;
 	suspended_reason: string | null;
 	created_at: string;

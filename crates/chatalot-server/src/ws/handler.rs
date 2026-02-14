@@ -501,13 +501,17 @@ async fn handle_client_message(
 
                     // Get current participants and broadcast
                     if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
-                        // Tell the joiner who's already in the call
-                        let _ = tx.send(ServerMessage::VoiceStateUpdate {
+                        // Broadcast full participant list to everyone in the channel
+                        // so all clients can establish missing peer connections
+                        conn_mgr.broadcast_to_channel(
                             channel_id,
-                            participants: participants.clone(),
-                        });
+                            ServerMessage::VoiceStateUpdate {
+                                channel_id,
+                                participants: participants.clone(),
+                            },
+                        );
 
-                        // Tell everyone in the channel someone joined
+                        // Also broadcast join event (for UI updates, sounds, etc.)
                         conn_mgr.broadcast_to_channel(
                             channel_id,
                             ServerMessage::UserJoinedVoice {

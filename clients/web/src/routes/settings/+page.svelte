@@ -297,7 +297,7 @@
 			</div>
 
 			<div class="mt-auto pt-4">
-				{#if authStore.user?.is_admin}
+				{#if authStore.user?.is_admin || authStore.user?.is_owner}
 					<button
 						onclick={() => goto('/admin')}
 						class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-[var(--accent)] transition hover:bg-white/5"

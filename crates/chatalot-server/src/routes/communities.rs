@@ -82,7 +82,7 @@ async fn create_community(
     Json(req): Json<CreateCommunityRequest>,
 ) -> Result<Json<CommunityResponse>, AppError> {
     // Check creation mode
-    if state.config.community_creation_mode == "admin_only" && !claims.is_admin {
+    if state.config.community_creation_mode == "admin_only" && !claims.is_admin && !claims.is_owner {
         return Err(AppError::Forbidden);
     }
 

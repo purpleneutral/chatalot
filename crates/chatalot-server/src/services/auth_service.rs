@@ -59,12 +59,14 @@ fn issue_access_token(
     user_id: Uuid,
     username: &str,
     is_admin: bool,
+    is_owner: bool,
 ) -> Result<String, AppError> {
     let now = Utc::now().timestamp();
     let claims = AccessClaims {
         sub: user_id,
         username: username.to_string(),
         is_admin,
+        is_owner,
         iat: now,
         exp: now + ACCESS_TOKEN_LIFETIME_SECS,
         jti: Uuid::new_v4(),
@@ -75,7 +77,11 @@ fn issue_access_token(
         .map_err(|e| AppError::Internal(format!("jwt encode failed: {e}")))
 }
 
-fn user_to_public(user: &chatalot_db::models::user::User, is_admin: bool) -> UserPublic {
+fn user_to_public(
+    user: &chatalot_db::models::user::User,
+    is_admin: bool,
+    is_owner: bool,
+) -> UserPublic {
     UserPublic {
         id: user.id,
         username: user.username.clone(),
@@ -84,6 +90,7 @@ fn user_to_public(user: &chatalot_db::models::user::User, is_admin: bool) -> Use
         status: user.status.clone(),
         custom_status: user.custom_status.clone(),
         is_admin,
+        is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
     }
 }
@@ -271,16 +278,17 @@ pub async fn register(
         key_repo::upload_one_time_prekeys(&state.db, user_id, &pairs).await?;
     }
 
-    // First registered user becomes admin automatically
-    let is_admin = if user_repo::count_users(&state.db).await.unwrap_or(1) == 1 {
+    // First registered user becomes admin + owner automatically
+    let (is_admin, is_owner) = if user_repo::count_users(&state.db).await.unwrap_or(1) == 1 {
         user_repo::set_admin(&state.db, user.id, true).await.ok();
-        true
+        user_repo::set_owner(&state.db, user.id, true).await.ok();
+        (true, true)
     } else {
-        user.is_admin
+        (user.is_admin, user.is_owner)
     };
 
     // Issue tokens
-    let access_token = issue_access_token(state, user.id, &user.username, is_admin)?;
+    let access_token = issue_access_token(state, user.id, &user.username, is_admin, is_owner)?;
     let (mut refresh_raw, refresh_hash) = generate_refresh_token();
 
     let refresh_id = Uuid::new_v4();
@@ -316,7 +324,7 @@ pub async fn register(
     Ok(AuthResponse {
         access_token,
         refresh_token: refresh_token_hex,
-        user: user_to_public(&user, is_admin),
+        user: user_to_public(&user, is_admin, is_owner),
     })
 }
 
@@ -380,7 +388,8 @@ pub async fn login(
     }
 
     // Issue tokens
-    let access_token = issue_access_token(state, user.id, &user.username, user.is_admin)?;
+    let access_token =
+        issue_access_token(state, user.id, &user.username, user.is_admin, user.is_owner)?;
     let (mut refresh_raw, refresh_hash) = generate_refresh_token();
 
     let refresh_id = Uuid::new_v4();
@@ -416,7 +425,7 @@ pub async fn login(
     Ok(AuthResponse {
         access_token,
         refresh_token: refresh_token_hex,
-        user: user_to_public(&user, user.is_admin),
+        user: user_to_public(&user, user.is_admin, user.is_owner),
     })
 }
 
@@ -451,7 +460,8 @@ pub async fn refresh_token(
     }
 
     // Issue new tokens
-    let access_token = issue_access_token(state, user.id, &user.username, user.is_admin)?;
+    let access_token =
+        issue_access_token(state, user.id, &user.username, user.is_admin, user.is_owner)?;
     let (mut refresh_raw, refresh_hash) = generate_refresh_token();
 
     let refresh_id = Uuid::new_v4();

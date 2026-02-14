@@ -45,8 +45,8 @@
 	let newInviteExpiresHours = $state('');
 	let creatingInvite = $state(false);
 
-	let canManage = $derived(myRole === 'owner' || myRole === 'admin' || authStore.user?.is_admin);
-	let isOwner = $derived(myRole === 'owner' || authStore.user?.is_admin);
+	let canManage = $derived(myRole === 'owner' || myRole === 'admin' || authStore.user?.is_owner);
+	let isOwner = $derived(myRole === 'owner' || authStore.user?.is_owner);
 
 	onMount(async () => {
 		if (!authStore.isAuthenticated) {

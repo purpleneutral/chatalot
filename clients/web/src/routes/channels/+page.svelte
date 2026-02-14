@@ -1437,7 +1437,22 @@
 
 	const SPECIAL_MENTIONS = ['everyone', 'here', 'channel'];
 
+	function isEncryptedMessage(text: string): boolean {
+		if (!text.startsWith('{"v":')) return false;
+		try {
+			const parsed = JSON.parse(text);
+			return parsed.v === 1 && parsed.message?.ciphertext;
+		} catch {
+			return false;
+		}
+	}
+
 	function renderMarkdown(text: string): string {
+		// Detect E2E encrypted messages and show placeholder
+		if (isEncryptedMessage(text)) {
+			return '<span class="italic opacity-50">Encrypted message (E2E decryption not available)</span>';
+		}
+
 		// Replace @mentions before markdown parsing
 		let processed = text.replace(/@(\w+)/g, (match, username) => {
 			// Special group mentions
@@ -2333,7 +2348,7 @@
 			</div>
 
 			<!-- Create Community button -->
-			{#if authStore.user?.is_admin}
+			{#if authStore.user?.is_admin || authStore.user?.is_owner}
 				<div class="group relative flex items-center">
 					<button
 						onclick={() => { showCreateCommunity = !showCreateCommunity; newCommunityName = ''; newCommunityDescription = ''; }}
@@ -2353,7 +2368,7 @@
 			<div class="flex h-14 items-center justify-between border-b border-white/10 px-4">
 				<h1 class="truncate text-lg font-bold text-[var(--text-primary)]" title={communityStore.activeCommunity?.name ?? 'Chatalot'}>{communityStore.activeCommunity?.name ?? 'Chatalot'}</h1>
 				<div class="flex items-center gap-1">
-					{#if authStore.user?.is_admin}
+					{#if authStore.user?.is_admin || authStore.user?.is_owner}
 						<button
 							onclick={() => goto('/admin')}
 							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
@@ -3304,7 +3319,7 @@
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 											{#if repliedMsg}
 												<span class="font-medium">{getDisplayNameForContext(repliedMsg.senderId)}</span>
-												<span class="truncate max-w-[200px] opacity-70">{repliedMsg.content.slice(0, 60)}{repliedMsg.content.length > 60 ? '...' : ''}</span>
+												<span class="truncate max-w-[200px] opacity-70">{isEncryptedMessage(repliedMsg.content) ? 'Encrypted message' : repliedMsg.content.slice(0, 60)}{!isEncryptedMessage(repliedMsg.content) && repliedMsg.content.length > 60 ? '...' : ''}</span>
 											{:else}
 												<span class="italic opacity-50">Original message not loaded</span>
 											{/if}

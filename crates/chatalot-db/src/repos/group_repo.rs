@@ -314,6 +314,22 @@ pub async fn list_all_groups(pool: &PgPool) -> Result<Vec<Group>, sqlx::Error> {
         .await
 }
 
+/// List groups in communities the user belongs to (for scoped discovery).
+pub async fn list_groups_in_user_communities(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<Group>, sqlx::Error> {
+    sqlx::query_as::<_, Group>(
+        "SELECT g.* FROM groups g
+         JOIN community_members cm ON cm.community_id = g.community_id
+         WHERE cm.user_id = $1
+         ORDER BY g.name ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+}
+
 /// List all groups in a community.
 pub async fn list_community_groups(
     pool: &PgPool,

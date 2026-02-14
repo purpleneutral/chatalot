@@ -16,9 +16,9 @@ use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 use crate::services::auth_service;
 
-/// Guard: returns Forbidden if the caller is not an admin.
+/// Guard: returns Forbidden if the caller is not an admin or instance owner.
 fn require_admin(claims: &AccessClaims) -> Result<(), AppError> {
-    if !claims.is_admin {
+    if !claims.is_admin && !claims.is_owner {
         return Err(AppError::Forbidden);
     }
     Ok(())

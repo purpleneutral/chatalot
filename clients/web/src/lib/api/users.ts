@@ -8,6 +8,7 @@ export interface UserPublic {
 	status: string;
 	custom_status: string | null;
 	is_admin?: boolean;
+	is_owner?: boolean;
 	created_at?: string;
 }
 

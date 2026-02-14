@@ -64,7 +64,7 @@ async fn create_group(
     if !matches!(
         community_role.as_str(),
         "owner" | "admin"
-    ) && !claims.is_admin
+    ) && !claims.is_owner
     {
         return Err(AppError::Forbidden);
     }
@@ -141,9 +141,14 @@ async fn list_groups(
 
 async fn discover_groups(
     State(state): State<Arc<AppState>>,
-    Extension(_claims): Extension<AccessClaims>,
+    Extension(claims): Extension<AccessClaims>,
 ) -> Result<Json<Vec<GroupResponse>>, AppError> {
-    let groups = group_repo::list_all_groups(&state.db).await?;
+    // Instance owner sees all; everyone else only sees groups in their communities
+    let groups = if claims.is_owner {
+        group_repo::list_all_groups(&state.db).await?
+    } else {
+        group_repo::list_groups_in_user_communities(&state.db, claims.sub).await?
+    };
     let mut responses = Vec::with_capacity(groups.len());
     for g in groups {
         let count = group_repo::get_member_count(&state.db, g.id).await?;
@@ -277,7 +282,7 @@ async fn join_group(
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
 
     // Verify caller is a member of the group's community
-    if !claims.is_admin
+    if !claims.is_owner
         && !community_repo::is_community_member(&state.db, group.community_id, claims.sub).await?
     {
         return Err(AppError::Forbidden);
@@ -646,7 +651,7 @@ async fn accept_invite(
         .await?
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
 
-    if !claims.is_admin
+    if !claims.is_owner
         && !community_repo::is_community_member(&state.db, group.community_id, claims.sub).await?
     {
         return Err(AppError::Validation(

@@ -56,6 +56,7 @@ async fn get_me(
         status: user.status,
         custom_status: user.custom_status,
         is_admin: user.is_admin,
+        is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
     }))
 }
@@ -140,6 +141,7 @@ async fn update_profile(
         status: user.status,
         custom_status: user.custom_status,
         is_admin: user.is_admin,
+        is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
     }))
 }
@@ -232,6 +234,7 @@ async fn upload_avatar(
         status: user.status,
         custom_status: user.custom_status,
         is_admin: user.is_admin,
+        is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
     }))
 }

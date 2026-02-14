@@ -23,7 +23,7 @@
 	let creatingInvite = $state(false);
 
 	onMount(() => {
-		if (!authStore.isAuthenticated || !authStore.user?.is_admin) {
+		if (!authStore.isAuthenticated || (!authStore.user?.is_admin && !authStore.user?.is_owner)) {
 			goto('/channels');
 			return;
 		}
@@ -156,7 +156,7 @@
 	}
 </script>
 
-{#if authStore.isAuthenticated && authStore.user?.is_admin}
+{#if authStore.isAuthenticated && (authStore.user?.is_admin || authStore.user?.is_owner)}
 	<div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
 		<div class="mx-auto max-w-4xl px-6 py-8">
 			<!-- Header -->

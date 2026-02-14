@@ -15,6 +15,7 @@ pub struct User {
     pub totp_secret: Option<Vec<u8>>,
     pub totp_enabled: bool,
     pub is_admin: bool,
+    pub is_owner: bool,
     pub suspended_at: Option<DateTime<Utc>>,
     pub suspended_reason: Option<String>,
     pub created_at: DateTime<Utc>,

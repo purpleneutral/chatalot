@@ -161,7 +161,11 @@
 				<span class="rounded-full px-2 py-0.5 text-xs font-medium {roleColors[role] ?? roleColors.member}">
 					{role.charAt(0).toUpperCase() + role.slice(1)}
 				</span>
-				{#if user?.is_admin}
+				{#if user?.is_owner}
+					<span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+						Instance Owner
+					</span>
+				{:else if user?.is_admin}
 					<span class="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-medium text-red-400">
 						Server Admin
 					</span>

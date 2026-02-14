@@ -20,6 +20,9 @@ pub struct AccessClaims {
     /// Whether the user is a site-wide admin
     #[serde(default)]
     pub is_admin: bool,
+    /// Whether the user is the instance owner (god role)
+    #[serde(default)]
+    pub is_owner: bool,
     /// Issued at (Unix timestamp)
     pub iat: i64,
     /// Expiration (Unix timestamp)

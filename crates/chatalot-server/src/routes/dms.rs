@@ -32,8 +32,8 @@ async fn create_dm(
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
 
-    // DMs require shared community membership (instance admins bypass for moderation)
-    if !claims.is_admin
+    // DMs require shared community membership (instance owner bypasses for moderation)
+    if !claims.is_owner
         && !community_repo::shares_community(&state.db, claims.sub, target.id).await?
     {
         return Err(AppError::Forbidden);
@@ -99,6 +99,7 @@ fn user_to_public(u: &User) -> UserPublic {
         status: u.status.clone(),
         custom_status: u.custom_status.clone(),
         is_admin: u.is_admin,
+        is_owner: u.is_owner,
         created_at: Some(u.created_at.to_rfc3339()),
     }
 }
