@@ -385,6 +385,17 @@ pub struct AdminUserResponse {
     pub suspended_at: Option<String>,
     pub suspended_reason: Option<String>,
     pub created_at: String,
+    #[serde(default)]
+    pub groups: Vec<AdminUserMembership>,
+    #[serde(default)]
+    pub communities: Vec<AdminUserMembership>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AdminUserMembership {
+    pub id: Uuid,
+    pub name: String,
+    pub role: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

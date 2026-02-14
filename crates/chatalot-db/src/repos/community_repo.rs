@@ -234,6 +234,19 @@ pub async fn list_community_members(
     .await
 }
 
+/// List just the user IDs of all members in a community.
+pub async fn list_community_member_user_ids(
+    pool: &PgPool,
+    community_id: Uuid,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT user_id FROM community_members WHERE community_id = $1")
+            .bind(community_id)
+            .fetch_all(pool)
+            .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
 pub async fn get_community_member_count(
     pool: &PgPool,
     community_id: Uuid,

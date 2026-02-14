@@ -93,6 +93,20 @@ async fn create_group(
     )
     .await?;
 
+    // Auto-add all community members to this new group
+    let member_ids =
+        community_repo::list_community_member_user_ids(&state.db, req.community_id)
+            .await?;
+    let mut member_count: i64 = 1;
+    for uid in &member_ids {
+        if *uid == claims.sub {
+            continue; // Creator already added as owner
+        }
+        if group_repo::join_group(&state.db, group_id, *uid).await.is_ok() {
+            member_count += 1;
+        }
+    }
+
     Ok(Json(GroupResponse {
         id: group.id,
         name: group.name,
@@ -100,7 +114,7 @@ async fn create_group(
         owner_id: group.owner_id,
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
-        member_count: 1,
+        member_count,
     }))
 }
 

@@ -207,6 +207,7 @@
 								<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
 									<th class="py-2 pr-4 font-medium">User</th>
 									<th class="py-2 pr-4 font-medium">Email</th>
+									<th class="py-2 pr-4 font-medium">Memberships</th>
 									<th class="py-2 pr-4 font-medium">Status</th>
 									<th class="py-2 pr-4 font-medium">Joined</th>
 									<th class="py-2 font-medium">Actions</th>
@@ -234,6 +235,23 @@
 											</div>
 										</td>
 										<td class="py-3 pr-4 text-[var(--text-secondary)]">{user.email}</td>
+										<td class="py-3 pr-4">
+											<div class="flex flex-wrap gap-1">
+												{#each user.communities ?? [] as c}
+													<span class="rounded bg-purple-500/10 px-1.5 py-0.5 text-xs text-purple-400" title="{c.role}">
+														{c.name}
+													</span>
+												{/each}
+												{#each user.groups ?? [] as g}
+													<span class="rounded bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-400" title="{g.role}">
+														{g.name}
+													</span>
+												{/each}
+												{#if (user.communities?.length ?? 0) === 0 && (user.groups?.length ?? 0) === 0}
+													<span class="text-xs text-[var(--text-secondary)]">None</span>
+												{/if}
+											</div>
+										</td>
 										<td class="py-3 pr-4">
 											{#if user.suspended_at}
 												<span class="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-400">Suspended</span>

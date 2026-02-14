@@ -1,5 +1,11 @@
 import { api } from './client';
 
+export interface AdminUserMembership {
+	id: string;
+	name: string;
+	role: string;
+}
+
 export interface AdminUser {
 	id: string;
 	username: string;
@@ -10,6 +16,8 @@ export interface AdminUser {
 	suspended_at: string | null;
 	suspended_reason: string | null;
 	created_at: string;
+	groups: AdminUserMembership[];
+	communities: AdminUserMembership[];
 }
 
 export async function listUsers(params?: {

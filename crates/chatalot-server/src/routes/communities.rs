@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     CreateCommunityInviteRequest, CreateCommunityRequest, SetCommunityRoleRequest,
     SetNicknameRequest, TransferCommunityOwnershipRequest, UpdateCommunityRequest,
 };
-use chatalot_db::repos::community_repo;
+use chatalot_db::repos::{community_repo, group_repo};
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -206,6 +206,13 @@ async fn accept_community_invite(
 
     community_repo::join_community(&state.db, invite.community_id, claims.sub).await?;
     community_repo::increment_community_invite_usage(&state.db, invite.id).await?;
+
+    // Auto-join all existing groups in this community
+    let groups =
+        group_repo::list_community_groups(&state.db, invite.community_id).await?;
+    for g in &groups {
+        let _ = group_repo::join_group(&state.db, g.id, claims.sub).await;
+    }
 
     let community = community_repo::get_community(&state.db, invite.community_id)
         .await?

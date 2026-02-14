@@ -1758,10 +1758,14 @@
 		const groups = await listCommunityGroups(communityId);
 		groupStore.setGroups(groups);
 
-		// Load channels for each group
+		// Load channels for each group (handle per-group errors gracefully)
 		const groupChannelPromises = groups.map(async (g) => {
-			const chs = await listGroupChannels(g.id);
-			return [g.id, chs] as [string, Channel[]];
+			try {
+				const chs = await listGroupChannels(g.id);
+				return [g.id, chs] as [string, Channel[]];
+			} catch {
+				return [g.id, []] as [string, Channel[]];
+			}
 		});
 		const results = await Promise.all(groupChannelPromises);
 		const newMap = new Map<string, Channel[]>();

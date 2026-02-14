@@ -6,7 +6,7 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    AdminUserResponse, AdminUsersQuery, CreateRegistrationInviteRequest,
+    AdminUserMembership, AdminUserResponse, AdminUsersQuery, CreateRegistrationInviteRequest,
     RegistrationInviteResponse, ResetPasswordRequest, SetAdminRequest, SuspendUserRequest,
 };
 use chatalot_db::repos::{registration_invite_repo, user_repo};
@@ -35,7 +35,17 @@ fn user_to_admin_response(user: &chatalot_db::models::user::User) -> AdminUserRe
         suspended_at: user.suspended_at.map(|t| t.to_rfc3339()),
         suspended_reason: user.suspended_reason.clone(),
         created_at: user.created_at.to_rfc3339(),
+        groups: vec![],
+        communities: vec![],
     }
+}
+
+#[derive(sqlx::FromRow)]
+struct UserMembershipRow {
+    user_id: Uuid,
+    id: Uuid,
+    name: String,
+    role: String,
 }
 
 pub fn routes() -> Router<Arc<AppState>> {
@@ -66,7 +76,65 @@ async fn list_users(
     let users =
         user_repo::list_all_users(&state.db, query.search.as_deref(), limit, offset).await?;
 
-    let responses = users.iter().map(user_to_admin_response).collect();
+    let user_ids: Vec<Uuid> = users.iter().map(|u| u.id).collect();
+
+    // Fetch group memberships for all listed users
+    let group_rows: Vec<UserMembershipRow> = sqlx::query_as(
+        r#"
+        SELECT gm.user_id, g.id, g.name, gm.role
+        FROM group_members gm
+        INNER JOIN groups g ON g.id = gm.group_id
+        WHERE gm.user_id = ANY($1)
+        ORDER BY g.name
+        "#,
+    )
+    .bind(&user_ids)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Fetch community memberships for all listed users
+    let community_rows: Vec<UserMembershipRow> = sqlx::query_as(
+        r#"
+        SELECT cm.user_id, c.id, c.name, cm.role
+        FROM community_members cm
+        INNER JOIN communities c ON c.id = cm.community_id
+        WHERE cm.user_id = ANY($1)
+        ORDER BY c.name
+        "#,
+    )
+    .bind(&user_ids)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Index by user_id
+    let mut groups_by_user: std::collections::HashMap<Uuid, Vec<AdminUserMembership>> =
+        std::collections::HashMap::new();
+    for r in group_rows {
+        groups_by_user.entry(r.user_id).or_default().push(AdminUserMembership {
+            id: r.id,
+            name: r.name,
+            role: r.role,
+        });
+    }
+    let mut communities_by_user: std::collections::HashMap<Uuid, Vec<AdminUserMembership>> =
+        std::collections::HashMap::new();
+    for r in community_rows {
+        communities_by_user.entry(r.user_id).or_default().push(AdminUserMembership {
+            id: r.id,
+            name: r.name,
+            role: r.role,
+        });
+    }
+
+    let responses = users
+        .iter()
+        .map(|u| {
+            let mut resp = user_to_admin_response(u);
+            resp.groups = groups_by_user.remove(&u.id).unwrap_or_default();
+            resp.communities = communities_by_user.remove(&u.id).unwrap_or_default();
+            resp
+        })
+        .collect();
     Ok(Json(responses))
 }
 
