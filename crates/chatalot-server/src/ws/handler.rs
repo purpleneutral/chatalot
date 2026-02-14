@@ -91,6 +91,27 @@ pub async fn handle_socket(
     write_task.abort();
     heartbeat_task.abort();
 
+    // Clean up voice sessions — remove user from any active calls
+    if let Ok(left_sessions) = voice_repo::leave_all_sessions(&state.db, user_id).await {
+        for (voice_session_id, channel_id) in &left_sessions {
+            // Broadcast that this user left voice
+            conn_mgr.broadcast_to_channel(
+                *channel_id,
+                ServerMessage::UserLeftVoice {
+                    channel_id: *channel_id,
+                    user_id,
+                },
+            );
+
+            // End session if no participants remain
+            if let Ok(participants) = voice_repo::get_participants(&state.db, *voice_session_id).await
+                && participants.is_empty()
+            {
+                let _ = voice_repo::end_session(&state.db, *voice_session_id).await;
+            }
+        }
+    }
+
     // If no more sessions for this user, broadcast offline
     if !conn_mgr.is_online(&user_id) {
         broadcast_presence(conn_mgr, user_id, "offline");
@@ -385,17 +406,14 @@ async fn handle_client_message(
                 // Send current voice state if there's an active voice session
                 if let Ok(Some(session)) =
                     voice_repo::get_active_session(&state.db, channel_id).await
-                {
-                    if let Ok(participants) =
+                    && let Ok(participants) =
                         voice_repo::get_participants(&state.db, session.id).await
-                    {
-                        if !participants.is_empty() {
-                            let _ = tx.send(ServerMessage::VoiceStateUpdate {
-                                channel_id,
-                                participants,
-                            });
-                        }
-                    }
+                    && !participants.is_empty()
+                {
+                    let _ = tx.send(ServerMessage::VoiceStateUpdate {
+                        channel_id,
+                        participants,
+                    });
                 }
 
                 let mut rx = conn_mgr.subscribe_channel(channel_id);

@@ -92,6 +92,30 @@ pub async fn get_participants(
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
+/// Remove a user from all active voice sessions they're in.
+/// Returns (session_id, channel_id) pairs for each session they were removed from.
+pub async fn leave_all_sessions(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<(Uuid, Uuid)>, sqlx::Error> {
+    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        r#"
+        UPDATE voice_session_participants vsp
+        SET left_at = NOW()
+        FROM voice_sessions vs
+        WHERE vsp.session_id = vs.id
+          AND vsp.user_id = $1
+          AND vsp.left_at IS NULL
+          AND vs.ended_at IS NULL
+        RETURNING vs.id, vs.channel_id
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 /// End a voice session (when last participant leaves).
 pub async fn end_session(pool: &PgPool, session_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE voice_sessions SET ended_at = NOW() WHERE id = $1")
