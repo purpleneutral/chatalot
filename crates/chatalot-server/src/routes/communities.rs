@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     CreateCommunityInviteRequest, CreateCommunityRequest, SetCommunityRoleRequest,
     SetNicknameRequest, TransferCommunityOwnershipRequest, UpdateCommunityRequest,
 };
-use chatalot_db::repos::{community_repo, group_repo};
+use chatalot_db::repos::community_repo;
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -207,12 +207,7 @@ async fn accept_community_invite(
     community_repo::join_community(&state.db, invite.community_id, claims.sub).await?;
     community_repo::increment_community_invite_usage(&state.db, invite.id).await?;
 
-    // Auto-join all existing groups in this community
-    let groups =
-        group_repo::list_community_groups(&state.db, invite.community_id).await?;
-    for g in &groups {
-        let _ = group_repo::join_group(&state.db, g.id, claims.sub).await;
-    }
+    // Groups are isolated — new members must be explicitly invited to groups
 
     let community = community_repo::get_community(&state.db, invite.community_id)
         .await?
@@ -658,9 +653,10 @@ async fn delete_invite(
 
 async fn list_community_groups(
     State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
     Extension(ctx): Extension<CommunityContext>,
 ) -> Result<Json<Vec<chatalot_common::api_types::GroupResponse>>, AppError> {
-    let groups = chatalot_db::repos::group_repo::list_community_groups(&state.db, ctx.community_id)
+    let groups = chatalot_db::repos::group_repo::list_community_groups(&state.db, ctx.community_id, claims.sub)
         .await?;
 
     let mut responses = Vec::with_capacity(groups.len());

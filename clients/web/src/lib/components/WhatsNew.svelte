@@ -14,6 +14,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.3.1',
+			date: '2026-02-14',
+			changes: [
+				'Fixed group isolation — new community members no longer auto-join all groups',
+				'Fixed unread badge counts showing inflated numbers',
+			]
+		},
+		{
 			version: '0.3.0',
 			date: '2026-02-14',
 			changes: [

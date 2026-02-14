@@ -95,13 +95,19 @@ pub async fn get_all_unread_counts(
             cm.channel_id,
             COUNT(m.id) AS unread_count
         FROM channel_members cm
-        LEFT JOIN read_cursors rc ON rc.user_id = cm.user_id AND rc.channel_id = cm.channel_id
-        LEFT JOIN messages m ON m.channel_id = cm.channel_id
+        LEFT JOIN read_cursors rc
+            ON rc.user_id = cm.user_id AND rc.channel_id = cm.channel_id
+        LEFT JOIN messages m
+            ON m.channel_id = cm.channel_id
             AND m.deleted_at IS NULL
-            AND (rc.last_read_message_id IS NULL OR m.created_at > (
-                SELECT created_at FROM messages WHERE id = rc.last_read_message_id
-            ))
+            AND m.sender_id != $1
         WHERE cm.user_id = $1
+          AND (
+            rc.last_read_message_id IS NULL AND m.id IS NOT NULL
+            OR m.created_at > (
+                SELECT created_at FROM messages WHERE id = rc.last_read_message_id
+            )
+          )
         GROUP BY cm.channel_id
         "#,
     )

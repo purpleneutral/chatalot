@@ -330,15 +330,20 @@ pub async fn list_groups_in_user_communities(
     .await
 }
 
-/// List all groups in a community.
+/// List groups in a community that the user is a member of.
 pub async fn list_community_groups(
     pool: &PgPool,
     community_id: Uuid,
+    user_id: Uuid,
 ) -> Result<Vec<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
-        "SELECT * FROM groups WHERE community_id = $1 ORDER BY name ASC",
+        "SELECT g.* FROM groups g \
+         INNER JOIN group_members gm ON g.id = gm.group_id \
+         WHERE g.community_id = $1 AND gm.user_id = $2 \
+         ORDER BY g.name ASC",
     )
     .bind(community_id)
+    .bind(user_id)
     .fetch_all(pool)
     .await
 }
