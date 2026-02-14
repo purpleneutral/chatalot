@@ -124,6 +124,15 @@
 		};
 	}
 
+	// Check which remote screen shares have audio tracks
+	let screenShareHasAudio = $derived(() => {
+		const result = new Map<string, boolean>();
+		for (const [userId, stream] of voiceStore.remoteScreenStreams) {
+			result.set(userId, stream.getAudioTracks().length > 0);
+		}
+		return result;
+	});
+
 	let hasVideo = $derived(voiceStore.activeCall?.videoEnabled ?? false);
 	let remoteEntries = $derived([...voiceStore.remoteStreams]);
 	let remoteScreenEntries = $derived([...voiceStore.remoteScreenStreams]);
@@ -178,6 +187,11 @@
 							<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
 							You are sharing your screen
 						</div>
+						{#if voiceStore.activeCall?.screenStream && voiceStore.activeCall.screenStream.getAudioTracks().length === 0}
+							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300">
+								No audio — share a tab for sound
+							</div>
+						{/if}
 					</div>
 				{/if}
 
@@ -202,7 +216,11 @@
 							<span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
 							{userStore.getDisplayName(userId)} is sharing their screen
 						</div>
-						{#if voiceStore.isScreenShareMuted(userId)}
+						{#if !screenShareHasAudio().get(userId)}
+							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-yellow-300 pointer-events-none">
+								No audio
+							</div>
+						{:else if voiceStore.isScreenShareMuted(userId)}
 							<div class="absolute top-2 right-2 rounded bg-black/60 px-2 py-1 text-xs text-white pointer-events-none">
 								Audio muted
 							</div>

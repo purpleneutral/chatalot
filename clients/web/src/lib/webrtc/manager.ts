@@ -351,8 +351,10 @@ class WebRTCManager {
 			try {
 				const screenStream = await navigator.mediaDevices.getDisplayMedia({
 					video: true,
-					audio: true
-				});
+					audio: true,
+					// Request system audio capture (Chrome 105+, works with PipeWire on Linux)
+					systemAudio: 'include',
+				} as DisplayMediaStreamOptions & { systemAudio: string });
 				voiceStore.setScreenSharing(true, screenStream);
 
 				// When user stops sharing via browser UI

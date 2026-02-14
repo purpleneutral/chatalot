@@ -14,12 +14,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.5.6',
+			version: '0.5.7',
 			date: '2026-02-14',
 			changes: [
-				'Fixed screen share audio: video stays muted for autoplay, audio plays via separate element',
-				'Fixed right-click on screen shares: transparent overlay prevents browser video menu',
-				'Screen share volume (0-100%) and mute toggle via right-click context menu',
+				'Screen share now requests system audio capture (works with PipeWire on Linux)',
+				'Shows "No audio" badge when screen share has no audio tracks',
+				'Tooltip hint: share a browser tab for audio support',
+				'Right-click screen share overlay for volume/mute controls',
 			]
 		},
 		{
