@@ -541,6 +541,14 @@ class WebRTCManager {
 		if (!this.sessionId || !voiceStore.activeCall?.localStream) return;
 		if (userId === authStore.user?.id) return;
 
+		// Skip if we already have a healthy peer connection (prevents double
+		// connection creation when both onUserJoined and onVoiceStateUpdate fire)
+		const existingPc = this.peers.get(userId);
+		if (existingPc) {
+			const state = existingPc.connectionState ?? existingPc.iceConnectionState;
+			if (state !== 'failed' && state !== 'closed') return;
+		}
+
 		// Only the impolite peer (higher ID) initiates the offer to avoid collisions.
 		if (this.isPolite(userId)) return;
 

@@ -14,6 +14,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.5.9',
+			date: '2026-02-14',
+			changes: [
+				'Fixed screen shares not showing when joining a channel where someone is already streaming',
+			]
+		},
+		{
 			version: '0.5.8',
 			date: '2026-02-14',
 			changes: [
