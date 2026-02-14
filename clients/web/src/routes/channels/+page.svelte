@@ -375,6 +375,14 @@
 			: channelMembers
 	);
 
+	const ONLINE_STATUSES = new Set(['online', 'idle', 'dnd']);
+	let onlineMembers = $derived(
+		filteredMembers.filter(m => ONLINE_STATUSES.has(presenceStore.getStatus(m.user_id)))
+	);
+	let offlineMembers = $derived(
+		filteredMembers.filter(m => !ONLINE_STATUSES.has(presenceStore.getStatus(m.user_id)))
+	);
+
 	function subscribeToAllChannels() {
 		const groupChannelIds = Array.from(groupChannelsMap.values()).flat().map(c => c.id);
 		const allIds = [
@@ -1261,6 +1269,18 @@
 		}
 	}
 
+	function isGroupedMessage(msgs: typeof messages, idx: number): boolean {
+		if (idx === 0) return false;
+		const prev = msgs[idx - 1];
+		const curr = msgs[idx];
+		if (prev.senderId !== curr.senderId) return false;
+		if (curr.replyToId) return false;
+		if (curr.messageType === 'file' || prev.messageType === 'file') return false;
+		const prevTime = new Date(prev.createdAt).getTime();
+		const currTime = new Date(curr.createdAt).getTime();
+		return (currTime - prevTime) < 5 * 60 * 1000;
+	}
+
 	const IMAGE_EXTS = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
 	const VIDEO_EXTS = /\.(mp4|webm|mov|ogg)$/i;
 	const IMAGE_URL_REGEX = /https?:\/\/[^\s<>"']+\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?[^\s<>"']*)?/gi;
@@ -1311,24 +1331,25 @@
 			return match;
 		});
 
-		// Configure marked with syntax highlighting
+		// Configure marked with syntax highlighting + copy button
 		const renderer = new marked.Renderer();
 		renderer.code = ({ text: code, lang }: { text: string; lang?: string }) => {
+			let highlighted: string;
 			if (lang && hljs.getLanguage(lang)) {
-				const highlighted = hljs.highlight(code, { language: lang }).value;
-				return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+				highlighted = hljs.highlight(code, { language: lang }).value;
+			} else {
+				try {
+					highlighted = hljs.highlightAuto(code).value;
+				} catch {
+					highlighted = code;
+				}
 			}
-			// Auto-detect for unlabeled code blocks
-			try {
-				const result = hljs.highlightAuto(code);
-				return `<pre><code class="hljs">${result.value}</code></pre>`;
-			} catch {
-				return `<pre><code>${code}</code></pre>`;
-			}
+			const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
+			return `<div class="code-block-wrapper">${langLabel}<pre><code class="hljs${lang ? ` language-${lang}` : ''}">${highlighted}</code></pre><button class="code-copy-btn" type="button">Copy</button></div>`;
 		};
 
 		const html = marked.parse(processed, { renderer }) as string;
-		return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class'] });
+		return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type'] });
 	}
 
 	function startReply(msg: ChatMessage) {
@@ -1877,6 +1898,20 @@
 	}
 
 	// ── Infinite scroll ──
+	function handleCodeCopyClick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (target.classList.contains('code-copy-btn')) {
+			e.stopPropagation();
+			const wrapper = target.closest('.code-block-wrapper');
+			const pre = wrapper?.querySelector('pre');
+			if (pre) {
+				navigator.clipboard.writeText(pre.textContent || '');
+				target.textContent = 'Copied!';
+				setTimeout(() => { target.textContent = 'Copy'; }, 2000);
+			}
+		}
+	}
+
 	async function handleMessageScroll(e: Event) {
 		const el = e.target as HTMLDivElement;
 		// Show/hide scroll-to-bottom button
@@ -2828,11 +2863,12 @@
 				<VideoGrid />
 
 				<!-- Messages -->
-				<div bind:this={messageListEl} class="flex-1 overflow-y-auto px-6 py-4" onscroll={handleMessageScroll}>
+				<div bind:this={messageListEl} class="flex-1 overflow-y-auto px-6 py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
 					{#if loadingOlder}
 						<Skeleton variant="message" count={3} />
 					{/if}
 					{#each messages as msg, idx (msg.id)}
+						{@const grouped = isGroupedMessage(messages, idx) && !shouldShowDateSeparator(messages, idx)}
 						<!-- Unread separator -->
 						{#if unreadSeparatorMsgId && msg.id === unreadSeparatorMsgId}
 							<div class="my-3 flex items-center gap-4">
@@ -2850,47 +2886,58 @@
 							</div>
 						{/if}
 						<div
-							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 transition hover:bg-white/[0.02] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : 'mb-4 gap-3 py-1'}"
+							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 transition hover:bg-white/[0.02] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
 							oncontextmenu={(e) => showContextMenu(e, msg.id)}
 							role="article"
 							aria-label="Message from {getDisplayNameForContext(msg.senderId)}"
 						>
 							{#if preferencesStore.preferences.messageDensity !== 'compact'}
-								<Avatar userId={msg.senderId} size="md" />
+								{#if grouped}
+									<!-- Hover timestamp in gutter for grouped messages -->
+									<div class="flex w-10 shrink-0 items-start justify-center pt-0.5">
+										<span class="hidden text-[10px] text-[var(--text-secondary)] opacity-0 group-hover:inline group-hover:opacity-100 transition-opacity" title={formatFullTimestamp(msg.createdAt)}>
+											{formatTime(msg.createdAt)}
+										</span>
+									</div>
+								{:else}
+									<Avatar userId={msg.senderId} size="md" />
+								{/if}
 							{/if}
 							<div class="min-w-0 flex-1">
-								{#if msg.replyToId}
-									{@const repliedMsg = messages.find(m => m.id === msg.replyToId)}
-									<button
-										onclick={() => { const el = document.getElementById('msg-' + msg.replyToId); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
-										class="mb-1 flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
-										{#if repliedMsg}
-											<span class="font-medium">{getDisplayNameForContext(repliedMsg.senderId)}</span>
-											<span class="truncate max-w-[200px] opacity-70">{repliedMsg.content.slice(0, 60)}{repliedMsg.content.length > 60 ? '...' : ''}</span>
-										{:else}
-											<span class="italic opacity-50">Original message not loaded</span>
+								{#if !grouped}
+									{#if msg.replyToId}
+										{@const repliedMsg = messages.find(m => m.id === msg.replyToId)}
+										<button
+											onclick={() => { const el = document.getElementById('msg-' + msg.replyToId); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+											class="mb-1 flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
+											{#if repliedMsg}
+												<span class="font-medium">{getDisplayNameForContext(repliedMsg.senderId)}</span>
+												<span class="truncate max-w-[200px] opacity-70">{repliedMsg.content.slice(0, 60)}{repliedMsg.content.length > 60 ? '...' : ''}</span>
+											{:else}
+												<span class="italic opacity-50">Original message not loaded</span>
+											{/if}
+										</button>
+									{/if}
+									<div class="flex items-baseline gap-2">
+										<button
+											class="text-sm font-semibold text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0"
+											onclick={(e) => { e.stopPropagation(); openProfileCard(msg.senderId, e); }}
+										>
+											{getDisplayNameForContext(msg.senderId)}
+										</button>
+										<span class="text-xs text-[var(--text-secondary)]" title={formatFullTimestamp(msg.createdAt)}>
+											{formatTime(msg.createdAt)}
+										</span>
+										{#if msg.editedAt}
+											<span class="text-xs text-[var(--text-secondary)]">(edited)</span>
 										{/if}
-									</button>
+										{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" title="Pinned"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
+										{/if}
+									</div>
 								{/if}
-								<div class="flex items-baseline gap-2">
-									<button
-										class="text-sm font-semibold text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0"
-										onclick={(e) => { e.stopPropagation(); openProfileCard(msg.senderId, e); }}
-									>
-										{getDisplayNameForContext(msg.senderId)}
-									</button>
-									<span class="text-xs text-[var(--text-secondary)]" title={formatFullTimestamp(msg.createdAt)}>
-										{formatTime(msg.createdAt)}
-									</span>
-									{#if msg.editedAt}
-										<span class="text-xs text-[var(--text-secondary)]">(edited)</span>
-									{/if}
-									{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" title="Pinned"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
-									{/if}
-								</div>
 
 								{#if editingMessageId === msg.id}
 									<!-- Edit mode -->
@@ -3024,9 +3071,11 @@
 									<div class="mt-1.5 flex flex-wrap gap-1">
 										{#each Array.from(msg.reactions.entries()) as [emoji, users]}
 											{@const hasReacted = users.has(authStore.user?.id ?? '')}
+											{@const reacterNames = Array.from(users).map(uid => uid === authStore.user?.id ? 'You' : getDisplayNameForContext(uid)).join(', ')}
 											<button
 												onclick={() => toggleReaction(msg.id, emoji)}
 												class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition {hasReacted ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-white/10 text-[var(--text-secondary)] hover:border-white/20 hover:bg-white/5'}"
+												title="{reacterNames} reacted with {emoji}"
 											>
 												<span>{emoji}</span>
 												<span class="font-medium">{users.size}</span>
@@ -3443,75 +3492,89 @@
 
 		<!-- Member panel (right sidebar) -->
 		{#if showMemberPanel && activeChannel && activeChannel.channel_type !== 'dm'}
+			{#snippet memberRow(member: typeof channelMembers[0])}
+				<div class="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
+					<Avatar userId={member.user_id} size="sm" showStatus />
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center gap-1.5">
+							<button
+								class="truncate text-sm text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+								onclick={(e) => { e.stopPropagation(); openProfileCard(member.user_id, e); }}
+							>
+								{getDisplayNameForContext(member.user_id)}
+							</button>
+							{#if communityStore.activeCommunityId && communityMemberStore.getNickname(communityStore.activeCommunityId, member.user_id)}
+								<span class="truncate text-xs text-[var(--text-secondary)] opacity-60">({member.display_name})</span>
+							{/if}
+							{#if member.role === 'owner'}
+								<span class="text-xs text-yellow-400" title="Owner">&#9733;</span>
+							{:else if member.role === 'admin'}
+								<span class="text-xs text-blue-400" title="Admin">&#9830;</span>
+							{/if}
+						</div>
+					</div>
+					<!-- Mod actions (hover) -->
+					{#if member.user_id !== authStore.user?.id && (myRole === 'owner' || (myRole === 'admin' && member.role === 'member'))}
+						<div class="hidden gap-0.5 group-hover:flex">
+							{#if myRole === 'owner'}
+								<button
+									onclick={() => handleRoleChange(member.user_id, member.role === 'admin' ? 'member' : 'admin')}
+									class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"
+									title={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+								>
+									{#if member.role === 'admin'}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+									{:else}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+									{/if}
+								</button>
+							{/if}
+							<button
+								onclick={() => handleKick(member.user_id, member.display_name)}
+								class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
+								title="Kick"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+							</button>
+							<button
+								onclick={() => handleBan(member.user_id, member.display_name)}
+								class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
+								title="Ban"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
+							</button>
+						</div>
+					{/if}
+				</div>
+			{/snippet}
+
 			<aside class="hidden w-60 flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto md:block">
 				<div class="p-4">
-					<h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-						Members ({channelMembers.length})
-					</h3>
 					<input
 						type="text"
 						bind:value={memberFilter}
 						placeholder="Filter members..."
-						class="mb-2 w-full rounded-md border border-white/10 bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
+						class="mb-3 w-full rounded-md border border-white/10 bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
 					/>
 					{#if membersLoading}
 						<Skeleton variant="member" count={4} />
 					{:else}
-						{#each filteredMembers as member (member.user_id)}
-							<div class="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
-								<Avatar userId={member.user_id} size="sm" showStatus />
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-1.5">
-										<button
-											class="truncate text-sm text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
-											onclick={(e) => { e.stopPropagation(); openProfileCard(member.user_id, e); }}
-										>
-											{getDisplayNameForContext(member.user_id)}
-										</button>
-										{#if communityStore.activeCommunityId && communityMemberStore.getNickname(communityStore.activeCommunityId, member.user_id)}
-											<span class="truncate text-xs text-[var(--text-secondary)] opacity-60">({member.display_name})</span>
-										{/if}
-										{#if member.role === 'owner'}
-											<span class="text-xs text-yellow-400" title="Owner">&#9733;</span>
-										{:else if member.role === 'admin'}
-											<span class="text-xs text-blue-400" title="Admin">&#9830;</span>
-										{/if}
-									</div>
-								</div>
-								<!-- Mod actions (hover) -->
-								{#if member.user_id !== authStore.user?.id && (myRole === 'owner' || (myRole === 'admin' && member.role === 'member'))}
-									<div class="hidden gap-0.5 group-hover:flex">
-										{#if myRole === 'owner'}
-											<button
-												onclick={() => handleRoleChange(member.user_id, member.role === 'admin' ? 'member' : 'admin')}
-												class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"
-												title={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
-											>
-												{#if member.role === 'admin'}
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-												{:else}
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
-												{/if}
-											</button>
-										{/if}
-										<button
-											onclick={() => handleKick(member.user_id, member.display_name)}
-											class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
-											title="Kick"
-										>
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-										</button>
-										<button
-											onclick={() => handleBan(member.user_id, member.display_name)}
-											class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
-											title="Ban"
-										>
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
-										</button>
-									</div>
-								{/if}
-							</div>
-						{/each}
+						{#if onlineMembers.length > 0}
+							<h3 class="mb-1.5 mt-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+								Online — {onlineMembers.length}
+							</h3>
+							{#each onlineMembers as member (member.user_id)}
+								{@render memberRow(member)}
+							{/each}
+						{/if}
+						{#if offlineMembers.length > 0}
+							<h3 class="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+								Offline — {offlineMembers.length}
+							</h3>
+							{#each offlineMembers as member (member.user_id)}
+								{@render memberRow(member)}
+							{/each}
+						{/if}
 					{/if}
 				</div>
 			</aside>

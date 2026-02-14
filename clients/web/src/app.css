@@ -99,6 +99,53 @@ body {
 	padding: 0;
 	font-size: 0.85em;
 }
+/* Code block wrapper with copy button */
+.code-block-wrapper {
+	position: relative;
+}
+.code-block-wrapper pre {
+	margin: 0;
+}
+.code-copy-btn {
+	position: absolute;
+	top: 0.4rem;
+	right: 0.4rem;
+	padding: 0.2rem 0.5rem;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--text-secondary);
+	font-size: 0.7rem;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s, background 0.15s;
+	font-family: inherit;
+}
+.code-block-wrapper:hover .code-copy-btn {
+	opacity: 1;
+}
+.code-copy-btn:hover {
+	background: rgba(255, 255, 255, 0.15);
+	color: var(--text-primary);
+}
+.code-lang-label {
+	position: absolute;
+	bottom: 0.4rem;
+	right: 0.5rem;
+	font-size: 0.65rem;
+	color: var(--text-secondary);
+	opacity: 0.4;
+	pointer-events: none;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+[data-theme='light'] .code-copy-btn {
+	background: rgba(0, 0, 0, 0.05);
+	border-color: rgba(0, 0, 0, 0.1);
+}
+[data-theme='light'] .code-copy-btn:hover {
+	background: rgba(0, 0, 0, 0.1);
+}
 .markdown-content a {
 	color: var(--accent);
 	text-decoration: underline;
