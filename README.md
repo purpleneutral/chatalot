@@ -14,19 +14,27 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 ### What you get
 
+- **Communities** — Discord-style server organization with groups, channels, and roles
 - **Channels and DMs** — organized conversations with roles, permissions, and invite links
 - **Voice and video calls** — peer-to-peer WebRTC, no third-party TURN servers phoning home
 - **End-to-end encryption** — Signal-grade cryptography (X3DH + Double Ratchet) for DMs, compiled to WASM *
-- **File sharing** — encrypted uploads with drag-and-drop
+- **File sharing** — encrypted uploads with drag-and-drop and clipboard paste
+- **Pinned messages** — pin important messages with real-time updates across all connected clients
+- **User profile cards** — click any username to view profile, roles, status, and start a DM
 - **Two-factor authentication** — TOTP with any authenticator app
 - **Invite-only by default** — registration is locked down until you generate invite codes
 - **Desktop app** — native Linux and Windows clients that connect to any Chatalot server
 - **Reactions, typing indicators, read receipts, link previews** — the small things that make chat feel alive
+- **Code syntax highlighting** — fenced code blocks with language detection (15+ languages)
+- **Message forwarding** — quote and forward messages to any channel
 - **Admin panel** — user management, invite codes, system feedback, all in-browser
 - **Markdown messages** — rich text formatting with sanitized rendering
 - **Mentions** — `@username`, `@everyone`, `@here`, `@channel`
-- **Sound and desktop notifications** — configurable per-channel
-- **Dark and light themes** — because everyone has opinions about this
+- **Sound and desktop notifications** — configurable per-channel with volume control
+- **Customization** — accent colors, message density, font size, time format, send behavior
+- **Dark and light themes** — with 8 accent color options
+- **Keyboard shortcuts** — press `?` to see them all
+- **PWA support** — installable as a progressive web app
 
 > \* *DM messages are end-to-end encrypted using the Signal protocol (X3DH + Double Ratchet + ChaCha20-Poly1305), compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay. Group encryption (Sender Keys) is planned for a future release — group messages are currently protected by TLS in transit.*
 
@@ -227,6 +235,7 @@ chatalot/
 │   │       ├── lib/crypto/    # E2E crypto (WASM loader, IndexedDB, session manager)
 │   │       ├── lib/ws/        # WebSocket client
 │   │       ├── lib/stores/    # Svelte 5 rune-based state
+│   │       ├── lib/components/# Reusable UI components
 │   │       ├── lib/webrtc/    # WebRTC call manager
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
