@@ -527,6 +527,11 @@
 		if (savedStatus && savedStatus !== 'online') {
 			wsClient.send({ type: 'update_presence', status: savedStatus });
 		}
+
+		// Rejoin voice call if we were in one (server cleans up sessions on disconnect)
+		if (voiceStore.activeCall) {
+			wsClient.send({ type: 'join_voice', channel_id: voiceStore.activeCall.channelId });
+		}
 	}
 
 	function setUserStatus(status: 'online' | 'idle' | 'dnd' | 'invisible') {
