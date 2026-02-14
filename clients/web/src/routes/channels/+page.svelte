@@ -23,7 +23,7 @@
 	import { memberStore } from '$lib/stores/members.svelte';
 	import { userStore } from '$lib/stores/users.svelte';
 	import { notificationStore, type NotificationLevel } from '$lib/stores/notification.svelte';
-	import { listGroups, createGroup as apiCreateGroup, joinGroup, leaveGroup, deleteGroup, discoverGroups, listGroupChannels, createGroupChannel, updateChannel as apiUpdateChannel, deleteChannel as apiDeleteChannel, listGroupMembers, createInvite, acceptInvite, getInviteInfo, type Group, type GroupMember, type InviteInfo } from '$lib/api/groups';
+	import { listGroups, createGroup as apiCreateGroup, joinGroup, leaveGroup, deleteGroup, discoverGroups, listGroupChannels, createGroupChannel, updateGroup as apiUpdateGroup, updateChannel as apiUpdateChannel, deleteChannel as apiDeleteChannel, listGroupMembers, createInvite, acceptInvite, getInviteInfo, type Group, type GroupMember, type InviteInfo } from '$lib/api/groups';
 	import { listCommunities, listCommunityGroups, listMembers as listCommunityMembers, createCommunity, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
 	import { getPinnedMessages, pinMessage as apiPinMessage, unpinMessage as apiUnpinMessage, type PinnedMessage } from '$lib/api/channels';
 	import { searchGifs, getTrendingGifs, type GifResult } from '$lib/api/gifs';
@@ -129,6 +129,8 @@
 	let newGroupChannelType = $state('text');
 	let renamingChannelId = $state<string | null>(null);
 	let renameChannelInput = $state('');
+	let renamingGroupId = $state<string | null>(null);
+	let renameGroupInput = $state('');
 
 	// Edit state
 	let editingMessageId = $state<string | null>(null);
@@ -1999,6 +2001,18 @@
 		}
 	}
 
+	async function handleRenameGroup(groupId: string) {
+		const newName = renameGroupInput.trim();
+		if (!newName) { renamingGroupId = null; return; }
+		try {
+			const updated = await apiUpdateGroup(groupId, newName);
+			groupStore.updateGroup(groupId, updated);
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to rename group');
+		}
+		renamingGroupId = null;
+	}
+
 	async function handleRenameGroupChannel(groupId: string, channelId: string) {
 		const newName = renameChannelInput.trim();
 		if (!newName) { renamingChannelId = null; return; }
@@ -2511,20 +2525,49 @@
 
 					{#each groupStore.groups as group (group.id)}
 						<!-- Group header -->
-						<div class="group/grp">
-							<button
-								onclick={() => toggleGroupExpand(group.id)}
-								class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition hover:bg-white/5 {expandedGroupIds.has(group.id) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}"
-							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform {expandedGroupIds.has(group.id) ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="currentColor">
-									<path d="M8 5l8 7-8 7z" />
-								</svg>
-								<span class="flex-1 truncate">{group.name}</span>
-								<span class="text-xs text-[var(--text-secondary)]">{group.member_count}</span>
-							</button>
-							<!-- Group context actions (show on hover) -->
-							<div class="hidden group-hover/grp:flex absolute right-2 top-1/2 -translate-y-1/2 items-center gap-0.5">
-							</div>
+						<div class="group/grp relative">
+							{#if renamingGroupId === group.id}
+								<form
+									onsubmit={(e) => { e.preventDefault(); handleRenameGroup(group.id); }}
+									class="flex items-center gap-2 px-3 py-2"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M8 5l8 7-8 7z" />
+									</svg>
+									<input
+										type="text"
+										bind:value={renameGroupInput}
+										onkeydown={(e) => { if (e.key === 'Escape') renamingGroupId = null; }}
+										onblur={() => handleRenameGroup(group.id)}
+										maxlength="64"
+										class="flex-1 rounded border border-[var(--accent)] bg-[var(--bg-primary)] px-1.5 py-0.5 text-sm font-medium text-[var(--text-primary)] outline-none"
+										autofocus
+									/>
+								</form>
+							{:else}
+								<button
+									onclick={() => toggleGroupExpand(group.id)}
+									ondblclick={() => { if (group.owner_id === authStore.user?.id) { renamingGroupId = group.id; renameGroupInput = group.name; } }}
+									class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition hover:bg-white/5 {expandedGroupIds.has(group.id) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform {expandedGroupIds.has(group.id) ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M8 5l8 7-8 7z" />
+									</svg>
+									<span class="flex-1 truncate">{group.name}</span>
+									<span class="text-xs text-[var(--text-secondary)]">{group.member_count}</span>
+								</button>
+								{#if group.owner_id === authStore.user?.id}
+									<button
+										onclick={() => { renamingGroupId = group.id; renameGroupInput = group.name; }}
+										class="hidden group-hover/grp:flex absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+										title="Rename group"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+										</svg>
+									</button>
+								{/if}
+							{/if}
 						</div>
 
 						{#if expandedGroupIds.has(group.id)}
