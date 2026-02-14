@@ -103,11 +103,21 @@ pub async fn handle_socket(
                 },
             );
 
-            // End session if no participants remain
-            if let Ok(participants) = voice_repo::get_participants(&state.db, *voice_session_id).await
-                && participants.is_empty()
-            {
-                let _ = voice_repo::end_session(&state.db, *voice_session_id).await;
+            // Get remaining participants and broadcast authoritative state
+            if let Ok(participants) = voice_repo::get_participants(&state.db, *voice_session_id).await {
+                // Broadcast updated participant list so all clients stay in sync
+                conn_mgr.broadcast_to_channel(
+                    *channel_id,
+                    ServerMessage::VoiceStateUpdate {
+                        channel_id: *channel_id,
+                        participants: participants.clone(),
+                    },
+                );
+
+                // End session if no participants remain
+                if participants.is_empty() {
+                    let _ = voice_repo::end_session(&state.db, *voice_session_id).await;
+                }
             }
         }
     }
@@ -540,11 +550,20 @@ async fn handle_client_message(
                     },
                 );
 
-                // If no participants left, end the session
-                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await
-                    && participants.is_empty()
-                {
-                    let _ = voice_repo::end_session(&state.db, session.id).await;
+                // Get remaining participants and broadcast authoritative state
+                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+                    conn_mgr.broadcast_to_channel(
+                        channel_id,
+                        ServerMessage::VoiceStateUpdate {
+                            channel_id,
+                            participants: participants.clone(),
+                        },
+                    );
+
+                    // If no participants left, end the session
+                    if participants.is_empty() {
+                        let _ = voice_repo::end_session(&state.db, session.id).await;
+                    }
                 }
             }
         }

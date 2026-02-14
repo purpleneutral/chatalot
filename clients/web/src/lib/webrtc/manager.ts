@@ -494,9 +494,19 @@ class WebRTCManager {
 	async onVoiceStateUpdate(channelId: string, participants: string[]): Promise<void> {
 		voiceStore.setChannelParticipants(channelId, participants);
 
-		// If we're in this call, establish connections with existing participants
+		// If we're in this call, reconcile peer connections with authoritative list
 		if (voiceStore.activeCall?.channelId === channelId) {
 			const myId = authStore.user?.id;
+			const participantSet = new Set(participants);
+
+			// Remove peers who are no longer in the participant list
+			for (const [userId] of this.peers) {
+				if (!participantSet.has(userId)) {
+					this.onUserLeft(userId);
+				}
+			}
+
+			// Establish connections with new participants
 			for (const userId of participants) {
 				if (userId !== myId && !this.peers.has(userId)) {
 					// Only the impolite peer (higher ID) creates offers
