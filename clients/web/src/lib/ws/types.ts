@@ -15,6 +15,7 @@ export type ClientMessage =
 	| { type: 'rtc_ice_candidate'; target_user_id: string; session_id: string; candidate: string }
 	| { type: 'join_voice'; channel_id: string }
 	| { type: 'leave_voice'; channel_id: string }
+	| { type: 'kick_from_voice'; channel_id: string; user_id: string }
 	| { type: 'add_reaction'; message_id: string; emoji: string }
 	| { type: 'remove_reaction'; message_id: string; emoji: string }
 	| { type: 'mark_read'; channel_id: string; message_id: string }
@@ -35,6 +36,7 @@ export type ServerMessage =
 	| { type: 'voice_state_update'; channel_id: string; participants: string[] }
 	| { type: 'user_joined_voice'; channel_id: string; user_id: string }
 	| { type: 'user_left_voice'; channel_id: string; user_id: string }
+	| { type: 'kicked_from_voice'; channel_id: string; user_id: string; kicked_by: string }
 	| { type: 'reaction_added'; message_id: string; user_id: string; emoji: string }
 	| { type: 'reaction_removed'; message_id: string; user_id: string; emoji: string }
 	| { type: 'member_kicked'; channel_id: string; user_id: string; kicked_by: string }

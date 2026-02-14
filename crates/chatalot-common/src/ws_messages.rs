@@ -71,6 +71,10 @@ pub enum ClientMessage {
     LeaveVoice {
         channel_id: Uuid,
     },
+    KickFromVoice {
+        channel_id: Uuid,
+        user_id: Uuid,
+    },
 
     // Reactions
     AddReaction {
@@ -179,6 +183,11 @@ pub enum ServerMessage {
     UserLeftVoice {
         channel_id: Uuid,
         user_id: Uuid,
+    },
+    KickedFromVoice {
+        channel_id: Uuid,
+        user_id: Uuid,
+        kicked_by: Uuid,
     },
 
     // Reactions

@@ -568,6 +568,63 @@ async fn handle_client_message(
             }
         }
 
+        ClientMessage::KickFromVoice { channel_id, user_id: target_user_id } => {
+            // Check permissions: actor must outrank target
+            let actor_role = channel_repo::get_member_role(&state.db, channel_id, user_id).await;
+            let target_role = channel_repo::get_member_role(&state.db, channel_id, target_user_id).await;
+
+            let allowed = match (actor_role, target_role) {
+                (Ok(Some(a)), Ok(Some(t))) => permissions::can_moderate(&a, &t),
+                _ => false,
+            };
+
+            if !allowed {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "forbidden".to_string(),
+                    message: "insufficient permissions to kick from voice".to_string(),
+                });
+                return;
+            }
+
+            if let Ok(Some(session)) = voice_repo::get_active_session(&state.db, channel_id).await {
+                let _ = voice_repo::leave_session(&state.db, session.id, target_user_id).await;
+
+                // Notify the kicked user
+                conn_mgr.broadcast_to_channel(
+                    channel_id,
+                    ServerMessage::KickedFromVoice {
+                        channel_id,
+                        user_id: target_user_id,
+                        kicked_by: user_id,
+                    },
+                );
+
+                // Broadcast leave event
+                conn_mgr.broadcast_to_channel(
+                    channel_id,
+                    ServerMessage::UserLeftVoice {
+                        channel_id,
+                        user_id: target_user_id,
+                    },
+                );
+
+                // Broadcast updated participant list
+                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+                    conn_mgr.broadcast_to_channel(
+                        channel_id,
+                        ServerMessage::VoiceStateUpdate {
+                            channel_id,
+                            participants: participants.clone(),
+                        },
+                    );
+
+                    if participants.is_empty() {
+                        let _ = voice_repo::end_session(&state.db, session.id).await;
+                    }
+                }
+            }
+        }
+
         // Auth message not expected over an already-authenticated connection
         ClientMessage::Authenticate { .. } => {}
         ClientMessage::Unsubscribe { .. } => {

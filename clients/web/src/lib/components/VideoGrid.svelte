@@ -6,7 +6,11 @@
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import Avatar from '$lib/components/Avatar.svelte';
 
-	let { expanded = false }: { expanded?: boolean } = $props();
+	let { expanded = false, canKick = false, onKickFromVoice }: {
+		expanded?: boolean;
+		canKick?: boolean;
+		onKickFromVoice?: (userId: string) => void;
+	} = $props();
 
 	let localVideoEl: HTMLVideoElement | undefined = $state();
 	let screenVideoEl: HTMLVideoElement | undefined = $state();
@@ -285,6 +289,15 @@
 							class="mt-2 w-full rounded px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						>
 							Reset to 100%
+						</button>
+					{/if}
+					{#if canKick && onKickFromVoice}
+						<div class="my-1.5 border-t border-white/10"></div>
+						<button
+							onclick={() => { if (volumeMenuUserId && onKickFromVoice) { onKickFromVoice(volumeMenuUserId); closeVolumeMenu(); } }}
+							class="w-full rounded px-2 py-1 text-left text-xs text-[var(--danger)] transition hover:bg-white/5"
+						>
+							Kick from voice
 						</button>
 					{/if}
 				{/if}

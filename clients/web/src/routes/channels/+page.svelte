@@ -145,6 +145,9 @@
 	let contextMenuMessageId = $state<string | null>(null);
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
+	// Voice kick context menu state
+	let voiceKickMenu = $state<{ userId: string; channelId: string; x: number; y: number } | null>(null);
+
 	// Mobile sidebar state
 	let sidebarOpen = $state(false);
 
@@ -416,6 +419,13 @@
 		});
 	}
 
+	function handleVoiceKick(userId: string, channelId: string) {
+		const displayName = userStore.getDisplayName(userId);
+		wsClient.send({ type: 'kick_from_voice', channel_id: channelId, user_id: userId });
+		toastStore.success(`${displayName} was kicked from voice`);
+		voiceKickMenu = null;
+	}
+
 	function handleBan(userId: string, displayName: string) {
 		if (!channelStore.activeChannelId) return;
 		showConfirmDialog({
@@ -455,6 +465,20 @@
 			? memberStore.getMyRole(channelStore.activeChannelId, authStore.user.id)
 			: 'member'
 	);
+	// Can the current user kick others from voice? (group owner check)
+	let canKickFromVoice = $derived.by(() => {
+		const callChannelId = voiceStore.activeCall?.channelId;
+		if (!callChannelId || !authStore.user?.id) return false;
+		// Find which group owns the voice channel
+		for (const [groupId, channels] of groupChannelsMap) {
+			if (channels.some(c => c.id === callChannelId)) {
+				const group = groupStore.groups.find(g => g.id === groupId);
+				return group?.owner_id === authStore.user.id;
+			}
+		}
+		return false;
+	});
+
 	let channelMembers = $derived(
 		channelStore.activeChannelId
 			? memberStore.getMembers(channelStore.activeChannelId)
@@ -2778,7 +2802,17 @@
 										{#if voiceStore.getChannelParticipants(channel.id).length > 0}
 											<div class="ml-8 space-y-0.5 pb-1">
 												{#each voiceStore.getChannelParticipants(channel.id) as uid (uid)}
-													<button class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]" onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}>
+													<button
+														class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]"
+														onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}
+														oncontextmenu={(e) => {
+															if (uid !== authStore.user?.id && group.owner_id === authStore.user?.id) {
+																e.preventDefault();
+																e.stopPropagation();
+																voiceKickMenu = { userId: uid, channelId: channel.id, x: e.clientX, y: e.clientY };
+															}
+														}}
+													>
 														<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
 														<span class="truncate">{userStore.getDisplayName(uid)}</span>
 													</button>
@@ -3441,7 +3475,14 @@
 				{/if}
 
 				<!-- Video grid (visible when in a call) -->
-				<VideoGrid expanded={chatCollapsed} />
+				<VideoGrid
+					expanded={chatCollapsed}
+					canKick={canKickFromVoice}
+					onKickFromVoice={(userId) => {
+						const channelId = voiceStore.activeCall?.channelId;
+						if (channelId) handleVoiceKick(userId, channelId);
+					}}
+				/>
 
 				{#if !chatCollapsed}
 				<!-- Messages -->
@@ -4591,6 +4632,30 @@
 					Enable
 				</button>
 			</div>
+		</div>
+	{/if}
+
+	<!-- Voice kick context menu -->
+	{#if voiceKickMenu}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-40"
+			onclick={() => voiceKickMenu = null}
+			oncontextmenu={(e) => { e.preventDefault(); voiceKickMenu = null; }}
+		></div>
+		<div
+			class="fixed z-50 min-w-[160px] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
+			style="left: {voiceKickMenu.x}px; top: {voiceKickMenu.y}px;"
+		>
+			<button
+				onclick={() => { if (voiceKickMenu) handleVoiceKick(voiceKickMenu.userId, voiceKickMenu.channelId); }}
+				class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" />
+				</svg>
+				Kick from voice
+			</button>
 		</div>
 	{/if}
 

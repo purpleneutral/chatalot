@@ -184,6 +184,16 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		case 'kicked_from_voice': {
+			voiceStore.removeChannelParticipant(msg.channel_id, msg.user_id);
+			webrtcManager.onUserLeft(msg.user_id);
+			if (msg.user_id === authStore.user?.id) {
+				webrtcManager.leaveCall();
+				toastStore.error('You were kicked from voice');
+			}
+			break;
+		}
+
 		// WebRTC signaling
 		case 'rtc_offer': {
 			webrtcManager.handleOffer(msg.from_user_id, msg.session_id, msg.sdp);
