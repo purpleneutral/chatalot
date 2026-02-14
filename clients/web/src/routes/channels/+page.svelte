@@ -198,6 +198,9 @@
 	// Scroll-to-bottom button
 	let showScrollBottom = $state(false);
 
+	// Per-channel scroll position persistence
+	let scrollPositions = new Map<string, number>();
+
 	// Unread separator: track the first unread message ID per channel switch
 	let unreadSeparatorMsgId = $state<string | null>(null);
 
@@ -749,6 +752,11 @@
 	}
 
 	async function selectChannel(channelId: string) {
+		// Save scroll position of current channel before switching
+		if (channelStore.activeChannelId && messageListEl) {
+			scrollPositions.set(channelStore.activeChannelId, messageListEl.scrollTop);
+		}
+
 		// Compute unread separator before clearing
 		const unreadCount = messageStore.getUnreadCount(channelId);
 		const existingMsgs = messageStore.getMessages(channelId);
@@ -884,7 +892,12 @@
 		}
 
 		await tick();
-		scrollToBottom();
+		const savedScroll = scrollPositions.get(channelId);
+		if (messageListEl && savedScroll !== undefined && savedScroll < messageListEl.scrollHeight - messageListEl.clientHeight - 150) {
+			messageListEl.scrollTop = savedScroll;
+		} else {
+			scrollToBottom();
+		}
 	}
 
 	function scrollToBottom() {
