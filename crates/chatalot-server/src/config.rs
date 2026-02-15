@@ -17,6 +17,8 @@ pub struct Config {
     pub registration_mode: String,
     pub community_creation_mode: String,
     pub public_url: Option<String>,
+    /// Per-user upload quota in MB (0 = unlimited). Default 500 MB.
+    pub upload_quota_mb: u64,
 }
 
 impl Config {
@@ -47,6 +49,10 @@ impl Config {
             community_creation_mode: std::env::var("COMMUNITY_CREATION_MODE")
                 .unwrap_or_else(|_| "admin_only".to_string()),
             public_url: std::env::var("PUBLIC_URL").ok(),
+            upload_quota_mb: std::env::var("UPLOAD_QUOTA_MB")
+                .unwrap_or_else(|_| "500".to_string())
+                .parse()
+                .unwrap_or(500),
         })
     }
 }

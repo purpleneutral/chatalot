@@ -132,7 +132,7 @@
 							bind:value={inviteCode}
 							required
 							placeholder="Enter your invite code"
-							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 font-mono tracking-wider text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 font-mono tracking-wider text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 						/>
 						<p class="mt-1 text-xs text-[var(--text-secondary)]">
 							An invite code is required to register on this server.
@@ -152,7 +152,7 @@
 						minlength="3"
 						maxlength="32"
 						autocomplete="username"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
 					<p class="mt-1 text-xs text-[var(--text-secondary)]/70">
 						3-32 characters. Letters, numbers, underscores, hyphens, and dots.
@@ -169,7 +169,7 @@
 						bind:value={displayName}
 						maxlength="64"
 						placeholder={username || 'Your display name'}
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
 				</div>
 
@@ -183,7 +183,7 @@
 						bind:value={email}
 						required
 						autocomplete="email"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
 				</div>
 
@@ -198,7 +198,7 @@
 						required
 						minlength="8"
 						autocomplete="new-password"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
 					{#if password.length > 0}
 						<div class="mt-2 space-y-1 text-xs">
@@ -231,7 +231,7 @@
 						bind:value={confirmPassword}
 						required
 						autocomplete="new-password"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
 				</div>
 

@@ -92,6 +92,14 @@ async fn create_community(
         ));
     }
 
+    if let Some(ref desc) = req.description
+        && desc.len() > 2048
+    {
+        return Err(AppError::Validation(
+            "description must be at most 2048 characters".to_string(),
+        ));
+    }
+
     let id = Uuid::now_v7();
     let community = community_repo::create_community(
         &state.db,
@@ -121,21 +129,25 @@ async fn list_my_communities(
     Extension(claims): Extension<AccessClaims>,
 ) -> Result<Json<Vec<CommunityResponse>>, AppError> {
     let communities = community_repo::list_user_communities(&state.db, claims.sub).await?;
-    let mut responses = Vec::with_capacity(communities.len());
-    for c in communities {
-        let count = community_repo::get_community_member_count(&state.db, c.id).await?;
-        responses.push(CommunityResponse {
-            id: c.id,
-            name: c.name,
-            description: c.description,
-            icon_url: c.icon_url,
-            owner_id: c.owner_id,
-            created_at: c.created_at.to_rfc3339(),
-            member_count: count,
-            who_can_create_groups: c.who_can_create_groups,
-            who_can_create_invites: c.who_can_create_invites,
-        });
-    }
+    let community_ids: Vec<Uuid> = communities.iter().map(|c| c.id).collect();
+    let counts = community_repo::get_community_member_counts(&state.db, &community_ids).await?;
+    let responses = communities
+        .into_iter()
+        .map(|c| {
+            let count = counts.get(&c.id).copied().unwrap_or(0);
+            CommunityResponse {
+                id: c.id,
+                name: c.name,
+                description: c.description,
+                icon_url: c.icon_url,
+                owner_id: c.owner_id,
+                created_at: c.created_at.to_rfc3339(),
+                member_count: count,
+                who_can_create_groups: c.who_can_create_groups,
+                who_can_create_invites: c.who_can_create_invites,
+            }
+        })
+        .collect();
     Ok(Json(responses))
 }
 
@@ -262,6 +274,14 @@ async fn update_community(
     {
         return Err(AppError::Validation(
             "community name must be 1-64 characters".to_string(),
+        ));
+    }
+
+    if let Some(ref desc) = req.description
+        && desc.len() > 2048
+    {
+        return Err(AppError::Validation(
+            "description must be at most 2048 characters".to_string(),
         ));
     }
 
@@ -687,20 +707,24 @@ async fn list_community_groups(
     let groups = chatalot_db::repos::group_repo::list_community_groups(&state.db, ctx.community_id, claims.sub)
         .await?;
 
-    let mut responses = Vec::with_capacity(groups.len());
-    for g in groups {
-        let count = chatalot_db::repos::group_repo::get_member_count(&state.db, g.id).await?;
-        responses.push(chatalot_common::api_types::GroupResponse {
-            id: g.id,
-            name: g.name,
-            description: g.description,
-            owner_id: g.owner_id,
-            community_id: g.community_id,
-            created_at: g.created_at.to_rfc3339(),
-            member_count: count,
-            visibility: g.visibility,
-        });
-    }
+    let group_ids: Vec<Uuid> = groups.iter().map(|g| g.id).collect();
+    let counts = chatalot_db::repos::group_repo::get_member_counts(&state.db, &group_ids).await?;
+    let responses = groups
+        .into_iter()
+        .map(|g| {
+            let count = counts.get(&g.id).copied().unwrap_or(0);
+            chatalot_common::api_types::GroupResponse {
+                id: g.id,
+                name: g.name,
+                description: g.description,
+                owner_id: g.owner_id,
+                community_id: g.community_id,
+                created_at: g.created_at.to_rfc3339(),
+                member_count: count,
+                visibility: g.visibility,
+            }
+        })
+        .collect();
     Ok(Json(responses))
 }
 

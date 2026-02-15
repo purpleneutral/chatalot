@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use chatalot_common::ws_messages::{ClientMessage, MessageType, ServerMessage};
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, community_repo, message_repo, reaction_repo, unread_repo, user_repo, voice_repo};
+use chatalot_db::repos::{block_repo, channel_repo, community_repo, message_repo, reaction_repo, unread_repo, user_repo, voice_repo};
 
 use crate::permissions;
 
@@ -27,13 +27,20 @@ pub async fn handle_socket(
     // Channel for sending messages to this client
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
 
-    // Register the session
+    // Register the session (enforces per-user connection limit)
     let handle = SessionHandle {
         session_id,
         user_id,
         tx: tx.clone(),
     };
-    conn_mgr.add_session(handle);
+    if !conn_mgr.add_session(handle) {
+        tracing::warn!(%user_id, "WebSocket rejected: too many concurrent sessions");
+        let _ = tx.send(ServerMessage::Error {
+            code: "too_many_sessions".to_string(),
+            message: "too many concurrent connections, close another device first".to_string(),
+        });
+        return;
+    }
 
     // Broadcast presence: this user is online
     broadcast_presence(conn_mgr, user_id, "online");
@@ -70,10 +77,31 @@ pub async fn handle_socket(
     // Track spawned subscription tasks so we can abort them on disconnect
     let mut subscription_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
+    // Per-connection message rate limiter (token bucket: 10 msg/s burst, refills at 5/s)
+    const RATE_LIMIT_BURST: f64 = 10.0;
+    const RATE_LIMIT_REFILL: f64 = 5.0;
+    let mut tokens: f64 = RATE_LIMIT_BURST;
+    let mut last_refill = tokio::time::Instant::now();
+
     // Reader task: processes incoming WebSocket messages
     while let Some(Ok(msg)) = ws_stream.next().await {
         match msg {
             Message::Text(text) => {
+                // Refill tokens
+                let now = tokio::time::Instant::now();
+                let elapsed = now.duration_since(last_refill).as_secs_f64();
+                tokens = (tokens + elapsed * RATE_LIMIT_REFILL).min(RATE_LIMIT_BURST);
+                last_refill = now;
+
+                if tokens < 1.0 {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "rate_limited".to_string(),
+                        message: "too many messages, slow down".to_string(),
+                    });
+                    continue;
+                }
+                tokens -= 1.0;
+
                 if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
                     handle_client_message(
                         client_msg,
@@ -100,34 +128,49 @@ pub async fn handle_socket(
         task.abort();
     }
 
-    // Clean up voice sessions — remove user from any active calls
-    if let Ok(left_sessions) = voice_repo::leave_all_sessions(&state.db, user_id).await {
-        for (voice_session_id, channel_id) in &left_sessions {
-            // Broadcast that this user left voice
-            conn_mgr.broadcast_to_channel(
-                *channel_id,
-                ServerMessage::UserLeftVoice {
-                    channel_id: *channel_id,
-                    user_id,
-                },
-            );
+    // Clean up typing state — broadcast stop-typing for all channels this user was typing in
+    let typing_channels = conn_mgr.clear_all_typing_for_user(user_id);
+    for channel_id in typing_channels {
+        conn_mgr.broadcast_to_channel(
+            channel_id,
+            ServerMessage::UserStoppedTyping {
+                channel_id,
+                user_id,
+            },
+        );
+    }
 
-            // Get remaining participants and broadcast authoritative state
-            if let Ok(participants) = voice_repo::get_participants(&state.db, *voice_session_id).await {
-                // Broadcast updated participant list so all clients stay in sync
+    // Clean up voice sessions — remove user from any active calls
+    match voice_repo::leave_all_sessions(&state.db, user_id).await {
+        Ok(left_sessions) => {
+            for (voice_session_id, channel_id) in &left_sessions {
+                // Broadcast that this user left voice
                 conn_mgr.broadcast_to_channel(
                     *channel_id,
-                    ServerMessage::VoiceStateUpdate {
+                    ServerMessage::UserLeftVoice {
                         channel_id: *channel_id,
-                        participants: participants.clone(),
+                        user_id,
                     },
                 );
 
-                // End session if no participants remain
-                if participants.is_empty() {
-                    let _ = voice_repo::end_session(&state.db, *voice_session_id).await;
+                // Get remaining participants and broadcast authoritative state
+                if let Ok(participants) = voice_repo::get_participants(&state.db, *voice_session_id).await {
+                    conn_mgr.broadcast_to_channel(
+                        *channel_id,
+                        ServerMessage::VoiceStateUpdate {
+                            channel_id: *channel_id,
+                            participants: participants.clone(),
+                        },
+                    );
+
+                    if participants.is_empty() {
+                        let _ = voice_repo::end_session(&state.db, *voice_session_id).await;
+                    }
                 }
             }
+        }
+        Err(e) => {
+            tracing::warn!(%user_id, "Failed to clean up voice sessions on disconnect: {e}");
         }
     }
 
@@ -232,12 +275,27 @@ async fn handle_client_message(
                 }
             }
 
-            // For DM channels, block messages if users no longer share a community
+            // For DM channels, check blocks and shared community
             if channel.channel_type == ChannelType::Dm {
                 // Find the other user in this DM
                 if let Ok(members) = channel_repo::list_members(&state.db, channel_id).await {
                     for member in &members {
                         if member.user_id != user_id {
+                            // Check if either user has blocked the other
+                            if let Ok(true) = block_repo::is_blocked_either_way(
+                                &state.db,
+                                user_id,
+                                member.user_id,
+                            )
+                            .await
+                            {
+                                let _ = tx.send(ServerMessage::Error {
+                                    code: "blocked".to_string(),
+                                    message: "cannot send messages to this user".to_string(),
+                                });
+                                return;
+                            }
+
                             match community_repo::shares_community(
                                 &state.db,
                                 user_id,
@@ -443,6 +501,7 @@ async fn handle_client_message(
                 .await
                 .unwrap_or(false)
             {
+                conn_mgr.set_typing(channel_id, user_id);
                 conn_mgr.broadcast_to_channel(
                     channel_id,
                     ServerMessage::UserTyping {
@@ -458,6 +517,7 @@ async fn handle_client_message(
                 .await
                 .unwrap_or(false)
             {
+                conn_mgr.clear_typing(channel_id, user_id);
                 conn_mgr.broadcast_to_channel(
                     channel_id,
                     ServerMessage::UserStoppedTyping {
@@ -734,6 +794,17 @@ async fn handle_client_message(
                 }
             };
 
+            // Enforce 15-minute edit window
+            const EDIT_WINDOW_SECONDS: i64 = 900;
+            let age = (chrono::Utc::now() - msg_record.created_at).num_seconds();
+            if age > EDIT_WINDOW_SECONDS {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "messages can only be edited within 15 minutes".to_string(),
+                });
+                return;
+            }
+
             match message_repo::edit_message(
                 &state.db,
                 message_id,
@@ -781,7 +852,17 @@ async fn handle_client_message(
             // Look up the message to get the channel_id
             let msg_record = match message_repo::get_message_by_id(&state.db, message_id).await {
                 Ok(Some(m)) => m,
-                _ => return,
+                Ok(None) => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "not_found".to_string(),
+                        message: "message not found".to_string(),
+                    });
+                    return;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to look up message for reaction: {e}");
+                    return;
+                }
             };
 
             // Verify channel membership
@@ -789,42 +870,78 @@ async fn handle_client_message(
                 .await
                 .unwrap_or(false)
             {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "forbidden".to_string(),
+                    message: "not a member of this channel".to_string(),
+                });
                 return;
             }
 
-            if reaction_repo::add_reaction(&state.db, message_id, user_id, &emoji)
-                .await
-                .is_ok()
-            {
-                conn_mgr.broadcast_to_channel(
-                    msg_record.channel_id,
-                    ServerMessage::ReactionAdded {
-                        message_id,
-                        user_id,
-                        emoji,
-                    },
-                );
+            // Limit unique reactions per message (max 20)
+            const MAX_UNIQUE_REACTIONS: i64 = 20;
+            match reaction_repo::count_unique_reactions(&state.db, message_id).await {
+                Ok(count) if count >= MAX_UNIQUE_REACTIONS => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "validation_error".to_string(),
+                        message: "maximum number of reactions reached".to_string(),
+                    });
+                    return;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to count reactions: {e}");
+                    return;
+                }
+                _ => {}
+            }
+
+            match reaction_repo::add_reaction(&state.db, message_id, user_id, &emoji).await {
+                Ok(_) => {
+                    conn_mgr.broadcast_to_channel(
+                        msg_record.channel_id,
+                        ServerMessage::ReactionAdded {
+                            message_id,
+                            user_id,
+                            emoji,
+                        },
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Failed to add reaction: {e}");
+                }
             }
         }
 
         ClientMessage::RemoveReaction { message_id, emoji } => {
             let msg_record = match message_repo::get_message_by_id(&state.db, message_id).await {
                 Ok(Some(m)) => m,
-                _ => return,
+                Ok(None) => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "not_found".to_string(),
+                        message: "message not found".to_string(),
+                    });
+                    return;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to look up message for reaction removal: {e}");
+                    return;
+                }
             };
 
-            if reaction_repo::remove_reaction(&state.db, message_id, user_id, &emoji)
-                .await
-                .unwrap_or(false)
-            {
-                conn_mgr.broadcast_to_channel(
-                    msg_record.channel_id,
-                    ServerMessage::ReactionRemoved {
-                        message_id,
-                        user_id,
-                        emoji,
-                    },
-                );
+            match reaction_repo::remove_reaction(&state.db, message_id, user_id, &emoji).await {
+                Ok(true) => {
+                    conn_mgr.broadcast_to_channel(
+                        msg_record.channel_id,
+                        ServerMessage::ReactionRemoved {
+                            message_id,
+                            user_id,
+                            emoji,
+                        },
+                    );
+                }
+                Ok(false) => {} // reaction didn't exist, no-op
+                Err(e) => {
+                    tracing::error!("Failed to remove reaction: {e}");
+                }
             }
         }
 

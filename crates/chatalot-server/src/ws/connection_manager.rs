@@ -18,22 +18,31 @@ pub struct ConnectionManager {
     connections: DashMap<Uuid, Vec<SessionHandle>>,
     /// channel_id -> broadcast sender for real-time messages
     channel_senders: DashMap<Uuid, broadcast::Sender<ServerMessage>>,
+    /// (channel_id, user_id) -> last typing timestamp (for timeout cleanup)
+    typing_state: DashMap<(Uuid, Uuid), tokio::time::Instant>,
 }
+
+/// Maximum concurrent WebSocket sessions per user (multi-device support).
+const MAX_SESSIONS_PER_USER: usize = 8;
 
 impl ConnectionManager {
     pub fn new() -> Self {
         Self {
             connections: DashMap::new(),
             channel_senders: DashMap::new(),
+            typing_state: DashMap::new(),
         }
     }
 
     /// Register a new WebSocket session.
-    pub fn add_session(&self, handle: SessionHandle) {
-        self.connections
-            .entry(handle.user_id)
-            .or_default()
-            .push(handle);
+    /// Returns false if the user has too many active sessions.
+    pub fn add_session(&self, handle: SessionHandle) -> bool {
+        let mut entry = self.connections.entry(handle.user_id).or_default();
+        if entry.len() >= MAX_SESSIONS_PER_USER {
+            return false;
+        }
+        entry.push(handle);
+        true
     }
 
     /// Remove a WebSocket session.
@@ -93,5 +102,44 @@ impl ConnectionManager {
         let sender = self.get_channel_sender(channel_id);
         // Ignore error if no receivers (no one subscribed)
         let _ = sender.send(message);
+    }
+
+    /// Record that a user started typing in a channel.
+    pub fn set_typing(&self, channel_id: Uuid, user_id: Uuid) {
+        self.typing_state.insert((channel_id, user_id), tokio::time::Instant::now());
+    }
+
+    /// Clear typing state for a user in a channel.
+    pub fn clear_typing(&self, channel_id: Uuid, user_id: Uuid) {
+        self.typing_state.remove(&(channel_id, user_id));
+    }
+
+    /// Clear all typing state for a user (on disconnect).
+    pub fn clear_all_typing_for_user(&self, user_id: Uuid) -> Vec<Uuid> {
+        let mut channels = Vec::new();
+        self.typing_state.retain(|(ch_id, uid), _| {
+            if *uid == user_id {
+                channels.push(*ch_id);
+                false
+            } else {
+                true
+            }
+        });
+        channels
+    }
+
+    /// Remove typing entries older than the timeout and return them.
+    pub fn expire_typing(&self, timeout: std::time::Duration) -> Vec<(Uuid, Uuid)> {
+        let now = tokio::time::Instant::now();
+        let mut expired = Vec::new();
+        self.typing_state.retain(|(ch_id, uid), instant| {
+            if now.duration_since(*instant) > timeout {
+                expired.push((*ch_id, *uid));
+                false
+            } else {
+                true
+            }
+        });
+        expired
     }
 }

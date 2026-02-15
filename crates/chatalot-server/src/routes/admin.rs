@@ -6,10 +6,18 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    AdminUserMembership, AdminUserResponse, AdminUsersQuery, CreateRegistrationInviteRequest,
-    RegistrationInviteResponse, ResetPasswordRequest, SetAdminRequest, SuspendUserRequest,
+    AddBlockedHashRequest, AdminFileEntry, AdminFilesQuery, AdminFilesResponse,
+    AdminUserMembership, AdminUserResponse, AdminUsersQuery, AuditLogEntryResponse, AuditLogQuery,
+    AuditLogResponse, BlockedHashResponse, CreateRegistrationInviteRequest, PurgeParams,
+    PurgeResult, RegistrationInviteResponse, ReportResponse, ReportsQuery, ReportsResponse,
+    ResetPasswordRequest, ReviewReportRequest, SetAdminRequest, StorageStatsResponse,
+    SuspendUserRequest, UserStorageStatResponse,
 };
-use chatalot_db::repos::{registration_invite_repo, user_repo};
+use chatalot_db::models::file::FileRecord;
+use chatalot_db::repos::{
+    audit_repo, blocked_hash_repo, file_repo, message_repo, registration_invite_repo, report_repo,
+    user_repo,
+};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -50,6 +58,7 @@ struct UserMembershipRow {
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
+        // User management
         .route("/admin/users", get(list_users))
         .route("/admin/users/{id}/suspend", post(suspend_user))
         .route("/admin/users/{id}/unsuspend", post(unsuspend_user))
@@ -61,7 +70,45 @@ pub fn routes() -> Router<Arc<AppState>> {
             get(list_registration_invites).post(create_registration_invite),
         )
         .route("/admin/invites/{id}", delete(delete_registration_invite))
+        // Purge endpoints
+        .route("/admin/purge/message/{id}", post(purge_message))
+        .route(
+            "/admin/purge/user/{id}/messages",
+            post(purge_user_messages),
+        )
+        .route("/admin/purge/channel/{id}", post(purge_channel))
+        // File management
+        .route("/admin/files", get(list_all_files))
+        .route("/admin/files/{id}", delete(admin_delete_file))
+        .route("/admin/files/{id}/quarantine", post(quarantine_file))
+        .route("/admin/files/{id}/unquarantine", post(unquarantine_file))
+        .route("/admin/storage-stats", get(storage_stats))
+        // Message quarantine
+        .route(
+            "/admin/messages/{id}/quarantine",
+            post(quarantine_message),
+        )
+        .route(
+            "/admin/messages/{id}/unquarantine",
+            post(unquarantine_message),
+        )
+        // Hash blocklist
+        .route(
+            "/admin/blocked-hashes",
+            get(list_blocked_hashes).post(add_blocked_hash),
+        )
+        .route(
+            "/admin/blocked-hashes/{id}",
+            delete(remove_blocked_hash),
+        )
+        // Audit log
+        .route("/admin/audit-log", get(query_audit_log))
+        // Reports
+        .route("/admin/reports", get(list_reports))
+        .route("/admin/reports/{id}/review", post(review_report))
 }
+
+// ── User Management (existing) ──
 
 async fn list_users(
     State(state): State<Arc<AppState>>,
@@ -110,20 +157,26 @@ async fn list_users(
     let mut groups_by_user: std::collections::HashMap<Uuid, Vec<AdminUserMembership>> =
         std::collections::HashMap::new();
     for r in group_rows {
-        groups_by_user.entry(r.user_id).or_default().push(AdminUserMembership {
-            id: r.id,
-            name: r.name,
-            role: r.role,
-        });
+        groups_by_user
+            .entry(r.user_id)
+            .or_default()
+            .push(AdminUserMembership {
+                id: r.id,
+                name: r.name,
+                role: r.role,
+            });
     }
     let mut communities_by_user: std::collections::HashMap<Uuid, Vec<AdminUserMembership>> =
         std::collections::HashMap::new();
     for r in community_rows {
-        communities_by_user.entry(r.user_id).or_default().push(AdminUserMembership {
-            id: r.id,
-            name: r.name,
-            role: r.role,
-        });
+        communities_by_user
+            .entry(r.user_id)
+            .or_default()
+            .push(AdminUserMembership {
+                id: r.id,
+                name: r.name,
+                role: r.role,
+            });
     }
 
     let responses = users
@@ -360,7 +413,8 @@ async fn create_registration_invite(
         .collect();
 
     let expires_at = req.expires_in_hours.map(|h| {
-        chrono::Utc::now() + chrono::Duration::try_hours(h).unwrap_or(chrono::Duration::try_hours(24).unwrap())
+        chrono::Utc::now()
+            + chrono::Duration::try_hours(h).unwrap_or(chrono::Duration::try_hours(24).unwrap())
     });
 
     let invite = registration_invite_repo::create_invite(
@@ -422,4 +476,684 @@ async fn delete_registration_invite(
     }
 
     Ok(())
+}
+
+// ── Purge Endpoints ──
+
+/// Helper: delete file blobs from disk, return count of successful deletions.
+async fn delete_files_from_disk(files: &[FileRecord]) -> u64 {
+    let mut count = 0u64;
+    for file in files {
+        if tokio::fs::remove_file(&file.storage_path).await.is_ok() {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Helper: optionally block file hashes and return count of hashes blocked.
+async fn maybe_block_hashes(
+    db: &sqlx::PgPool,
+    files: &[FileRecord],
+    block: bool,
+    blocked_by: Uuid,
+) -> u64 {
+    if !block {
+        return 0;
+    }
+    let mut count = 0u64;
+    for file in files {
+        if blocked_hash_repo::add_blocked_hash(
+            db,
+            Uuid::now_v7(),
+            &file.checksum,
+            Some("auto-blocked via admin purge"),
+            blocked_by,
+        )
+        .await
+        .is_ok()
+        {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Hard-delete a single message and its sender's files from disk.
+async fn purge_message(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(message_id): Path<Uuid>,
+    Query(params): Query<PurgeParams>,
+) -> Result<Json<PurgeResult>, AppError> {
+    require_admin(&claims)?;
+
+    let block_hashes = params.block_hashes.unwrap_or(false);
+
+    // Get message info before deletion
+    let msg = message_repo::get_message_by_id(&state.db, message_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("message not found".to_string()))?;
+
+    // Hard-delete the message
+    message_repo::hard_delete_message(&state.db, message_id).await?;
+
+    // Note: single message purge does not auto-delete files because the server
+    // can't know which file the message references (E2E encrypted content).
+    // Use the file purge endpoints separately.
+
+    // Audit log
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_purge_message",
+        None,
+        None,
+        Some(serde_json::json!({
+            "message_id": message_id,
+            "channel_id": msg.channel_id,
+            "block_hashes": block_hashes,
+        })),
+    )
+    .await?;
+
+    Ok(Json(PurgeResult {
+        messages_deleted: 1,
+        files_deleted: 0,
+        hashes_blocked: 0,
+    }))
+}
+
+/// Hard-delete ALL messages from a user + all their uploaded files.
+async fn purge_user_messages(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(user_id): Path<Uuid>,
+    Query(params): Query<PurgeParams>,
+) -> Result<Json<PurgeResult>, AppError> {
+    require_admin(&claims)?;
+
+    let block_hashes = params.block_hashes.unwrap_or(false);
+
+    // Get all files uploaded by this user (before deleting DB records)
+    let files = file_repo::list_all_user_files(&state.db, user_id).await?;
+
+    // Optionally block hashes
+    let hashes_blocked = maybe_block_hashes(&state.db, &files, block_hashes, claims.sub).await;
+
+    // Delete files from disk
+    let files_deleted = delete_files_from_disk(&files).await;
+
+    // Delete file DB records
+    file_repo::delete_all_user_files(&state.db, user_id).await?;
+
+    // Hard-delete all messages
+    let messages_deleted = message_repo::hard_delete_user_messages(&state.db, user_id).await?;
+
+    // Audit log
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_purge_user_messages",
+        None,
+        None,
+        Some(serde_json::json!({
+            "target_user_id": user_id,
+            "messages_deleted": messages_deleted,
+            "files_deleted": files_deleted,
+            "hashes_blocked": hashes_blocked,
+        })),
+    )
+    .await?;
+
+    Ok(Json(PurgeResult {
+        messages_deleted,
+        files_deleted,
+        hashes_blocked,
+    }))
+}
+
+/// Hard-delete ALL messages in a channel + associated files.
+async fn purge_channel(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(channel_id): Path<Uuid>,
+    Query(params): Query<PurgeParams>,
+) -> Result<Json<PurgeResult>, AppError> {
+    require_admin(&claims)?;
+
+    let block_hashes = params.block_hashes.unwrap_or(false);
+
+    // Get all files in this channel
+    let files = file_repo::list_channel_files(&state.db, channel_id).await?;
+
+    // Optionally block hashes
+    let hashes_blocked = maybe_block_hashes(&state.db, &files, block_hashes, claims.sub).await;
+
+    // Delete files from disk
+    let files_deleted = delete_files_from_disk(&files).await;
+
+    // Delete file DB records
+    file_repo::delete_channel_files(&state.db, channel_id).await?;
+
+    // Hard-delete all messages
+    let messages_deleted =
+        message_repo::hard_delete_channel_messages(&state.db, channel_id).await?;
+
+    // Audit log
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_purge_channel",
+        None,
+        None,
+        Some(serde_json::json!({
+            "channel_id": channel_id,
+            "messages_deleted": messages_deleted,
+            "files_deleted": files_deleted,
+            "hashes_blocked": hashes_blocked,
+        })),
+    )
+    .await?;
+
+    Ok(Json(PurgeResult {
+        messages_deleted,
+        files_deleted,
+        hashes_blocked,
+    }))
+}
+
+// ── File Management ──
+
+/// List all files (admin browser) with pagination and sorting.
+async fn list_all_files(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Query(query): Query<AdminFilesQuery>,
+) -> Result<Json<AdminFilesResponse>, AppError> {
+    require_admin(&claims)?;
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+    let sort = query.sort.as_deref().unwrap_or("date");
+
+    let total = file_repo::count_files(&state.db, query.user_id).await?;
+    let files =
+        file_repo::list_all_files(&state.db, query.user_id, sort, per_page, offset).await?;
+
+    let entries = files
+        .into_iter()
+        .map(|f| AdminFileEntry {
+            id: f.id,
+            uploader_id: f.uploader_id,
+            encrypted_name: f.encrypted_name,
+            size_bytes: f.size_bytes,
+            content_type: f.content_type,
+            checksum: f.checksum,
+            channel_id: f.channel_id,
+            quarantined_at: f.quarantined_at.map(|t| t.to_rfc3339()),
+            quarantined_by: f.quarantined_by,
+            created_at: f.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(AdminFilesResponse {
+        files: entries,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+/// Admin delete any file + optional hash blocking.
+async fn admin_delete_file(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(file_id): Path<Uuid>,
+    Query(params): Query<PurgeParams>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    let record = file_repo::get_file(&state.db, file_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("file not found".to_string()))?;
+
+    // Optionally block the hash
+    if params.block_hashes.unwrap_or(false) {
+        let _ = blocked_hash_repo::add_blocked_hash(
+            &state.db,
+            Uuid::now_v7(),
+            &record.checksum,
+            Some("blocked via admin file delete"),
+            claims.sub,
+        )
+        .await;
+    }
+
+    // Delete from disk
+    if let Err(e) = tokio::fs::remove_file(&record.storage_path).await {
+        tracing::warn!(
+            "Failed to delete file from disk {}: {e}",
+            record.storage_path
+        );
+    }
+
+    // Delete from DB
+    file_repo::delete_file_admin(&state.db, file_id).await?;
+
+    // Audit log
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_delete_file",
+        None,
+        None,
+        Some(serde_json::json!({
+            "file_id": file_id,
+            "uploader_id": record.uploader_id,
+            "checksum": record.checksum,
+        })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Get storage statistics.
+async fn storage_stats(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<StorageStatsResponse>, AppError> {
+    require_admin(&claims)?;
+
+    let stats = file_repo::storage_stats(&state.db).await?;
+    let total_files: i64 = stats.iter().map(|s| s.file_count).sum();
+    let total_bytes: i64 = stats.iter().map(|s| s.total_bytes).sum();
+
+    let per_user = stats
+        .into_iter()
+        .map(|s| UserStorageStatResponse {
+            user_id: s.uploader_id,
+            file_count: s.file_count,
+            total_bytes: s.total_bytes,
+        })
+        .collect();
+
+    Ok(Json(StorageStatsResponse {
+        total_files,
+        total_bytes,
+        per_user,
+    }))
+}
+
+// ── Quarantine ──
+
+/// Quarantine a file (hide from downloads, preserve for evidence).
+async fn quarantine_file(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(file_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    let updated = file_repo::quarantine_file(&state.db, file_id, claims.sub).await?;
+    if !updated {
+        return Err(AppError::NotFound(
+            "file not found or already quarantined".to_string(),
+        ));
+    }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_quarantine_file",
+        None,
+        None,
+        Some(serde_json::json!({ "file_id": file_id })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Lift quarantine from a file.
+async fn unquarantine_file(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(file_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    let updated = file_repo::unquarantine_file(&state.db, file_id).await?;
+    if !updated {
+        return Err(AppError::NotFound(
+            "file not found or not quarantined".to_string(),
+        ));
+    }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_unquarantine_file",
+        None,
+        None,
+        Some(serde_json::json!({ "file_id": file_id })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Quarantine a message (hide from channel, preserve for evidence).
+async fn quarantine_message(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(message_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    let updated = message_repo::quarantine_message(&state.db, message_id, claims.sub).await?;
+    if !updated {
+        return Err(AppError::NotFound(
+            "message not found or already quarantined".to_string(),
+        ));
+    }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_quarantine_message",
+        None,
+        None,
+        Some(serde_json::json!({ "message_id": message_id })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Lift quarantine from a message.
+async fn unquarantine_message(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(message_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    let updated = message_repo::unquarantine_message(&state.db, message_id).await?;
+    if !updated {
+        return Err(AppError::NotFound(
+            "message not found or not quarantined".to_string(),
+        ));
+    }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_unquarantine_message",
+        None,
+        None,
+        Some(serde_json::json!({ "message_id": message_id })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+// ── Hash Blocklist ──
+
+/// List blocked hashes.
+async fn list_blocked_hashes(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Query(query): Query<AdminFilesQuery>,
+) -> Result<Json<Vec<BlockedHashResponse>>, AppError> {
+    require_admin(&claims)?;
+
+    let limit = query.per_page.unwrap_or(50).min(100);
+    let page = query.page.unwrap_or(1).max(1);
+    let offset = (page - 1) * limit;
+
+    let hashes = blocked_hash_repo::list_blocked_hashes(&state.db, limit, offset).await?;
+
+    let responses = hashes
+        .into_iter()
+        .map(|h| BlockedHashResponse {
+            id: h.id,
+            hash: h.hash,
+            reason: h.reason,
+            blocked_by: h.blocked_by,
+            created_at: h.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(responses))
+}
+
+/// Add a hash to the blocklist.
+async fn add_blocked_hash(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(req): Json<AddBlockedHashRequest>,
+) -> Result<Json<BlockedHashResponse>, AppError> {
+    require_admin(&claims)?;
+
+    if req.hash.len() != 64 {
+        return Err(AppError::Validation(
+            "hash must be a 64-character hex SHA256".to_string(),
+        ));
+    }
+
+    let record = blocked_hash_repo::add_blocked_hash(
+        &state.db,
+        Uuid::now_v7(),
+        &req.hash,
+        req.reason.as_deref(),
+        claims.sub,
+    )
+    .await?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_block_hash",
+        None,
+        None,
+        Some(serde_json::json!({
+            "hash": req.hash,
+            "reason": req.reason,
+        })),
+    )
+    .await?;
+
+    Ok(Json(BlockedHashResponse {
+        id: record.id,
+        hash: record.hash,
+        reason: record.reason,
+        blocked_by: record.blocked_by,
+        created_at: record.created_at.to_rfc3339(),
+    }))
+}
+
+/// Remove a hash from the blocklist.
+async fn remove_blocked_hash(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(hash_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    require_admin(&claims)?;
+
+    let deleted = blocked_hash_repo::remove_blocked_hash(&state.db, hash_id).await?;
+    if !deleted {
+        return Err(AppError::NotFound("blocked hash not found".to_string()));
+    }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "admin_unblock_hash",
+        None,
+        None,
+        Some(serde_json::json!({ "hash_id": hash_id })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+// ── Audit Log ──
+
+/// Query audit log with optional filters.
+async fn query_audit_log(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Query(query): Query<AuditLogQuery>,
+) -> Result<Json<AuditLogResponse>, AppError> {
+    require_admin(&claims)?;
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+
+    let total = audit_repo::count_audit_log(
+        &state.db,
+        query.action.as_deref(),
+        query.user_id,
+    )
+    .await?;
+
+    let entries = audit_repo::query_audit_log(
+        &state.db,
+        query.action.as_deref(),
+        query.user_id,
+        per_page,
+        offset,
+    )
+    .await?;
+
+    let responses = entries
+        .into_iter()
+        .map(|e| AuditLogEntryResponse {
+            id: e.id,
+            user_id: e.user_id,
+            action: e.action,
+            ip_address: e.ip_address,
+            user_agent: e.user_agent,
+            metadata: e.metadata,
+            created_at: e.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(AuditLogResponse {
+        entries: responses,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+// ── Reports ──
+
+/// List reports with optional status filter and pagination.
+async fn list_reports(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Query(query): Query<ReportsQuery>,
+) -> Result<Json<ReportsResponse>, AppError> {
+    require_admin(&claims)?;
+
+    let page = query.page.unwrap_or(1).max(1);
+    let per_page = query.per_page.unwrap_or(50).min(100);
+    let offset = (page - 1) * per_page;
+
+    let total = report_repo::count_reports(&state.db, query.status.as_deref()).await?;
+    let reports =
+        report_repo::list_reports(&state.db, query.status.as_deref(), per_page, offset).await?;
+
+    let responses = reports
+        .into_iter()
+        .map(|r| ReportResponse {
+            id: r.id,
+            reporter_id: r.reporter_id,
+            report_type: r.report_type,
+            target_id: r.target_id,
+            reason: r.reason,
+            status: r.status,
+            reviewed_by: r.reviewed_by,
+            reviewed_at: r.reviewed_at.map(|t| t.to_rfc3339()),
+            admin_notes: r.admin_notes,
+            created_at: r.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(ReportsResponse {
+        reports: responses,
+        total,
+        page,
+        per_page,
+    }))
+}
+
+/// Review a report (change status, add admin notes).
+async fn review_report(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(report_id): Path<Uuid>,
+    Json(req): Json<ReviewReportRequest>,
+) -> Result<Json<ReportResponse>, AppError> {
+    require_admin(&claims)?;
+
+    if !["reviewed", "resolved", "dismissed"].contains(&req.status.as_str()) {
+        return Err(AppError::Validation(
+            "status must be 'reviewed', 'resolved', or 'dismissed'".to_string(),
+        ));
+    }
+
+    let report = report_repo::review_report(
+        &state.db,
+        report_id,
+        claims.sub,
+        &req.status,
+        req.admin_notes.as_deref(),
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("report not found".to_string()))?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "report_reviewed",
+        None,
+        None,
+        Some(serde_json::json!({
+            "report_id": report_id,
+            "new_status": req.status,
+        })),
+    )
+    .await?;
+
+    Ok(Json(ReportResponse {
+        id: report.id,
+        reporter_id: report.reporter_id,
+        report_type: report.report_type,
+        target_id: report.target_id,
+        reason: report.reason,
+        status: report.status,
+        reviewed_by: report.reviewed_by,
+        reviewed_at: report.reviewed_at.map(|t| t.to_rfc3339()),
+        admin_notes: report.admin_notes,
+        created_at: report.created_at.to_rfc3339(),
+    }))
 }

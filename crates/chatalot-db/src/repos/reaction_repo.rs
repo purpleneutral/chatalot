@@ -82,6 +82,20 @@ pub async fn get_reaction_counts(
     .await
 }
 
+/// Count distinct emoji types on a message.
+pub async fn count_unique_reactions(
+    pool: &PgPool,
+    message_id: Uuid,
+) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(DISTINCT emoji) FROM reactions WHERE message_id = $1",
+    )
+    .bind(message_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
 /// Get reactions for multiple messages at once, grouped by message_id and emoji.
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct MessageReactionCount {

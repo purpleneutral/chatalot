@@ -440,6 +440,107 @@ pub struct AdminUsersQuery {
     pub offset: Option<i64>,
 }
 
+// ── Admin Security Suite ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PurgeParams {
+    #[serde(default)]
+    pub block_hashes: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PurgeResult {
+    pub messages_deleted: u64,
+    pub files_deleted: u64,
+    pub hashes_blocked: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdminFilesQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub user_id: Option<Uuid>,
+    pub sort: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdminFileEntry {
+    pub id: Uuid,
+    pub uploader_id: Uuid,
+    pub encrypted_name: String,
+    pub size_bytes: i64,
+    pub content_type: Option<String>,
+    pub checksum: String,
+    pub channel_id: Option<Uuid>,
+    pub quarantined_at: Option<String>,
+    pub quarantined_by: Option<Uuid>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdminFilesResponse {
+    pub files: Vec<AdminFileEntry>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StorageStatsResponse {
+    pub total_files: i64,
+    pub total_bytes: i64,
+    pub per_user: Vec<UserStorageStatResponse>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserStorageStatResponse {
+    pub user_id: Uuid,
+    pub file_count: i64,
+    pub total_bytes: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddBlockedHashRequest {
+    pub hash: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BlockedHashResponse {
+    pub id: Uuid,
+    pub hash: String,
+    pub reason: Option<String>,
+    pub blocked_by: Uuid,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditLogQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+    pub action: Option<String>,
+    pub user_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditLogResponse {
+    pub entries: Vec<AuditLogEntryResponse>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditLogEntryResponse {
+    pub id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub action: String,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+    pub created_at: String,
+}
+
 // ── Registration Invites (server-wide) ──
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -475,6 +576,7 @@ pub struct HealthResponse {
     pub status: String,
     pub version: String,
     pub uptime_secs: u64,
+    pub db_healthy: bool,
 }
 
 // ── Communities ──
@@ -640,4 +742,61 @@ pub struct GifResult {
 pub struct GifSearchResponse {
     pub results: Vec<GifResult>,
     pub next: Option<String>,
+}
+
+// ── User Blocking ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BlockUserRequest {
+    pub user_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BlockedUserResponse {
+    pub blocked_id: Uuid,
+    pub created_at: String,
+}
+
+// ── Content Reports ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateReportRequest {
+    pub report_type: String,
+    pub target_id: Uuid,
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReportResponse {
+    pub id: Uuid,
+    pub reporter_id: Uuid,
+    pub report_type: String,
+    pub target_id: Uuid,
+    pub reason: String,
+    pub status: String,
+    pub reviewed_by: Option<Uuid>,
+    pub reviewed_at: Option<String>,
+    pub admin_notes: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReportsQuery {
+    pub status: Option<String>,
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReportsResponse {
+    pub reports: Vec<ReportResponse>,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReviewReportRequest {
+    pub status: String,
+    pub admin_notes: Option<String>,
 }

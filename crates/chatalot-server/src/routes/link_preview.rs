@@ -5,6 +5,7 @@ use axum::extract::Query;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use dashmap::DashMap;
+use regex::Regex;
 use std::sync::Arc;
 
 use chatalot_common::api_types::{LinkPreviewQuery, LinkPreviewResponse};
@@ -21,6 +22,23 @@ struct CacheEntry {
 static PREVIEW_CACHE: LazyLock<DashMap<String, CacheEntry>> = LazyLock::new(DashMap::new);
 const CACHE_TTL: Duration = Duration::from_secs(3600);
 const MAX_CACHE_SIZE: usize = 1000;
+
+// Pre-compiled regexes for OG metadata parsing (avoids repeated compilation and unwrap panics)
+static META_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"<meta\s+[^>]*?(?:property|name)=["']([^"']+)["'][^>]*?content=["']([^"']*)["']"#,
+    )
+    .expect("META_RE is a valid regex")
+});
+static META_RE2: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"<meta\s+[^>]*?content=["']([^"']*)["'][^>]*?(?:property|name)=["']([^"']+)["']"#,
+    )
+    .expect("META_RE2 is a valid regex")
+});
+static TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"<title[^>]*>([^<]+)</title>").expect("TITLE_RE is a valid regex")
+});
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new().route("/link-preview", get(get_link_preview))
@@ -132,19 +150,7 @@ fn parse_og_metadata(html: &str, url: &str) -> LinkPreviewResponse {
     let mut image = None;
     let mut site_name = None;
 
-    // Match <meta property="og:..." content="..."> (property before content)
-    let meta_re = regex::Regex::new(
-        r#"<meta\s+[^>]*?(?:property|name)=["']([^"']+)["'][^>]*?content=["']([^"']*)["']"#,
-    )
-    .unwrap();
-
-    // Match <meta content="..." property="og:..."> (content before property)
-    let meta_re2 = regex::Regex::new(
-        r#"<meta\s+[^>]*?content=["']([^"']*)["'][^>]*?(?:property|name)=["']([^"']+)["']"#,
-    )
-    .unwrap();
-
-    for cap in meta_re.captures_iter(html) {
+    for cap in META_RE.captures_iter(html) {
         let prop = cap[1].to_lowercase();
         let content = html_escape::decode_html_entities(&cap[2]).to_string();
         match prop.as_str() {
@@ -157,7 +163,7 @@ fn parse_og_metadata(html: &str, url: &str) -> LinkPreviewResponse {
         }
     }
 
-    for cap in meta_re2.captures_iter(html) {
+    for cap in META_RE2.captures_iter(html) {
         let content = html_escape::decode_html_entities(&cap[1]).to_string();
         let prop = cap[2].to_lowercase();
         match prop.as_str() {
@@ -171,11 +177,10 @@ fn parse_og_metadata(html: &str, url: &str) -> LinkPreviewResponse {
     }
 
     // Fallback: extract <title> tag
-    if title.is_none() {
-        let title_re = regex::Regex::new(r"<title[^>]*>([^<]+)</title>").unwrap();
-        if let Some(cap) = title_re.captures(html) {
-            title = Some(html_escape::decode_html_entities(&cap[1]).to_string());
-        }
+    if title.is_none()
+        && let Some(cap) = TITLE_RE.captures(html)
+    {
+        title = Some(html_escape::decode_html_entities(&cap[1]).to_string());
     }
 
     // Make relative image URLs absolute

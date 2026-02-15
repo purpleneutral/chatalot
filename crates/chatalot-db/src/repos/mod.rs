@@ -1,3 +1,7 @@
+pub mod audit_repo;
+pub mod block_repo;
+pub mod blocked_hash_repo;
+pub mod report_repo;
 pub mod channel_repo;
 pub mod community_repo;
 pub mod dm_repo;

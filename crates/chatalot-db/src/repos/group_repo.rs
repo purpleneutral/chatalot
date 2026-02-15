@@ -312,6 +312,20 @@ pub async fn get_member_count(
     Ok(row.0)
 }
 
+/// Get member counts for multiple groups in a single query.
+pub async fn get_member_counts(
+    pool: &PgPool,
+    group_ids: &[Uuid],
+) -> Result<std::collections::HashMap<Uuid, i64>, sqlx::Error> {
+    let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+        "SELECT group_id, COUNT(*) FROM group_members WHERE group_id = ANY($1) GROUP BY group_id",
+    )
+    .bind(group_ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
 /// List all groups (for discovery/browsing).
 pub async fn list_all_groups(pool: &PgPool) -> Result<Vec<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>("SELECT * FROM groups ORDER BY name ASC")

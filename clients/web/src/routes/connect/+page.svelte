@@ -93,7 +93,7 @@
 					required
 					placeholder="https://chat.example.com"
 					autofocus
-					class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+					class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 				/>
 				<p class="mt-1 text-xs text-[var(--text-secondary)]">
 					Enter the URL of the Chatalot server you want to connect to.

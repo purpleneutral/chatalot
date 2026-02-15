@@ -265,6 +265,20 @@ pub async fn get_community_member_count(
     Ok(row.0)
 }
 
+/// Get member counts for multiple communities in a single query.
+pub async fn get_community_member_counts(
+    pool: &PgPool,
+    community_ids: &[Uuid],
+) -> Result<std::collections::HashMap<Uuid, i64>, sqlx::Error> {
+    let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+        "SELECT community_id, COUNT(*) FROM community_members WHERE community_id = ANY($1) GROUP BY community_id",
+    )
+    .bind(community_ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
 pub async fn set_community_member_role(
     pool: &PgPool,
     community_id: Uuid,

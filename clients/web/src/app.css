@@ -40,23 +40,32 @@ body {
 	min-height: 100vh;
 }
 
-/* Override Tailwind's white/10 and white/5 for theme-aware borders */
+/* Override Tailwind's white/N classes for light theme visibility */
 [data-theme='light'] .border-white\/10 {
 	border-color: var(--border);
 }
 [data-theme='light'] .hover\:bg-white\/5:hover {
-	background-color: var(--hover);
+	background-color: rgba(0, 0, 0, 0.06);
 }
 [data-theme='light'] .hover\:bg-white\/10:hover {
-	background-color: rgba(0, 0, 0, 0.08);
+	background-color: rgba(0, 0, 0, 0.1);
 }
 [data-theme='light'] .bg-white\/10 {
 	background-color: rgba(0, 0, 0, 0.06);
 }
+[data-theme='light'] .bg-white\/5 {
+	background-color: rgba(0, 0, 0, 0.03);
+}
 [data-theme='light'] .hover\:bg-white\/\[0\.02\]:hover {
-	background-color: rgba(0, 0, 0, 0.02);
+	background-color: rgba(0, 0, 0, 0.03);
 }
 [data-theme='light'] .border-white\/20 {
+	border-color: rgba(0, 0, 0, 0.15);
+}
+[data-theme='light'] .hover\:text-white:hover {
+	color: var(--text-primary);
+}
+[data-theme='light'] .border-dashed.border-white\/10 {
 	border-color: rgba(0, 0, 0, 0.15);
 }
 
@@ -348,6 +357,39 @@ body {
 	.sidebar-width {
 		width: 80vw;
 		max-width: 300px;
+	}
+}
+
+/* ── Message highlight animation (jump-to-message) ── */
+@keyframes message-highlight {
+	0% { background-color: rgba(124, 58, 237, 0.25); }
+	100% { background-color: transparent; }
+}
+.msg-highlight {
+	animation: message-highlight 2s ease-out forwards;
+	border-radius: 6px;
+}
+[data-theme='light'] .msg-highlight {
+	animation-name: message-highlight-light;
+}
+@keyframes message-highlight-light {
+	0% { background-color: rgba(109, 40, 217, 0.15); }
+	100% { background-color: transparent; }
+}
+
+/* ── Message hover action bar ── */
+.msg-actions {
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.1s ease;
+}
+.chat-message-row:hover .msg-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+@media (hover: none) {
+	.msg-actions {
+		display: none !important;
 	}
 }
 

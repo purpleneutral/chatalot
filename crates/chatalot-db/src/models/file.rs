@@ -12,6 +12,8 @@ pub struct FileRecord {
     pub storage_path: String,
     pub checksum: String,
     pub channel_id: Option<Uuid>,
+    pub quarantined_at: Option<DateTime<Utc>>,
+    pub quarantined_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
 

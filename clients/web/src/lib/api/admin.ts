@@ -92,3 +92,213 @@ export async function listRegistrationInvites(): Promise<RegistrationInvite[]> {
 export async function deleteRegistrationInvite(id: string): Promise<void> {
 	return api.delete(`/admin/invites/${id}`);
 }
+
+// ── File Management ──
+
+export interface AdminFileEntry {
+	id: string;
+	uploader_id: string;
+	encrypted_name: string;
+	size_bytes: number;
+	content_type: string | null;
+	checksum: string;
+	channel_id: string | null;
+	quarantined_at: string | null;
+	quarantined_by: string | null;
+	created_at: string;
+}
+
+export interface AdminFilesResponse {
+	files: AdminFileEntry[];
+	total: number;
+	page: number;
+	per_page: number;
+}
+
+export async function listFiles(params?: {
+	page?: number;
+	per_page?: number;
+	user_id?: string;
+	sort?: string;
+}): Promise<AdminFilesResponse> {
+	const query = new URLSearchParams();
+	if (params?.page) query.set('page', String(params.page));
+	if (params?.per_page) query.set('per_page', String(params.per_page));
+	if (params?.user_id) query.set('user_id', params.user_id);
+	if (params?.sort) query.set('sort', params.sort);
+	const qs = query.toString();
+	return api.get(`/admin/files${qs ? `?${qs}` : ''}`);
+}
+
+export async function adminDeleteFile(fileId: string, blockHash = false): Promise<void> {
+	const qs = blockHash ? '?block_hashes=true' : '';
+	return api.delete(`/admin/files/${fileId}${qs}`);
+}
+
+export async function quarantineFile(fileId: string): Promise<void> {
+	return api.post(`/admin/files/${fileId}/quarantine`, {});
+}
+
+export async function unquarantineFile(fileId: string): Promise<void> {
+	return api.post(`/admin/files/${fileId}/unquarantine`, {});
+}
+
+// ── Storage Stats ──
+
+export interface UserStorageStat {
+	user_id: string;
+	file_count: number;
+	total_bytes: number;
+}
+
+export interface StorageStats {
+	total_files: number;
+	total_bytes: number;
+	per_user: UserStorageStat[];
+}
+
+export async function getStorageStats(): Promise<StorageStats> {
+	return api.get('/admin/storage-stats');
+}
+
+// ── Purge Endpoints ──
+
+export interface PurgeResult {
+	messages_deleted: number;
+	files_deleted: number;
+	hashes_blocked: number;
+}
+
+export async function purgeMessage(messageId: string, blockHashes = false): Promise<PurgeResult> {
+	const qs = blockHashes ? '?block_hashes=true' : '';
+	return api.post(`/admin/purge/message/${messageId}${qs}`, {});
+}
+
+export async function purgeUserMessages(userId: string, blockHashes = false): Promise<PurgeResult> {
+	const qs = blockHashes ? '?block_hashes=true' : '';
+	return api.post(`/admin/purge/user/${userId}/messages${qs}`, {});
+}
+
+export async function purgeChannel(channelId: string, blockHashes = false): Promise<PurgeResult> {
+	const qs = blockHashes ? '?block_hashes=true' : '';
+	return api.post(`/admin/purge/channel/${channelId}${qs}`, {});
+}
+
+// ── Message Quarantine ──
+
+export async function quarantineMessage(messageId: string): Promise<void> {
+	return api.post(`/admin/messages/${messageId}/quarantine`, {});
+}
+
+export async function unquarantineMessage(messageId: string): Promise<void> {
+	return api.post(`/admin/messages/${messageId}/unquarantine`, {});
+}
+
+// ── Blocked Hashes ──
+
+export interface BlockedHash {
+	id: string;
+	hash: string;
+	reason: string | null;
+	blocked_by: string;
+	created_at: string;
+}
+
+export async function listBlockedHashes(params?: {
+	page?: number;
+	per_page?: number;
+}): Promise<BlockedHash[]> {
+	const query = new URLSearchParams();
+	if (params?.page) query.set('page', String(params.page));
+	if (params?.per_page) query.set('per_page', String(params.per_page));
+	const qs = query.toString();
+	return api.get(`/admin/blocked-hashes${qs ? `?${qs}` : ''}`);
+}
+
+export async function addBlockedHash(hash: string, reason?: string): Promise<BlockedHash> {
+	return api.post('/admin/blocked-hashes', { hash, reason: reason ?? null });
+}
+
+export async function removeBlockedHash(id: string): Promise<void> {
+	return api.delete(`/admin/blocked-hashes/${id}`);
+}
+
+// ── Audit Log ──
+
+export interface AuditLogEntry {
+	id: string;
+	user_id: string | null;
+	action: string;
+	ip_address: string | null;
+	user_agent: string | null;
+	metadata: Record<string, unknown> | null;
+	created_at: string;
+}
+
+export interface AuditLogResponse {
+	entries: AuditLogEntry[];
+	total: number;
+	page: number;
+	per_page: number;
+}
+
+export async function getAuditLog(params?: {
+	page?: number;
+	per_page?: number;
+	action?: string;
+	user_id?: string;
+}): Promise<AuditLogResponse> {
+	const query = new URLSearchParams();
+	if (params?.page) query.set('page', String(params.page));
+	if (params?.per_page) query.set('per_page', String(params.per_page));
+	if (params?.action) query.set('action', params.action);
+	if (params?.user_id) query.set('user_id', params.user_id);
+	const qs = query.toString();
+	return api.get(`/admin/audit-log${qs ? `?${qs}` : ''}`);
+}
+
+// ── Reports ──
+
+export interface Report {
+	id: string;
+	reporter_id: string;
+	report_type: string;
+	target_id: string;
+	reason: string;
+	status: string;
+	reviewed_by: string | null;
+	reviewed_at: string | null;
+	admin_notes: string | null;
+	created_at: string;
+}
+
+export interface ReportsResponse {
+	reports: Report[];
+	total: number;
+	page: number;
+	per_page: number;
+}
+
+export async function listReports(params?: {
+	status?: string;
+	page?: number;
+	per_page?: number;
+}): Promise<ReportsResponse> {
+	const query = new URLSearchParams();
+	if (params?.status) query.set('status', params.status);
+	if (params?.page) query.set('page', String(params.page));
+	if (params?.per_page) query.set('per_page', String(params.per_page));
+	const qs = query.toString();
+	return api.get(`/admin/reports${qs ? `?${qs}` : ''}`);
+}
+
+export async function reviewReport(
+	reportId: string,
+	status: string,
+	adminNotes?: string
+): Promise<Report> {
+	return api.post(`/admin/reports/${reportId}/review`, {
+		status,
+		admin_notes: adminNotes ?? null
+	});
+}

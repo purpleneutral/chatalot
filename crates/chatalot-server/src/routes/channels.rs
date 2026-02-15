@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use chatalot_common::api_types::{
     BanRequest, ChannelMemberResponse, ChannelResponse, CreateChannelRequest,
-    TransferOwnershipRequest, UpdateRoleRequest,
+    TransferOwnershipRequest, UpdateChannelRequest, UpdateRoleRequest,
 };
 use chatalot_db::models::channel::ChannelType;
 use chatalot_db::repos::{channel_repo, sender_key_repo, unread_repo};
@@ -21,7 +21,7 @@ use crate::permissions;
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/channels", get(list_channels).post(create_channel))
-        .route("/channels/{id}", get(get_channel))
+        .route("/channels/{id}", get(get_channel).patch(update_channel))
         .route("/channels/{id}/join", post(join_channel))
         .route("/channels/{id}/leave", post(leave_channel))
         .route("/channels/{id}/members", get(list_channel_members))
@@ -65,6 +65,14 @@ async fn create_channel(
         ));
     }
 
+    if let Some(ref topic) = req.topic
+        && topic.len() > 512
+    {
+        return Err(AppError::Validation(
+            "topic must be at most 512 characters".to_string(),
+        ));
+    }
+
     let id = Uuid::now_v7();
     let channel = channel_repo::create_channel(
         &state.db,
@@ -101,6 +109,59 @@ async fn get_channel(
     let channel = channel_repo::get_channel(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
+
+    Ok(Json(channel_to_response(&channel)))
+}
+
+async fn update_channel(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateChannelRequest>,
+) -> Result<Json<ChannelResponse>, AppError> {
+    // Must be channel owner or admin to update
+    let role = channel_repo::get_member_role(&state.db, id, claims.sub)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if !permissions::can_manage_roles(&role) {
+        return Err(AppError::Forbidden);
+    }
+
+    if let Some(ref name) = req.name
+        && (name.is_empty() || name.len() > 64)
+    {
+        return Err(AppError::Validation(
+            "channel name must be 1-64 characters".to_string(),
+        ));
+    }
+
+    if let Some(ref topic) = req.topic
+        && topic.len() > 512
+    {
+        return Err(AppError::Validation(
+            "topic must be at most 512 characters".to_string(),
+        ));
+    }
+
+    if let Some(sms) = req.slow_mode_seconds
+        && !(0..=86400).contains(&sms)
+    {
+        return Err(AppError::Validation(
+            "slow_mode_seconds must be between 0 and 86400".to_string(),
+        ));
+    }
+
+    let channel = channel_repo::update_channel(
+        &state.db,
+        id,
+        req.name.as_deref(),
+        req.topic.as_deref(),
+        req.read_only,
+        req.slow_mode_seconds,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
 
     Ok(Json(channel_to_response(&channel)))
 }

@@ -34,13 +34,13 @@ pub async fn create_message(
     .await
 }
 
-/// Count messages in a channel (excluding deleted).
+/// Count messages in a channel (excluding deleted and quarantined).
 pub async fn count_messages(
     pool: &PgPool,
     channel_id: Uuid,
 ) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM messages WHERE channel_id = $1 AND deleted_at IS NULL",
+        "SELECT COUNT(*) FROM messages WHERE channel_id = $1 AND deleted_at IS NULL AND quarantined_at IS NULL",
     )
     .bind(channel_id)
     .fetch_one(pool)
@@ -65,6 +65,7 @@ pub async fn get_messages(
             WHERE channel_id = $1
               AND created_at < (SELECT created_at FROM messages WHERE id = $2)
               AND deleted_at IS NULL
+              AND quarantined_at IS NULL
             ORDER BY created_at DESC
             LIMIT $3
             "#,
@@ -78,7 +79,7 @@ pub async fn get_messages(
         sqlx::query_as::<_, Message>(
             r#"
             SELECT * FROM messages
-            WHERE channel_id = $1 AND deleted_at IS NULL
+            WHERE channel_id = $1 AND deleted_at IS NULL AND quarantined_at IS NULL
             ORDER BY created_at DESC
             LIMIT $2
             "#,
@@ -106,6 +107,7 @@ pub async fn search_messages(
         SELECT * FROM messages
         WHERE channel_id = $1
           AND deleted_at IS NULL
+          AND quarantined_at IS NULL
           AND convert_from(ciphertext, 'UTF8') ILIKE $2
         ORDER BY created_at DESC
         LIMIT $3
@@ -152,6 +154,77 @@ pub async fn delete_message_as_mod(
 ) -> Result<bool, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE messages SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(message_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Hard-delete a single message (complete removal from DB).
+pub async fn hard_delete_message(pool: &PgPool, message_id: Uuid) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM messages WHERE id = $1")
+        .bind(message_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Hard-delete ALL messages from a user across all channels.
+pub async fn hard_delete_user_messages(
+    pool: &PgPool,
+    sender_id: Uuid,
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM messages WHERE sender_id = $1")
+        .bind(sender_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
+/// Hard-delete ALL messages in a channel.
+pub async fn hard_delete_channel_messages(
+    pool: &PgPool,
+    channel_id: Uuid,
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM messages WHERE channel_id = $1")
+        .bind(channel_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
+/// Garbage collect: hard-delete messages soft-deleted more than N days ago.
+pub async fn gc_soft_deleted(pool: &PgPool, days: i64) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM messages WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - make_interval(days => $1)",
+    )
+    .bind(days as i32)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Quarantine a message (hide without deleting, preserve for evidence).
+pub async fn quarantine_message(
+    pool: &PgPool,
+    message_id: Uuid,
+    quarantined_by: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE messages SET quarantined_at = NOW(), quarantined_by = $2 WHERE id = $1 AND quarantined_at IS NULL",
+    )
+    .bind(message_id)
+    .bind(quarantined_by)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+/// Unquarantine a message.
+pub async fn unquarantine_message(pool: &PgPool, message_id: Uuid) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE messages SET quarantined_at = NULL, quarantined_by = NULL WHERE id = $1 AND quarantined_at IS NOT NULL",
     )
     .bind(message_id)
     .execute(pool)

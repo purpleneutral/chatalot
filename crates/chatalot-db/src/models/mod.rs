@@ -1,4 +1,8 @@
+pub mod audit_log;
+pub mod blocked_hash;
 pub mod channel;
+pub mod report;
+pub mod user_block;
 pub mod community;
 pub mod file;
 pub mod group;

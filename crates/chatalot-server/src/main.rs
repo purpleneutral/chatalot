@@ -49,6 +49,175 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    // Spawn background task: typing indicator timeout (10s)
+    {
+        let state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+            loop {
+                interval.tick().await;
+                let expired = state.connections.expire_typing(std::time::Duration::from_secs(10));
+                for (channel_id, user_id) in expired {
+                    state.connections.broadcast_to_channel(
+                        channel_id,
+                        chatalot_common::ws_messages::ServerMessage::UserStoppedTyping {
+                            channel_id,
+                            user_id,
+                        },
+                    );
+                }
+            }
+        });
+    }
+
+    // Spawn background task: periodic data cleanup (every hour)
+    {
+        let db = state.db.clone();
+        tokio::spawn(async move {
+            // Wait 1 minute after startup before first cleanup
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                // Delete refresh tokens expired more than 7 days ago
+                match sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL '7 days'")
+                    .execute(&db)
+                    .await
+                {
+                    Ok(r) => {
+                        if r.rows_affected() > 0 {
+                            tracing::info!("Cleaned up {} expired refresh tokens", r.rows_affected());
+                        }
+                    }
+                    Err(e) => tracing::warn!("Failed to clean expired tokens: {e}"),
+                }
+                // Delete used one-time prekeys older than 30 days
+                match sqlx::query("DELETE FROM one_time_prekeys WHERE used = true AND created_at < NOW() - INTERVAL '30 days'")
+                    .execute(&db)
+                    .await
+                {
+                    Ok(r) => {
+                        if r.rows_affected() > 0 {
+                            tracing::info!("Cleaned up {} used prekeys", r.rows_affected());
+                        }
+                    }
+                    Err(e) => tracing::warn!("Failed to clean used prekeys: {e}"),
+                }
+                // Prune audit logs older than 90 days
+                match sqlx::query(
+                    "DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL '90 days'",
+                )
+                .execute(&db)
+                .await
+                {
+                    Ok(r) => {
+                        if r.rows_affected() > 0 {
+                            tracing::info!(
+                                "Cleaned up {} audit log entries older than 90 days",
+                                r.rows_affected()
+                            );
+                        }
+                    }
+                    Err(e) => tracing::warn!("Failed to clean old audit logs: {e}"),
+                }
+                // End orphaned voice sessions (no participants, still active)
+                match sqlx::query(
+                    "UPDATE voice_sessions SET ended_at = NOW() WHERE ended_at IS NULL AND id NOT IN (SELECT DISTINCT session_id FROM voice_session_participants WHERE left_at IS NULL)"
+                )
+                    .execute(&db)
+                    .await
+                {
+                    Ok(r) => {
+                        if r.rows_affected() > 0 {
+                            tracing::info!("Cleaned up {} orphaned voice sessions", r.rows_affected());
+                        }
+                    }
+                    Err(e) => tracing::warn!("Failed to clean orphaned voice sessions: {e}"),
+                }
+            }
+        });
+    }
+
+    // Spawn background task: soft-delete message GC (daily, 5min startup delay)
+    // Hard-deletes messages that were soft-deleted more than 30 days ago
+    {
+        let db = state.db.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(24 * 60 * 60));
+            loop {
+                interval.tick().await;
+                match chatalot_db::repos::message_repo::gc_soft_deleted(&db, 30).await {
+                    Ok(0) => {}
+                    Ok(n) => tracing::info!("GC: hard-deleted {n} messages soft-deleted >30 days ago"),
+                    Err(e) => tracing::warn!("GC soft-delete cleanup failed: {e}"),
+                }
+            }
+        });
+    }
+
+    // Spawn background task: orphan file cleanup (daily, 2h startup delay)
+    // Removes disk files with no DB record and DB records with missing disk files
+    {
+        let db = state.db.clone();
+        let storage_path = state.config.file_storage_path.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_secs(7200)).await;
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(24 * 60 * 60));
+            loop {
+                interval.tick().await;
+
+                // Get all known file paths from DB
+                let db_files = match chatalot_db::repos::file_repo::list_all_file_paths(&db).await
+                {
+                    Ok(f) => f,
+                    Err(e) => {
+                        tracing::warn!("Orphan cleanup: failed to list DB files: {e}");
+                        continue;
+                    }
+                };
+
+                let db_paths: std::collections::HashSet<String> =
+                    db_files.iter().map(|(_, p)| p.clone()).collect();
+
+                // Walk storage directory and find disk files with no DB record
+                let mut orphan_disk_files = 0u64;
+                let storage = std::path::Path::new(&storage_path);
+                if let Ok(mut shard_dirs) = tokio::fs::read_dir(storage).await {
+                    while let Ok(Some(shard_entry)) = shard_dirs.next_entry().await {
+                        let shard_path = shard_entry.path();
+                        if !shard_path.is_dir() {
+                            continue;
+                        }
+                        if let Ok(mut files) = tokio::fs::read_dir(&shard_path).await {
+                            while let Ok(Some(file_entry)) = files.next_entry().await {
+                                let file_path = file_entry.path();
+                                let path_str = file_path.to_string_lossy().to_string();
+                                if !db_paths.contains(&path_str) {
+                                    if let Err(e) = tokio::fs::remove_file(&file_path).await {
+                                        tracing::warn!(
+                                            "Orphan cleanup: failed to remove {path_str}: {e}"
+                                        );
+                                    } else {
+                                        orphan_disk_files += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if orphan_disk_files > 0 {
+                    tracing::info!(
+                        "Orphan cleanup: removed {orphan_disk_files} disk files with no DB record"
+                    );
+                }
+            }
+        });
+    }
+
     // Build the router
     let app = routes::build_router(state.clone());
 

@@ -98,6 +98,9 @@
 	// App initialization flag — prevents empty-state flash before data loads
 	let initialized = $state(false);
 
+	// WebSocket connection status
+	let connectionStatus = $state<'connected' | 'reconnecting' | null>(null);
+
 	// DM state
 	let dmChannels = $state<DmChannel[]>([]);
 	let showNewDm = $state(false);
@@ -124,6 +127,9 @@
 	let sidebarTab = $state<'groups' | 'channels' | 'dms'>(
 		(typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:sidebarTab') as 'groups' | 'channels' | 'dms') || 'groups'
 	);
+
+	// Sidebar search filter
+	let sidebarFilter = $state('');
 
 	// Group state
 	let showCreateGroup = $state(false);
@@ -246,6 +252,66 @@
 	// Image lightbox state
 	let lightboxImage = $state<{ src: string; alt: string } | null>(null);
 
+	// Quick switcher (Ctrl+K)
+	let showQuickSwitcher = $state(false);
+	let quickSwitcherQuery = $state('');
+	let quickSwitcherIndex = $state(0);
+	let quickSwitcherInputEl: HTMLInputElement | undefined = $state();
+
+	type QuickSwitchItem = { id: string; name: string; type: 'channel' | 'dm' | 'group-channel'; groupName?: string; icon: string };
+
+	let quickSwitcherResults = $derived.by(() => {
+		const items: QuickSwitchItem[] = [];
+		// Group channels
+		for (const group of groupStore.groups) {
+			for (const ch of (groupChannelsMap.get(group.id) ?? [])) {
+				items.push({ id: ch.id, name: ch.name, type: 'group-channel', groupName: group.name, icon: ch.channel_type === 'voice' ? '🔊' : '#' });
+			}
+		}
+		// Standalone channels
+		for (const ch of channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id)) {
+			items.push({ id: ch.id, name: ch.name, type: 'channel', icon: ch.channel_type === 'voice' ? '🔊' : '#' });
+		}
+		// DMs
+		for (const dm of dmChannels) {
+			items.push({ id: dm.channel.id, name: dm.other_user.display_name, type: 'dm', icon: '@' });
+		}
+		if (!quickSwitcherQuery.trim()) return items.slice(0, 10);
+		const q = quickSwitcherQuery.toLowerCase();
+		return items.filter(item => {
+			const name = item.name.toLowerCase();
+			const group = item.groupName?.toLowerCase() ?? '';
+			return name.includes(q) || group.includes(q);
+		}).slice(0, 10);
+	});
+
+	function openQuickSwitcher() {
+		showQuickSwitcher = true;
+		quickSwitcherQuery = '';
+		quickSwitcherIndex = 0;
+		tick().then(() => quickSwitcherInputEl?.focus());
+	}
+
+	function quickSwitcherSelect(item: QuickSwitchItem) {
+		showQuickSwitcher = false;
+		channelStore.addChannel(channelStore.channels.find(c => c.id === item.id) ?? { id: item.id, name: item.name, channel_type: 'text', created_at: '' } as any);
+		selectChannel(item.id);
+	}
+
+	function handleQuickSwitcherKeydown(e: KeyboardEvent) {
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			quickSwitcherIndex = Math.min(quickSwitcherIndex + 1, quickSwitcherResults.length - 1);
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			quickSwitcherIndex = Math.max(quickSwitcherIndex - 1, 0);
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			const item = quickSwitcherResults[quickSwitcherIndex];
+			if (item) quickSwitcherSelect(item);
+		}
+	}
+
 	// Notification permission prompt
 	let showNotifPrompt = $state(false);
 	let notifPromptDismissed = $state(
@@ -268,12 +334,46 @@
 		confirmDialog = opts;
 	}
 
+	// Collect all viewable images from current messages for lightbox navigation
+	let channelImages = $derived.by(() => {
+		const imgs: { src: string; alt: string }[] = [];
+		for (const msg of messages) {
+			if (!msg.content) continue;
+			// Match image URLs from file messages and inline images
+			const imgRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+			let m;
+			while ((m = imgRegex.exec(msg.content)) !== null) {
+				imgs.push({ src: m[1], alt: 'Image' });
+			}
+			// Also check for direct image blob URLs in content
+			const srcRegex = /src="([^"]+\.(png|jpg|jpeg|gif|webp|svg)[^"]*)"/gi;
+			while ((m = srcRegex.exec(msg.content)) !== null) {
+				if (!imgs.some(i => i.src === m[1])) {
+					imgs.push({ src: m[1], alt: 'Image' });
+				}
+			}
+		}
+		return imgs;
+	});
+
 	function openLightbox(src: string, alt: string = 'Image') {
 		lightboxImage = { src, alt };
 	}
 
 	function closeLightbox() {
 		lightboxImage = null;
+	}
+
+	function lightboxPrev() {
+		if (!lightboxImage) return;
+		const idx = channelImages.findIndex(i => i.src === lightboxImage!.src);
+		if (idx > 0) lightboxImage = channelImages[idx - 1];
+	}
+
+	function lightboxNext() {
+		if (!lightboxImage) return;
+		const idx = channelImages.findIndex(i => i.src === lightboxImage!.src);
+		if (idx >= 0 && idx < channelImages.length - 1) lightboxImage = channelImages[idx + 1];
 	}
 
 	function maybeShowNotifPrompt() {
@@ -616,6 +716,7 @@
 
 		// Listen for version update events BEFORE connecting WS to avoid race
 		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
+		window.addEventListener('chatalot:connection', handleConnectionChange as EventListener);
 
 		// Connect WebSocket (or re-register handler if already connected)
 		unsubWs = wsClient.onMessage(handleServerMessage);
@@ -744,10 +845,23 @@
 		window.removeEventListener('chatalot:navigate-channel', handleNotifNavigate as EventListener);
 		window.removeEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
 		window.removeEventListener('chatalot:update-available', handleUpdateAvailable);
+		window.removeEventListener('chatalot:connection', handleConnectionChange as EventListener);
 	});
 
 	function handleUpdateAvailable() {
 		pendingUpdate = true;
+	}
+
+	function handleConnectionChange(e: CustomEvent<string>) {
+		if (e.detail === 'reconnecting') {
+			connectionStatus = 'reconnecting';
+		} else if (e.detail === 'connected') {
+			connectionStatus = 'connected';
+			// Auto-hide "connected" after 3 seconds
+			setTimeout(() => {
+				if (connectionStatus === 'connected') connectionStatus = null;
+			}, 3000);
+		}
 	}
 
 	function handleNotifNavigate(e: CustomEvent<string>) {
@@ -800,6 +914,19 @@
 	}
 
 	async function selectChannel(channelId: string) {
+		// Save draft of current channel before switching
+		if (channelStore.activeChannelId) {
+			const draft = messageInput.trim();
+			if (draft) {
+				localStorage.setItem(`chatalot:draft:${channelStore.activeChannelId}`, draft);
+			} else {
+				localStorage.removeItem(`chatalot:draft:${channelStore.activeChannelId}`);
+			}
+		}
+
+		// Restore draft for new channel
+		messageInput = localStorage.getItem(`chatalot:draft:${channelId}`) ?? '';
+
 		// Save scroll position of current channel before switching
 		if (channelStore.activeChannelId && messageListEl) {
 			scrollPositions.set(channelStore.activeChannelId, messageListEl.scrollTop);
@@ -1047,6 +1174,9 @@
 		});
 
 		messageInput = '';
+		if (channelStore.activeChannelId) {
+			localStorage.removeItem(`chatalot:draft:${channelStore.activeChannelId}`);
+		}
 		if (messageInputEl) messageInputEl.style.height = 'auto';
 
 		// Send via WebSocket
@@ -1119,7 +1249,6 @@
 				'b': ['**', '**'],   // Bold
 				'i': ['_', '_'],     // Italic
 				'e': ['`', '`'],     // Inline code
-				'k': ['[', '](url)'], // Link
 			};
 			const wrap = shortcuts[e.key];
 			if (wrap) {
@@ -1834,6 +1963,16 @@
 	}
 
 	function handleGlobalKeydown(e: KeyboardEvent) {
+		// Ctrl+K / Cmd+K for quick channel switcher
+		if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			if (showQuickSwitcher) {
+				showQuickSwitcher = false;
+			} else {
+				openQuickSwitcher();
+			}
+			return;
+		}
 		// ? or Ctrl+/ to show shortcuts
 		if ((e.key === '?' && !e.ctrlKey && !e.metaKey) || (e.key === '/' && (e.ctrlKey || e.metaKey))) {
 			const tag = (e.target as HTMLElement)?.tagName;
@@ -1841,8 +1980,14 @@
 			e.preventDefault();
 			showShortcutsModal = !showShortcutsModal;
 		}
+		// Lightbox arrow key navigation
+		if (lightboxImage) {
+			if (e.key === 'ArrowLeft') { e.preventDefault(); lightboxPrev(); return; }
+			if (e.key === 'ArrowRight') { e.preventDefault(); lightboxNext(); return; }
+		}
 		// Escape to close modals and panels
 		if (e.key === 'Escape') {
+			if (showQuickSwitcher) { showQuickSwitcher = false; e.preventDefault(); return; }
 			if (lightboxImage) { closeLightbox(); e.preventDefault(); return; }
 			if (showGifPicker) { showGifPicker = false; e.preventDefault(); return; }
 			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); return; }
@@ -2432,16 +2577,22 @@
 		return sanitized.replace(regex, '<mark class="rounded bg-yellow-500/30 text-[var(--text-primary)] px-0.5">$1</mark>');
 	}
 
+	function highlightMessage(msgId: string) {
+		const el = document.getElementById('msg-' + msgId);
+		if (el) {
+			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			// Restart animation by removing and re-adding class
+			el.classList.remove('msg-highlight');
+			void el.offsetWidth; // force reflow
+			el.classList.add('msg-highlight');
+		}
+	}
+
 	function jumpToSearchResult(msgId: string) {
 		showSearch = false;
 		searchQuery = '';
 		searchResults = [];
-		const el = document.getElementById('msg-' + msgId);
-		if (el) {
-			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-			el.classList.add('bg-[var(--accent)]/10');
-			setTimeout(() => el.classList.remove('bg-[var(--accent)]/10'), 2000);
-		}
+		highlightMessage(msgId);
 	}
 
 	// ── Infinite scroll ──
@@ -2540,6 +2691,22 @@
 	});
 	$effect(() => {
 		localStorage.setItem('chatalot:expandedGroups', JSON.stringify([...expandedGroupIds]));
+	});
+
+	// Auto-expand groups with unread messages
+	$effect(() => {
+		let changed = false;
+		const next = new Set(expandedGroupIds);
+		for (const group of groupStore.groups) {
+			if (next.has(group.id)) continue;
+			const channels = groupChannelsMap.get(group.id) ?? [];
+			const hasUnread = channels.some(c => messageStore.getUnreadCount(c.id) > 0);
+			if (hasUnread) {
+				next.add(group.id);
+				changed = true;
+			}
+		}
+		if (changed) expandedGroupIds = next;
 	});
 
 	// Auto-scroll when new messages arrive (only if near bottom)
@@ -2839,6 +3006,30 @@
 				</div>
 			{/if}
 
+			<!-- Sidebar search filter -->
+			<div class="px-2 pt-2">
+				<div class="relative">
+					<svg xmlns="http://www.w3.org/2000/svg" class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+					</svg>
+					<input
+						type="text"
+						bind:value={sidebarFilter}
+						placeholder="Filter..."
+						class="w-full rounded-md border border-white/10 bg-[var(--bg-primary)] py-1.5 pl-8 pr-8 text-xs text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
+					/>
+					{#if sidebarFilter}
+						<button
+							onclick={() => { sidebarFilter = ''; }}
+							title="Clear filter"
+							class="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+						</button>
+					{/if}
+				</div>
+			</div>
+
 			<div class="flex-1 overflow-y-auto p-2">
 				{#if sidebarTab === 'groups'}
 					<!-- Discover groups button -->
@@ -2882,7 +3073,13 @@
 						</div>
 					{/if}
 
-					{#each groupStore.groups as group (group.id)}
+					{#each groupStore.groups.filter(g => {
+						if (!sidebarFilter) return true;
+						const q = sidebarFilter.toLowerCase();
+						if (g.name.toLowerCase().includes(q)) return true;
+						const chs = groupChannelsMap.get(g.id) ?? [];
+						return chs.some(c => c.name.toLowerCase().includes(q));
+					}) as group (group.id)}
 						<!-- Group header -->
 						<div class="group/grp relative">
 							{#if renamingGroupId === group.id}
@@ -2936,7 +3133,7 @@
 						{#if expandedGroupIds.has(group.id)}
 							<!-- Group channels -->
 							<div class="ml-2 border-l border-white/5 pl-2">
-								{#each (groupChannelsMap.get(group.id) ?? []) as channel (channel.id)}
+								{#each (groupChannelsMap.get(group.id) ?? []).filter(c => !sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase()) || group.name.toLowerCase().includes(sidebarFilter.toLowerCase())) as channel (channel.id)}
 									{@const unreadCount = messageStore.getUnreadCount(channel.id)}
 									<div class="group/ch flex items-center">
 										{#if renamingChannelId === channel.id}
@@ -3150,7 +3347,7 @@
 					<h2 class="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Channels
 					</h2>
-					{#each channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id) as channel (channel.id)}
+					{#each channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id && (!sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))) as channel (channel.id)}
 						{@const unreadCount = messageStore.getUnreadCount(channel.id)}
 						<button
 							onclick={() => selectChannel(channel.id)}
@@ -3206,7 +3403,7 @@
 					<h2 class="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Direct Messages
 					</h2>
-					{#each dmChannels as dm (dm.channel.id)}
+					{#each dmChannels.filter(dm => !sidebarFilter || dm.other_user.display_name.toLowerCase().includes(sidebarFilter.toLowerCase()) || dm.other_user.username.toLowerCase().includes(sidebarFilter.toLowerCase())) as dm (dm.channel.id)}
 						{@const unreadCount = messageStore.getUnreadCount(dm.channel.id)}
 						<button
 							onclick={() => { channelStore.addChannel(dm.channel); selectChannel(dm.channel.id); }}
@@ -3410,7 +3607,7 @@
 						type="text"
 						bind:value={joinCommunityCode}
 						placeholder="Paste invite link or code..."
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
 					{#if communityInvitePreview}
 						<div class="mt-3 rounded-lg bg-white/5 p-3">
@@ -3450,7 +3647,7 @@
 								placeholder="My Community"
 								maxlength="64"
 								required
-								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 							/>
 						</div>
 						<div>
@@ -3459,7 +3656,7 @@
 								type="text"
 								bind:value={newCommunityDescription}
 								placeholder="What's this community about?"
-								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 							/>
 						</div>
 					</div>
@@ -3731,6 +3928,19 @@
 				/>
 
 				{#if !chatCollapsed}
+				<!-- Connection status banner -->
+				{#if connectionStatus === 'reconnecting'}
+					<div class="flex items-center justify-center gap-2 bg-amber-600/90 px-3 py-1.5 text-xs font-medium text-white">
+						<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+						Reconnecting...
+					</div>
+				{:else if connectionStatus === 'connected'}
+					<div class="flex items-center justify-center gap-2 bg-emerald-600/90 px-3 py-1.5 text-xs font-medium text-white">
+						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+						Connected
+					</div>
+				{/if}
+
 				<!-- Messages -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -3758,12 +3968,36 @@
 							</div>
 						{/if}
 						<div
-							id="msg-{msg.id}" class="chat-message group relative flex rounded-lg px-2 pl-3 transition hover:bg-white/[0.04] {msg.pending ? 'opacity-50' : ''} {msg.senderId === authStore.user?.id ? 'chat-message-own' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
+							id="msg-{msg.id}" class="chat-message chat-message-row group relative flex rounded-lg px-2 pl-3 transition hover:bg-white/[0.04] {msg.pending ? 'opacity-50' : ''} {msg.senderId === authStore.user?.id ? 'chat-message-own' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
 							style="border-left: 2px solid {getUserColor(msg.senderId)}; background: {getUserColor(msg.senderId).replace('65%)', '65% / 0.06)')};"
 							oncontextmenu={(e) => showContextMenu(e, msg.id)}
 							role="article"
 							aria-label="Message from {getDisplayNameForContext(msg.senderId)}"
 						>
+							<!-- Hover action bar -->
+							{#if !msg.pending}
+								<div class="msg-actions absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-1 py-0.5 shadow-lg">
+									<button
+										onclick={() => toggleReaction(msg.id, '👍')}
+										title="React with 👍"
+										class="rounded p-1 text-sm transition hover:bg-white/10"
+									>👍</button>
+									<button
+										onclick={() => startReply(msg)}
+										title="Reply"
+										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
+									</button>
+									<button
+										onclick={(e) => showContextMenu(e, msg.id)}
+										title="More actions"
+										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+									</button>
+								</div>
+							{/if}
 							{#if preferencesStore.preferences.messageDensity !== 'compact'}
 								{#if grouped}
 									<!-- Hover timestamp in gutter for grouped messages -->
@@ -3781,7 +4015,7 @@
 									{#if msg.replyToId}
 										{@const repliedMsg = messages.find(m => m.id === msg.replyToId)}
 										<button
-											onclick={() => { const el = document.getElementById('msg-' + msg.replyToId); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+											onclick={() => msg.replyToId && highlightMessage(msg.replyToId)}
 											class="mb-1 flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
@@ -4441,7 +4675,7 @@
 							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Italic (Ctrl+I)">I</button>
 							<button type="button" onclick={() => wrapSelection('~~', '~~')} class="rounded px-1.5 py-0.5 text-xs line-through text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Strikethrough">S</button>
 							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Code (Ctrl+E)">&lt;&gt;</button>
-							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Link (Ctrl+K)">
+							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Link">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
 							</button>
 						</div>
@@ -4562,7 +4796,12 @@
 
 			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
 				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
-					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Members</h3>
+					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+						Members
+						{#if !membersLoading}
+							<span class="ml-1 normal-case tracking-normal font-normal">— {onlineMembers.length} online, {onlineMembers.length + offlineMembers.length} total</span>
+						{/if}
+					</h3>
 					<button
 						onclick={toggleMemberPanel}
 						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
@@ -4797,11 +5036,11 @@
 						<span class="text-[var(--text-secondary)]">Inline code</span>
 						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+E</kbd>
 					</div>
+					<div class="col-span-2 mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigation</div>
 					<div class="flex items-center justify-between">
-						<span class="text-[var(--text-secondary)]">Link</span>
+						<span class="text-[var(--text-secondary)]">Quick switcher</span>
 						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+K</kbd>
 					</div>
-					<div class="col-span-2 mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigation</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Search messages</span>
 						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+F</kbd>
@@ -4882,7 +5121,63 @@
 	{/if}
 
 	<!-- Image Lightbox -->
+	<!-- Quick Switcher (Ctrl+K) -->
+	{#if showQuickSwitcher}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 pt-[15vh]"
+			onclick={() => showQuickSwitcher = false}
+			onkeydown={(e) => { if (e.key === 'Escape') showQuickSwitcher = false; }}
+			transition:fade={{ duration: 100 }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-lg rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl"
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+				transition:fly={{ y: -20, duration: 150 }}
+			>
+				<div class="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+					<!-- svelte-ignore a11y_autofocus -->
+					<input
+						bind:this={quickSwitcherInputEl}
+						bind:value={quickSwitcherQuery}
+						onkeydown={handleQuickSwitcherKeydown}
+						placeholder="Jump to a channel or DM..."
+						autofocus
+						class="flex-1 bg-transparent text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50"
+					/>
+					<kbd class="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">ESC</kbd>
+				</div>
+				<div class="max-h-72 overflow-y-auto py-1">
+					{#if quickSwitcherResults.length === 0}
+						<div class="px-4 py-6 text-center text-sm text-[var(--text-secondary)]">No results found</div>
+					{:else}
+						{#each quickSwitcherResults as item, i (item.id)}
+							<button
+								onclick={() => quickSwitcherSelect(item)}
+								onmouseenter={() => quickSwitcherIndex = i}
+								class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition {i === quickSwitcherIndex ? 'bg-[var(--accent)]/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
+							>
+								<span class="w-5 text-center {item.icon === '@' ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'}">{item.icon}</span>
+								<span class="flex-1 truncate">{item.name}</span>
+								{#if item.groupName}
+									<span class="truncate text-xs text-[var(--text-secondary)]/60">{item.groupName}</span>
+								{/if}
+								<span class="text-xs text-[var(--text-secondary)]/40">{item.type === 'dm' ? 'DM' : item.type === 'group-channel' ? 'Channel' : 'Channel'}</span>
+							</button>
+						{/each}
+					{/if}
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	{#if lightboxImage}
+		{@const imgIdx = channelImages.findIndex(i => i.src === lightboxImage!.src)}
+		{@const hasPrev = imgIdx > 0}
+		{@const hasNext = imgIdx >= 0 && imgIdx < channelImages.length - 1}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
@@ -4890,15 +5185,52 @@
 			onkeydown={(e) => { if (e.key === 'Escape') closeLightbox(); }}
 			transition:fade={{ duration: 150 }}
 		>
-			<button
-				onclick={closeLightbox}
-				class="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
-				title="Close"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-				</svg>
-			</button>
+			<!-- Top toolbar -->
+			<div class="absolute right-4 top-4 flex items-center gap-2">
+				<a
+					href={lightboxImage.src}
+					download={lightboxImage.alt}
+					onclick={(e) => e.stopPropagation()}
+					class="rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
+					title="Download"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+					</svg>
+				</a>
+				<button
+					onclick={closeLightbox}
+					class="rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
+					title="Close"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+					</svg>
+				</button>
+			</div>
+
+			<!-- Prev button -->
+			{#if hasPrev}
+				<button
+					onclick={(e) => { e.stopPropagation(); lightboxPrev(); }}
+					class="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white transition hover:bg-black/70"
+					title="Previous image"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+				</button>
+			{/if}
+
+			<!-- Next button -->
+			{#if hasNext}
+				<button
+					onclick={(e) => { e.stopPropagation(); lightboxNext(); }}
+					class="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white transition hover:bg-black/70"
+					title="Next image"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+				</button>
+			{/if}
+
 			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 			<img
 				src={lightboxImage.src}
@@ -4907,8 +5239,13 @@
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
 			/>
-			<div class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-4 py-1.5 text-sm text-white/80">
-				{lightboxImage.alt}
+
+			<!-- Bottom bar: filename + counter -->
+			<div class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-black/50 px-4 py-1.5 text-sm text-white/80">
+				<span>{lightboxImage.alt}</span>
+				{#if imgIdx >= 0 && channelImages.length > 1}
+					<span class="text-white/40">{imgIdx + 1} / {channelImages.length}</span>
+				{/if}
 			</div>
 		</div>
 	{/if}

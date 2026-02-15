@@ -1,8 +1,11 @@
+use std::sync::LazyLock;
+
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Algorithm, Argon2, Params, Version,
 };
 use chrono::Utc;
+use dashmap::DashMap;
 use jsonwebtoken::{Algorithm as JwtAlg, Header};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
@@ -18,6 +21,65 @@ use chatalot_db::repos::{key_repo, registration_invite_repo, user_repo};
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
+
+// ── Account Lockout ──
+
+/// Max failed login attempts before lockout.
+const MAX_LOGIN_ATTEMPTS: u32 = 10;
+/// Lockout duration: 15 minutes.
+const LOCKOUT_DURATION_SECS: i64 = 900;
+
+struct LockoutEntry {
+    attempts: u32,
+    last_attempt: chrono::DateTime<Utc>,
+    locked_until: Option<chrono::DateTime<Utc>>,
+}
+
+/// In-memory tracking of failed login attempts per username.
+/// Resets on server restart (acceptable tradeoff vs DB round-trip on every login).
+static LOGIN_ATTEMPTS: LazyLock<DashMap<String, LockoutEntry>> = LazyLock::new(DashMap::new);
+
+/// Check if an account is currently locked out. Returns remaining seconds if locked.
+fn check_lockout(username: &str) -> Option<i64> {
+    if let Some(entry) = LOGIN_ATTEMPTS.get(username)
+        && let Some(locked_until) = entry.locked_until
+    {
+        let remaining = (locked_until - Utc::now()).num_seconds();
+        if remaining > 0 {
+            return Some(remaining);
+        }
+    }
+    None
+}
+
+/// Record a failed login attempt. Locks the account after MAX_LOGIN_ATTEMPTS.
+fn record_failed_login(username: &str) {
+    let mut entry = LOGIN_ATTEMPTS
+        .entry(username.to_string())
+        .or_insert_with(|| LockoutEntry {
+            attempts: 0,
+            last_attempt: Utc::now(),
+            locked_until: None,
+        });
+
+    entry.attempts += 1;
+    entry.last_attempt = Utc::now();
+
+    if entry.attempts >= MAX_LOGIN_ATTEMPTS {
+        entry.locked_until =
+            Some(Utc::now() + chrono::Duration::try_seconds(LOCKOUT_DURATION_SECS).unwrap());
+        tracing::warn!(
+            "Account '{}' locked out after {} failed attempts",
+            username,
+            entry.attempts
+        );
+    }
+}
+
+/// Clear lockout tracking on successful login.
+fn clear_lockout(username: &str) {
+    LOGIN_ATTEMPTS.remove(username);
+}
 
 /// Hash a password with Argon2id.
 pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
@@ -335,12 +397,20 @@ pub async fn login(
     device_name: Option<&str>,
     ip_address: Option<&str>,
 ) -> Result<AuthResponse, AppError> {
+    // Check account lockout before doing any DB work
+    if let Some(remaining) = check_lockout(&req.username) {
+        return Err(AppError::Validation(format!(
+            "account temporarily locked, try again in {remaining} seconds"
+        )));
+    }
+
     let user = user_repo::find_by_username(&state.db, &req.username)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
     // Verify password (constant-time via Argon2)
     if !verify_password(&req.password, &user.password_hash)? {
+        record_failed_login(&req.username);
         // Audit failed login
         user_repo::insert_audit_log(
             &state.db,
@@ -368,6 +438,7 @@ pub async fn login(
             code,
             &state.config.totp_encryption_key,
         )? {
+            record_failed_login(&req.username);
             user_repo::insert_audit_log(
                 &state.db,
                 Uuid::now_v7(),
@@ -386,6 +457,9 @@ pub async fn login(
     if user.suspended_at.is_some() {
         return Err(AppError::Validation("account is suspended".to_string()));
     }
+
+    // Successful login — clear any lockout tracking
+    clear_lockout(&req.username);
 
     // Issue tokens
     let access_token =

@@ -14,9 +14,14 @@ class WebSocketClient {
 	private handlers: Set<MessageHandler> = new Set();
 	private authenticatedCallback: (() => void) | null = null;
 	private connected = false;
+	private _reconnecting = false;
 
 	get isConnected(): boolean {
 		return this.connected;
+	}
+
+	get isReconnecting(): boolean {
+		return this._reconnecting;
 	}
 
 	onMessage(handler: MessageHandler): () => void {
@@ -55,9 +60,14 @@ class WebSocketClient {
 		};
 
 		this.ws.onclose = () => {
+			const wasConnected = this.connected;
 			this.connected = false;
 			this.stopHeartbeat();
 			if (authStore.isAuthenticated) {
+				this._reconnecting = true;
+				if (wasConnected) {
+					window.dispatchEvent(new CustomEvent('chatalot:connection', { detail: 'reconnecting' }));
+				}
 				this.scheduleReconnect();
 			}
 		};
@@ -69,6 +79,7 @@ class WebSocketClient {
 
 	disconnect() {
 		this.stopHeartbeat();
+		this._reconnecting = false;
 		this.ws?.close();
 		this.ws = null;
 		this.connected = false;
@@ -84,9 +95,15 @@ class WebSocketClient {
 
 	private dispatch(msg: ServerMessage) {
 		if (msg.type === 'authenticated') {
+			const wasReconnecting = this._reconnecting;
 			this.connected = true;
+			this._reconnecting = false;
 			this.startHeartbeat();
 			this.authenticatedCallback?.();
+
+			if (wasReconnecting) {
+				window.dispatchEvent(new CustomEvent('chatalot:connection', { detail: 'connected' }));
+			}
 
 			// Auto-reload if the server was updated with a new client build
 			if (

@@ -389,6 +389,46 @@ pub async fn list_all_users(
     }
 }
 
+/// Get a user's current upload bytes used.
+pub async fn get_upload_bytes_used(pool: &PgPool, user_id: Uuid) -> Result<i64, sqlx::Error> {
+    let row: (i64,) =
+        sqlx::query_as("SELECT COALESCE(upload_bytes_used, 0) FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+    Ok(row.0)
+}
+
+/// Increment a user's upload bytes used.
+pub async fn increment_upload_bytes(
+    pool: &PgPool,
+    user_id: Uuid,
+    bytes: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET upload_bytes_used = upload_bytes_used + $2 WHERE id = $1")
+        .bind(user_id)
+        .bind(bytes)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Decrement a user's upload bytes used (on file deletion).
+pub async fn decrement_upload_bytes(
+    pool: &PgPool,
+    user_id: Uuid,
+    bytes: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE users SET upload_bytes_used = GREATEST(upload_bytes_used - $2, 0) WHERE id = $1",
+    )
+    .bind(user_id)
+    .bind(bytes)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Insert an audit log entry.
 pub async fn insert_audit_log(
     pool: &PgPool,

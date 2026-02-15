@@ -57,6 +57,14 @@ async fn create_group(
         ));
     }
 
+    if let Some(ref desc) = req.description
+        && desc.len() > 2048
+    {
+        return Err(AppError::Validation(
+            "description must be at most 2048 characters".to_string(),
+        ));
+    }
+
     // Verify caller is a community member — check policy for who can create groups
     let community_role =
         community_repo::get_community_member_role(&state.db, req.community_id, claims.sub)
@@ -137,20 +145,24 @@ async fn list_groups(
     Extension(claims): Extension<AccessClaims>,
 ) -> Result<Json<Vec<GroupResponse>>, AppError> {
     let groups = group_repo::list_user_groups(&state.db, claims.sub).await?;
-    let mut responses = Vec::with_capacity(groups.len());
-    for g in groups {
-        let count = group_repo::get_member_count(&state.db, g.id).await?;
-        responses.push(GroupResponse {
-            id: g.id,
-            name: g.name,
-            description: g.description,
-            owner_id: g.owner_id,
-            community_id: g.community_id,
-            created_at: g.created_at.to_rfc3339(),
-            member_count: count,
-            visibility: g.visibility,
-        });
-    }
+    let group_ids: Vec<Uuid> = groups.iter().map(|g| g.id).collect();
+    let counts = group_repo::get_member_counts(&state.db, &group_ids).await?;
+    let responses = groups
+        .into_iter()
+        .map(|g| {
+            let count = counts.get(&g.id).copied().unwrap_or(0);
+            GroupResponse {
+                id: g.id,
+                name: g.name,
+                description: g.description,
+                owner_id: g.owner_id,
+                community_id: g.community_id,
+                created_at: g.created_at.to_rfc3339(),
+                member_count: count,
+                visibility: g.visibility,
+            }
+        })
+        .collect();
     Ok(Json(responses))
 }
 
@@ -165,20 +177,24 @@ async fn discover_groups(
     } else {
         group_repo::list_discoverable_groups(&state.db, claims.sub).await?
     };
-    let mut responses = Vec::with_capacity(groups.len());
-    for g in groups {
-        let count = group_repo::get_member_count(&state.db, g.id).await?;
-        responses.push(GroupResponse {
-            id: g.id,
-            name: g.name,
-            description: g.description,
-            owner_id: g.owner_id,
-            community_id: g.community_id,
-            created_at: g.created_at.to_rfc3339(),
-            member_count: count,
-            visibility: g.visibility,
-        });
-    }
+    let group_ids: Vec<Uuid> = groups.iter().map(|g| g.id).collect();
+    let counts = group_repo::get_member_counts(&state.db, &group_ids).await?;
+    let responses = groups
+        .into_iter()
+        .map(|g| {
+            let count = counts.get(&g.id).copied().unwrap_or(0);
+            GroupResponse {
+                id: g.id,
+                name: g.name,
+                description: g.description,
+                owner_id: g.owner_id,
+                community_id: g.community_id,
+                created_at: g.created_at.to_rfc3339(),
+                member_count: count,
+                visibility: g.visibility,
+            }
+        })
+        .collect();
     Ok(Json(responses))
 }
 
@@ -228,6 +244,14 @@ async fn update_group(
         && vis != "public" && vis != "private"
     {
         return Err(AppError::Validation("visibility must be 'public' or 'private'".to_string()));
+    }
+
+    if let Some(ref desc) = req.description
+        && desc.len() > 2048
+    {
+        return Err(AppError::Validation(
+            "description must be at most 2048 characters".to_string(),
+        ));
     }
 
     let group = group_repo::update_group(
@@ -437,6 +461,14 @@ async fn create_group_channel(
         ));
     }
 
+    if let Some(ref topic) = req.topic
+        && topic.len() > 512
+    {
+        return Err(AppError::Validation(
+            "topic must be at most 512 characters".to_string(),
+        ));
+    }
+
     let channel_id = Uuid::now_v7();
     let channel = channel_repo::create_channel(
         &state.db,
@@ -489,6 +521,22 @@ async fn update_group_channel(
 
     if role != "owner" && role != "admin" {
         return Err(AppError::Forbidden);
+    }
+
+    if let Some(ref topic) = req.topic
+        && topic.len() > 512
+    {
+        return Err(AppError::Validation(
+            "topic must be at most 512 characters".to_string(),
+        ));
+    }
+
+    if let Some(sms) = req.slow_mode_seconds
+        && !(0..=86400).contains(&sms)
+    {
+        return Err(AppError::Validation(
+            "slow_mode_seconds must be between 0 and 86400".to_string(),
+        ));
     }
 
     let channel = channel_repo::update_channel(

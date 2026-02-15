@@ -4,17 +4,27 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import {
 		listUsers, suspendUser, unsuspendUser, deleteUser, setAdmin, resetUserPassword, type AdminUser,
-		createRegistrationInvite, listRegistrationInvites, deleteRegistrationInvite,
-		type RegistrationInvite
+		createRegistrationInvite, listRegistrationInvites, deleteRegistrationInvite, type RegistrationInvite,
+		listFiles, adminDeleteFile, quarantineFile, unquarantineFile, type AdminFileEntry, type AdminFilesResponse,
+		getStorageStats, type StorageStats,
+		purgeMessage, purgeUserMessages, purgeChannel, type PurgeResult,
+		quarantineMessage, unquarantineMessage,
+		listBlockedHashes, addBlockedHash, removeBlockedHash, type BlockedHash,
+		getAuditLog, type AuditLogEntry, type AuditLogResponse,
+		listReports, reviewReport, type Report, type ReportsResponse
 	} from '$lib/api/admin';
 	import { onMount } from 'svelte';
 
+	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security';
+	let activeTab = $state<Tab>('users');
+
+	// ── Users ──
 	let users = $state<AdminUser[]>([]);
-	let loading = $state(false);
+	let usersLoading = $state(false);
 	let searchQuery = $state('');
 	let searchTimeout: ReturnType<typeof setTimeout>;
 
-	// Invite codes
+	// ── Invites ──
 	let invites = $state<RegistrationInvite[]>([]);
 	let invitesLoading = $state(false);
 	let showCreateInvite = $state(false);
@@ -22,23 +32,66 @@
 	let newInviteExpiresHours = $state('');
 	let creatingInvite = $state(false);
 
+	// ── Files ──
+	let filesResponse = $state<AdminFilesResponse | null>(null);
+	let filesLoading = $state(false);
+	let filesPage = $state(1);
+	let filesSort = $state('date');
+	let storageStats = $state<StorageStats | null>(null);
+
+	// ── Reports ──
+	let reportsResponse = $state<ReportsResponse | null>(null);
+	let reportsLoading = $state(false);
+	let reportsPage = $state(1);
+	let reportsStatusFilter = $state('');
+	let reviewingReportId = $state<string | null>(null);
+	let reviewStatus = $state('reviewed');
+	let reviewNotes = $state('');
+
+	// ── Audit Log ──
+	let auditResponse = $state<AuditLogResponse | null>(null);
+	let auditLoading = $state(false);
+	let auditPage = $state(1);
+	let auditActionFilter = $state('');
+	let auditUserFilter = $state('');
+
+	// ── Security (Blocked Hashes + Purge) ──
+	let blockedHashes = $state<BlockedHash[]>([]);
+	let hashesLoading = $state(false);
+	let newHashValue = $state('');
+	let newHashReason = $state('');
+	let purgeType = $state<'message' | 'user' | 'channel'>('message');
+	let purgeTargetId = $state('');
+	let purgeBlockHashes = $state(false);
+	let purging = $state(false);
+
 	onMount(() => {
 		if (!authStore.isAuthenticated || (!authStore.user?.is_admin && !authStore.user?.is_owner)) {
 			goto('/channels');
 			return;
 		}
 		loadUsers();
-		loadInvites();
 	});
 
+	function switchTab(tab: Tab) {
+		activeTab = tab;
+		if (tab === 'invites' && invites.length === 0) loadInvites();
+		if (tab === 'files' && !filesResponse) { loadFiles(); loadStorageStats(); }
+		if (tab === 'reports' && !reportsResponse) loadReports();
+		if (tab === 'audit' && !auditResponse) loadAuditLog();
+		if (tab === 'security' && blockedHashes.length === 0) loadBlockedHashes();
+	}
+
+	// ── User handlers ──
+
 	async function loadUsers() {
-		loading = true;
+		usersLoading = true;
 		try {
 			users = await listUsers({ search: searchQuery || undefined, limit: 50 });
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to load users');
 		} finally {
-			loading = false;
+			usersLoading = false;
 		}
 	}
 
@@ -100,13 +153,13 @@
 		if (!newPassword) return;
 		try {
 			await resetUserPassword(user.id, newPassword);
-			toastStore.success(`Password reset for ${user.username} — they will need to log in again`);
+			toastStore.success(`Password reset for ${user.username}`);
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to reset password');
 		}
 	}
 
-	// ── Invite Code Management ──
+	// ── Invite handlers ──
 
 	async function loadInvites() {
 		invitesLoading = true;
@@ -125,7 +178,6 @@
 			const params: { max_uses?: number; expires_in_hours?: number } = {};
 			if (newInviteMaxUses) params.max_uses = parseInt(newInviteMaxUses);
 			if (newInviteExpiresHours) params.expires_in_hours = parseInt(newInviteExpiresHours);
-
 			const invite = await createRegistrationInvite(params);
 			toastStore.success(`Invite code created: ${invite.code}`);
 			showCreateInvite = false;
@@ -150,275 +202,745 @@
 		}
 	}
 
-	function copyCode(code: string) {
-		navigator.clipboard.writeText(code);
+	function copyText(text: string) {
+		navigator.clipboard.writeText(text);
 		toastStore.success('Copied to clipboard');
 	}
+
+	// ── File handlers ──
+
+	async function loadFiles() {
+		filesLoading = true;
+		try {
+			filesResponse = await listFiles({ page: filesPage, per_page: 25, sort: filesSort });
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load files');
+		} finally {
+			filesLoading = false;
+		}
+	}
+
+	async function loadStorageStats() {
+		try {
+			storageStats = await getStorageStats();
+		} catch { /* non-critical */ }
+	}
+
+	async function handleQuarantineFile(file: AdminFileEntry) {
+		try {
+			if (file.quarantined_at) {
+				await unquarantineFile(file.id);
+				toastStore.success('File unquarantined');
+			} else {
+				await quarantineFile(file.id);
+				toastStore.success('File quarantined');
+			}
+			await loadFiles();
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to update quarantine');
+		}
+	}
+
+	async function handleDeleteFile(file: AdminFileEntry) {
+		const blockHash = confirm('Also block this file hash to prevent re-upload?');
+		if (!confirm(`Delete file ${file.id.slice(0, 8)}...? This removes it from disk permanently.`)) return;
+		try {
+			await adminDeleteFile(file.id, blockHash);
+			toastStore.success('File deleted');
+			await loadFiles();
+			await loadStorageStats();
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to delete file');
+		}
+	}
+
+	// ── Report handlers ──
+
+	async function loadReports() {
+		reportsLoading = true;
+		try {
+			reportsResponse = await listReports({
+				status: reportsStatusFilter || undefined,
+				page: reportsPage,
+				per_page: 25
+			});
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load reports');
+		} finally {
+			reportsLoading = false;
+		}
+	}
+
+	async function handleReviewReport() {
+		if (!reviewingReportId) return;
+		try {
+			await reviewReport(reviewingReportId, reviewStatus, reviewNotes || undefined);
+			toastStore.success('Report reviewed');
+			reviewingReportId = null;
+			reviewStatus = 'reviewed';
+			reviewNotes = '';
+			await loadReports();
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to review report');
+		}
+	}
+
+	// ── Audit handlers ──
+
+	async function loadAuditLog() {
+		auditLoading = true;
+		try {
+			auditResponse = await getAuditLog({
+				page: auditPage,
+				per_page: 50,
+				action: auditActionFilter || undefined,
+				user_id: auditUserFilter || undefined
+			});
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load audit log');
+		} finally {
+			auditLoading = false;
+		}
+	}
+
+	// ── Security handlers ──
+
+	async function loadBlockedHashes() {
+		hashesLoading = true;
+		try {
+			blockedHashes = await listBlockedHashes({ per_page: 100 });
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load blocked hashes');
+		} finally {
+			hashesLoading = false;
+		}
+	}
+
+	async function handleAddHash() {
+		if (!newHashValue || newHashValue.length !== 64) {
+			toastStore.error('Hash must be a 64-character hex SHA256');
+			return;
+		}
+		try {
+			await addBlockedHash(newHashValue, newHashReason || undefined);
+			toastStore.success('Hash blocked');
+			newHashValue = '';
+			newHashReason = '';
+			await loadBlockedHashes();
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to block hash');
+		}
+	}
+
+	async function handleRemoveHash(hash: BlockedHash) {
+		if (!confirm(`Unblock hash ${hash.hash.slice(0, 16)}...?`)) return;
+		try {
+			await removeBlockedHash(hash.id);
+			toastStore.success('Hash unblocked');
+			await loadBlockedHashes();
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to unblock hash');
+		}
+	}
+
+	async function handlePurge() {
+		if (!purgeTargetId.trim()) {
+			toastStore.error('Enter a target ID');
+			return;
+		}
+		const labels: Record<string, string> = {
+			message: 'message',
+			user: `ALL messages and files from user`,
+			channel: `ALL messages and files in channel`
+		};
+		if (!confirm(`PERMANENTLY PURGE ${labels[purgeType]} ${purgeTargetId}?\n\nThis CANNOT be undone.`)) return;
+		purging = true;
+		try {
+			let result: PurgeResult;
+			if (purgeType === 'message') result = await purgeMessage(purgeTargetId, purgeBlockHashes);
+			else if (purgeType === 'user') result = await purgeUserMessages(purgeTargetId, purgeBlockHashes);
+			else result = await purgeChannel(purgeTargetId, purgeBlockHashes);
+			toastStore.success(`Purged: ${result.messages_deleted} messages, ${result.files_deleted} files, ${result.hashes_blocked} hashes blocked`);
+			purgeTargetId = '';
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Purge failed');
+		} finally {
+			purging = false;
+		}
+	}
+
+	function formatBytes(bytes: number): string {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+		if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
+		return `${(bytes / 1073741824).toFixed(2)} GB`;
+	}
+
+	const tabs: { id: Tab; label: string }[] = [
+		{ id: 'users', label: 'Users' },
+		{ id: 'invites', label: 'Invites' },
+		{ id: 'files', label: 'Files' },
+		{ id: 'reports', label: 'Reports' },
+		{ id: 'audit', label: 'Audit Log' },
+		{ id: 'security', label: 'Security' }
+	];
 </script>
 
 {#if authStore.isAuthenticated && (authStore.user?.is_admin || authStore.user?.is_owner)}
 	<div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-		<div class="mx-auto max-w-4xl px-6 py-8">
+		<div class="mx-auto max-w-5xl px-6 py-8">
 			<!-- Header -->
-			<div class="mb-8 flex items-center justify-between">
+			<div class="mb-6 flex items-center justify-between">
 				<h1 class="text-2xl font-bold">Admin Panel</h1>
 				<div class="flex gap-2">
-					<button
-						onclick={() => goto('/settings')}
-						class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-					>
-						Settings
-					</button>
-					<button
-						onclick={() => goto('/channels')}
-						class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-					>
-						Back to Chat
-					</button>
+					<button onclick={() => goto('/settings')} class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Settings</button>
+					<button onclick={() => goto('/channels')} class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Back to Chat</button>
 				</div>
 			</div>
 
-			<!-- User Management -->
-			<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
-				<div class="mb-4 flex items-center justify-between">
-					<h2 class="text-lg font-semibold">User Management</h2>
-					<span class="text-sm text-[var(--text-secondary)]">{users.length} users</span>
-				</div>
-
-				<!-- Search -->
-				<div class="mb-4">
-					<input
-						type="text"
-						bind:value={searchQuery}
-						oninput={handleSearch}
-						placeholder="Search by username, name, or email..."
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-					/>
-				</div>
-
-				{#if loading}
-					<p class="text-sm text-[var(--text-secondary)]">Loading users...</p>
-				{:else if users.length === 0}
-					<p class="text-sm text-[var(--text-secondary)]">No users found.</p>
-				{:else}
-					<div class="overflow-x-auto">
-						<table class="w-full text-sm">
-							<thead>
-								<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
-									<th class="py-2 pr-4 font-medium">User</th>
-									<th class="py-2 pr-4 font-medium">Email</th>
-									<th class="py-2 pr-4 font-medium">Memberships</th>
-									<th class="py-2 pr-4 font-medium">Status</th>
-									<th class="py-2 pr-4 font-medium">Joined</th>
-									<th class="py-2 font-medium">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each users as user}
-									<tr class="border-b border-white/5">
-										<td class="py-3 pr-4">
-											<div class="flex items-center gap-2">
-												<div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)]">
-													<span class="text-xs font-bold text-white">
-														{user.display_name?.[0]?.toUpperCase() ?? '?'}
-													</span>
-												</div>
-												<div>
-													<div class="font-medium">
-														{user.display_name}
-														{#if user.is_admin}
-															<span class="ml-1 rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-xs text-[var(--accent)]">admin</span>
-														{/if}
-													</div>
-													<div class="text-xs text-[var(--text-secondary)]">@{user.username}</div>
-												</div>
-											</div>
-										</td>
-										<td class="py-3 pr-4 text-[var(--text-secondary)]">{user.email}</td>
-										<td class="py-3 pr-4">
-											<div class="flex flex-wrap gap-1">
-												{#each user.communities ?? [] as c}
-													<span class="rounded bg-purple-500/10 px-1.5 py-0.5 text-xs text-purple-400" title="{c.role}">
-														{c.name}
-													</span>
-												{/each}
-												{#each user.groups ?? [] as g}
-													<span class="rounded bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-400" title="{g.role}">
-														{g.name}
-													</span>
-												{/each}
-												{#if (user.communities?.length ?? 0) === 0 && (user.groups?.length ?? 0) === 0}
-													<span class="text-xs text-[var(--text-secondary)]">None</span>
-												{/if}
-											</div>
-										</td>
-										<td class="py-3 pr-4">
-											{#if user.suspended_at}
-												<span class="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-400">Suspended</span>
-											{:else}
-												<span class="rounded bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Active</span>
-											{/if}
-										</td>
-										<td class="py-3 pr-4 text-[var(--text-secondary)]">
-											{new Date(user.created_at).toLocaleDateString()}
-										</td>
-										<td class="py-3">
-											{#if user.id !== authStore.user?.id}
-												<div class="flex gap-1">
-													{#if user.suspended_at}
-														<button
-															onclick={() => handleUnsuspend(user)}
-															class="rounded px-2 py-1 text-xs text-green-400 transition hover:bg-green-500/10"
-														>
-															Unsuspend
-														</button>
-													{:else}
-														<button
-															onclick={() => handleSuspend(user)}
-															class="rounded px-2 py-1 text-xs text-yellow-400 transition hover:bg-yellow-500/10"
-														>
-															Suspend
-														</button>
-													{/if}
-													<button
-														onclick={() => handleResetPassword(user)}
-														class="rounded px-2 py-1 text-xs text-orange-400 transition hover:bg-orange-500/10"
-													>
-														Reset Password
-													</button>
-													<button
-														onclick={() => handleToggleAdmin(user)}
-														class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
-													>
-														{user.is_admin ? 'Revoke Admin' : 'Grant Admin'}
-													</button>
-													<button
-														onclick={() => handleDelete(user)}
-														class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10"
-													>
-														Delete
-													</button>
-												</div>
-											{:else}
-												<span class="text-xs text-[var(--text-secondary)]">You</span>
-											{/if}
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				{/if}
-			</section>
-
-			<!-- Invite Codes -->
-			<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
-				<div class="mb-4 flex items-center justify-between">
-					<h2 class="text-lg font-semibold">Registration Invites</h2>
+			<!-- Tabs -->
+			<div class="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-1">
+				{#each tabs as tab}
 					<button
-						onclick={() => (showCreateInvite = !showCreateInvite)}
-						class="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+						onclick={() => switchTab(tab.id)}
+						class="whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition {activeTab === tab.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 					>
-						{showCreateInvite ? 'Cancel' : 'Generate Invite'}
+						{tab.label}
 					</button>
-				</div>
+				{/each}
+			</div>
 
-				<p class="mb-4 text-xs text-[var(--text-secondary)]">
-					Set REGISTRATION_MODE=invite_only to require invite codes for new registrations.
-				</p>
+			<!-- ═══ USERS TAB ═══ -->
+			{#if activeTab === 'users'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">User Management</h2>
+						<span class="text-sm text-[var(--text-secondary)]">{users.length} users</span>
+					</div>
+					<div class="mb-4">
+						<input type="text" bind:value={searchQuery} oninput={handleSearch} placeholder="Search by username, name, or email..." class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+					</div>
+					{#if usersLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading users...</p>
+					{:else if users.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No users found.</p>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
+										<th class="py-2 pr-4 font-medium">User</th>
+										<th class="py-2 pr-4 font-medium">Email</th>
+										<th class="py-2 pr-4 font-medium">Memberships</th>
+										<th class="py-2 pr-4 font-medium">Status</th>
+										<th class="py-2 pr-4 font-medium">Joined</th>
+										<th class="py-2 font-medium">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each users as user}
+										<tr class="border-b border-white/5">
+											<td class="py-3 pr-4">
+												<div class="flex items-center gap-2">
+													<div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)]">
+														<span class="text-xs font-bold text-white">{user.display_name?.[0]?.toUpperCase() ?? '?'}</span>
+													</div>
+													<div>
+														<div class="font-medium">
+															{user.display_name}
+															{#if user.is_admin}
+																<span class="ml-1 rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-xs text-[var(--accent)]">admin</span>
+															{/if}
+														</div>
+														<div class="text-xs text-[var(--text-secondary)]">@{user.username}</div>
+													</div>
+												</div>
+											</td>
+											<td class="py-3 pr-4 text-[var(--text-secondary)]">{user.email}</td>
+											<td class="py-3 pr-4">
+												<div class="flex flex-wrap gap-1">
+													{#each user.communities ?? [] as c}
+														<span class="rounded bg-purple-500/10 px-1.5 py-0.5 text-xs text-purple-400" title={c.role}>{c.name}</span>
+													{/each}
+													{#each user.groups ?? [] as g}
+														<span class="rounded bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-400" title={g.role}>{g.name}</span>
+													{/each}
+													{#if (user.communities?.length ?? 0) === 0 && (user.groups?.length ?? 0) === 0}
+														<span class="text-xs text-[var(--text-secondary)]">None</span>
+													{/if}
+												</div>
+											</td>
+											<td class="py-3 pr-4">
+												{#if user.suspended_at}
+													<span class="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-400">Suspended</span>
+												{:else}
+													<span class="rounded bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Active</span>
+												{/if}
+											</td>
+											<td class="py-3 pr-4 text-[var(--text-secondary)]">{new Date(user.created_at).toLocaleDateString()}</td>
+											<td class="py-3">
+												{#if user.id !== authStore.user?.id}
+													<div class="flex flex-wrap gap-1">
+														{#if user.suspended_at}
+															<button onclick={() => handleUnsuspend(user)} class="rounded px-2 py-1 text-xs text-green-400 transition hover:bg-green-500/10">Unsuspend</button>
+														{:else}
+															<button onclick={() => handleSuspend(user)} class="rounded px-2 py-1 text-xs text-yellow-400 transition hover:bg-yellow-500/10">Suspend</button>
+														{/if}
+														<button onclick={() => handleResetPassword(user)} class="rounded px-2 py-1 text-xs text-orange-400 transition hover:bg-orange-500/10">Reset PW</button>
+														<button onclick={() => handleToggleAdmin(user)} class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10">{user.is_admin ? 'Revoke Admin' : 'Grant Admin'}</button>
+														<button onclick={() => handleDelete(user)} class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10">Delete</button>
+													</div>
+												{:else}
+													<span class="text-xs text-[var(--text-secondary)]">You</span>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</section>
 
-				{#if showCreateInvite}
-					<div class="mb-4 rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
-						<div class="flex gap-3">
-							<div class="flex-1">
-								<label for="admin-invite-max-uses" class="mb-1 block text-xs text-[var(--text-secondary)]">Max Uses (blank = unlimited)</label>
-								<input
-									id="admin-invite-max-uses"
-									type="number"
-									bind:value={newInviteMaxUses}
-									min="1"
-									placeholder="Unlimited"
-									class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-								/>
+			<!-- ═══ INVITES TAB ═══ -->
+			{:else if activeTab === 'invites'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Registration Invites</h2>
+						<button onclick={() => (showCreateInvite = !showCreateInvite)} class="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]">
+							{showCreateInvite ? 'Cancel' : 'Generate Invite'}
+						</button>
+					</div>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">Set REGISTRATION_MODE=invite_only to require invite codes for new registrations.</p>
+					{#if showCreateInvite}
+						<div class="mb-4 rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
+							<div class="flex gap-3">
+								<div class="flex-1">
+									<label for="admin-invite-max-uses" class="mb-1 block text-xs text-[var(--text-secondary)]">Max Uses (blank = unlimited)</label>
+									<input id="admin-invite-max-uses" type="number" bind:value={newInviteMaxUses} min="1" placeholder="Unlimited" class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+								</div>
+								<div class="flex-1">
+									<label for="admin-invite-expires" class="mb-1 block text-xs text-[var(--text-secondary)]">Expires In (hours, blank = never)</label>
+									<input id="admin-invite-expires" type="number" bind:value={newInviteExpiresHours} min="1" placeholder="Never" class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+								</div>
+								<div class="flex items-end">
+									<button onclick={handleCreateInvite} disabled={creatingInvite} class="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50">
+										{creatingInvite ? 'Creating...' : 'Create'}
+									</button>
+								</div>
 							</div>
-							<div class="flex-1">
-								<label for="admin-invite-expires" class="mb-1 block text-xs text-[var(--text-secondary)]">Expires In (hours, blank = never)</label>
-								<input
-									id="admin-invite-expires"
-									type="number"
-									bind:value={newInviteExpiresHours}
-									min="1"
-									placeholder="Never"
-									class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-								/>
-							</div>
-							<div class="flex items-end">
-								<button
-									onclick={handleCreateInvite}
-									disabled={creatingInvite}
-									class="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
-								>
-									{creatingInvite ? 'Creating...' : 'Create'}
-								</button>
-							</div>
+						</div>
+					{/if}
+					{#if invitesLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading invites...</p>
+					{:else if invites.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No invite codes yet.</p>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
+										<th class="py-2 pr-4 font-medium">Code</th>
+										<th class="py-2 pr-4 font-medium">Uses</th>
+										<th class="py-2 pr-4 font-medium">Expires</th>
+										<th class="py-2 pr-4 font-medium">Created</th>
+										<th class="py-2 font-medium">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each invites as invite}
+										<tr class="border-b border-white/5">
+											<td class="py-3 pr-4"><code class="rounded bg-white/5 px-2 py-0.5 font-mono text-xs">{invite.code}</code></td>
+											<td class="py-3 pr-4 text-[var(--text-secondary)]">{invite.used_count}{invite.max_uses !== null ? `/${invite.max_uses}` : ''}</td>
+											<td class="py-3 pr-4 text-[var(--text-secondary)]">{invite.expires_at ? new Date(invite.expires_at).toLocaleString() : 'Never'}</td>
+											<td class="py-3 pr-4 text-[var(--text-secondary)]">{new Date(invite.created_at).toLocaleDateString()}</td>
+											<td class="py-3">
+												<div class="flex gap-1">
+													<button onclick={() => copyText(invite.code)} class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10">Copy</button>
+													<button onclick={() => handleDeleteInvite(invite)} class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10">Delete</button>
+												</div>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</section>
+
+			<!-- ═══ FILES TAB ═══ -->
+			{:else if activeTab === 'files'}
+				<!-- Storage Stats -->
+				{#if storageStats}
+					<div class="mb-4 grid grid-cols-3 gap-4">
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 text-center">
+							<div class="text-2xl font-bold">{storageStats.total_files}</div>
+							<div class="text-xs text-[var(--text-secondary)]">Total Files</div>
+						</div>
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 text-center">
+							<div class="text-2xl font-bold">{formatBytes(storageStats.total_bytes)}</div>
+							<div class="text-xs text-[var(--text-secondary)]">Total Storage</div>
+						</div>
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 text-center">
+							<div class="text-2xl font-bold">{storageStats.per_user.length}</div>
+							<div class="text-xs text-[var(--text-secondary)]">Uploaders</div>
 						</div>
 					</div>
 				{/if}
 
-				{#if invitesLoading}
-					<p class="text-sm text-[var(--text-secondary)]">Loading invites...</p>
-				{:else if invites.length === 0}
-					<p class="text-sm text-[var(--text-secondary)]">No invite codes yet.</p>
-				{:else}
-					<div class="overflow-x-auto">
-						<table class="w-full text-sm">
-							<thead>
-								<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
-									<th class="py-2 pr-4 font-medium">Code</th>
-									<th class="py-2 pr-4 font-medium">Uses</th>
-									<th class="py-2 pr-4 font-medium">Expires</th>
-									<th class="py-2 pr-4 font-medium">Created</th>
-									<th class="py-2 font-medium">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each invites as invite}
-									<tr class="border-b border-white/5">
-										<td class="py-3 pr-4">
-											<code class="rounded bg-white/5 px-2 py-0.5 font-mono text-xs">{invite.code}</code>
-										</td>
-										<td class="py-3 pr-4 text-[var(--text-secondary)]">
-											{invite.used_count}{invite.max_uses !== null ? `/${invite.max_uses}` : ''}
-										</td>
-										<td class="py-3 pr-4 text-[var(--text-secondary)]">
-											{invite.expires_at ? new Date(invite.expires_at).toLocaleString() : 'Never'}
-										</td>
-										<td class="py-3 pr-4 text-[var(--text-secondary)]">
-											{new Date(invite.created_at).toLocaleDateString()}
-										</td>
-										<td class="py-3">
-											<div class="flex gap-1">
-												<button
-													onclick={() => copyCode(invite.code)}
-													class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
-												>
-													Copy
-												</button>
-												<button
-													onclick={() => handleDeleteInvite(invite)}
-													class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10"
-												>
-													Delete
-												</button>
-											</div>
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">File Browser</h2>
+						<div class="flex items-center gap-2">
+							<label for="files-sort" class="text-xs text-[var(--text-secondary)]">Sort:</label>
+							<select id="files-sort" bind:value={filesSort} onchange={() => { filesPage = 1; loadFiles(); }} class="rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)]">
+								<option value="date">Newest</option>
+								<option value="size">Largest</option>
+							</select>
+						</div>
 					</div>
-				{/if}
-			</section>
+
+					{#if filesLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading files...</p>
+					{:else if !filesResponse || filesResponse.files.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No files found.</p>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
+										<th class="py-2 pr-3 font-medium">ID</th>
+										<th class="py-2 pr-3 font-medium">Type</th>
+										<th class="py-2 pr-3 font-medium">Size</th>
+										<th class="py-2 pr-3 font-medium">Uploader</th>
+										<th class="py-2 pr-3 font-medium">Status</th>
+										<th class="py-2 pr-3 font-medium">Uploaded</th>
+										<th class="py-2 font-medium">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each filesResponse.files as file}
+										<tr class="border-b border-white/5">
+											<td class="py-3 pr-3">
+												<code class="cursor-pointer rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs" title={file.id} onclick={() => copyText(file.id)}>{file.id.slice(0, 8)}</code>
+											</td>
+											<td class="py-3 pr-3 text-xs text-[var(--text-secondary)]">{file.content_type ?? 'unknown'}</td>
+											<td class="py-3 pr-3 text-xs">{formatBytes(file.size_bytes)}</td>
+											<td class="py-3 pr-3">
+												<code class="cursor-pointer font-mono text-xs text-[var(--text-secondary)]" title={file.uploader_id} onclick={() => copyText(file.uploader_id)}>{file.uploader_id.slice(0, 8)}</code>
+											</td>
+											<td class="py-3 pr-3">
+												{#if file.quarantined_at}
+													<span class="rounded bg-orange-500/10 px-2 py-0.5 text-xs text-orange-400">Quarantined</span>
+												{:else}
+													<span class="rounded bg-green-500/10 px-2 py-0.5 text-xs text-green-400">Active</span>
+												{/if}
+											</td>
+											<td class="py-3 pr-3 text-xs text-[var(--text-secondary)]">{new Date(file.created_at).toLocaleDateString()}</td>
+											<td class="py-3">
+												<div class="flex gap-1">
+													<button onclick={() => handleQuarantineFile(file)} class="rounded px-2 py-1 text-xs text-orange-400 transition hover:bg-orange-500/10">
+														{file.quarantined_at ? 'Unquarantine' : 'Quarantine'}
+													</button>
+													<button onclick={() => handleDeleteFile(file)} class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10">Delete</button>
+												</div>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						<!-- Pagination -->
+						{#if filesResponse.total > filesResponse.per_page}
+							<div class="mt-4 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+								<span>Page {filesResponse.page} of {Math.ceil(filesResponse.total / filesResponse.per_page)} ({filesResponse.total} files)</span>
+								<div class="flex gap-2">
+									<button disabled={filesPage <= 1} onclick={() => { filesPage--; loadFiles(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Prev</button>
+									<button disabled={filesPage >= Math.ceil(filesResponse.total / filesResponse.per_page)} onclick={() => { filesPage++; loadFiles(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Next</button>
+								</div>
+							</div>
+						{/if}
+					{/if}
+				</section>
+
+			<!-- ═══ REPORTS TAB ═══ -->
+			{:else if activeTab === 'reports'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Content Reports</h2>
+						<div class="flex items-center gap-2">
+							<label for="report-status" class="text-xs text-[var(--text-secondary)]">Filter:</label>
+							<select id="report-status" bind:value={reportsStatusFilter} onchange={() => { reportsPage = 1; loadReports(); }} class="rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)]">
+								<option value="">All</option>
+								<option value="pending">Pending</option>
+								<option value="reviewed">Reviewed</option>
+								<option value="resolved">Resolved</option>
+								<option value="dismissed">Dismissed</option>
+							</select>
+						</div>
+					</div>
+
+					{#if reportsLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading reports...</p>
+					{:else if !reportsResponse || reportsResponse.reports.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No reports found.</p>
+					{:else}
+						<div class="space-y-3">
+							{#each reportsResponse.reports as report}
+								<div class="rounded-lg border border-white/5 bg-[var(--bg-primary)] p-4">
+									<div class="mb-2 flex items-start justify-between">
+										<div class="flex items-center gap-2">
+											<span class="rounded px-2 py-0.5 text-xs font-medium {
+												report.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
+												report.status === 'reviewed' ? 'bg-blue-500/10 text-blue-400' :
+												report.status === 'resolved' ? 'bg-green-500/10 text-green-400' :
+												'bg-gray-500/10 text-gray-400'
+											}">{report.status}</span>
+											<span class="rounded bg-white/5 px-2 py-0.5 text-xs">{report.report_type}</span>
+										</div>
+										<span class="text-xs text-[var(--text-secondary)]">{new Date(report.created_at).toLocaleString()}</span>
+									</div>
+									<p class="mb-2 text-sm">{report.reason}</p>
+									<div class="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
+										<span>Target: <code class="cursor-pointer font-mono" onclick={() => copyText(report.target_id)}>{report.target_id.slice(0, 8)}</code></span>
+										<span>Reporter: <code class="cursor-pointer font-mono" onclick={() => copyText(report.reporter_id)}>{report.reporter_id.slice(0, 8)}</code></span>
+										{#if report.admin_notes}
+											<span>Notes: {report.admin_notes}</span>
+										{/if}
+									</div>
+									{#if report.status === 'pending'}
+										{#if reviewingReportId === report.id}
+											<div class="mt-3 flex items-end gap-2 border-t border-white/5 pt-3">
+												<div>
+													<label for="review-status-{report.id}" class="mb-1 block text-xs text-[var(--text-secondary)]">Status</label>
+													<select id="review-status-{report.id}" bind:value={reviewStatus} class="rounded border border-white/10 bg-[var(--bg-secondary)] px-2 py-1 text-xs text-[var(--text-primary)]">
+														<option value="reviewed">Reviewed</option>
+														<option value="resolved">Resolved</option>
+														<option value="dismissed">Dismissed</option>
+													</select>
+												</div>
+												<div class="flex-1">
+													<label for="review-notes-{report.id}" class="mb-1 block text-xs text-[var(--text-secondary)]">Notes (optional)</label>
+													<input id="review-notes-{report.id}" type="text" bind:value={reviewNotes} placeholder="Admin notes..." class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+												</div>
+												<button onclick={handleReviewReport} class="rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]">Submit</button>
+												<button onclick={() => { reviewingReportId = null; }} class="rounded border border-white/10 px-3 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/5">Cancel</button>
+											</div>
+										{:else}
+											<button onclick={() => { reviewingReportId = report.id; reviewStatus = 'reviewed'; reviewNotes = ''; }} class="mt-2 rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10">Review</button>
+										{/if}
+									{/if}
+								</div>
+							{/each}
+						</div>
+						<!-- Pagination -->
+						{#if reportsResponse.total > reportsResponse.per_page}
+							<div class="mt-4 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+								<span>Page {reportsResponse.page} of {Math.ceil(reportsResponse.total / reportsResponse.per_page)} ({reportsResponse.total} reports)</span>
+								<div class="flex gap-2">
+									<button disabled={reportsPage <= 1} onclick={() => { reportsPage--; loadReports(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Prev</button>
+									<button disabled={reportsPage >= Math.ceil(reportsResponse.total / reportsResponse.per_page)} onclick={() => { reportsPage++; loadReports(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Next</button>
+								</div>
+							</div>
+						{/if}
+					{/if}
+				</section>
+
+			<!-- ═══ AUDIT LOG TAB ═══ -->
+			{:else if activeTab === 'audit'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<div class="mb-4 flex items-center justify-between">
+						<h2 class="text-lg font-semibold">Audit Log</h2>
+						<div class="flex items-center gap-2">
+							<input type="text" bind:value={auditActionFilter} placeholder="Filter action..." class="w-36 rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+							<input type="text" bind:value={auditUserFilter} placeholder="User ID..." class="w-36 rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+							<button onclick={() => { auditPage = 1; loadAuditLog(); }} class="rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]">Filter</button>
+						</div>
+					</div>
+
+					{#if auditLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading audit log...</p>
+					{:else if !auditResponse || auditResponse.entries.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No audit entries found.</p>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
+										<th class="py-2 pr-3 font-medium">Time</th>
+										<th class="py-2 pr-3 font-medium">Action</th>
+										<th class="py-2 pr-3 font-medium">User</th>
+										<th class="py-2 pr-3 font-medium">IP</th>
+										<th class="py-2 font-medium">Details</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each auditResponse.entries as entry}
+										<tr class="border-b border-white/5">
+											<td class="py-2 pr-3 text-xs text-[var(--text-secondary)]">{new Date(entry.created_at).toLocaleString()}</td>
+											<td class="py-2 pr-3">
+												<span class="rounded bg-white/5 px-2 py-0.5 font-mono text-xs">{entry.action}</span>
+											</td>
+											<td class="py-2 pr-3">
+												{#if entry.user_id}
+													<code class="cursor-pointer font-mono text-xs text-[var(--text-secondary)]" onclick={() => copyText(entry.user_id!)}>{entry.user_id.slice(0, 8)}</code>
+												{:else}
+													<span class="text-xs text-[var(--text-secondary)]">system</span>
+												{/if}
+											</td>
+											<td class="py-2 pr-3 text-xs text-[var(--text-secondary)]">{entry.ip_address ?? '-'}</td>
+											<td class="py-2 text-xs text-[var(--text-secondary)]">
+												{#if entry.metadata}
+													<code class="font-mono">{JSON.stringify(entry.metadata)}</code>
+												{:else}
+													-
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						<!-- Pagination -->
+						{#if auditResponse.total > auditResponse.per_page}
+							<div class="mt-4 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+								<span>Page {auditResponse.page} of {Math.ceil(auditResponse.total / auditResponse.per_page)} ({auditResponse.total} entries)</span>
+								<div class="flex gap-2">
+									<button disabled={auditPage <= 1} onclick={() => { auditPage--; loadAuditLog(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Prev</button>
+									<button disabled={auditPage >= Math.ceil(auditResponse.total / auditResponse.per_page)} onclick={() => { auditPage++; loadAuditLog(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Next</button>
+								</div>
+							</div>
+						{/if}
+					{/if}
+				</section>
+
+			<!-- ═══ SECURITY TAB ═══ -->
+			{:else if activeTab === 'security'}
+				<!-- Purge Tools -->
+				<section class="mb-4 rounded-xl border border-red-500/20 bg-[var(--bg-secondary)] p-6">
+					<h2 class="mb-1 text-lg font-semibold text-red-400">Purge Tools</h2>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">Permanently hard-delete messages and files. This cannot be undone.</p>
+					<div class="flex flex-wrap items-end gap-3">
+						<div>
+							<label for="purge-type" class="mb-1 block text-xs text-[var(--text-secondary)]">Target Type</label>
+							<select id="purge-type" bind:value={purgeType} class="rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)]">
+								<option value="message">Single Message</option>
+								<option value="user">All from User</option>
+								<option value="channel">All in Channel</option>
+							</select>
+						</div>
+						<div class="flex-1">
+							<label for="purge-id" class="mb-1 block text-xs text-[var(--text-secondary)]">
+								{purgeType === 'message' ? 'Message' : purgeType === 'user' ? 'User' : 'Channel'} ID
+							</label>
+							<input id="purge-id" type="text" bind:value={purgeTargetId} placeholder="UUID..." class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-red-400" />
+						</div>
+						<label class="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+							<input type="checkbox" bind:checked={purgeBlockHashes} class="rounded" />
+							Block file hashes
+						</label>
+						<button onclick={handlePurge} disabled={purging} class="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50">
+							{purging ? 'Purging...' : 'Purge'}
+						</button>
+					</div>
+				</section>
+
+				<!-- Quarantine Tools -->
+				<section class="mb-4 rounded-xl border border-orange-500/20 bg-[var(--bg-secondary)] p-6">
+					<h2 class="mb-1 text-lg font-semibold text-orange-400">Quick Quarantine</h2>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">Hide a message from view without deleting it. Use the Files tab to quarantine files.</p>
+					<div class="flex items-end gap-3">
+						<div class="flex-1">
+							<label for="quarantine-msg-id" class="mb-1 block text-xs text-[var(--text-secondary)]">Message ID</label>
+							<input id="quarantine-msg-id" type="text" placeholder="UUID..." class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-orange-400" />
+						</div>
+						<button
+							onclick={async () => {
+								const input = document.getElementById('quarantine-msg-id') as HTMLInputElement;
+								if (!input.value.trim()) { toastStore.error('Enter a message ID'); return; }
+								try {
+									await quarantineMessage(input.value.trim());
+									toastStore.success('Message quarantined');
+									input.value = '';
+								} catch (err) {
+									toastStore.error(err instanceof Error ? err.message : 'Failed to quarantine');
+								}
+							}}
+							class="rounded-lg bg-orange-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-orange-700"
+						>
+							Quarantine
+						</button>
+						<button
+							onclick={async () => {
+								const input = document.getElementById('quarantine-msg-id') as HTMLInputElement;
+								if (!input.value.trim()) { toastStore.error('Enter a message ID'); return; }
+								try {
+									await unquarantineMessage(input.value.trim());
+									toastStore.success('Message unquarantined');
+									input.value = '';
+								} catch (err) {
+									toastStore.error(err instanceof Error ? err.message : 'Failed to unquarantine');
+								}
+							}}
+							class="rounded-lg border border-orange-500/30 px-4 py-1.5 text-sm font-medium text-orange-400 transition hover:bg-orange-500/10"
+						>
+							Unquarantine
+						</button>
+					</div>
+				</section>
+
+				<!-- Blocked Hashes -->
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<h2 class="mb-1 text-lg font-semibold">Blocked File Hashes</h2>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">SHA256 hashes of files that will be rejected on upload.</p>
+
+					<!-- Add hash form -->
+					<div class="mb-4 flex items-end gap-2">
+						<div class="flex-1">
+							<label for="new-hash" class="mb-1 block text-xs text-[var(--text-secondary)]">SHA256 Hash (64 hex chars)</label>
+							<input id="new-hash" type="text" bind:value={newHashValue} placeholder="e.g. a1b2c3d4..." maxlength="64" class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 font-mono text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+						</div>
+						<div class="w-48">
+							<label for="hash-reason" class="mb-1 block text-xs text-[var(--text-secondary)]">Reason (optional)</label>
+							<input id="hash-reason" type="text" bind:value={newHashReason} placeholder="Reason..." class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+						</div>
+						<button onclick={handleAddHash} class="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]">Block</button>
+					</div>
+
+					{#if hashesLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading blocked hashes...</p>
+					{:else if blockedHashes.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No blocked hashes.</p>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
+										<th class="py-2 pr-3 font-medium">Hash</th>
+										<th class="py-2 pr-3 font-medium">Reason</th>
+										<th class="py-2 pr-3 font-medium">Added</th>
+										<th class="py-2 font-medium">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each blockedHashes as hash}
+										<tr class="border-b border-white/5">
+											<td class="py-2 pr-3">
+												<code class="cursor-pointer font-mono text-xs" title={hash.hash} onclick={() => copyText(hash.hash)}>{hash.hash.slice(0, 24)}...</code>
+											</td>
+											<td class="py-2 pr-3 text-xs text-[var(--text-secondary)]">{hash.reason ?? '-'}</td>
+											<td class="py-2 pr-3 text-xs text-[var(--text-secondary)]">{new Date(hash.created_at).toLocaleDateString()}</td>
+											<td class="py-2">
+												<button onclick={() => handleRemoveHash(hash)} class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10">Remove</button>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</section>
+			{/if}
 		</div>
 	</div>
 {/if}
