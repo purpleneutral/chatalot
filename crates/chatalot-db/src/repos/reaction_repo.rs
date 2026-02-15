@@ -81,3 +81,30 @@ pub async fn get_reaction_counts(
     .fetch_all(pool)
     .await
 }
+
+/// Get reactions for multiple messages at once, grouped by message_id and emoji.
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+pub struct MessageReactionCount {
+    pub message_id: Uuid,
+    pub emoji: String,
+    pub count: i64,
+    pub user_ids: Vec<Uuid>,
+}
+
+pub async fn get_reactions_for_messages(
+    pool: &PgPool,
+    message_ids: &[Uuid],
+) -> Result<Vec<MessageReactionCount>, sqlx::Error> {
+    sqlx::query_as::<_, MessageReactionCount>(
+        r#"
+        SELECT message_id, emoji, COUNT(*) as count, ARRAY_AGG(user_id) as user_ids
+        FROM reactions
+        WHERE message_id = ANY($1)
+        GROUP BY message_id, emoji
+        ORDER BY message_id, MIN(created_at)
+        "#,
+    )
+    .bind(message_ids)
+    .fetch_all(pool)
+    .await
+}

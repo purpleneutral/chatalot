@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, searchMessages, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message, type ReactionInfo } from '$lib/api/channels';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
 	import { searchUsers, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
@@ -315,6 +315,15 @@
 	// Infinite scroll state
 	let loadingOlder = $state(false);
 	const FETCH_LIMIT = 50;
+
+	function parseReactions(reactions?: ReactionInfo[]): Map<string, Set<string>> | undefined {
+		if (!reactions || reactions.length === 0) return undefined;
+		const map = new Map<string, Set<string>>();
+		for (const r of reactions) {
+			map.set(r.emoji, new Set(r.user_ids));
+		}
+		return map;
+	}
 
 	// Member panel state
 	let showMemberPanel = $state(false);
@@ -854,6 +863,7 @@
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
 						createdAt: m.created_at,
+						reactions: parseReactions(m.reactions),
 					})));
 				} else {
 					chatMessages = await Promise.all(reversed.map(async (m) => ({
@@ -870,6 +880,7 @@
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
 						createdAt: m.created_at,
+						reactions: parseReactions(m.reactions),
 					})));
 				}
 				messageStore.setMessages(channelId, chatMessages, FETCH_LIMIT);
@@ -2477,7 +2488,8 @@
 				messageType: m.message_type,
 				replyToId: m.reply_to_id,
 				editedAt: m.edited_at,
-				createdAt: m.created_at
+				createdAt: m.created_at,
+				reactions: parseReactions(m.reactions),
 			})));
 			messageStore.prependMessages(channelStore.activeChannelId, olderMessages, FETCH_LIMIT);
 			// Preserve scroll position

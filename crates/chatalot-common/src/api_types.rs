@@ -148,6 +148,12 @@ pub struct BanRequest {
 // ── Messages ──
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ReactionInfo {
+    pub emoji: String,
+    pub user_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MessageResponse {
     pub id: Uuid,
     pub channel_id: Uuid,
@@ -159,6 +165,8 @@ pub struct MessageResponse {
     pub sender_key_id: Option<Uuid>,
     pub edited_at: Option<String>,
     pub created_at: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reactions: Vec<ReactionInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

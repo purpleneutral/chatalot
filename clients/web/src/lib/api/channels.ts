@@ -12,6 +12,11 @@ export interface Channel {
 	slow_mode_seconds: number;
 }
 
+export interface ReactionInfo {
+	emoji: string;
+	user_ids: string[];
+}
+
 export interface Message {
 	id: string;
 	channel_id: string;
@@ -23,6 +28,7 @@ export interface Message {
 	sender_key_id: string | null;
 	edited_at: string | null;
 	created_at: string;
+	reactions?: ReactionInfo[];
 }
 
 export async function listChannels(): Promise<Channel[]> {

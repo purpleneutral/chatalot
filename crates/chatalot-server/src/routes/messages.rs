@@ -6,10 +6,10 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    MessageResponse, MessagesQuery, PinnedMessageResponse, SearchQuery,
+    MessageResponse, MessagesQuery, PinnedMessageResponse, ReactionInfo, SearchQuery,
 };
 use chatalot_common::ws_messages::ServerMessage;
-use chatalot_db::repos::{channel_repo, message_repo, pin_repo};
+use chatalot_db::repos::{channel_repo, message_repo, pin_repo, reaction_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -43,19 +43,39 @@ async fn get_messages(
     let limit = query.limit.unwrap_or(50).min(100);
     let messages = message_repo::get_messages(&state.db, channel_id, query.before, limit).await?;
 
+    // Batch-fetch reactions for all messages
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let reaction_rows =
+        reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
+    let mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>> =
+        std::collections::HashMap::new();
+    for r in reaction_rows {
+        reactions_map
+            .entry(r.message_id)
+            .or_default()
+            .push(ReactionInfo {
+                emoji: r.emoji,
+                user_ids: r.user_ids,
+            });
+    }
+
     let responses: Vec<MessageResponse> = messages
         .into_iter()
-        .map(|m| MessageResponse {
-            id: m.id,
-            channel_id: m.channel_id,
-            sender_id: m.sender_id,
-            ciphertext: m.ciphertext,
-            nonce: m.nonce,
-            message_type: m.message_type,
-            reply_to_id: m.reply_to_id,
-            sender_key_id: m.sender_key_id,
-            edited_at: m.edited_at.map(|t| t.to_rfc3339()),
-            created_at: m.created_at.to_rfc3339(),
+        .map(|m| {
+            let reactions = reactions_map.remove(&m.id).unwrap_or_default();
+            MessageResponse {
+                id: m.id,
+                channel_id: m.channel_id,
+                sender_id: m.sender_id,
+                ciphertext: m.ciphertext,
+                nonce: m.nonce,
+                message_type: m.message_type,
+                reply_to_id: m.reply_to_id,
+                sender_key_id: m.sender_key_id,
+                edited_at: m.edited_at.map(|t| t.to_rfc3339()),
+                created_at: m.created_at.to_rfc3339(),
+                reactions,
+            }
         })
         .collect();
 
@@ -76,19 +96,38 @@ async fn search_messages(
     let messages =
         message_repo::search_messages(&state.db, channel_id, &query.q, limit).await?;
 
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let reaction_rows =
+        reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
+    let mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>> =
+        std::collections::HashMap::new();
+    for r in reaction_rows {
+        reactions_map
+            .entry(r.message_id)
+            .or_default()
+            .push(ReactionInfo {
+                emoji: r.emoji,
+                user_ids: r.user_ids,
+            });
+    }
+
     let responses: Vec<MessageResponse> = messages
         .into_iter()
-        .map(|m| MessageResponse {
-            id: m.id,
-            channel_id: m.channel_id,
-            sender_id: m.sender_id,
-            ciphertext: m.ciphertext,
-            nonce: m.nonce,
-            message_type: m.message_type,
-            reply_to_id: m.reply_to_id,
-            sender_key_id: m.sender_key_id,
-            edited_at: m.edited_at.map(|t| t.to_rfc3339()),
-            created_at: m.created_at.to_rfc3339(),
+        .map(|m| {
+            let reactions = reactions_map.remove(&m.id).unwrap_or_default();
+            MessageResponse {
+                id: m.id,
+                channel_id: m.channel_id,
+                sender_id: m.sender_id,
+                ciphertext: m.ciphertext,
+                nonce: m.nonce,
+                message_type: m.message_type,
+                reply_to_id: m.reply_to_id,
+                sender_key_id: m.sender_key_id,
+                edited_at: m.edited_at.map(|t| t.to_rfc3339()),
+                created_at: m.created_at.to_rfc3339(),
+                reactions,
+            }
         })
         .collect();
 
