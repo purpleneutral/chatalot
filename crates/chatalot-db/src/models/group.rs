@@ -13,6 +13,8 @@ pub struct Group {
     pub updated_at: DateTime<Utc>,
     pub visibility: String,
     pub discoverable: bool,
+    pub assigned_member_id: Option<Uuid>,
+    pub allow_invites: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

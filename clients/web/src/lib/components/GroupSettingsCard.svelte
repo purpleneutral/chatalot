@@ -2,6 +2,7 @@
 	import { scale } from 'svelte/transition';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { groupStore } from '$lib/stores/groups.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
 	import { updateGroup as apiUpdateGroup, leaveGroup, deleteGroup, createInvite } from '$lib/api/groups';
 	import type { Group } from '$lib/api/groups';
 
@@ -12,7 +13,9 @@
 		onclose,
 		ondeleted,
 		onleft,
-		oninvitecreated
+		oninvitecreated,
+		isCommunityModerator = false,
+		assignedMemberName
 	}: {
 		group: Group;
 		myRole: string;
@@ -21,10 +24,18 @@
 		ondeleted?: () => void;
 		onleft?: () => void;
 		oninvitecreated?: (code: string) => void;
+		isCommunityModerator?: boolean;
+		assignedMemberName?: string;
 	} = $props();
 
 	const isAdmin = $derived(myRole === 'owner' || myRole === 'admin');
 	const isOwner = $derived(myRole === 'owner');
+	const isPersonal = $derived(!!group.assigned_member_id);
+	const isAssignedMember = $derived(group.assigned_member_id === authStore.user?.id);
+	// Assigned members can't delete; only community moderator+ can
+	const canDelete = $derived(isPersonal ? isCommunityModerator : isOwner);
+	// Assigned members can only invite if allow_invites is true
+	const canInvite = $derived(isAdmin && (!isPersonal || group.allow_invites || isCommunityModerator));
 
 	let editingName = $state(false);
 	let editName = $state(group.name);
@@ -105,6 +116,20 @@
 			groupStore.updateGroup(group.id, updated);
 			group = updated;
 			toastStore.success(`Group is now ${newVis}`);
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to update');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function toggleAllowInvites() {
+		saving = true;
+		try {
+			const updated = await apiUpdateGroup(group.id, { allow_invites: !group.allow_invites });
+			groupStore.updateGroup(group.id, updated);
+			group = updated;
+			toastStore.success(updated.allow_invites ? 'Member can now create invites' : 'Member can no longer create invites');
 		} catch (err: any) {
 			toastStore.error(err?.message ?? 'Failed to update');
 		} finally {
@@ -212,6 +237,14 @@
 				</span>
 			</p>
 
+			<!-- Personal group indicator -->
+			{#if isPersonal}
+				<div class="mb-2 flex items-center gap-1.5 rounded-lg bg-[var(--accent)]/10 px-2.5 py-1.5 text-xs text-[var(--accent)]">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+					Personal space{#if assignedMemberName}&nbsp;of <strong>{assignedMemberName}</strong>{/if}
+				</div>
+			{/if}
+
 			<!-- Description -->
 			{#if editingDesc && isAdmin}
 				<div class="mb-2">
@@ -276,14 +309,33 @@
 					</span>
 				</button>
 
-				<!-- Create Invite -->
-				<button
-					onclick={handleCreateInvite}
-					class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-					Create Invite
-				</button>
+				<!-- Allow Invites toggle (moderator-only, personal groups only) -->
+				{#if isPersonal && isCommunityModerator}
+					<button
+						onclick={toggleAllowInvites}
+						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						disabled={saving}
+					>
+						<span class="flex items-center gap-2">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+							Allow Invites
+						</span>
+						<span class="rounded-full px-2 py-0.5 text-xs {group.allow_invites ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/10 text-[var(--text-secondary)]'}">
+							{group.allow_invites ? 'ON' : 'OFF'}
+						</span>
+					</button>
+				{/if}
+
+				<!-- Create Invite (hidden for assigned member when allow_invites is off) -->
+				{#if canInvite}
+					<button
+						onclick={handleCreateInvite}
+						class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+						Create Invite
+					</button>
+				{/if}
 			{/if}
 
 			<!-- Copy ID -->
@@ -298,7 +350,7 @@
 			<div class="mb-1 mt-1 border-t border-white/10"></div>
 
 			<!-- Leave / Delete -->
-			{#if !isOwner}
+			{#if !isOwner && !isAssignedMember}
 				<button
 					onclick={handleLeave}
 					class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[var(--danger)] transition hover:bg-[var(--danger)]/10"
@@ -307,7 +359,7 @@
 					Leave Group
 				</button>
 			{/if}
-			{#if isOwner}
+			{#if canDelete}
 				<button
 					onclick={handleDelete}
 					class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-[var(--danger)] transition hover:bg-[var(--danger)]/10"

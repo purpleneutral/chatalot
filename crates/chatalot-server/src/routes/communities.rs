@@ -768,6 +768,8 @@ async fn list_community_groups(
                 member_count: count,
                 visibility: g.visibility,
                 discoverable: g.discoverable,
+                assigned_member_id: g.assigned_member_id,
+                allow_invites: g.allow_invites,
             }
         })
         .collect();

@@ -135,6 +135,7 @@
 	let showCreateGroup = $state(false);
 	let newGroupName = $state('');
 	let newGroupDescription = $state('');
+	let newGroupAssignMemberId = $state('');
 	let expandedGroupIds = $state<Set<string>>(new Set());
 	let groupChannelsMap = $state<Map<string, Channel[]>>(new Map());
 	let showDiscoverGroups = $state(false);
@@ -1690,12 +1691,26 @@
 		const group = groupStore.groups.find(g => g.id === groupId);
 		if (!group) return 'member';
 		if (group.owner_id === authStore.user?.id) return 'owner';
+		// Personal groups: assigned member gets 'owner' role
+		if (group.assigned_member_id === authStore.user?.id) return 'owner';
+		// Community moderator+ gets 'admin' for personal groups
+		if (group.assigned_member_id && communityStore.activeCommunityId && authStore.user?.id) {
+			const cm = communityMemberStore.getMember(communityStore.activeCommunityId, authStore.user.id);
+			if (cm && (cm.role === 'owner' || cm.role === 'admin' || cm.role === 'moderator')) return 'admin';
+		}
 		// Check community-level role
 		if (communityStore.activeCommunityId && authStore.user?.id) {
 			const cm = communityMemberStore.getMember(communityStore.activeCommunityId, authStore.user.id);
 			if (cm) return cm.role;
 		}
 		return 'member';
+	}
+
+	function isCommunityModeratorOrAbove(): boolean {
+		if (!communityStore.activeCommunityId || !authStore.user?.id) return false;
+		const cm = communityMemberStore.getMember(communityStore.activeCommunityId, authStore.user.id);
+		if (!cm) return false;
+		return cm.role === 'owner' || cm.role === 'admin' || cm.role === 'moderator';
 	}
 
 	async function startDmFromProfileCard(targetUserId: string) {
@@ -2320,21 +2335,28 @@
 		const name = newGroupName.trim();
 		if (!name || !communityStore.activeCommunityId) return;
 		try {
-			const group = await apiCreateGroup(communityStore.activeCommunityId, name, newGroupDescription.trim() || undefined);
+			const assignId = newGroupAssignMemberId || undefined;
+			const group = await apiCreateGroup(communityStore.activeCommunityId, name, newGroupDescription.trim() || undefined, undefined, assignId);
 			groupStore.addGroup(group);
-			// Load the auto-created #general channel
-			const chs = await listGroupChannels(group.id);
-			const newMap = new Map(groupChannelsMap);
-			newMap.set(group.id, chs);
-			groupChannelsMap = newMap;
-			for (const ch of chs) {
-				channelStore.addChannel(ch);
+			// Load the auto-created #general channel (only visible if we're the assigned member or a group member)
+			try {
+				const chs = await listGroupChannels(group.id);
+				const newMap = new Map(groupChannelsMap);
+				newMap.set(group.id, chs);
+				groupChannelsMap = newMap;
+				for (const ch of chs) {
+					channelStore.addChannel(ch);
+				}
+				wsClient.send({ type: 'subscribe', channel_ids: chs.map(c => c.id) });
+				expandedGroupIds = new Set([...expandedGroupIds, group.id]);
+				if (chs.length > 0) selectChannel(chs[0].id);
+			} catch {
+				// Moderator created a personal group for someone else — they may not be a group member
+				expandedGroupIds = new Set([...expandedGroupIds, group.id]);
 			}
-			wsClient.send({ type: 'subscribe', channel_ids: chs.map(c => c.id) });
-			expandedGroupIds = new Set([...expandedGroupIds, group.id]);
-			if (chs.length > 0) selectChannel(chs[0].id);
 			newGroupName = '';
 			newGroupDescription = '';
+			newGroupAssignMemberId = '';
 			showCreateGroup = false;
 			toastStore.success(`Group "${group.name}" created`);
 		} catch (err: any) {
@@ -2953,10 +2975,21 @@
 						placeholder="Description (optional)..."
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
+					{#if isCommunityModeratorOrAbove() && communityStore.activeCommunityId}
+						<select
+							bind:value={newGroupAssignMemberId}
+							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+						>
+							<option value="">Regular group (no assignment)</option>
+							{#each communityMemberStore.getMembers(communityStore.activeCommunityId).filter(m => m.user_id !== authStore.user?.id) as member}
+								<option value={member.user_id}>{member.display_name || member.username} (@{member.username})</option>
+							{/each}
+						</select>
+					{/if}
 					<div class="flex gap-2">
 						<button
 							type="button"
-							onclick={() => { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; }}
+							onclick={() => { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; newGroupAssignMemberId = ''; }}
 							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						>
 							Cancel
@@ -2965,7 +2998,7 @@
 							type="submit"
 							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
 						>
-							Create Group
+							{newGroupAssignMemberId ? 'Create Personal Group' : 'Create Group'}
 						</button>
 					</div>
 				</form>
@@ -3111,7 +3144,9 @@
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform {expandedGroupIds.has(group.id) ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="currentColor">
 										<path d="M8 5l8 7-8 7z" />
 									</svg>
-									{#if group.visibility === 'private'}
+									{#if group.assigned_member_id}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+									{:else if group.visibility === 'private'}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 									{/if}
 									<span class="flex-1 truncate">{group.name}</span>
@@ -5081,6 +5116,8 @@
 			myRole={getMyGroupRole(groupSettingsGroup.id)}
 			anchorRect={groupSettingsAnchor}
 			onclose={closeGroupSettings}
+			isCommunityModerator={isCommunityModeratorOrAbove()}
+			assignedMemberName={groupSettingsGroup.assigned_member_id ? (userStore.getUser(groupSettingsGroup.assigned_member_id)?.display_name ?? userStore.getUser(groupSettingsGroup.assigned_member_id)?.username) : undefined}
 			ondeleted={() => {
 				const gid = groupSettingsGroup?.id;
 				closeGroupSettings();

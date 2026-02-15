@@ -5,6 +5,8 @@ use crate::models::channel::Channel;
 use crate::models::group::{Group, GroupMemberInfo};
 
 /// Create a new group and add the creator as owner.
+/// If `assigned_member_id` is provided, the assigned member becomes the group owner
+/// in group_members instead of the creator (personal group).
 pub async fn create_group(
     pool: &PgPool,
     id: Uuid,
@@ -13,13 +15,14 @@ pub async fn create_group(
     owner_id: Uuid,
     community_id: Uuid,
     visibility: &str,
+    assigned_member_id: Option<Uuid>,
 ) -> Result<Group, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let group = sqlx::query_as::<_, Group>(
         r#"
-        INSERT INTO groups (id, name, description, owner_id, community_id, visibility)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO groups (id, name, description, owner_id, community_id, visibility, assigned_member_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
         "#,
     )
@@ -29,9 +32,13 @@ pub async fn create_group(
     .bind(owner_id)
     .bind(community_id)
     .bind(visibility)
+    .bind(assigned_member_id)
     .fetch_one(&mut *tx)
     .await?;
 
+    // For personal groups, the assigned member is the group owner;
+    // for regular groups, the creator is the owner.
+    let member_owner_id = assigned_member_id.unwrap_or(owner_id);
     sqlx::query(
         r#"
         INSERT INTO group_members (group_id, user_id, role)
@@ -39,7 +46,7 @@ pub async fn create_group(
         "#,
     )
     .bind(id)
-    .bind(owner_id)
+    .bind(member_owner_id)
     .execute(&mut *tx)
     .await?;
 
@@ -73,7 +80,7 @@ pub async fn get_group(pool: &PgPool, id: Uuid) -> Result<Option<Group>, sqlx::E
         .await
 }
 
-/// Update a group's name, description, and/or visibility.
+/// Update a group's name, description, visibility, discoverable, and/or allow_invites.
 pub async fn update_group(
     pool: &PgPool,
     id: Uuid,
@@ -81,6 +88,7 @@ pub async fn update_group(
     description: Option<&str>,
     visibility: Option<&str>,
     discoverable: Option<bool>,
+    allow_invites: Option<bool>,
 ) -> Result<Option<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
         r#"
@@ -89,6 +97,7 @@ pub async fn update_group(
             description = COALESCE($3, description),
             visibility = COALESCE($4, visibility),
             discoverable = COALESCE($5, discoverable),
+            allow_invites = COALESCE($6, allow_invites),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -99,6 +108,7 @@ pub async fn update_group(
     .bind(description)
     .bind(visibility)
     .bind(discoverable)
+    .bind(allow_invites)
     .fetch_optional(pool)
     .await
 }

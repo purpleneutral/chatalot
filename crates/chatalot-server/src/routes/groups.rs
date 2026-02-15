@@ -12,13 +12,63 @@ use chatalot_common::api_types::{
 };
 use chatalot_db::models::channel::ChannelType;
 use chatalot_common::ws_messages::ServerMessage;
+use chatalot_db::models::group::Group;
 use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo, sender_key_repo};
 use rand::Rng as _;
+use sqlx::PgPool;
 
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 use crate::permissions;
+
+/// Get the effective role for a user in a group.
+/// For regular groups, returns the group_members role.
+/// For personal groups, community moderators+ get implicit 'admin' access.
+async fn get_effective_group_role(
+    db: &PgPool,
+    group: &Group,
+    user_id: Uuid,
+    is_instance_owner: bool,
+) -> Result<Option<String>, AppError> {
+    // Check direct group membership first
+    if let Some(role) = group_repo::get_member_role(db, group.id, user_id).await? {
+        return Ok(Some(role));
+    }
+
+    // For personal groups, community moderators+ get admin access
+    if group.assigned_member_id.is_some() {
+        if is_instance_owner {
+            return Ok(Some("admin".to_string()));
+        }
+        if let Some(community_role) =
+            community_repo::get_community_member_role(db, group.community_id, user_id).await?
+            && matches!(community_role.as_str(), "owner" | "admin" | "moderator")
+        {
+            return Ok(Some("admin".to_string()));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Check if a user is a community moderator+ for the group's community.
+async fn is_community_moderator(
+    db: &PgPool,
+    community_id: Uuid,
+    user_id: Uuid,
+    is_instance_owner: bool,
+) -> Result<bool, AppError> {
+    if is_instance_owner {
+        return Ok(true);
+    }
+    if let Some(role) =
+        community_repo::get_community_member_role(db, community_id, user_id).await?
+    {
+        return Ok(matches!(role.as_str(), "owner" | "admin" | "moderator"));
+    }
+    Ok(false)
+}
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -82,10 +132,33 @@ async fn create_group(
         return Err(AppError::Forbidden);
     }
 
-    let visibility = req.visibility.as_deref().unwrap_or("public");
-    if visibility != "public" && visibility != "private" {
-        return Err(AppError::Validation("visibility must be 'public' or 'private'".to_string()));
+    // Personal group: caller must be community moderator+, target must be a community member
+    let is_personal = req.assigned_member_id.is_some();
+    if let Some(target_id) = req.assigned_member_id {
+        if !is_community_moderator(&state.db, req.community_id, claims.sub, claims.is_owner)
+            .await?
+        {
+            return Err(AppError::Forbidden);
+        }
+        if !community_repo::is_community_member(&state.db, req.community_id, target_id).await? {
+            return Err(AppError::Validation(
+                "assigned member must be a member of this community".to_string(),
+            ));
+        }
     }
+
+    // Personal groups are forced private + non-discoverable
+    let visibility = if is_personal {
+        "private"
+    } else {
+        let v = req.visibility.as_deref().unwrap_or("public");
+        if v != "public" && v != "private" {
+            return Err(AppError::Validation(
+                "visibility must be 'public' or 'private'".to_string(),
+            ));
+        }
+        v
+    };
 
     let group_id = Uuid::now_v7();
     let group = group_repo::create_group(
@@ -96,10 +169,12 @@ async fn create_group(
         claims.sub,
         req.community_id,
         visibility,
+        req.assigned_member_id,
     )
     .await?;
 
-    // Auto-create #general text channel
+    // Auto-create #general text channel (created_by = assigned member or creator)
+    let channel_creator = req.assigned_member_id.unwrap_or(claims.sub);
     let channel_id = Uuid::now_v7();
     channel_repo::create_channel(
         &state.db,
@@ -107,14 +182,14 @@ async fn create_group(
         "general",
         ChannelType::Text,
         None,
-        claims.sub,
+        channel_creator,
         Some(group_id),
     )
     .await?;
 
-    // Auto-add all community members to public groups; private groups only have creator
+    // Auto-add all community members to public groups; private/personal groups only have the owner member
     let mut member_count: i64 = 1;
-    if visibility == "public" {
+    if visibility == "public" && !is_personal {
         let member_ids =
             community_repo::list_community_member_user_ids(&state.db, req.community_id)
                 .await?;
@@ -138,6 +213,8 @@ async fn create_group(
         member_count,
         visibility: group.visibility,
         discoverable: group.discoverable,
+        assigned_member_id: group.assigned_member_id,
+        allow_invites: group.allow_invites,
     }))
 }
 
@@ -162,6 +239,8 @@ async fn list_groups(
                 member_count: count,
                 visibility: g.visibility,
                 discoverable: g.discoverable,
+                assigned_member_id: g.assigned_member_id,
+                allow_invites: g.allow_invites,
             }
         })
         .collect();
@@ -195,6 +274,8 @@ async fn discover_groups(
                 member_count: count,
                 visibility: g.visibility,
                 discoverable: g.discoverable,
+                assigned_member_id: g.assigned_member_id,
+                allow_invites: g.allow_invites,
             }
         })
         .collect();
@@ -206,13 +287,14 @@ async fn get_group(
     Extension(claims): Extension<AccessClaims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<GroupResponse>, AppError> {
-    if !group_repo::is_member(&state.db, id, claims.sub).await? {
-        return Err(AppError::Forbidden);
-    }
-
     let group = group_repo::get_group(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    // Use effective role check (allows community moderators to view personal groups)
+    let _role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
+        .await?
+        .ok_or(AppError::Forbidden)?;
 
     let count = group_repo::get_member_count(&state.db, id).await?;
 
@@ -226,6 +308,8 @@ async fn get_group(
         member_count: count,
         visibility: group.visibility,
         discoverable: group.discoverable,
+        assigned_member_id: group.assigned_member_id,
+        allow_invites: group.allow_invites,
     }))
 }
 
@@ -235,13 +319,34 @@ async fn update_group(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateGroupRequest>,
 ) -> Result<Json<GroupResponse>, AppError> {
-    let role = group_repo::get_member_role(&state.db, id, claims.sub)
+    let current_group = group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &current_group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 
     if role != "owner" && role != "admin" {
         return Err(AppError::Forbidden);
     }
+
+    // Only community moderator+ can change allow_invites (not the assigned member)
+    let allow_invites_update = if req.allow_invites.is_some() {
+        if !is_community_moderator(
+            &state.db,
+            current_group.community_id,
+            claims.sub,
+            claims.is_owner,
+        )
+        .await?
+        {
+            return Err(AppError::Forbidden);
+        }
+        req.allow_invites
+    } else {
+        None
+    };
 
     // Validate visibility if provided
     if let Some(ref vis) = req.visibility
@@ -265,6 +370,7 @@ async fn update_group(
         req.description.as_deref(),
         req.visibility.as_deref(),
         req.discoverable,
+        allow_invites_update,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
@@ -281,6 +387,8 @@ async fn update_group(
         member_count: count,
         visibility: group.visibility,
         discoverable: group.discoverable,
+        assigned_member_id: group.assigned_member_id,
+        allow_invites: group.allow_invites,
     }))
 }
 
@@ -289,12 +397,31 @@ async fn delete_group_handler(
     Extension(claims): Extension<AccessClaims>,
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
-    let role = group_repo::get_member_role(&state.db, id, claims.sub)
+    let group = group_repo::get_group(&state.db, id)
         .await?
-        .ok_or(AppError::Forbidden)?;
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
 
-    if role != "owner" {
-        return Err(AppError::Forbidden);
+    // For personal groups: only the original creator (owner_id) or community moderator+ can delete.
+    // For regular groups: only the group owner can delete.
+    if group.assigned_member_id.is_some() {
+        if group.owner_id != claims.sub
+            && !is_community_moderator(
+                &state.db,
+                group.community_id,
+                claims.sub,
+                claims.is_owner,
+            )
+            .await?
+        {
+            return Err(AppError::Forbidden);
+        }
+    } else {
+        let role = group_repo::get_member_role(&state.db, id, claims.sub)
+            .await?
+            .ok_or(AppError::Forbidden)?;
+        if role != "owner" {
+            return Err(AppError::Forbidden);
+        }
     }
 
     group_repo::delete_group(&state.db, id).await?;
@@ -307,6 +434,17 @@ async fn transfer_group_ownership(
     Path(group_id): Path<Uuid>,
     Json(req): Json<TransferOwnershipRequest>,
 ) -> Result<(), AppError> {
+    let group = group_repo::get_group(&state.db, group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    // Personal groups cannot have ownership transferred
+    if group.assigned_member_id.is_some() {
+        return Err(AppError::Validation(
+            "cannot transfer ownership of a personal group".to_string(),
+        ));
+    }
+
     // Only the current owner can transfer
     let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
         .await?
@@ -393,9 +531,13 @@ async fn list_group_members(
     Extension(claims): Extension<AccessClaims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<GroupMemberResponse>>, AppError> {
-    if !group_repo::is_member(&state.db, id, claims.sub).await? {
-        return Err(AppError::Forbidden);
-    }
+    let group = group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let _role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
+        .await?
+        .ok_or(AppError::Forbidden)?;
 
     let members = group_repo::list_group_members(&state.db, id).await?;
     Ok(Json(
@@ -418,9 +560,13 @@ async fn list_group_channels(
     Extension(claims): Extension<AccessClaims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<ChannelResponse>>, AppError> {
-    if !group_repo::is_member(&state.db, id, claims.sub).await? {
-        return Err(AppError::Forbidden);
-    }
+    let group = group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let _role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
+        .await?
+        .ok_or(AppError::Forbidden)?;
 
     let channels = group_repo::list_visible_group_channels(&state.db, id, claims.sub).await?;
     Ok(Json(
@@ -448,7 +594,11 @@ async fn create_group_channel(
     Path(group_id): Path<Uuid>,
     Json(req): Json<CreateChannelRequest>,
 ) -> Result<Json<ChannelResponse>, AppError> {
-    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+    let group = group_repo::get_group(&state.db, group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 
@@ -523,7 +673,11 @@ async fn update_group_channel(
     Path(path): Path<GroupChannelPath>,
     Json(req): Json<UpdateChannelRequest>,
 ) -> Result<Json<ChannelResponse>, AppError> {
-    let role = group_repo::get_member_role(&state.db, path.group_id, claims.sub)
+    let group = group_repo::get_group(&state.db, path.group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 
@@ -579,7 +733,11 @@ async fn delete_group_channel(
     Extension(claims): Extension<AccessClaims>,
     Path(path): Path<GroupChannelPath>,
 ) -> Result<(), AppError> {
-    let role = group_repo::get_member_role(&state.db, path.group_id, claims.sub)
+    let group = group_repo::get_group(&state.db, path.group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 
@@ -610,12 +768,32 @@ async fn create_invite(
     Path(group_id): Path<Uuid>,
     Json(req): Json<CreateInviteRequest>,
 ) -> Result<Json<InviteResponse>, AppError> {
-    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+    let group = group_repo::get_group(&state.db, group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 
     if role != "owner" && role != "admin" {
         return Err(AppError::Forbidden);
+    }
+
+    // Personal groups with allow_invites=false: only community moderator+ can create invites
+    if group.assigned_member_id.is_some()
+        && !group.allow_invites
+        && !is_community_moderator(
+            &state.db,
+            group.community_id,
+            claims.sub,
+            claims.is_owner,
+        )
+        .await?
+    {
+        return Err(AppError::Validation(
+            "invites are disabled for this personal group".to_string(),
+        ));
     }
 
     let expires_at = req.expires_in_hours.map(|h| {
@@ -652,7 +830,11 @@ async fn list_invites(
     Extension(claims): Extension<AccessClaims>,
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<InviteResponse>>, AppError> {
-    let role = group_repo::get_member_role(&state.db, group_id, claims.sub)
+    let group = group_repo::get_group(&state.db, group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 
@@ -688,7 +870,11 @@ async fn delete_invite(
     Extension(claims): Extension<AccessClaims>,
     Path(path): Path<GroupInvitePath>,
 ) -> Result<(), AppError> {
-    let role = group_repo::get_member_role(&state.db, path.id, claims.sub)
+    let group = group_repo::get_group(&state.db, path.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
         .await?
         .ok_or(AppError::Forbidden)?;
 

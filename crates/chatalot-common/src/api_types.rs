@@ -269,6 +269,8 @@ pub struct CreateGroupRequest {
     pub community_id: Uuid,
     #[serde(default)]
     pub visibility: Option<String>,
+    #[serde(default)]
+    pub assigned_member_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -277,6 +279,7 @@ pub struct UpdateGroupRequest {
     pub description: Option<String>,
     pub visibility: Option<String>,
     pub discoverable: Option<bool>,
+    pub allow_invites: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -290,6 +293,8 @@ pub struct GroupResponse {
     pub member_count: i64,
     pub visibility: String,
     pub discoverable: bool,
+    pub assigned_member_id: Option<Uuid>,
+    pub allow_invites: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

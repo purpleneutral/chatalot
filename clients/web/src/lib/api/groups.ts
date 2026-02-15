@@ -11,6 +11,8 @@ export interface Group {
 	member_count: number;
 	visibility: string;
 	discoverable: boolean;
+	assigned_member_id: string | null;
+	allow_invites: boolean;
 }
 
 export interface GroupMember {
@@ -34,25 +36,28 @@ export async function createGroup(
 	communityId: string,
 	name: string,
 	description?: string,
-	visibility?: string
+	visibility?: string,
+	assignedMemberId?: string
 ): Promise<Group> {
 	return api.post<Group>('/groups', {
 		community_id: communityId,
 		name,
 		description: description ?? null,
-		visibility: visibility ?? null
+		visibility: visibility ?? null,
+		assigned_member_id: assignedMemberId ?? null
 	});
 }
 
 export async function updateGroup(
 	id: string,
-	updates: { name?: string; description?: string; visibility?: string; discoverable?: boolean }
+	updates: { name?: string; description?: string; visibility?: string; discoverable?: boolean; allow_invites?: boolean }
 ): Promise<Group> {
 	const body: Record<string, string | boolean | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
 	if (updates.description !== undefined) body.description = updates.description;
 	if (updates.visibility !== undefined) body.visibility = updates.visibility;
 	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
+	if (updates.allow_invites !== undefined) body.allow_invites = updates.allow_invites;
 	return api.patch<Group>(`/groups/${id}`, body);
 }
 
