@@ -14,6 +14,7 @@ pub struct Channel {
     pub group_id: Option<Uuid>,
     pub read_only: bool,
     pub slow_mode_seconds: i32,
+    pub message_ttl_seconds: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

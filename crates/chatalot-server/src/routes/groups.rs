@@ -546,6 +546,7 @@ async fn update_group_channel(
         req.topic.as_deref(),
         req.read_only,
         req.slow_mode_seconds,
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;

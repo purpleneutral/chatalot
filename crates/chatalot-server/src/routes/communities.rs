@@ -5,13 +5,19 @@ use axum::routing::{delete, get, post, put};
 use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
+use axum::body::Body;
+use axum::http::header;
+use tokio::io::AsyncWriteExt;
+
 use chatalot_common::api_types::{
     AcceptCommunityInviteResponse, CommunityBanRequest, CommunityInviteInfoResponse,
     CommunityInviteResponse, CommunityMemberResponse, CommunityResponse,
-    CreateCommunityInviteRequest, CreateCommunityRequest, SetCommunityRoleRequest,
-    SetNicknameRequest, TransferCommunityOwnershipRequest, UpdateCommunityRequest,
+    CreateCommunityInviteRequest, CreateCommunityRequest, CreateTimeoutRequest,
+    CreateWarningRequest, CustomEmojiResponse, SetCommunityRoleRequest, SetNicknameRequest,
+    TimeoutResponse, TransferCommunityOwnershipRequest, UpdateCommunityRequest, WarningResponse,
 };
-use chatalot_db::repos::community_repo;
+use chatalot_common::ws_messages::ServerMessage;
+use chatalot_db::repos::{community_repo, custom_emoji_repo, timeout_repo, warning_repo};
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -28,6 +34,7 @@ pub fn public_routes() -> Router<Arc<AppState>> {
             "/community-invites/{code}/accept",
             post(accept_community_invite),
         )
+        .route("/emojis/{id}", get(serve_emoji))
 }
 
 /// Community-scoped routes (behind community_gate middleware).
@@ -71,6 +78,32 @@ pub fn gated_routes() -> Router<Arc<AppState>> {
         .route(
             "/communities/{cid}/groups",
             get(list_community_groups),
+        )
+        // Timeout & warn
+        .route(
+            "/communities/{cid}/channels/{chid}/timeout",
+            post(create_timeout),
+        )
+        .route(
+            "/communities/{cid}/channels/{chid}/timeout/{uid}",
+            delete(remove_timeout),
+        )
+        .route(
+            "/communities/{cid}/channels/{chid}/warn",
+            post(create_warning),
+        )
+        .route(
+            "/communities/{cid}/channels/{chid}/warnings/{uid}",
+            get(list_warnings),
+        )
+        // Custom emoji
+        .route(
+            "/communities/{cid}/emojis",
+            get(list_emojis).post(upload_emoji),
+        )
+        .route(
+            "/communities/{cid}/emojis/{eid}",
+            delete(delete_emoji),
         )
 }
 
@@ -726,6 +759,367 @@ async fn list_community_groups(
         })
         .collect();
     Ok(Json(responses))
+}
+
+// ── Timeouts ──
+
+#[derive(serde::Deserialize)]
+struct ChannelActionPath {
+    #[allow(dead_code)]
+    cid: Uuid,
+    chid: Uuid,
+}
+
+#[derive(serde::Deserialize)]
+struct ChannelUserPath {
+    #[allow(dead_code)]
+    cid: Uuid,
+    chid: Uuid,
+    uid: Uuid,
+}
+
+async fn create_timeout(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Extension(ctx): Extension<CommunityContext>,
+    Path(path): Path<ChannelActionPath>,
+    Json(req): Json<CreateTimeoutRequest>,
+) -> Result<Json<TimeoutResponse>, AppError> {
+    if !ctx.can_moderate() {
+        return Err(AppError::Forbidden);
+    }
+
+    if req.duration_seconds < 60 || req.duration_seconds > 30 * 24 * 3600 {
+        return Err(AppError::Validation(
+            "duration must be between 60 seconds and 30 days".into(),
+        ));
+    }
+
+    let expires_at = chrono::Utc::now()
+        + chrono::Duration::try_seconds(req.duration_seconds).unwrap_or(chrono::Duration::try_hours(1).unwrap());
+
+    let id = Uuid::now_v7();
+    let timeout = timeout_repo::create(
+        &state.db,
+        id,
+        req.user_id,
+        path.chid,
+        claims.sub,
+        req.reason.as_deref(),
+        expires_at,
+    )
+    .await?;
+
+    state.connections.broadcast_to_channel(
+        path.chid,
+        ServerMessage::UserTimedOut {
+            channel_id: path.chid,
+            user_id: req.user_id,
+            expires_at: timeout.expires_at.to_rfc3339(),
+            reason: timeout.reason.clone(),
+        },
+    );
+
+    Ok(Json(TimeoutResponse {
+        id: timeout.id,
+        user_id: timeout.user_id,
+        channel_id: timeout.channel_id,
+        issued_by: timeout.issued_by,
+        reason: timeout.reason,
+        expires_at: timeout.expires_at.to_rfc3339(),
+        created_at: timeout.created_at.to_rfc3339(),
+    }))
+}
+
+async fn remove_timeout(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<CommunityContext>,
+    Path(path): Path<ChannelUserPath>,
+) -> Result<(), AppError> {
+    if !ctx.can_moderate() {
+        return Err(AppError::Forbidden);
+    }
+
+    if !timeout_repo::remove(&state.db, path.uid, path.chid).await? {
+        return Err(AppError::NotFound("no active timeout found".into()));
+    }
+
+    Ok(())
+}
+
+// ── Warnings ──
+
+async fn create_warning(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Extension(ctx): Extension<CommunityContext>,
+    Path(path): Path<ChannelActionPath>,
+    Json(req): Json<CreateWarningRequest>,
+) -> Result<Json<WarningResponse>, AppError> {
+    if !ctx.can_moderate() {
+        return Err(AppError::Forbidden);
+    }
+
+    if req.reason.is_empty() || req.reason.len() > 1000 {
+        return Err(AppError::Validation("reason must be 1-1000 characters".into()));
+    }
+
+    let id = Uuid::now_v7();
+    let warning = warning_repo::create(
+        &state.db,
+        id,
+        req.user_id,
+        path.chid,
+        claims.sub,
+        &req.reason,
+    )
+    .await?;
+
+    let count = warning_repo::count_for_user_in_channel(&state.db, req.user_id, path.chid).await?;
+
+    state.connections.broadcast_to_channel(
+        path.chid,
+        ServerMessage::UserWarned {
+            channel_id: path.chid,
+            user_id: req.user_id,
+            reason: req.reason,
+            warning_count: count,
+        },
+    );
+
+    Ok(Json(WarningResponse {
+        id: warning.id,
+        user_id: warning.user_id,
+        channel_id: warning.channel_id,
+        issued_by: warning.issued_by,
+        reason: warning.reason,
+        created_at: warning.created_at.to_rfc3339(),
+    }))
+}
+
+async fn list_warnings(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<CommunityContext>,
+    Path(path): Path<ChannelUserPath>,
+) -> Result<Json<Vec<WarningResponse>>, AppError> {
+    if !ctx.can_moderate() {
+        return Err(AppError::Forbidden);
+    }
+
+    let warnings = warning_repo::list_for_user(&state.db, path.uid, path.chid).await?;
+    Ok(Json(
+        warnings
+            .iter()
+            .map(|w| WarningResponse {
+                id: w.id,
+                user_id: w.user_id,
+                channel_id: w.channel_id,
+                issued_by: w.issued_by,
+                reason: w.reason.clone(),
+                created_at: w.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
+}
+
+// ── Custom Emoji ──
+
+const MAX_EMOJI_SIZE: usize = 256 * 1024; // 256KB
+const MAX_EMOJIS_PER_COMMUNITY: i64 = 50;
+const ALLOWED_EMOJI_TYPES: &[&str] = &["image/png", "image/gif", "image/webp"];
+
+#[derive(serde::Deserialize)]
+struct CommunityEmojiPath {
+    #[allow(dead_code)]
+    cid: Uuid,
+    eid: Uuid,
+}
+
+async fn list_emojis(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<CommunityContext>,
+) -> Result<Json<Vec<CustomEmojiResponse>>, AppError> {
+    let emojis = custom_emoji_repo::list_for_community(&state.db, ctx.community_id).await?;
+    Ok(Json(
+        emojis
+            .iter()
+            .map(|e| CustomEmojiResponse {
+                id: e.id,
+                community_id: e.community_id,
+                shortcode: e.shortcode.clone(),
+                url: format!("/api/emojis/{}", e.id),
+                content_type: e.content_type.clone(),
+                uploaded_by: e.uploaded_by,
+                created_at: e.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
+}
+
+async fn upload_emoji(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Extension(ctx): Extension<CommunityContext>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<CustomEmojiResponse>, AppError> {
+    if !ctx.can_manage() {
+        return Err(AppError::Forbidden);
+    }
+
+    let count = custom_emoji_repo::count_for_community(&state.db, ctx.community_id).await?;
+    if count >= MAX_EMOJIS_PER_COMMUNITY {
+        return Err(AppError::Validation(
+            format!("maximum {MAX_EMOJIS_PER_COMMUNITY} emojis per community"),
+        ));
+    }
+
+    let mut file_data: Option<Vec<u8>> = None;
+    let mut content_type: Option<String> = None;
+    let mut shortcode: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::Validation(format!("multipart error: {e}")))?
+    {
+        match field.name() {
+            Some("file") => {
+                content_type = field.content_type().map(|s| s.to_string());
+                let bytes = field
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
+                if bytes.len() > MAX_EMOJI_SIZE {
+                    return Err(AppError::Validation("emoji too large (max 256KB)".into()));
+                }
+                file_data = Some(bytes.to_vec());
+            }
+            Some("shortcode") => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
+                shortcode = Some(text);
+            }
+            _ => {}
+        }
+    }
+
+    let data = file_data.ok_or_else(|| AppError::Validation("no file field".into()))?;
+    let ct = content_type
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+    let sc = shortcode.ok_or_else(|| AppError::Validation("shortcode is required".into()))?;
+
+    if !ALLOWED_EMOJI_TYPES.contains(&ct) {
+        return Err(AppError::Validation(
+            "invalid image type (allowed: png, gif, webp)".into(),
+        ));
+    }
+
+    // Validate shortcode: alphanumeric + underscores, 2-32 chars
+    if sc.len() < 2
+        || sc.len() > 32
+        || !sc.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(AppError::Validation(
+            "shortcode must be 2-32 alphanumeric/underscore characters".into(),
+        ));
+    }
+
+    let ext = match ct {
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        _ => "bin",
+    };
+
+    let id = Uuid::now_v7();
+    let emoji_dir = std::path::Path::new(&state.config.file_storage_path).join("emojis");
+    tokio::fs::create_dir_all(&emoji_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create emoji dir: {e}")))?;
+
+    let filename = format!("{id}.{ext}");
+    let file_path = emoji_dir.join(&filename);
+
+    let mut f = tokio::fs::File::create(&file_path)
+        .await
+        .map_err(|e| AppError::Internal(format!("create emoji file: {e}")))?;
+    f.write_all(&data)
+        .await
+        .map_err(|e| AppError::Internal(format!("write emoji: {e}")))?;
+    f.flush()
+        .await
+        .map_err(|e| AppError::Internal(format!("flush emoji: {e}")))?;
+
+    let emoji = custom_emoji_repo::create(
+        &state.db,
+        id,
+        ctx.community_id,
+        &sc,
+        &file_path.to_string_lossy(),
+        ct,
+        claims.sub,
+    )
+    .await?;
+
+    Ok(Json(CustomEmojiResponse {
+        id: emoji.id,
+        community_id: emoji.community_id,
+        shortcode: emoji.shortcode,
+        url: format!("/api/emojis/{}", emoji.id),
+        content_type: emoji.content_type,
+        uploaded_by: emoji.uploaded_by,
+        created_at: emoji.created_at.to_rfc3339(),
+    }))
+}
+
+async fn delete_emoji(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<CommunityContext>,
+    Path(path): Path<CommunityEmojiPath>,
+) -> Result<(), AppError> {
+    if !ctx.can_manage() {
+        return Err(AppError::Forbidden);
+    }
+
+    let emoji = custom_emoji_repo::get_by_id(&state.db, path.eid)
+        .await?
+        .ok_or_else(|| AppError::NotFound("emoji not found".into()))?;
+
+    // Delete file from disk
+    let _ = tokio::fs::remove_file(&emoji.file_path).await;
+
+    custom_emoji_repo::delete(&state.db, path.eid).await?;
+    Ok(())
+}
+
+async fn serve_emoji(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<([(header::HeaderName, String); 2], Body), AppError> {
+    let emoji = custom_emoji_repo::get_by_id(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("emoji not found".into()))?;
+
+    let file = tokio::fs::File::open(&emoji.file_path)
+        .await
+        .map_err(|_| AppError::NotFound("emoji file not found".into()))?;
+
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, emoji.content_type),
+            (
+                header::CACHE_CONTROL,
+                "public, max-age=86400".to_string(),
+            ),
+        ],
+        body,
+    ))
 }
 
 // ── Helpers ──

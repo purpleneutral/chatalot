@@ -216,6 +216,8 @@ pub async fn update_profile(
     display_name: Option<&str>,
     avatar_url: Option<Option<&str>>,
     custom_status: Option<Option<&str>>,
+    bio: Option<Option<&str>>,
+    pronouns: Option<Option<&str>>,
 ) -> Result<Option<User>, sqlx::Error> {
     // Build dynamic update to only touch provided fields
     let mut set_clauses = vec!["updated_at = NOW()".to_string()];
@@ -231,6 +233,15 @@ pub async fn update_profile(
     }
     if custom_status.is_some() {
         set_clauses.push(format!("custom_status = ${param_idx}"));
+        param_idx += 1;
+    }
+    if bio.is_some() {
+        set_clauses.push(format!("bio = ${param_idx}"));
+        param_idx += 1;
+    }
+    if pronouns.is_some() {
+        set_clauses.push(format!("pronouns = ${param_idx}"));
+        let _ = param_idx;
     }
 
     let query = format!(
@@ -247,6 +258,12 @@ pub async fn update_profile(
     }
     if let Some(cs) = custom_status {
         q = q.bind(cs);
+    }
+    if let Some(b) = bio {
+        q = q.bind(b);
+    }
+    if let Some(p) = pronouns {
+        q = q.bind(p);
     }
 
     q.fetch_optional(pool).await

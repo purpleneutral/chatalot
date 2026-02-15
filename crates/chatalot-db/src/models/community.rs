@@ -13,6 +13,7 @@ pub struct Community {
     pub updated_at: DateTime<Utc>,
     pub who_can_create_groups: String,
     pub who_can_create_invites: String,
+    pub warn_escalation: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

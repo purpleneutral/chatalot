@@ -16,6 +16,8 @@ pub struct User {
     pub totp_enabled: bool,
     pub is_admin: bool,
     pub is_owner: bool,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
     pub suspended_at: Option<DateTime<Utc>>,
     pub suspended_reason: Option<String>,
     pub created_at: DateTime<Utc>,

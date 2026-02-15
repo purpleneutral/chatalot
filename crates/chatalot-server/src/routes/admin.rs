@@ -7,16 +7,18 @@ use uuid::Uuid;
 
 use chatalot_common::api_types::{
     AddBlockedHashRequest, AdminFileEntry, AdminFilesQuery, AdminFilesResponse,
-    AdminUserMembership, AdminUserResponse, AdminUsersQuery, AuditLogEntryResponse, AuditLogQuery,
-    AuditLogResponse, BlockedHashResponse, CreateRegistrationInviteRequest, PurgeParams,
-    PurgeResult, RegistrationInviteResponse, ReportResponse, ReportsQuery, ReportsResponse,
+    AdminUserMembership, AdminUserResponse, AdminUsersQuery, AnnouncementResponse,
+    AuditLogEntryResponse, AuditLogQuery, AuditLogResponse, BlockedHashResponse,
+    CreateAnnouncementRequest, CreateRegistrationInviteRequest, PurgeParams, PurgeResult,
+    RegistrationInviteResponse, ReportResponse, ReportsQuery, ReportsResponse,
     ResetPasswordRequest, ReviewReportRequest, SetAdminRequest, StorageStatsResponse,
     SuspendUserRequest, UserStorageStatResponse,
 };
+use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::models::file::FileRecord;
 use chatalot_db::repos::{
-    audit_repo, blocked_hash_repo, file_repo, message_repo, registration_invite_repo, report_repo,
-    user_repo,
+    announcement_repo, audit_repo, blocked_hash_repo, file_repo, message_repo,
+    registration_invite_repo, report_repo, user_repo,
 };
 
 use crate::app_state::AppState;
@@ -106,6 +108,11 @@ pub fn routes() -> Router<Arc<AppState>> {
         // Reports
         .route("/admin/reports", get(list_reports))
         .route("/admin/reports/{id}/review", post(review_report))
+        // Announcements
+        .route(
+            "/admin/announcements",
+            post(create_announcement).get(list_announcements),
+        )
 }
 
 // ── User Management (existing) ──
@@ -1156,4 +1163,66 @@ async fn review_report(
         admin_notes: report.admin_notes,
         created_at: report.created_at.to_rfc3339(),
     }))
+}
+
+// ── Announcements ──
+
+async fn create_announcement(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(req): Json<CreateAnnouncementRequest>,
+) -> Result<Json<AnnouncementResponse>, AppError> {
+    require_admin(&claims)?;
+
+    if req.title.is_empty() || req.title.len() > 200 {
+        return Err(AppError::Validation(
+            "title must be 1-200 characters".into(),
+        ));
+    }
+    if req.body.is_empty() || req.body.len() > 5000 {
+        return Err(AppError::Validation(
+            "body must be 1-5000 characters".into(),
+        ));
+    }
+
+    let id = Uuid::now_v7();
+    let ann = announcement_repo::create(&state.db, id, &req.title, &req.body, claims.sub).await?;
+
+    // Broadcast to all connected users
+    state.connections.broadcast_all(ServerMessage::Announcement {
+        id: ann.id,
+        title: ann.title.clone(),
+        body: ann.body.clone(),
+        created_by: ann.created_by,
+        created_at: ann.created_at.to_rfc3339(),
+    });
+
+    Ok(Json(AnnouncementResponse {
+        id: ann.id,
+        title: ann.title,
+        body: ann.body,
+        created_by: ann.created_by,
+        created_at: ann.created_at.to_rfc3339(),
+    }))
+}
+
+async fn list_announcements(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<Vec<AnnouncementResponse>>, AppError> {
+    require_admin(&claims)?;
+
+    let announcements = announcement_repo::list_all(&state.db).await?;
+    Ok(Json(
+        announcements
+            .iter()
+            .map(|a| AnnouncementResponse {
+                id: a.id,
+                title: a.title.clone(),
+                body: a.body.clone(),
+                created_by: a.created_by,
+                created_at: a.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
 }

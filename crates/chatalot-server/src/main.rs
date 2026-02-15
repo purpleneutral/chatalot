@@ -218,6 +218,101 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Spawn background task: scheduled message delivery (every 30s)
+    {
+        let state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+            loop {
+                interval.tick().await;
+                match chatalot_db::repos::scheduled_message_repo::get_due_messages(&state.db).await
+                {
+                    Ok(messages) => {
+                        for msg in messages {
+                            // Deliver the message as if the user sent it now
+                            let message_id = uuid::Uuid::now_v7();
+                            match chatalot_db::repos::message_repo::create_message(
+                                &state.db,
+                                message_id,
+                                msg.channel_id,
+                                msg.user_id,
+                                msg.ciphertext.as_bytes(),
+                                msg.nonce.as_bytes(),
+                                "text",
+                                None,
+                                None,
+                                None,
+                                None,
+                            )
+                            .await
+                            {
+                                Ok(stored) => {
+                                    state.connections.broadcast_to_channel(
+                                        msg.channel_id,
+                                        chatalot_common::ws_messages::ServerMessage::NewMessage {
+                                            id: message_id,
+                                            channel_id: msg.channel_id,
+                                            sender_id: msg.user_id,
+                                            ciphertext: msg.ciphertext.into_bytes(),
+                                            nonce: msg.nonce.into_bytes(),
+                                            message_type:
+                                                chatalot_common::ws_messages::MessageType::Text,
+                                            reply_to: None,
+                                            sender_key_id: None,
+                                            created_at: stored.created_at.to_rfc3339(),
+                                        },
+                                    );
+                                    // Delete the scheduled message after delivery
+                                    let _ = chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                        &state.db, msg.id,
+                                    )
+                                    .await;
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to deliver scheduled message {}: {e}",
+                                        msg.id
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to query due scheduled messages: {e}");
+                    }
+                }
+            }
+        });
+    }
+
+    // Spawn background task: message expiry cleanup (every 5 min)
+    {
+        let db = state.db.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            loop {
+                interval.tick().await;
+                match chatalot_db::repos::message_repo::delete_expired_messages(&db).await {
+                    Ok(0) => {}
+                    Ok(n) => tracing::info!("Expired {n} messages past their TTL"),
+                    Err(e) => tracing::warn!("Failed to delete expired messages: {e}"),
+                }
+            }
+        });
+    }
+
+    // Spawn background task: timeout cleanup (every 5 min)
+    {
+        let db = state.db.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            loop {
+                interval.tick().await;
+                let _ = chatalot_db::repos::timeout_repo::cleanup_expired(&db).await;
+            }
+        });
+    }
+
     // Build the router
     let app = routes::build_router(state.clone());
 

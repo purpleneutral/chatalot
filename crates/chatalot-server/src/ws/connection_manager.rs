@@ -104,6 +104,15 @@ impl ConnectionManager {
         let _ = sender.send(message);
     }
 
+    /// Broadcast a message to all connected users.
+    pub fn broadcast_all(&self, message: ServerMessage) {
+        for entry in self.connections.iter() {
+            for session in entry.value().iter() {
+                let _ = session.tx.send(message.clone());
+            }
+        }
+    }
+
     /// Record that a user started typing in a channel.
     pub fn set_typing(&self, channel_id: Uuid, user_id: Uuid) {
         self.typing_state.insert((channel_id, user_id), tokio::time::Instant::now());

@@ -300,6 +300,7 @@ pub struct UpdateChannelRequest {
     pub topic: Option<String>,
     pub read_only: Option<bool>,
     pub slow_mode_seconds: Option<i32>,
+    pub message_ttl_seconds: Option<i32>,
 }
 
 // ── Invites ──
@@ -364,6 +365,8 @@ pub struct UpdateProfileRequest {
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub custom_status: Option<String>,
+    pub bio: Option<String>,
+    pub pronouns: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -800,3 +803,180 @@ pub struct ReviewReportRequest {
     pub status: String,
     pub admin_notes: Option<String>,
 }
+
+// ── Webhooks ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateWebhookRequest {
+    pub name: String,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateWebhookRequest {
+    pub name: Option<String>,
+    pub avatar_url: Option<Option<String>>,
+    pub active: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WebhookResponse {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub name: String,
+    pub token: String,
+    pub avatar_url: Option<String>,
+    pub active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExecuteWebhookRequest {
+    pub content: String,
+    pub username: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+// ── Timeouts ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateTimeoutRequest {
+    pub user_id: Uuid,
+    pub duration_seconds: i64,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TimeoutResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub channel_id: Uuid,
+    pub issued_by: Uuid,
+    pub reason: Option<String>,
+    pub expires_at: String,
+    pub created_at: String,
+}
+
+// ── Warnings ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateWarningRequest {
+    pub user_id: Uuid,
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WarningResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub channel_id: Uuid,
+    pub issued_by: Uuid,
+    pub reason: String,
+    pub created_at: String,
+}
+
+// ── Scheduled Messages ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScheduleMessageRequest {
+    pub channel_id: Uuid,
+    pub ciphertext: String,
+    pub nonce: String,
+    pub scheduled_for: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScheduledMessageResponse {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub scheduled_for: String,
+    pub created_at: String,
+}
+
+// ── Polls ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreatePollRequest {
+    pub question: String,
+    pub options: Vec<String>,
+    #[serde(default)]
+    pub multi_select: bool,
+    #[serde(default)]
+    pub anonymous: bool,
+    pub expires_in_minutes: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollResponse {
+    pub id: Uuid,
+    pub channel_id: Uuid,
+    pub created_by: Uuid,
+    pub question: String,
+    pub options: Vec<String>,
+    pub multi_select: bool,
+    pub anonymous: bool,
+    pub closed: bool,
+    pub expires_at: Option<String>,
+    pub created_at: String,
+    pub votes: Vec<PollOptionVotes>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PollOptionVotes {
+    pub option_index: i32,
+    pub count: i64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub voter_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VotePollRequest {
+    pub option_index: i32,
+}
+
+// ── Bookmarks ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateBookmarkRequest {
+    pub message_id: Uuid,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BookmarkResponse {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub note: Option<String>,
+    pub created_at: String,
+}
+
+// ── Custom Emoji ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CustomEmojiResponse {
+    pub id: Uuid,
+    pub community_id: Uuid,
+    pub shortcode: String,
+    pub url: String,
+    pub content_type: String,
+    pub uploaded_by: Uuid,
+    pub created_at: String,
+}
+
+// ── Announcements ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateAnnouncementRequest {
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AnnouncementResponse {
+    pub id: Uuid,
+    pub title: String,
+    pub body: String,
+    pub created_by: Uuid,
+    pub created_at: String,
+}
+

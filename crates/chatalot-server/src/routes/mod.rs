@@ -1,6 +1,7 @@
 pub mod account;
 pub mod admin;
 pub mod auth;
+pub mod bookmarks;
 pub mod channels;
 pub mod communities;
 pub mod dms;
@@ -12,9 +13,12 @@ pub mod health;
 pub mod link_preview;
 pub mod keys;
 pub mod messages;
+pub mod polls;
+pub mod scheduled;
 pub mod sender_keys;
 pub mod totp;
 pub mod users;
+pub mod webhooks;
 
 use std::sync::Arc;
 
@@ -43,7 +47,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     // Public routes (no auth required)
     let public_routes = auth_routes
         .merge(health::routes())
-        .merge(account::public_routes());
+        .merge(account::public_routes())
+        .merge(webhooks::public_routes());
 
     // Community-gated routes (require auth + community membership)
     let community_gated_routes = Router::new()
@@ -69,6 +74,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(link_preview::routes())
         .merge(account::routes())
         .merge(admin::routes())
+        .merge(webhooks::routes())
+        .merge(polls::routes())
+        .merge(scheduled::routes())
+        .merge(bookmarks::routes())
         .merge(communities::public_routes())
         .merge(community_gated_routes)
         .layer(axum::middleware::from_fn_with_state(

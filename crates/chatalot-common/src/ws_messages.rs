@@ -254,6 +254,47 @@ pub enum ServerMessage {
         reason: String,
     },
 
+    // Polls
+    PollCreated {
+        poll_id: Uuid,
+        channel_id: Uuid,
+        created_by: Uuid,
+        question: String,
+    },
+    PollVoted {
+        poll_id: Uuid,
+        channel_id: Uuid,
+        option_index: i32,
+        voter_id: Option<Uuid>,
+    },
+    PollClosed {
+        poll_id: Uuid,
+        channel_id: Uuid,
+    },
+
+    // Moderation
+    UserTimedOut {
+        channel_id: Uuid,
+        user_id: Uuid,
+        expires_at: String,
+        reason: Option<String>,
+    },
+    UserWarned {
+        channel_id: Uuid,
+        user_id: Uuid,
+        reason: String,
+        warning_count: i64,
+    },
+
+    // Announcements
+    Announcement {
+        id: Uuid,
+        title: String,
+        body: String,
+        created_by: Uuid,
+        created_at: String,
+    },
+
     // System
     Error {
         code: String,
@@ -273,6 +314,7 @@ pub enum MessageType {
     Text,
     File,
     System,
+    Webhook,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,0 +1,77 @@
+use std::sync::Arc;
+
+use axum::extract::{Path, State};
+use axum::routing::{delete, post};
+use axum::{Extension, Json, Router};
+use uuid::Uuid;
+
+use chatalot_common::api_types::{BookmarkResponse, CreateBookmarkRequest};
+use chatalot_db::repos::bookmark_repo;
+
+use crate::app_state::AppState;
+use crate::error::AppError;
+use crate::middleware::auth::AccessClaims;
+
+pub fn routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/bookmarks", post(add_bookmark).get(list_bookmarks))
+        .route("/bookmarks/{id}", delete(remove_bookmark))
+}
+
+async fn add_bookmark(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(req): Json<CreateBookmarkRequest>,
+) -> Result<Json<BookmarkResponse>, AppError> {
+    if let Some(ref note) = req.note
+        && note.len() > 500
+    {
+        return Err(AppError::Validation("note must be at most 500 characters".into()));
+    }
+
+    let id = Uuid::now_v7();
+    let bookmark = bookmark_repo::create(
+        &state.db,
+        id,
+        claims.sub,
+        req.message_id,
+        req.note.as_deref(),
+    )
+    .await?;
+
+    Ok(Json(BookmarkResponse {
+        id: bookmark.id,
+        message_id: bookmark.message_id,
+        note: bookmark.note,
+        created_at: bookmark.created_at.to_rfc3339(),
+    }))
+}
+
+async fn list_bookmarks(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<Vec<BookmarkResponse>>, AppError> {
+    let bookmarks = bookmark_repo::list_for_user(&state.db, claims.sub).await?;
+    Ok(Json(
+        bookmarks
+            .iter()
+            .map(|b| BookmarkResponse {
+                id: b.id,
+                message_id: b.message_id,
+                note: b.note.clone(),
+                created_at: b.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
+}
+
+async fn remove_bookmark(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<(), AppError> {
+    if !bookmark_repo::delete(&state.db, id, claims.sub).await? {
+        return Err(AppError::NotFound("bookmark not found".into()));
+    }
+    Ok(())
+}

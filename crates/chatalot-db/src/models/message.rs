@@ -14,6 +14,8 @@ pub struct Message {
     pub reply_to_id: Option<Uuid>,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted_at: Option<DateTime<Utc>>,
+    pub plaintext: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
     pub quarantined_at: Option<DateTime<Utc>>,
     pub quarantined_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,

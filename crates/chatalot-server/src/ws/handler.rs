@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use chatalot_common::ws_messages::{ClientMessage, MessageType, ServerMessage};
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{block_repo, channel_repo, community_repo, message_repo, reaction_repo, unread_repo, user_repo, voice_repo};
+use chatalot_db::repos::{block_repo, channel_repo, community_repo, message_repo, reaction_repo, timeout_repo, unread_repo, user_repo, voice_repo};
 
 use crate::permissions;
 
@@ -273,6 +273,19 @@ async fn handle_client_message(
                         return;
                     }
                 }
+
+                // Check for active timeout
+                if !is_privileged
+                    && let Ok(Some(timeout)) =
+                        timeout_repo::get_active_timeout(&state.db, user_id, channel_id).await
+                {
+                    let remaining = (timeout.expires_at - chrono::Utc::now()).num_seconds().max(0);
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "timed_out".to_string(),
+                        message: format!("you are timed out for {remaining} more seconds"),
+                    });
+                    return;
+                }
             }
 
             // For DM channels, check blocks and shared community
@@ -328,9 +341,15 @@ async fn handle_client_message(
                 MessageType::Text => "text",
                 MessageType::File => "file",
                 MessageType::System => "system",
+                MessageType::Webhook => "webhook",
             };
 
             let message_id = Uuid::now_v7();
+
+            // Compute expires_at if channel has a TTL configured
+            let expires_at = channel.message_ttl_seconds.map(|ttl| {
+                chrono::Utc::now() + chrono::Duration::seconds(ttl as i64)
+            });
 
             // Persist the ciphertext
             match message_repo::create_message(
@@ -343,6 +362,8 @@ async fn handle_client_message(
                 msg_type_str,
                 sender_key_id,
                 reply_to,
+                None,
+                expires_at,
             )
             .await
             {

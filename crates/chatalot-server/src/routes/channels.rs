@@ -152,6 +152,14 @@ async fn update_channel(
         ));
     }
 
+    if let Some(ttl) = req.message_ttl_seconds
+        && !(0..=2_592_000).contains(&ttl)
+    {
+        return Err(AppError::Validation(
+            "message_ttl_seconds must be between 0 and 2592000 (30 days)".to_string(),
+        ));
+    }
+
     let channel = channel_repo::update_channel(
         &state.db,
         id,
@@ -159,6 +167,7 @@ async fn update_channel(
         req.topic.as_deref(),
         req.read_only,
         req.slow_mode_seconds,
+        req.message_ttl_seconds.map(|v| if v == 0 { None } else { Some(v) }),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;

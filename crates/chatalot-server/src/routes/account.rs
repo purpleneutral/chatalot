@@ -9,10 +9,11 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    ChangePasswordRequest, DeleteAccountRequest, LogoutAllResponse, PreferencesResponse,
-    SessionResponse, UpdatePreferencesRequest, UpdateProfileRequest, UserPublic,
+    AnnouncementResponse, ChangePasswordRequest, DeleteAccountRequest, LogoutAllResponse,
+    PreferencesResponse, SessionResponse, UpdatePreferencesRequest, UpdateProfileRequest,
+    UserPublic,
 };
-use chatalot_db::repos::{group_repo, preferences_repo, user_repo};
+use chatalot_db::repos::{announcement_repo, group_repo, preferences_repo, user_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -32,6 +33,11 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route(
             "/account/preferences",
             get(get_preferences).put(update_preferences),
+        )
+        .route("/account/announcements", get(get_announcements))
+        .route(
+            "/account/announcements/{id}/dismiss",
+            post(dismiss_announcement),
         )
 }
 
@@ -123,12 +129,29 @@ async fn update_profile(
         ));
     }
 
+    if let Some(ref bio) = req.bio
+        && bio.len() > 500
+    {
+        return Err(AppError::Validation(
+            "bio must be at most 500 characters".to_string(),
+        ));
+    }
+    if let Some(ref pronouns) = req.pronouns
+        && pronouns.len() > 50
+    {
+        return Err(AppError::Validation(
+            "pronouns must be at most 50 characters".to_string(),
+        ));
+    }
+
     let user = user_repo::update_profile(
         &state.db,
         claims.sub,
         req.display_name.as_deref(),
         req.avatar_url.as_ref().map(|s| Some(s.as_str())),
         req.custom_status.as_ref().map(|s| Some(s.as_str())),
+        req.bio.as_ref().map(|s| Some(s.as_str())),
+        req.pronouns.as_ref().map(|s| Some(s.as_str())),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
@@ -221,6 +244,8 @@ async fn upload_avatar(
         claims.sub,
         None,
         Some(Some(&avatar_url)),
+        None,
+        None,
         None,
     )
     .await?
@@ -410,4 +435,32 @@ async fn update_preferences(
     Ok(Json(PreferencesResponse {
         preferences: merged,
     }))
+}
+
+async fn get_announcements(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<Vec<AnnouncementResponse>>, AppError> {
+    let announcements = announcement_repo::list_undismissed(&state.db, claims.sub).await?;
+    Ok(Json(
+        announcements
+            .iter()
+            .map(|a| AnnouncementResponse {
+                id: a.id,
+                title: a.title.clone(),
+                body: a.body.clone(),
+                created_by: a.created_by,
+                created_at: a.created_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
+}
+
+async fn dismiss_announcement(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(announcement_id): Path<Uuid>,
+) -> Result<(), AppError> {
+    announcement_repo::dismiss(&state.db, claims.sub, announcement_id).await?;
+    Ok(())
 }

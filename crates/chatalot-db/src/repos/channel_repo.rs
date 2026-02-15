@@ -247,7 +247,7 @@ pub async fn unban_user(
     Ok(result.rows_affected() > 0)
 }
 
-/// Update a channel's name, topic, read_only, and/or slow_mode_seconds.
+/// Update a channel's name, topic, read_only, slow_mode_seconds, and/or message_ttl_seconds.
 pub async fn update_channel(
     pool: &PgPool,
     channel_id: Uuid,
@@ -255,6 +255,7 @@ pub async fn update_channel(
     topic: Option<&str>,
     read_only: Option<bool>,
     slow_mode_seconds: Option<i32>,
+    message_ttl_seconds: Option<Option<i32>>,
 ) -> Result<Option<Channel>, sqlx::Error> {
     sqlx::query_as::<_, Channel>(
         r#"
@@ -263,6 +264,7 @@ pub async fn update_channel(
             topic = COALESCE($3, topic),
             read_only = COALESCE($4, read_only),
             slow_mode_seconds = COALESCE($5, slow_mode_seconds),
+            message_ttl_seconds = COALESCE($6, message_ttl_seconds),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -273,6 +275,7 @@ pub async fn update_channel(
     .bind(topic)
     .bind(read_only)
     .bind(slow_mode_seconds)
+    .bind(message_ttl_seconds)
     .fetch_optional(pool)
     .await
 }

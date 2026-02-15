@@ -14,11 +14,13 @@ pub async fn create_message(
     message_type: &str,
     sender_key_id: Option<Uuid>,
     reply_to_id: Option<Uuid>,
+    plaintext: Option<&str>,
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
 ) -> Result<Message, sqlx::Error> {
     sqlx::query_as::<_, Message>(
         r#"
-        INSERT INTO messages (id, channel_id, sender_id, ciphertext, nonce, message_type, sender_key_id, reply_to_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO messages (id, channel_id, sender_id, ciphertext, nonce, message_type, sender_key_id, reply_to_id, plaintext, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
         "#,
     )
@@ -30,6 +32,8 @@ pub async fn create_message(
     .bind(message_type)
     .bind(sender_key_id)
     .bind(reply_to_id)
+    .bind(plaintext)
+    .bind(expires_at)
     .fetch_one(pool)
     .await
 }
@@ -230,6 +234,37 @@ pub async fn unquarantine_message(pool: &PgPool, message_id: Uuid) -> Result<boo
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
+}
+
+/// Delete messages that have expired (TTL).
+pub async fn delete_expired_messages(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at < NOW()",
+    )
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Insert a webhook message (plaintext, no sender_id encryption).
+pub async fn create_webhook_message(
+    pool: &PgPool,
+    id: Uuid,
+    channel_id: Uuid,
+    plaintext: &str,
+) -> Result<Message, sqlx::Error> {
+    sqlx::query_as::<_, Message>(
+        r#"
+        INSERT INTO messages (id, channel_id, ciphertext, nonce, message_type, plaintext)
+        VALUES ($1, $2, '\x00', '\x00', 'webhook', $3)
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(channel_id)
+    .bind(plaintext)
+    .fetch_one(pool)
+    .await
 }
 
 /// Update message ciphertext (edit).
