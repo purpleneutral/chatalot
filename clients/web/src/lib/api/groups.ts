@@ -9,6 +9,7 @@ export interface Group {
 	community_id: string;
 	created_at: string;
 	member_count: number;
+	visibility: string;
 }
 
 export interface GroupMember {
@@ -31,24 +32,26 @@ export async function discoverGroups(): Promise<Group[]> {
 export async function createGroup(
 	communityId: string,
 	name: string,
-	description?: string
+	description?: string,
+	visibility?: string
 ): Promise<Group> {
 	return api.post<Group>('/groups', {
 		community_id: communityId,
 		name,
-		description: description ?? null
+		description: description ?? null,
+		visibility: visibility ?? null
 	});
 }
 
 export async function updateGroup(
 	id: string,
-	name?: string,
-	description?: string
+	updates: { name?: string; description?: string; visibility?: string }
 ): Promise<Group> {
-	return api.patch<Group>(`/groups/${id}`, {
-		name: name ?? null,
-		description: description ?? null
-	});
+	const body: Record<string, string | null> = {};
+	if (updates.name !== undefined) body.name = updates.name;
+	if (updates.description !== undefined) body.description = updates.description;
+	if (updates.visibility !== undefined) body.visibility = updates.visibility;
+	return api.patch<Group>(`/groups/${id}`, body);
 }
 
 export async function deleteGroup(id: string): Promise<void> {
@@ -87,13 +90,14 @@ export async function createGroupChannel(
 export async function updateChannel(
 	groupId: string,
 	channelId: string,
-	name?: string,
-	topic?: string
+	updates: { name?: string; topic?: string; read_only?: boolean; slow_mode_seconds?: number }
 ): Promise<Channel> {
-	return api.patch<Channel>(`/groups/${groupId}/channels/${channelId}`, {
-		name: name ?? null,
-		topic: topic ?? null
-	});
+	const body: Record<string, string | boolean | number | null> = {};
+	if (updates.name !== undefined) body.name = updates.name;
+	if (updates.topic !== undefined) body.topic = updates.topic;
+	if (updates.read_only !== undefined) body.read_only = updates.read_only;
+	if (updates.slow_mode_seconds !== undefined) body.slow_mode_seconds = updates.slow_mode_seconds;
+	return api.patch<Channel>(`/groups/${groupId}/channels/${channelId}`, body);
 }
 
 export async function deleteChannel(groupId: string, channelId: string): Promise<void> {

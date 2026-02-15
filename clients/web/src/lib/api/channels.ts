@@ -8,6 +8,8 @@ export interface Channel {
 	created_by: string | null;
 	created_at: string;
 	group_id: string | null;
+	read_only: boolean;
+	slow_mode_seconds: number;
 }
 
 export interface Message {

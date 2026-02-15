@@ -17,6 +17,7 @@ use rand::Rng as _;
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
+use crate::permissions;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -55,18 +56,26 @@ async fn create_group(
         ));
     }
 
-    // Verify caller is a community member with manage permission
+    // Verify caller is a community member — check policy for who can create groups
     let community_role =
         community_repo::get_community_member_role(&state.db, req.community_id, claims.sub)
             .await?
             .ok_or(AppError::Forbidden)?;
 
-    if !matches!(
-        community_role.as_str(),
-        "owner" | "admin"
-    ) && !claims.is_owner
-    {
+    let effective_role = if claims.is_owner { "instance_admin" } else { &community_role };
+
+    // Look up the community's policy for group creation
+    let community = community_repo::get_community(&state.db, req.community_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("community not found".to_string()))?;
+
+    if !permissions::meets_policy(effective_role, &community.who_can_create_groups) {
         return Err(AppError::Forbidden);
+    }
+
+    let visibility = req.visibility.as_deref().unwrap_or("public");
+    if visibility != "public" && visibility != "private" {
+        return Err(AppError::Validation("visibility must be 'public' or 'private'".to_string()));
     }
 
     let group_id = Uuid::now_v7();
@@ -77,6 +86,7 @@ async fn create_group(
         req.description.as_deref(),
         claims.sub,
         req.community_id,
+        visibility,
     )
     .await?;
 
@@ -93,17 +103,19 @@ async fn create_group(
     )
     .await?;
 
-    // Auto-add all community members to this new group
-    let member_ids =
-        community_repo::list_community_member_user_ids(&state.db, req.community_id)
-            .await?;
+    // Auto-add all community members to public groups; private groups only have creator
     let mut member_count: i64 = 1;
-    for uid in &member_ids {
-        if *uid == claims.sub {
-            continue; // Creator already added as owner
-        }
-        if group_repo::join_group(&state.db, group_id, *uid).await.is_ok() {
-            member_count += 1;
+    if visibility == "public" {
+        let member_ids =
+            community_repo::list_community_member_user_ids(&state.db, req.community_id)
+                .await?;
+        for uid in &member_ids {
+            if *uid == claims.sub {
+                continue; // Creator already added as owner
+            }
+            if group_repo::join_group(&state.db, group_id, *uid).await.is_ok() {
+                member_count += 1;
+            }
         }
     }
 
@@ -115,6 +127,7 @@ async fn create_group(
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
         member_count,
+        visibility: group.visibility,
     }))
 }
 
@@ -134,6 +147,7 @@ async fn list_groups(
             community_id: g.community_id,
             created_at: g.created_at.to_rfc3339(),
             member_count: count,
+            visibility: g.visibility,
         });
     }
     Ok(Json(responses))
@@ -143,11 +157,12 @@ async fn discover_groups(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
 ) -> Result<Json<Vec<GroupResponse>>, AppError> {
-    // Instance owner sees all; everyone else only sees groups in their communities
+    // Instance owner sees all; everyone else only sees public groups
+    // in their communities + private groups they're already in
     let groups = if claims.is_owner {
         group_repo::list_all_groups(&state.db).await?
     } else {
-        group_repo::list_groups_in_user_communities(&state.db, claims.sub).await?
+        group_repo::list_discoverable_groups(&state.db, claims.sub).await?
     };
     let mut responses = Vec::with_capacity(groups.len());
     for g in groups {
@@ -160,6 +175,7 @@ async fn discover_groups(
             community_id: g.community_id,
             created_at: g.created_at.to_rfc3339(),
             member_count: count,
+            visibility: g.visibility,
         });
     }
     Ok(Json(responses))
@@ -188,6 +204,7 @@ async fn get_group(
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
         member_count: count,
+        visibility: group.visibility,
     }))
 }
 
@@ -205,11 +222,19 @@ async fn update_group(
         return Err(AppError::Forbidden);
     }
 
+    // Validate visibility if provided
+    if let Some(ref vis) = req.visibility
+        && vis != "public" && vis != "private"
+    {
+        return Err(AppError::Validation("visibility must be 'public' or 'private'".to_string()));
+    }
+
     let group = group_repo::update_group(
         &state.db,
         id,
         req.name.as_deref(),
         req.description.as_deref(),
+        req.visibility.as_deref(),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
@@ -224,6 +249,7 @@ async fn update_group(
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
         member_count: count,
+        visibility: group.visibility,
     }))
 }
 
@@ -280,6 +306,11 @@ async fn join_group(
     let group = group_repo::get_group(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    // Private groups cannot be joined directly — must use an invite
+    if group.visibility == "private" {
+        return Err(AppError::Forbidden);
+    }
 
     // Verify caller is a member of the group's community
     if !claims.is_owner
@@ -358,6 +389,8 @@ async fn list_group_channels(
                 created_by: ch.created_by,
                 created_at: ch.created_at.to_rfc3339(),
                 group_id: ch.group_id,
+                read_only: ch.read_only,
+                slow_mode_seconds: ch.slow_mode_seconds,
             })
             .collect(),
     ))
@@ -418,6 +451,8 @@ async fn create_group_channel(
         created_by: channel.created_by,
         created_at: channel.created_at.to_rfc3339(),
         group_id: channel.group_id,
+        read_only: channel.read_only,
+        slow_mode_seconds: channel.slow_mode_seconds,
     }))
 }
 
@@ -446,6 +481,8 @@ async fn update_group_channel(
         path.channel_id,
         req.name.as_deref(),
         req.topic.as_deref(),
+        req.read_only,
+        req.slow_mode_seconds,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
@@ -458,6 +495,8 @@ async fn update_group_channel(
         created_by: channel.created_by,
         created_at: channel.created_at.to_rfc3339(),
         group_id: channel.group_id,
+        read_only: channel.read_only,
+        slow_mode_seconds: channel.slow_mode_seconds,
     }))
 }
 

@@ -60,6 +60,8 @@ async fn create_dm(
             created_by: channel.created_by,
             created_at: channel.created_at.to_rfc3339(),
             group_id: None,
+            read_only: false,
+            slow_mode_seconds: 0,
         },
         other_user: user_to_public(&target),
     }))
@@ -82,6 +84,8 @@ async fn list_dms(
                 created_by: channel.created_by,
                 created_at: channel.created_at.to_rfc3339(),
                 group_id: None,
+                read_only: false,
+                slow_mode_seconds: 0,
             },
             other_user: user_to_public(&other_user),
         })

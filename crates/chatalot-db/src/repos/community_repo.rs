@@ -63,6 +63,8 @@ pub async fn update_community(
     name: Option<&str>,
     description: Option<&str>,
     icon_url: Option<&str>,
+    who_can_create_groups: Option<&str>,
+    who_can_create_invites: Option<&str>,
 ) -> Result<Option<Community>, sqlx::Error> {
     sqlx::query_as::<_, Community>(
         r#"
@@ -70,6 +72,8 @@ pub async fn update_community(
         SET name = COALESCE($2, name),
             description = COALESCE($3, description),
             icon_url = COALESCE($4, icon_url),
+            who_can_create_groups = COALESCE($5, who_can_create_groups),
+            who_can_create_invites = COALESCE($6, who_can_create_invites),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -79,6 +83,8 @@ pub async fn update_community(
     .bind(name)
     .bind(description)
     .bind(icon_url)
+    .bind(who_can_create_groups)
+    .bind(who_can_create_invites)
     .fetch_optional(pool)
     .await
 }

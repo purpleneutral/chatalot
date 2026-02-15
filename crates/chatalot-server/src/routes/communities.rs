@@ -111,6 +111,8 @@ async fn create_community(
         owner_id: community.owner_id,
         created_at: community.created_at.to_rfc3339(),
         member_count: 1,
+        who_can_create_groups: community.who_can_create_groups,
+        who_can_create_invites: community.who_can_create_invites,
     }))
 }
 
@@ -130,6 +132,8 @@ async fn list_my_communities(
             owner_id: c.owner_id,
             created_at: c.created_at.to_rfc3339(),
             member_count: count,
+            who_can_create_groups: c.who_can_create_groups,
+            who_can_create_invites: c.who_can_create_invites,
         });
     }
     Ok(Json(responses))
@@ -239,6 +243,8 @@ async fn get_community(
         owner_id: community.owner_id,
         created_at: community.created_at.to_rfc3339(),
         member_count: count,
+        who_can_create_groups: community.who_can_create_groups,
+        who_can_create_invites: community.who_can_create_invites,
     }))
 }
 
@@ -259,12 +265,27 @@ async fn update_community(
         ));
     }
 
+    // Validate policy fields if provided
+    let valid_policies = ["everyone", "moderator", "admin"];
+    if let Some(ref p) = req.who_can_create_groups
+        && !valid_policies.contains(&p.as_str())
+    {
+        return Err(AppError::Validation("who_can_create_groups must be 'everyone', 'moderator', or 'admin'".to_string()));
+    }
+    if let Some(ref p) = req.who_can_create_invites
+        && !valid_policies.contains(&p.as_str())
+    {
+        return Err(AppError::Validation("who_can_create_invites must be 'everyone', 'moderator', or 'admin'".to_string()));
+    }
+
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
         req.name.as_deref(),
         req.description.as_deref(),
         req.icon_url.as_deref(),
+        req.who_can_create_groups.as_deref(),
+        req.who_can_create_invites.as_deref(),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("community not found".to_string()))?;
@@ -279,6 +300,8 @@ async fn update_community(
         owner_id: community.owner_id,
         created_at: community.created_at.to_rfc3339(),
         member_count: count,
+        who_can_create_groups: community.who_can_create_groups,
+        who_can_create_invites: community.who_can_create_invites,
     }))
 }
 
@@ -590,7 +613,12 @@ async fn create_invite(
     Extension(ctx): Extension<CommunityContext>,
     Json(req): Json<CreateCommunityInviteRequest>,
 ) -> Result<Json<CommunityInviteResponse>, AppError> {
-    if !ctx.can_manage() {
+    // Check community policy for who can create invites
+    let community = community_repo::get_community(&state.db, ctx.community_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("community not found".to_string()))?;
+
+    if !crate::permissions::meets_policy(&ctx.role, &community.who_can_create_invites) {
         return Err(AppError::Forbidden);
     }
 
@@ -670,6 +698,7 @@ async fn list_community_groups(
             community_id: g.community_id,
             created_at: g.created_at.to_rfc3339(),
             member_count: count,
+            visibility: g.visibility,
         });
     }
     Ok(Json(responses))

@@ -11,6 +11,8 @@ pub struct Community {
     pub owner_id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub who_can_create_groups: String,
+    pub who_can_create_invites: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

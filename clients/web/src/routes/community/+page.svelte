@@ -28,7 +28,7 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount } from 'svelte';
 
-	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans'>('overview');
+	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans' | 'settings'>('overview');
 	let community = $state<Community | null>(null);
 	let members = $state<CommunityMember[]>([]);
 	let invites = $state<CommunityInvite[]>([]);
@@ -45,6 +45,11 @@
 	let newInviteMaxUses = $state('');
 	let newInviteExpiresHours = $state('');
 	let creatingInvite = $state(false);
+
+	// Policy state
+	let policyGroups = $state('admin');
+	let policyInvites = $state('admin');
+	let savingPolicies = $state(false);
 
 	let canManage = $derived(myRole === 'owner' || myRole === 'admin' || authStore.user?.is_owner);
 	let isOwner = $derived(myRole === 'owner' || authStore.user?.is_owner);
@@ -76,6 +81,8 @@
 			members = m;
 			editName = c.name;
 			editDescription = c.description ?? '';
+			policyGroups = c.who_can_create_groups ?? 'admin';
+			policyInvites = c.who_can_create_invites ?? 'admin';
 
 			// Find my role
 			const me = m.find((mem) => mem.user_id === authStore.user?.id);
@@ -101,11 +108,10 @@
 		}
 		saving = true;
 		try {
-			const updated = await updateCommunity(
-				community.id,
+			const updated = await updateCommunity(community.id, {
 				name,
-				editDescription.trim()
-			);
+				description: editDescription.trim()
+			});
 			community = updated;
 			communityStore.updateCommunity(community.id, {
 				name: updated.name,
@@ -263,6 +269,27 @@
 		}
 	}
 
+	async function handleSavePolicies() {
+		if (!community) return;
+		savingPolicies = true;
+		try {
+			const updated = await updateCommunity(community.id, {
+				who_can_create_groups: policyGroups,
+				who_can_create_invites: policyInvites
+			});
+			community = updated;
+			communityStore.updateCommunity(community.id, {
+				who_can_create_groups: updated.who_can_create_groups,
+				who_can_create_invites: updated.who_can_create_invites
+			});
+			toastStore.success('Policies updated');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to update policies');
+		} finally {
+			savingPolicies = false;
+		}
+	}
+
 	function switchTab(tab: typeof activeTab) {
 		activeTab = tab;
 		if (tab === 'invites' && invites.length === 0) loadInvites();
@@ -310,7 +337,7 @@
 		<div class="mx-auto flex w-full max-w-4xl flex-1 gap-6 p-6">
 			<!-- Sidebar tabs -->
 			<nav class="w-48 space-y-1">
-				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans']] as [tab, label]}
+				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings']] : [])] as [tab, label]}
 					<button
 						onclick={() => switchTab(tab as typeof activeTab)}
 						class="w-full rounded-lg px-3 py-2 text-left text-sm transition {activeTab === tab ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
@@ -534,6 +561,111 @@
 						{:else}
 							<p class="text-sm text-[var(--text-secondary)]">No bans.</p>
 						{/each}
+					</div>
+
+				{:else if activeTab === 'settings'}
+					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Policies</h2>
+
+					<div class="space-y-6">
+						<!-- Who can create groups -->
+						<div class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<label for="policy-groups" class="mb-2 block text-sm font-medium text-[var(--text-primary)]">Who can create groups</label>
+							<p class="mb-3 text-xs text-[var(--text-secondary)]">Controls which community members can create new groups.</p>
+							<select
+								id="policy-groups"
+								bind:value={policyGroups}
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+							>
+								<option value="admin">Admins & Owners</option>
+								<option value="moderator">Moderators & Above</option>
+								<option value="everyone">Everyone</option>
+							</select>
+						</div>
+
+						<!-- Who can create invites -->
+						<div class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<label for="policy-invites" class="mb-2 block text-sm font-medium text-[var(--text-primary)]">Who can create invites</label>
+							<p class="mb-3 text-xs text-[var(--text-secondary)]">Controls which community members can create invite links.</p>
+							<select
+								id="policy-invites"
+								bind:value={policyInvites}
+								class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+							>
+								<option value="admin">Admins & Owners</option>
+								<option value="moderator">Moderators & Above</option>
+								<option value="everyone">Everyone</option>
+							</select>
+						</div>
+
+						<button
+							onclick={handleSavePolicies}
+							disabled={savingPolicies}
+							class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+						>
+							{savingPolicies ? 'Saving...' : 'Save Policies'}
+						</button>
+
+						<!-- Role Permissions Reference -->
+						<div class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<h3 class="mb-3 text-sm font-medium text-[var(--text-primary)]">Role Permissions Reference</h3>
+							<div class="overflow-x-auto">
+								<table class="w-full text-left text-xs">
+									<thead>
+										<tr class="border-b border-white/10 text-[var(--text-secondary)]">
+											<th class="pb-2 pr-4">Permission</th>
+											<th class="pb-2 px-2 text-center">Owner</th>
+											<th class="pb-2 px-2 text-center">Admin</th>
+											<th class="pb-2 px-2 text-center">Mod</th>
+											<th class="pb-2 px-2 text-center">Member</th>
+										</tr>
+									</thead>
+									<tbody class="text-[var(--text-primary)]">
+										<tr class="border-b border-white/5">
+											<td class="py-1.5 pr-4 text-[var(--text-secondary)]">Manage community</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+										</tr>
+										<tr class="border-b border-white/5">
+											<td class="py-1.5 pr-4 text-[var(--text-secondary)]">Manage members</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+										</tr>
+										<tr class="border-b border-white/5">
+											<td class="py-1.5 pr-4 text-[var(--text-secondary)]">Create groups</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center {policyGroups === 'moderator' || policyGroups === 'everyone' ? 'text-green-400' : 'text-red-400'}">{policyGroups === 'moderator' || policyGroups === 'everyone' ? 'Yes' : 'No'}</td>
+											<td class="py-1.5 px-2 text-center {policyGroups === 'everyone' ? 'text-green-400' : 'text-red-400'}">{policyGroups === 'everyone' ? 'Yes' : 'No'}</td>
+										</tr>
+										<tr class="border-b border-white/5">
+											<td class="py-1.5 pr-4 text-[var(--text-secondary)]">Create invites</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center {policyInvites === 'moderator' || policyInvites === 'everyone' ? 'text-green-400' : 'text-red-400'}">{policyInvites === 'moderator' || policyInvites === 'everyone' ? 'Yes' : 'No'}</td>
+											<td class="py-1.5 px-2 text-center {policyInvites === 'everyone' ? 'text-green-400' : 'text-red-400'}">{policyInvites === 'everyone' ? 'Yes' : 'No'}</td>
+										</tr>
+										<tr class="border-b border-white/5">
+											<td class="py-1.5 pr-4 text-[var(--text-secondary)]">Delete community</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+										</tr>
+										<tr>
+											<td class="py-1.5 pr-4 text-[var(--text-secondary)]">Transfer ownership</td>
+											<td class="py-1.5 px-2 text-center text-green-400">Yes</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+											<td class="py-1.5 px-2 text-center text-red-400">No</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
 					</div>
 				{/if}
 			</div>

@@ -32,6 +32,8 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { searchEmoji } from '$lib/utils/emoji';
 	import UserProfileCard from '$lib/components/UserProfileCard.svelte';
+	import GroupSettingsCard from '$lib/components/GroupSettingsCard.svelte';
+	import ChannelSettingsCard from '$lib/components/ChannelSettingsCard.svelte';
 	import WhatsNew from '$lib/components/WhatsNew.svelte';
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
@@ -191,6 +193,15 @@
 	// Profile card state
 	let profileCardUserId = $state<string | null>(null);
 	let profileCardAnchor = $state({ x: 0, y: 0 });
+
+	// Group settings card state
+	let groupSettingsGroup = $state<import('$lib/api/groups').Group | null>(null);
+	let groupSettingsAnchor = $state({ x: 0, y: 0 });
+
+	// Channel settings card state
+	let channelSettingsChannel = $state<import('$lib/api/channels').Channel | null>(null);
+	let channelSettingsGroupId = $state<string | null>(null);
+	let channelSettingsAnchor = $state({ x: 0, y: 0 });
 
 	// Topic editing state
 	let editingTopic = $state(false);
@@ -475,6 +486,18 @@
 			? memberStore.getMyRole(channelStore.activeChannelId, authStore.user.id)
 			: 'member'
 	);
+	// Is the active channel read-only for the current user?
+	let isReadOnlyForMe = $derived.by(() => {
+		const ch = channelStore.activeChannel;
+		if (!ch?.read_only) return false;
+		// Admins/owners are exempt from read-only
+		if (ch.group_id) {
+			const role = getMyGroupRole(ch.group_id);
+			if (role === 'owner' || role === 'admin') return false;
+		}
+		return true;
+	});
+
 	// Can the current user kick others from voice in a given channel?
 	function canKickInChannel(channelId: string): boolean {
 		if (!authStore.user?.id) return false;
@@ -1437,7 +1460,7 @@
 	async function saveTopic() {
 		if (!activeChannel?.group_id || !channelStore.activeChannelId) return;
 		try {
-			const updated = await apiUpdateChannel(activeChannel.group_id, channelStore.activeChannelId, undefined, topicInput.trim() || undefined);
+			const updated = await apiUpdateChannel(activeChannel.group_id, channelStore.activeChannelId, { topic: topicInput.trim() || undefined });
 			channelStore.updateChannel(updated);
 			// Also update in groupChannelsMap
 			const groupChannels = groupChannelsMap.get(activeChannel.group_id);
@@ -1459,6 +1482,42 @@
 
 	function closeProfileCard() {
 		profileCardUserId = null;
+	}
+
+	function openGroupSettings(group: import('$lib/api/groups').Group, event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		groupSettingsGroup = group;
+		groupSettingsAnchor = { x: event.clientX, y: event.clientY };
+	}
+
+	function closeGroupSettings() {
+		groupSettingsGroup = null;
+	}
+
+	function openChannelSettings(channel: import('$lib/api/channels').Channel, groupId: string, event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		channelSettingsChannel = channel;
+		channelSettingsGroupId = groupId;
+		channelSettingsAnchor = { x: event.clientX, y: event.clientY };
+	}
+
+	function closeChannelSettings() {
+		channelSettingsChannel = null;
+		channelSettingsGroupId = null;
+	}
+
+	function getMyGroupRole(groupId: string): string {
+		const group = groupStore.groups.find(g => g.id === groupId);
+		if (!group) return 'member';
+		if (group.owner_id === authStore.user?.id) return 'owner';
+		// Check community-level role
+		if (communityStore.activeCommunityId && authStore.user?.id) {
+			const cm = communityMemberStore.getMember(communityStore.activeCommunityId, authStore.user.id);
+			if (cm) return cm.role;
+		}
+		return 'member';
 	}
 
 	async function startDmFromProfileCard(targetUserId: string) {
@@ -2191,7 +2250,7 @@
 		const newName = renameGroupInput.trim();
 		if (!newName) { renamingGroupId = null; return; }
 		try {
-			const updated = await apiUpdateGroup(groupId, newName);
+			const updated = await apiUpdateGroup(groupId, { name: newName });
 			groupStore.updateGroup(groupId, updated);
 		} catch (err: any) {
 			toastStore.error(err?.message ?? 'Failed to rename group');
@@ -2203,7 +2262,7 @@
 		const newName = renameChannelInput.trim();
 		if (!newName) { renamingChannelId = null; return; }
 		try {
-			const updated = await apiUpdateChannel(groupId, channelId, newName, undefined);
+			const updated = await apiUpdateChannel(groupId, channelId, { name: newName });
 			channelStore.updateChannel(updated);
 			const newMap = new Map(groupChannelsMap);
 			const existing = newMap.get(groupId) ?? [];
@@ -2798,26 +2857,29 @@
 							{:else}
 								<button
 									onclick={() => toggleGroupExpand(group.id)}
+									oncontextmenu={(e) => openGroupSettings(group, e)}
 									ondblclick={() => { if (group.owner_id === authStore.user?.id) { renamingGroupId = group.id; renameGroupInput = group.name; } }}
 									class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition hover:bg-white/5 {expandedGroupIds.has(group.id) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform {expandedGroupIds.has(group.id) ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="currentColor">
 										<path d="M8 5l8 7-8 7z" />
 									</svg>
+									{#if group.visibility === 'private'}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+									{/if}
 									<span class="flex-1 truncate">{group.name}</span>
 									<span class="text-xs text-[var(--text-secondary)]">{group.member_count}</span>
 								</button>
-								{#if group.owner_id === authStore.user?.id}
-									<button
-										onclick={() => { renamingGroupId = group.id; renameGroupInput = group.name; }}
-										class="hidden group-hover/grp:flex absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-										title="Rename group"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-											<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-										</svg>
-									</button>
-								{/if}
+								<!-- Settings gear (hover) -->
+								<button
+									onclick={(e) => openGroupSettings(group, e)}
+									class="hidden group-hover/grp:flex absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+									title="Group settings"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+									</svg>
+								</button>
 							{/if}
 						</div>
 
@@ -2851,6 +2913,7 @@
 										{:else}
 											<button
 												onclick={() => selectChannel(channel.id)}
+												oncontextmenu={(e) => openChannelSettings(channel, group.id, e)}
 												ondblclick={() => { if (group.owner_id === authStore.user?.id) { renamingChannelId = channel.id; renameChannelInput = channel.name; } }}
 												class="flex flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition {channelStore.activeChannelId === channel.id ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 											>
@@ -2860,32 +2923,24 @@
 													<span class="text-[var(--text-secondary)]">#</span>
 												{/if}
 												<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}">{channel.name}</span>
+												{#if channel.read_only}
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+												{/if}
 												{#if unreadCount > 0 && channelStore.activeChannelId !== channel.id}
 													<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
 														{unreadCount > 99 ? '99+' : unreadCount}
 													</span>
 												{/if}
 											</button>
-											{#if group.owner_id === authStore.user?.id}
-												<button
-													onclick={() => { renamingChannelId = channel.id; renameChannelInput = channel.name; }}
-													class="hidden group-hover/ch:block rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-													title="Rename channel"
-												>
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-														<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-													</svg>
-												</button>
-												<button
-													onclick={() => handleDeleteGroupChannel(group.id, channel.id)}
-													class="hidden group-hover/ch:block rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
-													title="Delete channel"
-												>
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-														<polyline points="3 6 5 6 21 6" /><path d="M19 6l-2 14H7L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
-													</svg>
-												</button>
-											{/if}
+											<button
+												onclick={(e) => openChannelSettings(channel, group.id, e)}
+												class="hidden group-hover/ch:block rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+												title="Channel settings"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+													<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+												</svg>
+											</button>
 										{/if}
 									</div>
 									<!-- Voice participants (grouped channels) -->
@@ -3420,6 +3475,18 @@
 							<span class="mr-2 text-[var(--text-secondary)]">#</span>
 						{/if}
 						<h2 class="font-semibold text-[var(--text-primary)]">{getChannelDisplayName()}</h2>
+						{#if activeChannel.read_only}
+							<span class="ml-2 inline-flex items-center gap-1 rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-400">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+								Read-only
+							</span>
+						{/if}
+						{#if activeChannel.slow_mode_seconds > 0}
+							<span class="ml-1 inline-flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-xs text-blue-400">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+								{activeChannel.slow_mode_seconds >= 60 ? `${Math.floor(activeChannel.slow_mode_seconds / 60)}m` : `${activeChannel.slow_mode_seconds}s`}
+							</span>
+						{/if}
 						{#if editingTopic}
 							<div class="ml-4 hidden md:flex items-center gap-1">
 								<input
@@ -4158,8 +4225,17 @@
 					</div>
 				{/if}
 
+				<!-- Read-only notice -->
+				{#if isReadOnlyForMe}
+					<div class="border-t border-white/10 bg-[var(--bg-primary)] px-4 py-3 text-center">
+						<span class="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+							This channel is read-only
+						</span>
+					</div>
+				{/if}
 				<!-- Message input -->
-				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative bg-[var(--bg-primary)] px-2 py-2 md:p-4">
+				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative bg-[var(--bg-primary)] {isReadOnlyForMe ? 'hidden' : ''} px-2 py-2 md:p-4">
 					<!-- Emoji autocomplete popup -->
 					{#if showEmojiPopup && emojiResults.length > 0}
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-10">
@@ -4703,6 +4779,52 @@
 			anchorRect={profileCardAnchor}
 			onclose={closeProfileCard}
 			onstartdm={startDmFromProfileCard}
+		/>
+	{/if}
+
+	<!-- Group Settings Card -->
+	{#if groupSettingsGroup}
+		<GroupSettingsCard
+			group={groupSettingsGroup}
+			myRole={getMyGroupRole(groupSettingsGroup.id)}
+			anchorRect={groupSettingsAnchor}
+			onclose={closeGroupSettings}
+			ondeleted={() => {
+				const gid = groupSettingsGroup?.id;
+				closeGroupSettings();
+				if (gid) {
+					groupStore.removeGroup(gid);
+					channelStore.removeChannelsForGroup(gid);
+				}
+			}}
+			onleft={() => {
+				const gid = groupSettingsGroup?.id;
+				closeGroupSettings();
+				if (gid) {
+					groupStore.removeGroup(gid);
+					channelStore.removeChannelsForGroup(gid);
+				}
+			}}
+			oninvitecreated={() => {}}
+		/>
+	{/if}
+
+	<!-- Channel Settings Card -->
+	{#if channelSettingsChannel && channelSettingsGroupId}
+		<ChannelSettingsCard
+			channel={channelSettingsChannel}
+			groupId={channelSettingsGroupId}
+			myRole={getMyGroupRole(channelSettingsGroupId)}
+			anchorRect={channelSettingsAnchor}
+			onclose={closeChannelSettings}
+			ondeleted={() => {
+				const cid = channelSettingsChannel?.id;
+				closeChannelSettings();
+				if (cid) channelStore.removeChannel(cid);
+			}}
+			onupdated={(ch) => {
+				channelStore.updateChannel(ch);
+			}}
 		/>
 	{/if}
 

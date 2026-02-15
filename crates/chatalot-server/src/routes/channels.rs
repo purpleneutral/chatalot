@@ -382,5 +382,7 @@ fn channel_to_response(ch: &chatalot_db::models::channel::Channel) -> ChannelRes
         created_by: ch.created_by,
         created_at: ch.created_at.to_rfc3339(),
         group_id: ch.group_id,
+        read_only: ch.read_only,
+        slow_mode_seconds: ch.slow_mode_seconds,
     }
 }

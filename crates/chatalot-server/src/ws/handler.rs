@@ -182,10 +182,58 @@ async fn handle_client_message(
                 }
             }
 
+            // Fetch channel for permission checks
+            let channel = match channel_repo::get_channel(&state.db, channel_id).await {
+                Ok(Some(ch)) => ch,
+                Ok(None) => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "not_found".to_string(),
+                        message: "channel not found".to_string(),
+                    });
+                    return;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to fetch channel: {e}");
+                    return;
+                }
+            };
+
+            // Enforce read-only and slow mode (admins/owners exempt)
+            if channel.channel_type != ChannelType::Dm {
+                let role = channel_repo::get_member_role(&state.db, channel_id, user_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+
+                let is_privileged = matches!(role.as_str(), "owner" | "admin");
+
+                if channel.read_only && !is_privileged {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "read_only".to_string(),
+                        message: "this channel is read-only".to_string(),
+                    });
+                    return;
+                }
+
+                if channel.slow_mode_seconds > 0 && !is_privileged
+                    && let Ok(Some(last_sent)) =
+                        channel_repo::get_slowmode_last_sent(&state.db, channel_id, user_id).await
+                {
+                    let elapsed = (chrono::Utc::now() - last_sent).num_seconds();
+                    if elapsed < channel.slow_mode_seconds as i64 {
+                        let wait = channel.slow_mode_seconds as i64 - elapsed;
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "slow_mode".to_string(),
+                            message: format!("slow mode: wait {wait} seconds"),
+                        });
+                        return;
+                    }
+                }
+            }
+
             // For DM channels, block messages if users no longer share a community
-            if let Ok(Some(ch)) = channel_repo::get_channel(&state.db, channel_id).await
-                && ch.channel_type == ChannelType::Dm
-            {
+            if channel.channel_type == ChannelType::Dm {
                 // Find the other user in this DM
                 if let Ok(members) = channel_repo::list_members(&state.db, channel_id).await {
                     for member in &members {
@@ -263,11 +311,7 @@ async fn handle_client_message(
                     // For DM channels, deliver directly to the other member
                     // to avoid race conditions with subscription timing.
                     // For group channels, use broadcast as normal.
-                    let is_dm = channel_repo::get_channel(&state.db, channel_id)
-                        .await
-                        .ok()
-                        .flatten()
-                        .is_some_and(|ch| ch.channel_type == ChannelType::Dm);
+                    let is_dm = channel.channel_type == ChannelType::Dm;
 
                     if is_dm {
                         if let Ok(members) =
@@ -311,6 +355,13 @@ async fn handle_client_message(
                         }
                     } else {
                         conn_mgr.broadcast_to_channel(channel_id, new_msg);
+                    }
+
+                    // Update slow mode tracker after successful send
+                    if channel.slow_mode_seconds > 0 {
+                        let _ = channel_repo::update_slowmode_last_sent(
+                            &state.db, channel_id, user_id,
+                        ).await;
                     }
                 }
                 Err(e) => {

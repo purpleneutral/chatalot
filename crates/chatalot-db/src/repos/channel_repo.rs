@@ -1,6 +1,8 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use chrono::{DateTime, Utc};
+
 use crate::models::channel::{Channel, ChannelMember, ChannelMemberInfo, ChannelType};
 
 /// Create a new channel and add the creator as owner.
@@ -245,18 +247,22 @@ pub async fn unban_user(
     Ok(result.rows_affected() > 0)
 }
 
-/// Update a channel's name and/or topic.
+/// Update a channel's name, topic, read_only, and/or slow_mode_seconds.
 pub async fn update_channel(
     pool: &PgPool,
     channel_id: Uuid,
     name: Option<&str>,
     topic: Option<&str>,
+    read_only: Option<bool>,
+    slow_mode_seconds: Option<i32>,
 ) -> Result<Option<Channel>, sqlx::Error> {
     sqlx::query_as::<_, Channel>(
         r#"
         UPDATE channels
         SET name = COALESCE($2, name),
             topic = COALESCE($3, topic),
+            read_only = COALESCE($4, read_only),
+            slow_mode_seconds = COALESCE($5, slow_mode_seconds),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -265,6 +271,8 @@ pub async fn update_channel(
     .bind(channel_id)
     .bind(name)
     .bind(topic)
+    .bind(read_only)
+    .bind(slow_mode_seconds)
     .fetch_optional(pool)
     .await
 }
@@ -323,4 +331,41 @@ pub async fn is_banned(
     .fetch_one(pool)
     .await?;
     Ok(row.0)
+}
+
+/// Get the last time a user sent a message in a channel (for slow mode).
+pub async fn get_slowmode_last_sent(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+    let row: Option<(DateTime<Utc>,)> = sqlx::query_as(
+        "SELECT last_sent FROM channel_slowmode_tracker WHERE channel_id = $1 AND user_id = $2",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| r.0))
+}
+
+/// Update (upsert) the slow mode tracker for a user in a channel.
+pub async fn update_slowmode_last_sent(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO channel_slowmode_tracker (channel_id, user_id, last_sent)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (channel_id, user_id)
+        DO UPDATE SET last_sent = NOW()
+        "#,
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }

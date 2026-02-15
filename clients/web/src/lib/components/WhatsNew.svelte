@@ -14,6 +14,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.10.0',
+			date: '2026-02-14',
+			changes: [
+				'Group visibility: set groups to public or private (private groups require invite)',
+				'Channel read-only mode: lock channels so only admins can post',
+				'Channel slow mode: rate-limit messages (5s to 10m intervals)',
+				'Community policies: configure who can create groups and invites',
+				'Right-click groups and channels for settings popover',
+				'Role permissions reference table in community settings',
+				'Fixed: any community member could join any group (now respects visibility)',
+			]
+		},
+		{
 			version: '0.9.0',
 			date: '2026-02-14',
 			changes: [

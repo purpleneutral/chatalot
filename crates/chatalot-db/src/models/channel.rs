@@ -12,6 +12,8 @@ pub struct Channel {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub group_id: Option<Uuid>,
+    pub read_only: bool,
+    pub slow_mode_seconds: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

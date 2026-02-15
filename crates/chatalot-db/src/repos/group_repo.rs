@@ -12,13 +12,14 @@ pub async fn create_group(
     description: Option<&str>,
     owner_id: Uuid,
     community_id: Uuid,
+    visibility: &str,
 ) -> Result<Group, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let group = sqlx::query_as::<_, Group>(
         r#"
-        INSERT INTO groups (id, name, description, owner_id, community_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO groups (id, name, description, owner_id, community_id, visibility)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
         "#,
     )
@@ -27,6 +28,7 @@ pub async fn create_group(
     .bind(description)
     .bind(owner_id)
     .bind(community_id)
+    .bind(visibility)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -71,18 +73,20 @@ pub async fn get_group(pool: &PgPool, id: Uuid) -> Result<Option<Group>, sqlx::E
         .await
 }
 
-/// Update a group's name and/or description.
+/// Update a group's name, description, and/or visibility.
 pub async fn update_group(
     pool: &PgPool,
     id: Uuid,
     name: Option<&str>,
     description: Option<&str>,
+    visibility: Option<&str>,
 ) -> Result<Option<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
         r#"
         UPDATE groups
         SET name = COALESCE($2, name),
             description = COALESCE($3, description),
+            visibility = COALESCE($4, visibility),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -91,6 +95,7 @@ pub async fn update_group(
     .bind(id)
     .bind(name)
     .bind(description)
+    .bind(visibility)
     .fetch_optional(pool)
     .await
 }
@@ -315,15 +320,18 @@ pub async fn list_all_groups(pool: &PgPool) -> Result<Vec<Group>, sqlx::Error> {
 }
 
 /// List groups in communities the user belongs to (for scoped discovery).
-pub async fn list_groups_in_user_communities(
+/// Only shows public groups + private groups the user is already a member of.
+pub async fn list_discoverable_groups(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
-        "SELECT g.* FROM groups g
+        r#"SELECT g.* FROM groups g
          JOIN community_members cm ON cm.community_id = g.community_id
          WHERE cm.user_id = $1
-         ORDER BY g.name ASC",
+           AND (g.visibility = 'public'
+                OR EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = g.id AND gm.user_id = $1))
+         ORDER BY g.name ASC"#,
     )
     .bind(user_id)
     .fetch_all(pool)

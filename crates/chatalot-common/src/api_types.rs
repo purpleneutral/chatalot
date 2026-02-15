@@ -117,6 +117,10 @@ pub struct ChannelResponse {
     pub created_by: Option<Uuid>,
     pub created_at: String,
     pub group_id: Option<Uuid>,
+    #[serde(default)]
+    pub read_only: bool,
+    #[serde(default)]
+    pub slow_mode_seconds: i32,
 }
 
 // ── Channel Members ──
@@ -249,12 +253,15 @@ pub struct CreateGroupRequest {
     pub name: String,
     pub description: Option<String>,
     pub community_id: Uuid,
+    #[serde(default)]
+    pub visibility: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateGroupRequest {
     pub name: Option<String>,
     pub description: Option<String>,
+    pub visibility: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -266,6 +273,7 @@ pub struct GroupResponse {
     pub community_id: Uuid,
     pub created_at: String,
     pub member_count: i64,
+    pub visibility: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -282,6 +290,8 @@ pub struct GroupMemberResponse {
 pub struct UpdateChannelRequest {
     pub name: Option<String>,
     pub topic: Option<String>,
+    pub read_only: Option<bool>,
+    pub slow_mode_seconds: Option<i32>,
 }
 
 // ── Invites ──
@@ -472,6 +482,8 @@ pub struct UpdateCommunityRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub icon_url: Option<String>,
+    pub who_can_create_groups: Option<String>,
+    pub who_can_create_invites: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -483,6 +495,8 @@ pub struct CommunityResponse {
     pub owner_id: Uuid,
     pub created_at: String,
     pub member_count: i64,
+    pub who_can_create_groups: String,
+    pub who_can_create_invites: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

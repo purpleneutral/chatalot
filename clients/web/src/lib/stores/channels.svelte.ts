@@ -29,6 +29,14 @@ class ChannelStore {
 		}
 	}
 
+	removeChannelsForGroup(groupId: string) {
+		const removed = this.channels.filter(c => c.group_id === groupId);
+		this.channels = this.channels.filter(c => c.group_id !== groupId);
+		if (removed.some(c => c.id === this.activeChannelId)) {
+			this.activeChannelId = null;
+		}
+	}
+
 	setActive(channelId: string | null) {
 		this.activeChannelId = channelId;
 	}
