@@ -6,6 +6,12 @@ Chatalot is a self-hosted chat platform for friends, teams, and communities who 
 
 No data harvesting. No algorithmic feeds. No subscription tiers to unlock basic features. Just a fast, modern chat experience that belongs entirely to you.
 
+<!-- TODO: Add screenshot
+<p align="center">
+  <img src="docs/screenshots/chat.png" alt="Chatalot chat interface" width="800">
+</p>
+-->
+
 ## Why Chatalot?
 
 Most chat platforms make you choose: convenience or privacy. Centralized services own your data and can change the rules whenever they want. Federated alternatives promise freedom but deliver complexity — running a node shouldn't require a systems engineering degree.
@@ -16,7 +22,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 - **Communities, groups, and channels** — organize your server with roles, permissions, and invite links
 - **Voice and video calls** — peer-to-peer WebRTC with video grid (up to 5 participants)
-- **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet) for DMs, compiled to WASM and running client-side *
+- **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups), compiled to WASM and running client-side
 - **Rich messaging** — markdown, syntax-highlighted code blocks, inline media previews, GIF search, emoji autocomplete, reactions, replies, and forwarding
 - **File sharing** — drag-and-drop, clipboard paste, inline image/video/audio previews with lightbox viewer
 - **Desktop notifications** — configurable per-channel with sound controls
@@ -27,7 +33,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 For a complete feature list, see [docs/features.md](docs/features.md).
 
-> \* *All messages are end-to-end encrypted. DMs use the Signal protocol (X3DH + Double Ratchet), group channels use Sender Keys — both compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay.*
+> All messages are end-to-end encrypted. DMs use the Signal protocol (X3DH + Double Ratchet), group channels use Sender Keys — both compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay.
 
 ## Quick Start
 
