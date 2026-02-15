@@ -26,6 +26,25 @@ class AuthStore {
 					this.user = null;
 				}
 			}
+
+			// Detect cross-tab logout/login via storage events
+			window.addEventListener('storage', (e) => {
+				if (e.key === TOKEN_KEY) {
+					if (e.newValue === null) {
+						// Another tab logged out — clear local state and redirect
+						this.accessToken = null;
+						this.refreshToken = null;
+						this.user = null;
+						window.location.href = '/login';
+					} else {
+						// Another tab logged in or refreshed tokens
+						this.accessToken = e.newValue;
+						this.refreshToken = localStorage.getItem(REFRESH_KEY);
+						const u = localStorage.getItem(USER_KEY);
+						if (u) try { this.user = JSON.parse(u); } catch { /* ignore */ }
+					}
+				}
+			});
 		}
 	}
 

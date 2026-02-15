@@ -852,8 +852,8 @@
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Input Device</h3>
 
 						<div class="mb-4">
-							<label class="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Microphone</label>
-							<select
+							<label for="mic-select" class="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Microphone</label>
+							<select id="mic-select"
 								value={audioDeviceStore.selectedInputId}
 								onchange={(e) => {
 									const id = e.currentTarget.value;
@@ -914,9 +914,9 @@
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Output Device</h3>
 
 						<div class="mb-4">
-							<label class="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Speaker</label>
+							<label for="speaker-select" class="mb-1.5 block text-sm font-medium text-[var(--text-primary)]">Speaker</label>
 							{#if audioDeviceStore.supportsOutputSelection}
-								<select
+								<select id="speaker-select"
 									value={audioDeviceStore.selectedOutputId}
 									onchange={(e) => audioDeviceStore.setOutputDevice(e.currentTarget.value)}
 									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
@@ -1001,7 +1001,7 @@
 								<div class="text-sm font-medium text-[var(--text-primary)]">Echo Cancellation</div>
 								<div class="text-xs text-[var(--text-secondary)]">Removes echo from speakers feeding back into your mic</div>
 							</div>
-							<button
+							<button aria-label="Toggle echo cancellation"
 								onclick={() => preferencesStore.set('echoCancellation', !preferencesStore.preferences.echoCancellation)}
 								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
 							>
@@ -1014,7 +1014,7 @@
 								<div class="text-sm font-medium text-[var(--text-primary)]">Auto Gain Control</div>
 								<div class="text-xs text-[var(--text-secondary)]">Automatically adjusts mic sensitivity</div>
 							</div>
-							<button
+							<button aria-label="Toggle auto gain control"
 								onclick={() => preferencesStore.set('autoGainControl', !preferencesStore.preferences.autoGainControl)}
 								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
 							>
@@ -1036,7 +1036,7 @@
 								<div class="text-sm font-medium text-[var(--text-primary)]">Auto-focus streams</div>
 								<div class="text-xs text-[var(--text-secondary)]">Hide participant tiles when someone shares their screen</div>
 							</div>
-							<button
+							<button aria-label="Toggle auto-focus streams"
 								onclick={() => preferencesStore.set('autoHideParticipantsOnStream', !preferencesStore.preferences.autoHideParticipantsOnStream)}
 								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
 							>

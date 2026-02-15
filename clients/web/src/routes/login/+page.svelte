@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { login } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
@@ -27,7 +28,8 @@
 		try {
 			const response = await login(username, password, showTotp ? totpCode : undefined);
 			authStore.setAuth(response.access_token, response.refresh_token, response.user);
-			goto('/channels');
+			const redirect = $page.url.searchParams.get('redirect');
+			goto(redirect && redirect.startsWith('/') ? redirect : '/channels');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Login failed';
 		} finally {

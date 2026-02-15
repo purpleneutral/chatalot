@@ -16,15 +16,17 @@ class AudioDeviceStore {
 	selectedInputId = $state<string>('');
 	selectedOutputId = $state<string>('');
 
+	private _boundDeviceChange = this.enumerateDevices.bind(this);
+
 	constructor() {
 		if (typeof localStorage !== 'undefined') {
 			this.selectedInputId = localStorage.getItem(INPUT_KEY) ?? '';
 			this.selectedOutputId = localStorage.getItem(OUTPUT_KEY) ?? '';
 		}
 		if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
-			navigator.mediaDevices.addEventListener('devicechange', () => {
-				this.enumerateDevices();
-			});
+			// Use a bound handler so we can remove it if the module is re-executed (HMR)
+			navigator.mediaDevices.removeEventListener('devicechange', this._boundDeviceChange);
+			navigator.mediaDevices.addEventListener('devicechange', this._boundDeviceChange);
 		}
 	}
 

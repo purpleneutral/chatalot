@@ -331,8 +331,9 @@
 					<div class="mb-4 rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
 						<div class="flex gap-3">
 							<div class="flex-1">
-								<label class="mb-1 block text-xs text-[var(--text-secondary)]">Max Uses (blank = unlimited)</label>
+								<label for="admin-invite-max-uses" class="mb-1 block text-xs text-[var(--text-secondary)]">Max Uses (blank = unlimited)</label>
 								<input
+									id="admin-invite-max-uses"
 									type="number"
 									bind:value={newInviteMaxUses}
 									min="1"
@@ -341,8 +342,9 @@
 								/>
 							</div>
 							<div class="flex-1">
-								<label class="mb-1 block text-xs text-[var(--text-secondary)]">Expires In (hours, blank = never)</label>
+								<label for="admin-invite-expires" class="mb-1 block text-xs text-[var(--text-secondary)]">Expires In (hours, blank = never)</label>
 								<input
+									id="admin-invite-expires"
 									type="number"
 									bind:value={newInviteExpiresHours}
 									min="1"

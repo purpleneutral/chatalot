@@ -128,8 +128,9 @@
 				newInviteExpiresHours ? parseInt(newInviteExpiresHours) : undefined
 			);
 			invites = [invite, ...invites];
-			await navigator.clipboard.writeText(invite.code);
-			toastStore.success(`Invite code copied: ${invite.code}`);
+			const link = `${window.location.origin}/invite/${invite.code}`;
+			await navigator.clipboard.writeText(link);
+			toastStore.success('Invite link copied!');
 			newInviteMaxUses = '';
 			newInviteExpiresHours = '';
 		} catch (err: any) {
@@ -289,7 +290,7 @@
 	<!-- Header -->
 	<header class="flex h-14 items-center justify-between border-b border-white/10 px-6">
 		<div class="flex items-center gap-3">
-			<button onclick={() => goto('/channels')} class="text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]">
+			<button aria-label="Back to channels" onclick={() => goto('/channels')} class="text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]">
 				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
 				</svg>
@@ -337,8 +338,8 @@
 
 					<div class="space-y-4 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
 						<div>
-							<label class="mb-1 block text-sm text-[var(--text-secondary)]">Community Name</label>
-							<input
+							<label for="edit-community-name" class="mb-1 block text-sm text-[var(--text-secondary)]">Community Name</label>
+							<input id="edit-community-name"
 								type="text"
 								bind:value={editName}
 								maxlength="64"
@@ -347,8 +348,8 @@
 							/>
 						</div>
 						<div>
-							<label class="mb-1 block text-sm text-[var(--text-secondary)]">Description</label>
-							<textarea
+							<label for="edit-community-desc" class="mb-1 block text-sm text-[var(--text-secondary)]">Description</label>
+							<textarea id="edit-community-desc"
 								bind:value={editDescription}
 								rows="3"
 								disabled={!canManage}
@@ -443,8 +444,8 @@
 							<h3 class="mb-3 text-sm font-semibold text-[var(--text-primary)]">Create Invite</h3>
 							<div class="flex gap-3">
 								<div class="flex-1">
-									<label class="mb-1 block text-xs text-[var(--text-secondary)]">Max Uses (blank = unlimited)</label>
-									<input
+									<label for="community-invite-max-uses" class="mb-1 block text-xs text-[var(--text-secondary)]">Max Uses (blank = unlimited)</label>
+									<input id="community-invite-max-uses"
 										type="number"
 										bind:value={newInviteMaxUses}
 										min="1"
@@ -452,8 +453,8 @@
 									/>
 								</div>
 								<div class="flex-1">
-									<label class="mb-1 block text-xs text-[var(--text-secondary)]">Expires In Hours (blank = never)</label>
-									<input
+									<label for="community-invite-expires" class="mb-1 block text-xs text-[var(--text-secondary)]">Expires In Hours (blank = never)</label>
+									<input id="community-invite-expires"
 										type="number"
 										bind:value={newInviteExpiresHours}
 										min="1"
@@ -474,8 +475,8 @@
 					<div class="space-y-1">
 						{#each invites as invite (invite.id)}
 							<div class="flex items-center justify-between rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-4 py-3">
-								<div>
-									<code class="rounded bg-white/10 px-2 py-1 text-sm font-mono text-[var(--text-primary)]">{invite.code}</code>
+								<div class="min-w-0 flex-1">
+									<code class="rounded bg-white/10 px-2 py-1 text-sm font-mono text-[var(--text-primary)]">{window.location.origin}/invite/{invite.code}</code>
 									<div class="mt-1 flex gap-3 text-xs text-[var(--text-secondary)]">
 										<span>Uses: {invite.used_count}{invite.max_uses ? `/${invite.max_uses}` : ''}</span>
 										{#if invite.expires_at}
@@ -487,10 +488,10 @@
 								</div>
 								<div class="flex items-center gap-2">
 									<button
-										onclick={async () => { await navigator.clipboard.writeText(invite.code); toastStore.success('Copied!'); }}
+										onclick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/invite/${invite.code}`); toastStore.success('Link copied!'); }}
 										class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
 									>
-										Copy
+										Copy Link
 									</button>
 									{#if canManage}
 										<button

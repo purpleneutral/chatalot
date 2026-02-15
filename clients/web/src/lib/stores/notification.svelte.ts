@@ -25,6 +25,8 @@ class NotificationStore {
 		return Notification.permission;
 	}
 
+	private _boundVisibility = () => { this._pageHidden = document.hidden; };
+
 	constructor() {
 		if (typeof localStorage !== 'undefined') {
 			const saved = localStorage.getItem('notification_preferences');
@@ -36,9 +38,9 @@ class NotificationStore {
 		}
 
 		if (typeof document !== 'undefined') {
-			document.addEventListener('visibilitychange', () => {
-				this._pageHidden = document.hidden;
-			});
+			// Use a bound handler so we can remove it if the module is re-executed (HMR)
+			document.removeEventListener('visibilitychange', this._boundVisibility);
+			document.addEventListener('visibilitychange', this._boundVisibility);
 			this._pageHidden = document.hidden;
 		}
 	}

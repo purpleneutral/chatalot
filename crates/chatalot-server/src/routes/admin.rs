@@ -350,12 +350,12 @@ async fn create_registration_invite(
 
     let id = Uuid::now_v7();
 
-    // Generate random 8-char alphanumeric code
+    // Generate random 12-char alphanumeric code
     use rand::distributions::Alphanumeric;
     use rand::Rng;
     let code: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
-        .take(8)
+        .take(12)
         .map(char::from)
         .collect();
 

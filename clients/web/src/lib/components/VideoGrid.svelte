@@ -504,17 +504,17 @@
 
 		<!-- Context menu -->
 		{#if menuUserId}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 			<div
 				class="fixed inset-0 z-40"
-				onclick={closeMenu}
+				onclick={closeMenu} onkeydown={(e) => { if (e.key === "Escape") closeMenu(); }} role="presentation"
 				oncontextmenu={(e) => { e.preventDefault(); closeMenu(); }}
 			></div>
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
+			<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+			<div role="menu" tabindex="-1"
 				class="fixed z-50 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
 				style="left: {menuPos.x}px; top: {menuPos.y}px;"
-				onclick={(e) => e.stopPropagation()}
+				onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 			>
 				{#if menuType === 'self'}
 					<!-- Self: mic gain control -->

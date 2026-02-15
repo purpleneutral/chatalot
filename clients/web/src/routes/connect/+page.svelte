@@ -85,6 +85,7 @@
 				<label for="server-url" class="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
 					Server URL
 				</label>
+				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					id="server-url"
 					type="text"

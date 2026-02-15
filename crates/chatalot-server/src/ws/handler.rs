@@ -67,6 +67,9 @@ pub async fn handle_socket(
         }
     });
 
+    // Track spawned subscription tasks so we can abort them on disconnect
+    let mut subscription_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+
     // Reader task: processes incoming WebSocket messages
     while let Some(Ok(msg)) = ws_stream.next().await {
         match msg {
@@ -77,6 +80,7 @@ pub async fn handle_socket(
                         user_id,
                         &state,
                         &tx,
+                        &mut subscription_tasks,
                     )
                     .await;
                 }
@@ -90,6 +94,11 @@ pub async fn handle_socket(
     conn_mgr.remove_session(user_id, session_id);
     write_task.abort();
     heartbeat_task.abort();
+
+    // Abort all channel subscription tasks
+    for task in &subscription_tasks {
+        task.abort();
+    }
 
     // Clean up voice sessions — remove user from any active calls
     if let Ok(left_sessions) = voice_repo::leave_all_sessions(&state.db, user_id).await {
@@ -135,6 +144,7 @@ async fn handle_client_message(
     user_id: Uuid,
     state: &AppState,
     tx: &mpsc::UnboundedSender<ServerMessage>,
+    subscription_tasks: &mut Vec<tokio::task::JoinHandle<()>>,
 ) {
     let conn_mgr = &state.connections;
     match msg {
@@ -150,6 +160,16 @@ async fn handle_client_message(
             reply_to,
             sender_key_id,
         } => {
+            // Reject oversized ciphertext (64 KiB limit)
+            const MAX_CIPHERTEXT_SIZE: usize = 65_536;
+            if ciphertext.len() > MAX_CIPHERTEXT_SIZE {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "message too large".to_string(),
+                });
+                return;
+            }
+
             // Verify membership
             match channel_repo::is_member(&state.db, channel_id, user_id).await {
                 Ok(true) => {}
@@ -429,7 +449,7 @@ async fn handle_client_message(
                 let mut rx = conn_mgr.subscribe_channel(channel_id);
                 let tx = tx.clone();
                 let uid = user_id;
-                tokio::spawn(async move {
+                subscription_tasks.push(tokio::spawn(async move {
                     while let Ok(msg) = rx.recv().await {
                         // Don't echo messages back to the sender
                         if let ServerMessage::NewMessage { sender_id, .. } = &msg
@@ -441,7 +461,7 @@ async fn handle_client_message(
                             break;
                         }
                     }
-                });
+                }));
             }
         }
 
@@ -506,6 +526,10 @@ async fn handle_client_message(
                 Ok(session) => {
                     if let Err(e) = voice_repo::join_session(&state.db, session.id, user_id).await {
                         tracing::error!("Failed to join voice session: {e}");
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "voice_error".to_string(),
+                            message: "failed to join voice channel".to_string(),
+                        });
                         return;
                     }
 
@@ -533,6 +557,10 @@ async fn handle_client_message(
                 }
                 Err(e) => {
                     tracing::error!("Failed to get/create voice session: {e}");
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "voice_error".to_string(),
+                        message: "failed to join voice channel".to_string(),
+                    });
                 }
             }
         }
@@ -628,8 +656,11 @@ async fn handle_client_message(
         // Auth message not expected over an already-authenticated connection
         ClientMessage::Authenticate { .. } => {}
         ClientMessage::Unsubscribe { .. } => {
-            // Unsubscribe is implicit: when the spawned tasks drop, they stop receiving.
-            // A proper implementation would track and abort them. Left as a TODO.
+            // Abort all channel subscription tasks and clear the list.
+            // Clients re-subscribe when navigating to a new channel set.
+            for task in subscription_tasks.drain(..) {
+                task.abort();
+            }
         }
         ClientMessage::EditMessage {
             message_id,

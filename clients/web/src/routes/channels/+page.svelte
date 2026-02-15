@@ -1853,17 +1853,25 @@
 	async function handleCreateInvite(groupId: string) {
 		try {
 			const invite = await createInvite(groupId);
-			await navigator.clipboard.writeText(invite.code);
-			toastStore.success(`Invite code copied: ${invite.code}`);
+			const link = `${window.location.origin}/invite/${invite.code}`;
+			await navigator.clipboard.writeText(link);
+			toastStore.success('Invite link copied!');
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to create invite');
 		}
 	}
 
+	/** Extract invite code from a full URL or plain code. */
+	function extractInviteCode(input: string): string {
+		const trimmed = input.trim();
+		const match = trimmed.match(/\/invite\/([A-Za-z0-9]+)\/?$/);
+		return match ? match[1] : trimmed;
+	}
+
 	async function handleAcceptInvite() {
 		if (!joinInviteCode.trim()) return;
 		try {
-			const result = await acceptInvite(joinInviteCode.trim());
+			const result = await acceptInvite(extractInviteCode(joinInviteCode));
 			// Reload groups
 			const groups = await listGroups();
 			groupStore.setGroups(groups);
@@ -1890,7 +1898,7 @@
 	async function handlePreviewInvite() {
 		if (!joinInviteCode.trim()) return;
 		try {
-			invitePreview = await getInviteInfo(joinInviteCode.trim());
+			invitePreview = await getInviteInfo(extractInviteCode(joinInviteCode));
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Invalid invite code');
 			invitePreview = null;
@@ -1953,7 +1961,7 @@
 	async function handlePreviewCommunityInvite() {
 		if (!joinCommunityCode.trim()) return;
 		try {
-			communityInvitePreview = await getCommunityInviteInfo(joinCommunityCode.trim());
+			communityInvitePreview = await getCommunityInviteInfo(extractInviteCode(joinCommunityCode));
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Invalid invite code');
 			communityInvitePreview = null;
@@ -1963,7 +1971,7 @@
 	async function handleAcceptCommunityInvite() {
 		if (!joinCommunityCode.trim()) return;
 		try {
-			const result = await acceptCommunityInvite(joinCommunityCode.trim());
+			const result = await acceptCommunityInvite(extractInviteCode(joinCommunityCode));
 			// Reload communities
 			const communities = await listCommunities();
 			communityStore.setCommunities(communities);
@@ -2694,7 +2702,7 @@
 							<input
 								type="text"
 								bind:value={joinInviteCode}
-								placeholder="Enter invite code..."
+								placeholder="Paste invite link or code..."
 								class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 							/>
 							{#if invitePreview}
@@ -2723,6 +2731,7 @@
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="currentColor">
 										<path d="M8 5l8 7-8 7z" />
 									</svg>
+									<!-- svelte-ignore a11y_autofocus -->
 									<input
 										type="text"
 										bind:value={renameGroupInput}
@@ -2775,6 +2784,7 @@
 												{:else}
 													<span class="text-[var(--text-secondary)]">#</span>
 												{/if}
+											<!-- svelte-ignore a11y_autofocus -->
 												<input
 													type="text"
 													bind:value={renameChannelInput}
@@ -3232,7 +3242,8 @@
 		<!-- Join Community modal (overlays the sidebar area) -->
 		{#if showJoinCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" transition:fade={{ duration: 150 }}>
-				<div class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" onclick={(e) => e.stopPropagation()}>
+				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+				<div role="dialog" tabindex="-1" class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Join a Community</h3>
 						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">&times;</button>
@@ -3240,7 +3251,7 @@
 					<input
 						type="text"
 						bind:value={joinCommunityCode}
-						placeholder="Enter invite code..."
+						placeholder="Paste invite link or code..."
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
 					/>
 					{#if communityInvitePreview}
@@ -3262,10 +3273,11 @@
 		<!-- Create Community modal -->
 		{#if showCreateCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" transition:fade={{ duration: 150 }}>
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 				<form
 					onsubmit={(e) => { e.preventDefault(); handleCreateCommunity(); }}
 					class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
-					onclick={(e) => e.stopPropagation()}
+					onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 				>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Create a Community</h3>
@@ -3273,8 +3285,8 @@
 					</div>
 					<div class="space-y-3">
 						<div>
-							<label class="mb-1 block text-xs text-[var(--text-secondary)]">Name</label>
-							<input
+							<label for="create-community-name" class="mb-1 block text-xs text-[var(--text-secondary)]">Name</label>
+							<input id="create-community-name"
 								type="text"
 								bind:value={newCommunityName}
 								placeholder="My Community"
@@ -3284,8 +3296,8 @@
 							/>
 						</div>
 						<div>
-							<label class="mb-1 block text-xs text-[var(--text-secondary)]">Description (optional)</label>
-							<input
+							<label for="create-community-desc" class="mb-1 block text-xs text-[var(--text-secondary)]">Description (optional)</label>
+							<input id="create-community-desc"
 								type="text"
 								bind:value={newCommunityDescription}
 								placeholder="What's this community about?"
@@ -3426,7 +3438,8 @@
 									{/if}
 								</button>
 								{#if showNotifDropdown}
-									<div class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" onclick={(e) => e.stopPropagation()}>
+									<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+									<div role="menu" tabindex="-1" class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 										<p class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Notifications</p>
 										{#each [['all', 'All Messages'], ['mentions', 'Only @mentions'], ['nothing', 'Nothing']] as [value, label]}
 											<button
@@ -3499,7 +3512,7 @@
 									<span class="ml-1 text-xs font-normal text-[var(--text-secondary)]">({messageStore.getPinnedCount(channelStore.activeChannelId)}/50)</span>
 								{/if}
 							</h3>
-							<button onclick={() => showPinnedPanel = false} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+							<button aria-label="Close pinned messages" onclick={() => showPinnedPanel = false} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 							</button>
 						</div>
@@ -3546,6 +3559,9 @@
 
 				{#if !chatCollapsed}
 				<!-- Messages -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<div bind:this={messageListEl} class="flex-1 overflow-y-auto px-6 py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
 					{#if loadingOlder}
 						<Skeleton variant="message" count={3} />
@@ -3745,7 +3761,7 @@
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<img
 													src={imgUrl}
-													alt="Linked image"
+													alt="Linked content"
 													class="max-h-80 max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
 													loading="lazy"
 													onclick={() => openLightbox(imgUrl, 'Image')}
@@ -4140,7 +4156,7 @@
 									placeholder="Search for GIFs..."
 									class="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50"
 								/>
-								<button type="button" onclick={() => { showGifPicker = false; }} class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+								<button type="button" aria-label="Close GIF picker" onclick={() => { showGifPicker = false; }} class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 								</button>
 							</div>
@@ -4451,8 +4467,8 @@
 
 					<!-- Screenshot attachment -->
 					<div>
-						<label class="mb-1 block text-sm font-medium text-[var(--text-secondary)]">Screenshot (optional)</label>
-						<input
+						<label for="feedback-screenshot" class="mb-1 block text-sm font-medium text-[var(--text-secondary)]">Screenshot (optional)</label>
+						<input id="feedback-screenshot"
 							bind:this={feedbackFileInput}
 							type="file"
 							accept="image/png,image/jpeg,image/webp"
@@ -4569,7 +4585,7 @@
 			>
 				<div class="mb-4 flex items-center justify-between">
 					<h2 class="text-lg font-bold text-[var(--text-primary)]">Keyboard Shortcuts</h2>
-					<button onclick={() => showShortcutsModal = false} class="rounded p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+					<button aria-label="Close keyboard shortcuts" onclick={() => showShortcutsModal = false} class="rounded p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 					</button>
 				</div>
@@ -4699,17 +4715,17 @@
 
 	<!-- Voice context menu (volume + kick) -->
 	{#if voiceContextMenu}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 		<div
 			class="fixed inset-0 z-40"
-			onclick={() => voiceContextMenu = null}
+			onclick={() => voiceContextMenu = null} onkeydown={(e) => { if (e.key === "Escape") voiceContextMenu = null; }} role="presentation"
 			oncontextmenu={(e) => { e.preventDefault(); voiceContextMenu = null; }}
 		></div>
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
+		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+		<div role="menu" tabindex="-1"
 			class="fixed z-50 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
 			style="left: {voiceContextMenu.x}px; top: {voiceContextMenu.y}px;"
-			onclick={(e) => e.stopPropagation()}
+			onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 		>
 			{#if isVoiceMenuSelf}
 				<!-- Self: mic gain control -->

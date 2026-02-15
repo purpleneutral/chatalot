@@ -14,6 +14,20 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.7.0',
+			date: '2026-02-14',
+			changes: [
+				'Invite links: share clickable URLs instead of codes, paste links or codes in the join dialog',
+				'Longer invite codes (12 chars) for better security',
+				'Cross-tab logout detection — logging out in one tab logs out all tabs',
+				'Fixed WebSocket subscription task cleanup on disconnect',
+				'Message size validation (64 KiB limit)',
+				'Server now reports errors on voice join failure',
+				'Connection pool increased to 50 connections',
+				'Zero accessibility warnings in build',
+			]
+		},
+		{
 			version: '0.6.0',
 			date: '2026-02-14',
 			changes: [
