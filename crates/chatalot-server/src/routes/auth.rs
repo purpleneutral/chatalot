@@ -27,6 +27,7 @@ async fn server_config(
 ) -> Json<ServerConfigResponse> {
     Json(ServerConfigResponse {
         registration_mode: state.config.registration_mode.clone(),
+        public_url: state.config.public_url.clone(),
     })
 }
 

@@ -5,6 +5,7 @@
 	import { searchUsers, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
 	import { fetchLinkPreview } from '$lib/api/link-preview';
+	import { getServerConfig, getPublicUrl } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { channelStore } from '$lib/stores/channels.svelte';
 	import { messageStore, type ChatMessage } from '$lib/stores/messages.svelte';
@@ -556,6 +557,9 @@
 			goto('/login');
 			return;
 		}
+
+		// Fetch server config (caches public URL for invite links)
+		getServerConfig().catch(() => {});
 
 		// Refresh user data from server (keeps is_admin, avatar_url etc. current)
 		try {
@@ -1853,7 +1857,7 @@
 	async function handleCreateInvite(groupId: string) {
 		try {
 			const invite = await createInvite(groupId);
-			const link = `${window.location.origin}/invite/${invite.code}`;
+			const link = `${getPublicUrl()}/invite/${invite.code}`;
 			await navigator.clipboard.writeText(link);
 			toastStore.success('Invite link copied!');
 		} catch (err: any) {

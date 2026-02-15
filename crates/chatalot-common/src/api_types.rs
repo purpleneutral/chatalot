@@ -446,6 +446,8 @@ pub struct RegistrationInviteResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerConfigResponse {
     pub registration_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_url: Option<String>,
 }
 
 // ── Health ──

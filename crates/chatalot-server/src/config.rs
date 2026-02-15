@@ -16,6 +16,7 @@ pub struct Config {
     pub admin_username: Option<String>,
     pub registration_mode: String,
     pub community_creation_mode: String,
+    pub public_url: Option<String>,
 }
 
 impl Config {
@@ -45,6 +46,7 @@ impl Config {
                 .unwrap_or_else(|_| "invite_only".to_string()),
             community_creation_mode: std::env::var("COMMUNITY_CREATION_MODE")
                 .unwrap_or_else(|_| "admin_only".to_string()),
+            public_url: std::env::var("PUBLIC_URL").ok(),
         })
     }
 }

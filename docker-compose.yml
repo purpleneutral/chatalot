@@ -22,6 +22,8 @@ services:
       FORGEJO_API_TOKEN: ${FORGEJO_API_TOKEN:-}
       FORGEJO_REPO_OWNER: ${FORGEJO_REPO_OWNER:-}
       FORGEJO_REPO_NAME: ${FORGEJO_REPO_NAME:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      COMMUNITY_CREATION_MODE: ${COMMUNITY_CREATION_MODE:-admin_only}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
     volumes:
       - file_storage:/app/data/files

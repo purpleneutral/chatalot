@@ -24,6 +24,7 @@
 		type CommunityInvite,
 		type CommunityBan
 	} from '$lib/api/communities';
+	import { getPublicUrl } from '$lib/api/auth';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount } from 'svelte';
 
@@ -128,7 +129,7 @@
 				newInviteExpiresHours ? parseInt(newInviteExpiresHours) : undefined
 			);
 			invites = [invite, ...invites];
-			const link = `${window.location.origin}/invite/${invite.code}`;
+			const link = `${getPublicUrl()}/invite/${invite.code}`;
 			await navigator.clipboard.writeText(link);
 			toastStore.success('Invite link copied!');
 			newInviteMaxUses = '';
@@ -476,7 +477,7 @@
 						{#each invites as invite (invite.id)}
 							<div class="flex items-center justify-between rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-4 py-3">
 								<div class="min-w-0 flex-1">
-									<code class="rounded bg-white/10 px-2 py-1 text-sm font-mono text-[var(--text-primary)]">{window.location.origin}/invite/{invite.code}</code>
+									<code class="rounded bg-white/10 px-2 py-1 text-sm font-mono text-[var(--text-primary)]">{getPublicUrl()}/invite/{invite.code}</code>
 									<div class="mt-1 flex gap-3 text-xs text-[var(--text-secondary)]">
 										<span>Uses: {invite.used_count}{invite.max_uses ? `/${invite.max_uses}` : ''}</span>
 										{#if invite.expires_at}
@@ -488,7 +489,7 @@
 								</div>
 								<div class="flex items-center gap-2">
 									<button
-										onclick={async () => { await navigator.clipboard.writeText(`${window.location.origin}/invite/${invite.code}`); toastStore.success('Link copied!'); }}
+										onclick={async () => { await navigator.clipboard.writeText(`${getPublicUrl()}/invite/${invite.code}`); toastStore.success('Link copied!'); }}
 										class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
 									>
 										Copy Link

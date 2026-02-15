@@ -37,10 +37,23 @@ export interface RegisterParams {
 
 export interface ServerConfig {
 	registration_mode: string;
+	public_url?: string;
+}
+
+/** Cached public URL from server config, populated on first getServerConfig() call. */
+let _publicUrl: string | undefined;
+
+/** Get the public base URL for generating shareable links. Falls back to window.location.origin. */
+export function getPublicUrl(): string {
+	return _publicUrl ?? (typeof window !== 'undefined' ? window.location.origin : '');
 }
 
 export async function getServerConfig(): Promise<ServerConfig> {
-	return api.get<ServerConfig>('/auth/config');
+	const config = await api.get<ServerConfig>('/auth/config');
+	if (config.public_url) {
+		_publicUrl = config.public_url.replace(/\/+$/, '');
+	}
+	return config;
 }
 
 export async function register(params: RegisterParams): Promise<AuthResponse> {
