@@ -327,6 +327,23 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Spawn background task: in-memory cache cleanup (every 10 min)
+    {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(600));
+            loop {
+                interval.tick().await;
+                let gifs = routes::gifs::cleanup_gif_cache();
+                let previews = routes::link_preview::cleanup_preview_cache();
+                if gifs > 0 || previews > 0 {
+                    tracing::debug!(
+                        "Cache cleanup: evicted {gifs} GIF entries, {previews} link preview entries"
+                    );
+                }
+            }
+        });
+    }
+
     // Build the router
     let app = routes::build_router(state.clone());
 

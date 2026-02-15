@@ -6,7 +6,7 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{ChannelResponse, CreateDmRequest, DmChannelResponse, UserPublic};
-use chatalot_db::repos::{community_repo, dm_repo};
+use chatalot_db::repos::{block_repo, community_repo, dm_repo};
 use chatalot_db::models::user::User;
 
 use crate::app_state::AppState;
@@ -31,6 +31,11 @@ async fn create_dm(
     let target = chatalot_db::repos::user_repo::find_by_id(&state.db, req.target_user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    // Check if either user has blocked the other
+    if block_repo::is_blocked_either_way(&state.db, claims.sub, target.id).await? {
+        return Err(AppError::Validation("cannot create DM with this user".to_string()));
+    }
 
     // DMs require shared community membership (instance owner bypasses for moderation)
     if !claims.is_owner

@@ -152,7 +152,8 @@ async fn create_report(
         ));
     }
 
-    if req.reason.is_empty() || req.reason.len() > 2000 {
+    let reason = req.reason.trim();
+    if reason.is_empty() || reason.len() > 2000 {
         return Err(AppError::Validation(
             "reason must be 1-2000 characters".to_string(),
         ));
@@ -164,7 +165,7 @@ async fn create_report(
         claims.sub,
         &req.report_type,
         req.target_id,
-        &req.reason,
+        reason,
     )
     .await?;
 

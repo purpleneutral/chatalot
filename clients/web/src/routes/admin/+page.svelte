@@ -23,6 +23,7 @@
 	let usersLoading = $state(false);
 	let searchQuery = $state('');
 	let searchTimeout: ReturnType<typeof setTimeout>;
+	let resettingPasswordId = $state<string | null>(null);
 
 	// ── Invites ──
 	let invites = $state<RegistrationInvite[]>([]);
@@ -151,11 +152,14 @@
 			`Reset password for ${user.username}\n\nRequirements: 8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character\n\nEnter new password:`
 		);
 		if (!newPassword) return;
+		resettingPasswordId = user.id;
 		try {
 			await resetUserPassword(user.id, newPassword);
 			toastStore.success(`Password reset for ${user.username}`);
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to reset password');
+		} finally {
+			resettingPasswordId = null;
 		}
 	}
 
@@ -486,7 +490,7 @@
 														{:else}
 															<button onclick={() => handleSuspend(user)} class="rounded px-2 py-1 text-xs text-yellow-400 transition hover:bg-yellow-500/10">Suspend</button>
 														{/if}
-														<button onclick={() => handleResetPassword(user)} class="rounded px-2 py-1 text-xs text-orange-400 transition hover:bg-orange-500/10">Reset PW</button>
+														<button onclick={() => handleResetPassword(user)} disabled={resettingPasswordId === user.id} class="rounded px-2 py-1 text-xs text-orange-400 transition hover:bg-orange-500/10 disabled:opacity-50">{resettingPasswordId === user.id ? 'Resetting...' : 'Reset PW'}</button>
 														<button onclick={() => handleToggleAdmin(user)} class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10">{user.is_admin ? 'Revoke Admin' : 'Grant Admin'}</button>
 														<button onclick={() => handleDelete(user)} class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10">Delete</button>
 													</div>
@@ -610,6 +614,7 @@
 								<thead>
 									<tr class="border-b border-white/10 text-left text-[var(--text-secondary)]">
 										<th class="py-2 pr-3 font-medium">ID</th>
+										<th class="py-2 pr-3 font-medium">Name</th>
 										<th class="py-2 pr-3 font-medium">Type</th>
 										<th class="py-2 pr-3 font-medium">Size</th>
 										<th class="py-2 pr-3 font-medium">Uploader</th>
@@ -624,6 +629,7 @@
 											<td class="py-3 pr-3">
 												<code class="cursor-pointer rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs" title={file.id} onclick={() => copyText(file.id)}>{file.id.slice(0, 8)}</code>
 											</td>
+											<td class="py-3 pr-3 max-w-32 truncate text-xs text-[var(--text-secondary)]" title={file.encrypted_name}>{file.encrypted_name || '—'}</td>
 											<td class="py-3 pr-3 text-xs text-[var(--text-secondary)]">{file.content_type ?? 'unknown'}</td>
 											<td class="py-3 pr-3 text-xs">{formatBytes(file.size_bytes)}</td>
 											<td class="py-3 pr-3">

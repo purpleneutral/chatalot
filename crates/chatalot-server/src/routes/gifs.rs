@@ -180,3 +180,17 @@ fn cache_gif_response(key: &str, response: &GifSearchResponse) {
         },
     );
 }
+
+/// Evict expired entries from the GIF cache.
+pub fn cleanup_gif_cache() -> usize {
+    let to_remove: Vec<String> = GIF_CACHE
+        .iter()
+        .filter(|e| e.created.elapsed() > CACHE_TTL)
+        .map(|e| e.key().clone())
+        .collect();
+    let count = to_remove.len();
+    for k in to_remove {
+        GIF_CACHE.remove(&k);
+    }
+    count
+}

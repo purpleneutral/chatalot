@@ -219,6 +219,20 @@ fn truncate_str(s: String, max: usize) -> String {
     }
 }
 
+/// Evict expired entries from the link preview cache.
+pub fn cleanup_preview_cache() -> usize {
+    let to_remove: Vec<String> = PREVIEW_CACHE
+        .iter()
+        .filter(|e| e.created.elapsed() > CACHE_TTL)
+        .map(|e| e.key().clone())
+        .collect();
+    let count = to_remove.len();
+    for k in to_remove {
+        PREVIEW_CACHE.remove(&k);
+    }
+    count
+}
+
 fn is_private_host(host: &str) -> bool {
     if host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "0.0.0.0" {
         return true;

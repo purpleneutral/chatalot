@@ -241,15 +241,19 @@ async fn handle_client_message(
                 }
             };
 
-            // Enforce read-only and slow mode (admins/owners exempt)
-            if channel.channel_type != ChannelType::Dm {
+            // Check role for non-DM channels (admins/owners exempt from slow mode, read-only)
+            let is_privileged = if channel.channel_type != ChannelType::Dm {
                 let role = channel_repo::get_member_role(&state.db, channel_id, user_id)
                     .await
                     .ok()
                     .flatten()
                     .unwrap_or_default();
+                matches!(role.as_str(), "owner" | "admin")
+            } else {
+                false
+            };
 
-                let is_privileged = matches!(role.as_str(), "owner" | "admin");
+            if channel.channel_type != ChannelType::Dm {
 
                 if channel.read_only && !is_privileged {
                     let _ = tx.send(ServerMessage::Error {
@@ -436,8 +440,8 @@ async fn handle_client_message(
                         conn_mgr.broadcast_to_channel(channel_id, new_msg);
                     }
 
-                    // Update slow mode tracker after successful send
-                    if channel.slow_mode_seconds > 0 {
+                    // Update slow mode tracker after successful send (skip for exempt users)
+                    if channel.slow_mode_seconds > 0 && !is_privileged {
                         let _ = channel_repo::update_slowmode_last_sent(
                             &state.db, channel_id, user_id,
                         ).await;
