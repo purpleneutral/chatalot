@@ -49,6 +49,7 @@
 	// Policy state
 	let policyGroups = $state('admin');
 	let policyInvites = $state('admin');
+	let communityDiscoverable = $state(true);
 	let savingPolicies = $state(false);
 
 	let canManage = $derived(myRole === 'owner' || myRole === 'admin' || authStore.user?.is_owner);
@@ -83,6 +84,7 @@
 			editDescription = c.description ?? '';
 			policyGroups = c.who_can_create_groups ?? 'admin';
 			policyInvites = c.who_can_create_invites ?? 'admin';
+			communityDiscoverable = c.discoverable ?? true;
 
 			// Find my role
 			const me = m.find((mem) => mem.user_id === authStore.user?.id);
@@ -275,14 +277,16 @@
 		try {
 			const updated = await updateCommunity(community.id, {
 				who_can_create_groups: policyGroups,
-				who_can_create_invites: policyInvites
+				who_can_create_invites: policyInvites,
+				discoverable: communityDiscoverable
 			});
 			community = updated;
 			communityStore.updateCommunity(community.id, {
 				who_can_create_groups: updated.who_can_create_groups,
-				who_can_create_invites: updated.who_can_create_invites
+				who_can_create_invites: updated.who_can_create_invites,
+				discoverable: updated.discoverable
 			});
-			toastStore.success('Policies updated');
+			toastStore.success('Settings updated');
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to update policies');
 		} finally {
@@ -564,9 +568,25 @@
 					</div>
 
 				{:else if activeTab === 'settings'}
-					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Policies</h2>
+					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Settings</h2>
 
 					<div class="space-y-6">
+						<!-- Discoverability -->
+						<div class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<div class="flex items-center justify-between">
+								<div>
+									<p class="text-sm font-medium text-[var(--text-primary)]">Discoverable</p>
+									<p class="mt-1 text-xs text-[var(--text-secondary)]">When disabled, your community name and description are hidden from invite previews. Members can still join via direct invite links.</p>
+								</div>
+								<button
+									onclick={() => communityDiscoverable = !communityDiscoverable}
+									class="ml-4 flex h-6 w-11 shrink-0 items-center rounded-full transition-colors {communityDiscoverable ? 'bg-[var(--accent)]' : 'bg-white/20'}"
+								>
+									<span class="h-4 w-4 rounded-full bg-white shadow transition-transform {communityDiscoverable ? 'translate-x-6' : 'translate-x-1'}"></span>
+								</button>
+							</div>
+						</div>
+
 						<!-- Who can create groups -->
 						<div class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-4">
 							<label for="policy-groups" class="mb-2 block text-sm font-medium text-[var(--text-primary)]">Who can create groups</label>
@@ -602,7 +622,7 @@
 							disabled={savingPolicies}
 							class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
 						>
-							{savingPolicies ? 'Saving...' : 'Save Policies'}
+							{savingPolicies ? 'Saving...' : 'Save Settings'}
 						</button>
 
 						<!-- Role Permissions Reference -->

@@ -129,13 +129,13 @@ pub async fn join_group(
     .execute(&mut *tx)
     .await?;
 
-    // Add user to all channels in this group
+    // Add user to all discoverable channels in this group
     sqlx::query(
         r#"
         INSERT INTO channel_members (channel_id, user_id, role)
         SELECT c.id, $2, 'member'
         FROM channels c
-        WHERE c.group_id = $1
+        WHERE c.group_id = $1 AND c.discoverable = TRUE
         ON CONFLICT (channel_id, user_id) DO NOTHING
         "#,
     )
@@ -294,6 +294,28 @@ pub async fn list_group_channels(
         "SELECT * FROM channels WHERE group_id = $1 ORDER BY created_at ASC",
     )
     .bind(group_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// List channels visible to a user: discoverable channels + channels they're a member of.
+pub async fn list_visible_group_channels(
+    pool: &PgPool,
+    group_id: Uuid,
+    user_id: Uuid,
+) -> Result<Vec<Channel>, sqlx::Error> {
+    sqlx::query_as::<_, Channel>(
+        r#"
+        SELECT c.* FROM channels c
+        WHERE c.group_id = $1
+          AND (c.discoverable = TRUE OR EXISTS (
+            SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = $2
+          ))
+        ORDER BY c.created_at ASC
+        "#,
+    )
+    .bind(group_id)
+    .bind(user_id)
     .fetch_all(pool)
     .await
 }

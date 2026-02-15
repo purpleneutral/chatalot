@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+fn default_true() -> bool {
+    true
+}
+
 // ── Auth ──
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -121,6 +125,8 @@ pub struct ChannelResponse {
     pub read_only: bool,
     #[serde(default)]
     pub slow_mode_seconds: i32,
+    #[serde(default = "default_true")]
+    pub discoverable: bool,
 }
 
 // ── Channel Members ──
@@ -301,6 +307,7 @@ pub struct UpdateChannelRequest {
     pub read_only: Option<bool>,
     pub slow_mode_seconds: Option<i32>,
     pub message_ttl_seconds: Option<i32>,
+    pub discoverable: Option<bool>,
 }
 
 // ── Invites ──
@@ -597,6 +604,7 @@ pub struct UpdateCommunityRequest {
     pub icon_url: Option<String>,
     pub who_can_create_groups: Option<String>,
     pub who_can_create_invites: Option<String>,
+    pub discoverable: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -610,6 +618,7 @@ pub struct CommunityResponse {
     pub member_count: i64,
     pub who_can_create_groups: String,
     pub who_can_create_invites: String,
+    pub discoverable: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

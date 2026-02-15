@@ -10,6 +10,7 @@ export interface Channel {
 	group_id: string | null;
 	read_only: boolean;
 	slow_mode_seconds: number;
+	discoverable: boolean;
 }
 
 export interface ReactionInfo {

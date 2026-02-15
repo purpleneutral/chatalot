@@ -11,6 +11,7 @@ export interface Community {
 	member_count: number;
 	who_can_create_groups: string;
 	who_can_create_invites: string;
+	discoverable: boolean;
 }
 
 export interface CommunityMember {
@@ -70,14 +71,16 @@ export async function updateCommunity(
 		iconUrl?: string;
 		who_can_create_groups?: string;
 		who_can_create_invites?: string;
+		discoverable?: boolean;
 	}
 ): Promise<Community> {
-	const body: Record<string, string | null> = {};
+	const body: Record<string, string | boolean | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
 	if (updates.description !== undefined) body.description = updates.description;
 	if (updates.iconUrl !== undefined) body.icon_url = updates.iconUrl;
 	if (updates.who_can_create_groups !== undefined) body.who_can_create_groups = updates.who_can_create_groups;
 	if (updates.who_can_create_invites !== undefined) body.who_can_create_invites = updates.who_can_create_invites;
+	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
 	return api.patch<Community>(`/communities/${id}`, body);
 }
 

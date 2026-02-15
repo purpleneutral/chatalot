@@ -154,6 +154,7 @@ async fn create_community(
         member_count: 1,
         who_can_create_groups: community.who_can_create_groups,
         who_can_create_invites: community.who_can_create_invites,
+        discoverable: community.discoverable,
     }))
 }
 
@@ -178,6 +179,7 @@ async fn list_my_communities(
                 member_count: count,
                 who_can_create_groups: c.who_can_create_groups,
                 who_can_create_invites: c.who_can_create_invites,
+                discoverable: c.discoverable,
             }
         })
         .collect();
@@ -210,9 +212,16 @@ async fn get_community_invite_info(
 
     let count = community_repo::get_community_member_count(&state.db, community.id).await?;
 
+    // Redact info for non-discoverable communities
+    let (display_name, display_desc) = if community.discoverable {
+        (community.name, community.description)
+    } else {
+        ("Private Community".to_string(), None)
+    };
+
     Ok(Json(CommunityInviteInfoResponse {
-        community_name: community.name,
-        community_description: community.description,
+        community_name: display_name,
+        community_description: display_desc,
         member_count: count,
         code: invite.code,
     }))
@@ -290,6 +299,7 @@ async fn get_community(
         member_count: count,
         who_can_create_groups: community.who_can_create_groups,
         who_can_create_invites: community.who_can_create_invites,
+        discoverable: community.discoverable,
     }))
 }
 
@@ -339,6 +349,7 @@ async fn update_community(
         req.icon_url.as_deref(),
         req.who_can_create_groups.as_deref(),
         req.who_can_create_invites.as_deref(),
+        req.discoverable,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("community not found".to_string()))?;
@@ -355,6 +366,7 @@ async fn update_community(
         member_count: count,
         who_can_create_groups: community.who_can_create_groups,
         who_can_create_invites: community.who_can_create_invites,
+        discoverable: community.discoverable,
     }))
 }
 

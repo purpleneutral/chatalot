@@ -62,6 +62,7 @@ async fn create_dm(
             group_id: None,
             read_only: false,
             slow_mode_seconds: 0,
+            discoverable: true,
         },
         other_user: user_to_public(&target),
     }))
@@ -86,6 +87,7 @@ async fn list_dms(
                 group_id: None,
                 read_only: false,
                 slow_mode_seconds: 0,
+                discoverable: true,
             },
             other_user: user_to_public(&other_user),
         })

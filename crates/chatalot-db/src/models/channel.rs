@@ -15,6 +15,7 @@ pub struct Channel {
     pub read_only: bool,
     pub slow_mode_seconds: i32,
     pub message_ttl_seconds: Option<i32>,
+    pub discoverable: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

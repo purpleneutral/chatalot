@@ -94,6 +94,21 @@
 		}
 	}
 
+	async function toggleDiscoverable() {
+		saving = true;
+		try {
+			const updated = await apiUpdateChannel(groupId, channel.id, { discoverable: !channel.discoverable });
+			channelStore.updateChannel(updated);
+			channel = updated;
+			onupdated?.(updated);
+			toastStore.success(updated.discoverable ? 'Channel is now discoverable' : 'Channel is now hidden');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to update');
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function toggleReadOnly() {
 		saving = true;
 		try {
@@ -248,6 +263,21 @@
 					</span>
 					<span class="rounded-full px-2 py-0.5 text-xs {channel.read_only ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/10 text-[var(--text-secondary)]'}">
 						{channel.read_only ? 'ON' : 'OFF'}
+					</span>
+				</button>
+
+				<!-- Discoverable toggle -->
+				<button
+					onclick={toggleDiscoverable}
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					disabled={saving}
+				>
+					<span class="flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+						Discoverable
+					</span>
+					<span class="rounded-full px-2 py-0.5 text-xs {channel.discoverable ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/10 text-[var(--text-secondary)]'}">
+						{channel.discoverable ? 'ON' : 'OFF'}
 					</span>
 				</button>
 

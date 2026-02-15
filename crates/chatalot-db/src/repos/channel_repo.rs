@@ -256,6 +256,7 @@ pub async fn update_channel(
     read_only: Option<bool>,
     slow_mode_seconds: Option<i32>,
     message_ttl_seconds: Option<Option<i32>>,
+    discoverable: Option<bool>,
 ) -> Result<Option<Channel>, sqlx::Error> {
     sqlx::query_as::<_, Channel>(
         r#"
@@ -265,6 +266,7 @@ pub async fn update_channel(
             read_only = COALESCE($4, read_only),
             slow_mode_seconds = COALESCE($5, slow_mode_seconds),
             message_ttl_seconds = COALESCE($6, message_ttl_seconds),
+            discoverable = COALESCE($7, discoverable),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -276,6 +278,7 @@ pub async fn update_channel(
     .bind(read_only)
     .bind(slow_mode_seconds)
     .bind(message_ttl_seconds)
+    .bind(discoverable)
     .fetch_optional(pool)
     .await
 }

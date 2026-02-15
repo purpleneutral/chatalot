@@ -416,7 +416,7 @@ async fn list_group_channels(
         return Err(AppError::Forbidden);
     }
 
-    let channels = group_repo::list_group_channels(&state.db, id).await?;
+    let channels = group_repo::list_visible_group_channels(&state.db, id, claims.sub).await?;
     Ok(Json(
         channels
             .iter()
@@ -430,6 +430,7 @@ async fn list_group_channels(
                 group_id: ch.group_id,
                 read_only: ch.read_only,
                 slow_mode_seconds: ch.slow_mode_seconds,
+                discoverable: ch.discoverable,
             })
             .collect(),
     ))
@@ -500,6 +501,7 @@ async fn create_group_channel(
         group_id: channel.group_id,
         read_only: channel.read_only,
         slow_mode_seconds: channel.slow_mode_seconds,
+        discoverable: channel.discoverable,
     }))
 }
 
@@ -547,6 +549,7 @@ async fn update_group_channel(
         req.read_only,
         req.slow_mode_seconds,
         None,
+        req.discoverable,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
@@ -561,6 +564,7 @@ async fn update_group_channel(
         group_id: channel.group_id,
         read_only: channel.read_only,
         slow_mode_seconds: channel.slow_mode_seconds,
+        discoverable: channel.discoverable,
     }))
 }
 
