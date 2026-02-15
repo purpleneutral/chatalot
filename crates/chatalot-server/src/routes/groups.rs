@@ -11,7 +11,8 @@ use chatalot_common::api_types::{
     TransferOwnershipRequest, UpdateChannelRequest, UpdateGroupRequest,
 };
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo};
+use chatalot_common::ws_messages::ServerMessage;
+use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo, sender_key_repo};
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -340,6 +341,20 @@ async fn leave_group(
     }
 
     group_repo::leave_group(&state.db, id, claims.sub).await?;
+
+    // Delete leaving user's sender keys and trigger rotation for all group channels
+    let channels = group_repo::list_group_channels(&state.db, id).await?;
+    for ch in &channels {
+        let _ = sender_key_repo::delete_distribution(&state.db, ch.id, claims.sub).await;
+        state.connections.broadcast_to_channel(
+            ch.id,
+            ServerMessage::SenderKeyRotationRequired {
+                channel_id: ch.id,
+                reason: "member_left".to_string(),
+            },
+        );
+    }
+
     Ok(())
 }
 

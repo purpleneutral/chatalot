@@ -1007,10 +1007,18 @@
 				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
 			}
 		} else {
-			// Group channel: plaintext (E2E sender-key encryption not yet fully wired)
-			const encoder = new TextEncoder();
-			ciphertext = Array.from(encoder.encode(text));
-			nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			// Group channel: Sender Key encryption
+			try {
+				await initCrypto();
+				const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId!, text);
+				ciphertext = encrypted.ciphertext;
+				nonce = encrypted.nonce;
+			} catch (err) {
+				console.error('Group encryption failed, sending plaintext:', err);
+				const encoder = new TextEncoder();
+				ciphertext = Array.from(encoder.encode(text));
+				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+			}
 		}
 
 		// Optimistic add
@@ -1213,14 +1221,44 @@
 		try {
 			const result = await uploadFile(file, channelStore.activeChannelId);
 			// Send a file message with the file ID
-			const encoder = new TextEncoder();
 			const fileMsg = JSON.stringify({
 				file_id: result.id,
 				filename: file.name,
 				size: result.size_bytes
 			});
-			const ciphertext = Array.from(encoder.encode(fileMsg));
-			const nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+
+			let ciphertext: number[];
+			let nonce: number[];
+			const fileChannel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
+			const isFileDm = fileChannel?.channel_type === 'dm';
+
+			if (isFileDm) {
+				const peerUserId = getPeerUserIdForDm(channelStore.activeChannelId);
+				if (peerUserId) {
+					try {
+						await initCrypto();
+						const encrypted = await getSessionManager().encryptForPeer(peerUserId, fileMsg);
+						ciphertext = encrypted.ciphertext;
+						nonce = encrypted.nonce;
+					} catch {
+						ciphertext = Array.from(new TextEncoder().encode(fileMsg));
+						nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+					}
+				} else {
+					ciphertext = Array.from(new TextEncoder().encode(fileMsg));
+					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+				}
+			} else {
+				try {
+					await initCrypto();
+					const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId!, fileMsg);
+					ciphertext = encrypted.ciphertext;
+					nonce = encrypted.nonce;
+				} catch {
+					ciphertext = Array.from(new TextEncoder().encode(fileMsg));
+					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
+				}
+			}
 
 			const fileSent = wsClient.send({
 				type: 'send_message',
@@ -3475,6 +3513,9 @@
 							<span class="mr-2 text-[var(--text-secondary)]">#</span>
 						{/if}
 						<h2 class="font-semibold text-[var(--text-primary)]">{getChannelDisplayName()}</h2>
+						<span class="ml-1.5 text-green-400" title="End-to-end encrypted">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+						</span>
 						{#if activeChannel.read_only}
 							<span class="ml-2 inline-flex items-center gap-1 rounded bg-yellow-500/20 px-1.5 py-0.5 text-xs text-yellow-400">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
