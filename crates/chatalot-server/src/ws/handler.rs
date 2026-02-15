@@ -203,12 +203,16 @@ async fn handle_client_message(
             reply_to,
             sender_key_id,
         } => {
-            // Reject oversized ciphertext (64 KiB limit)
+            // Reject empty or oversized ciphertext (64 KiB limit)
             const MAX_CIPHERTEXT_SIZE: usize = 65_536;
-            if ciphertext.len() > MAX_CIPHERTEXT_SIZE {
+            if ciphertext.is_empty() || ciphertext.len() > MAX_CIPHERTEXT_SIZE {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
-                    message: "message too large".to_string(),
+                    message: if ciphertext.is_empty() {
+                        "message cannot be empty".to_string()
+                    } else {
+                        "message too large".to_string()
+                    },
                 });
                 return;
             }

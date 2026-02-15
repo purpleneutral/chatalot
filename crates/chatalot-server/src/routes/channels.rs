@@ -128,16 +128,19 @@ async fn update_channel(
         return Err(AppError::Forbidden);
     }
 
-    if let Some(ref name) = req.name
-        && (name.is_empty() || name.len() > 64)
+    let name = req.name.as_deref().map(str::trim);
+    let topic = req.topic.as_deref().map(str::trim);
+
+    if let Some(n) = name
+        && (n.is_empty() || n.len() > 64)
     {
         return Err(AppError::Validation(
             "channel name must be 1-64 characters".to_string(),
         ));
     }
 
-    if let Some(ref topic) = req.topic
-        && topic.len() > 512
+    if let Some(t) = topic
+        && t.len() > 512
     {
         return Err(AppError::Validation(
             "topic must be at most 512 characters".to_string(),
@@ -163,8 +166,8 @@ async fn update_channel(
     let channel = channel_repo::update_channel(
         &state.db,
         id,
-        req.name.as_deref(),
-        req.topic.as_deref(),
+        name,
+        topic,
         req.read_only,
         req.slow_mode_seconds,
         req.message_ttl_seconds.map(|v| if v == 0 { None } else { Some(v) }),

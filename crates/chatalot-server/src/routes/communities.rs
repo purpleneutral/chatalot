@@ -515,7 +515,8 @@ async fn set_nickname(
         return Err(AppError::Forbidden);
     }
 
-    if let Some(ref nick) = req.nickname
+    let nickname = req.nickname.as_deref().map(str::trim);
+    if let Some(nick) = nickname
         && (nick.is_empty() || nick.len() > 64)
     {
         return Err(AppError::Validation(
@@ -527,7 +528,7 @@ async fn set_nickname(
         &state.db,
         ctx.community_id,
         path.uid,
-        req.nickname.as_deref(),
+        nickname,
     )
     .await?;
 

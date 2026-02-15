@@ -348,14 +348,16 @@ async fn update_group(
         None
     };
 
-    // Validate name if provided
-    if let Some(ref name) = req.name {
-        let trimmed = name.trim();
-        if trimmed.is_empty() || trimmed.len() > 64 {
-            return Err(AppError::Validation(
-                "group name must be 1–64 characters".to_string(),
-            ));
-        }
+    // Validate and trim inputs
+    let name = req.name.as_deref().map(str::trim);
+    let description = req.description.as_deref().map(str::trim);
+
+    if let Some(n) = name
+        && (n.is_empty() || n.len() > 64)
+    {
+        return Err(AppError::Validation(
+            "group name must be 1–64 characters".to_string(),
+        ));
     }
 
     // Validate visibility if provided
@@ -365,8 +367,8 @@ async fn update_group(
         return Err(AppError::Validation("visibility must be 'public' or 'private'".to_string()));
     }
 
-    if let Some(ref desc) = req.description
-        && desc.len() > 2048
+    if let Some(d) = description
+        && d.len() > 2048
     {
         return Err(AppError::Validation(
             "description must be at most 2048 characters".to_string(),
@@ -376,8 +378,8 @@ async fn update_group(
     let group = group_repo::update_group(
         &state.db,
         id,
-        req.name.as_deref(),
-        req.description.as_deref(),
+        name,
+        description,
         req.visibility.as_deref(),
         req.discoverable,
         allow_invites_update,
@@ -700,8 +702,19 @@ async fn update_group_channel(
         return Err(AppError::Forbidden);
     }
 
-    if let Some(ref topic) = req.topic
-        && topic.len() > 512
+    let ch_name = req.name.as_deref().map(str::trim);
+    let ch_topic = req.topic.as_deref().map(str::trim);
+
+    if let Some(n) = ch_name
+        && (n.is_empty() || n.len() > 64)
+    {
+        return Err(AppError::Validation(
+            "channel name must be 1-64 characters".to_string(),
+        ));
+    }
+
+    if let Some(t) = ch_topic
+        && t.len() > 512
     {
         return Err(AppError::Validation(
             "topic must be at most 512 characters".to_string(),
@@ -719,8 +732,8 @@ async fn update_group_channel(
     let channel = channel_repo::update_channel(
         &state.db,
         path.channel_id,
-        req.name.as_deref(),
-        req.topic.as_deref(),
+        ch_name,
+        ch_topic,
         req.read_only,
         req.slow_mode_seconds,
         None,

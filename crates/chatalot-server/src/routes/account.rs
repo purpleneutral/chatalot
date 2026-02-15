@@ -113,15 +113,20 @@ async fn update_profile(
     Extension(claims): Extension<AccessClaims>,
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserPublic>, AppError> {
-    // Validate inputs
-    if let Some(ref dn) = req.display_name
+    // Validate and trim inputs
+    let display_name = req.display_name.as_deref().map(str::trim);
+    let custom_status = req.custom_status.as_deref().map(str::trim);
+    let bio = req.bio.as_deref().map(str::trim);
+    let pronouns = req.pronouns.as_deref().map(str::trim);
+
+    if let Some(dn) = display_name
         && (dn.is_empty() || dn.len() > 64)
     {
         return Err(AppError::Validation(
             "display name must be 1-64 characters".to_string(),
         ));
     }
-    if let Some(ref cs) = req.custom_status
+    if let Some(cs) = custom_status
         && cs.len() > 128
     {
         return Err(AppError::Validation(
@@ -129,15 +134,15 @@ async fn update_profile(
         ));
     }
 
-    if let Some(ref bio) = req.bio
-        && bio.len() > 500
+    if let Some(b) = bio
+        && b.len() > 500
     {
         return Err(AppError::Validation(
             "bio must be at most 500 characters".to_string(),
         ));
     }
-    if let Some(ref pronouns) = req.pronouns
-        && pronouns.len() > 50
+    if let Some(p) = pronouns
+        && p.len() > 50
     {
         return Err(AppError::Validation(
             "pronouns must be at most 50 characters".to_string(),
@@ -147,11 +152,11 @@ async fn update_profile(
     let user = user_repo::update_profile(
         &state.db,
         claims.sub,
-        req.display_name.as_deref(),
+        display_name,
         req.avatar_url.as_ref().map(|s| Some(s.as_str())),
-        req.custom_status.as_ref().map(|s| Some(s.as_str())),
-        req.bio.as_ref().map(|s| Some(s.as_str())),
-        req.pronouns.as_ref().map(|s| Some(s.as_str())),
+        custom_status.map(Some),
+        bio.map(Some),
+        pronouns.map(Some),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
