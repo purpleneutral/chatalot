@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post, put};
 use axum::{Extension, Json, Router};
 use uuid::Uuid;
@@ -13,8 +13,9 @@ use chatalot_common::api_types::{
     AcceptCommunityInviteResponse, CommunityBanRequest, CommunityInviteInfoResponse,
     CommunityInviteResponse, CommunityMemberResponse, CommunityResponse,
     CreateCommunityInviteRequest, CreateCommunityRequest, CreateTimeoutRequest,
-    CreateWarningRequest, CustomEmojiResponse, SetCommunityRoleRequest, SetNicknameRequest,
-    TimeoutResponse, TransferCommunityOwnershipRequest, UpdateCommunityRequest, WarningResponse,
+    CreateWarningRequest, CustomEmojiResponse, PaginationQuery, SetCommunityRoleRequest,
+    SetNicknameRequest, TimeoutResponse, TransferCommunityOwnershipRequest,
+    UpdateCommunityRequest, WarningResponse,
 };
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{community_repo, custom_emoji_repo, timeout_repo, warning_repo};
@@ -427,8 +428,11 @@ async fn leave_community(
 async fn list_members(
     State(state): State<Arc<AppState>>,
     Extension(ctx): Extension<CommunityContext>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<CommunityMemberResponse>>, AppError> {
-    let members = community_repo::list_community_members(&state.db, ctx.community_id).await?;
+    let limit = pagination.limit.unwrap_or(200).clamp(1, 500);
+    let offset = pagination.offset.unwrap_or(0).max(0);
+    let members = community_repo::list_community_members(&state.db, ctx.community_id, limit, offset).await?;
     Ok(Json(
         members
             .into_iter()

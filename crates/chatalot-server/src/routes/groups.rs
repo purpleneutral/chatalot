@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{get, patch, post};
 use axum::{Extension, Json, Router};
 use uuid::Uuid;
@@ -8,7 +8,7 @@ use uuid::Uuid;
 use chatalot_common::api_types::{
     AcceptInviteResponse, ChannelResponse, CreateChannelRequest, CreateGroupRequest,
     CreateInviteRequest, GroupMemberResponse, GroupResponse, InviteInfoResponse, InviteResponse,
-    TransferOwnershipRequest, UpdateChannelRequest, UpdateGroupRequest,
+    PaginationQuery, TransferOwnershipRequest, UpdateChannelRequest, UpdateGroupRequest,
 };
 use chatalot_db::models::channel::ChannelType;
 use chatalot_common::ws_messages::ServerMessage;
@@ -348,6 +348,16 @@ async fn update_group(
         None
     };
 
+    // Validate name if provided
+    if let Some(ref name) = req.name {
+        let trimmed = name.trim();
+        if trimmed.is_empty() || trimmed.len() > 64 {
+            return Err(AppError::Validation(
+                "group name must be 1–64 characters".to_string(),
+            ));
+        }
+    }
+
     // Validate visibility if provided
     if let Some(ref vis) = req.visibility
         && vis != "public" && vis != "private"
@@ -530,6 +540,7 @@ async fn list_group_members(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
     Path(id): Path<Uuid>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<GroupMemberResponse>>, AppError> {
     let group = group_repo::get_group(&state.db, id)
         .await?
@@ -539,7 +550,9 @@ async fn list_group_members(
         .await?
         .ok_or(AppError::Forbidden)?;
 
-    let members = group_repo::list_group_members(&state.db, id).await?;
+    let limit = pagination.limit.unwrap_or(200).clamp(1, 500);
+    let offset = pagination.offset.unwrap_or(0).max(0);
+    let members = group_repo::list_group_members(&state.db, id, limit, offset).await?;
     Ok(Json(
         members
             .into_iter()
@@ -639,7 +652,7 @@ async fn create_group_channel(
     .await?;
 
     // Add all existing group members to the new channel
-    let members = group_repo::list_group_members(&state.db, group_id).await?;
+    let members = group_repo::list_group_members(&state.db, group_id, 10_000, 0).await?;
     for m in members {
         if m.user_id != claims.sub {
             // Creator is already added by create_channel

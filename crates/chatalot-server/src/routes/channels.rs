@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{get, patch, post};
 use axum::{Extension, Json, Router};
 use chatalot_common::ws_messages::ServerMessage;
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    BanRequest, ChannelMemberResponse, ChannelResponse, CreateChannelRequest,
+    BanRequest, ChannelMemberResponse, ChannelResponse, CreateChannelRequest, PaginationQuery,
     TransferOwnershipRequest, UpdateChannelRequest, UpdateRoleRequest,
 };
 use chatalot_db::models::channel::ChannelType;
@@ -208,12 +208,15 @@ async fn list_channel_members(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
     Path(id): Path<Uuid>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<ChannelMemberResponse>>, AppError> {
     if !channel_repo::is_member(&state.db, id, claims.sub).await? {
         return Err(AppError::Forbidden);
     }
 
-    let members = channel_repo::list_members_with_users(&state.db, id).await?;
+    let limit = pagination.limit.unwrap_or(200).clamp(1, 500);
+    let offset = pagination.offset.unwrap_or(0).max(0);
+    let members = channel_repo::list_members_with_users(&state.db, id, limit, offset).await?;
     let response: Vec<ChannelMemberResponse> = members
         .into_iter()
         .map(|m| ChannelMemberResponse {

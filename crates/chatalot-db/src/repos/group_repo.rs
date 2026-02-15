@@ -196,6 +196,8 @@ pub async fn leave_group(
 pub async fn list_group_members(
     pool: &PgPool,
     group_id: Uuid,
+    limit: i64,
+    offset: i64,
 ) -> Result<Vec<GroupMemberInfo>, sqlx::Error> {
     sqlx::query_as::<_, GroupMemberInfo>(
         r#"
@@ -211,9 +213,12 @@ pub async fn list_group_members(
                 ELSE 2
             END,
             gm.joined_at ASC
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(group_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await
 }

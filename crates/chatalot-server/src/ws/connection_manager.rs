@@ -61,11 +61,6 @@ impl ConnectionManager {
         self.connections.contains_key(user_id)
     }
 
-    /// Get all online user IDs.
-    pub fn online_users(&self) -> Vec<Uuid> {
-        self.connections.iter().map(|entry| *entry.key()).collect()
-    }
-
     /// Send a message directly to all sessions of a specific user.
     pub fn send_to_user(&self, user_id: &Uuid, message: &ServerMessage) {
         if let Some(sessions) = self.connections.get(user_id) {

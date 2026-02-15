@@ -220,6 +220,8 @@ pub async fn leave_community(
 pub async fn list_community_members(
     pool: &PgPool,
     community_id: Uuid,
+    limit: i64,
+    offset: i64,
 ) -> Result<Vec<CommunityMemberInfo>, sqlx::Error> {
     sqlx::query_as::<_, CommunityMemberInfo>(
         r#"
@@ -236,9 +238,12 @@ pub async fn list_community_members(
                 ELSE 3
             END,
             cm.joined_at ASC
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(community_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await
 }
@@ -563,6 +568,23 @@ pub async fn shares_community(
     .fetch_one(pool)
     .await?;
     Ok(row.0)
+}
+
+/// Get all distinct user IDs that share at least one community with the given user.
+pub async fn get_community_mates(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        r#"SELECT DISTINCT cm2.user_id
+           FROM community_members cm1
+           INNER JOIN community_members cm2 ON cm1.community_id = cm2.community_id
+           WHERE cm1.user_id = $1 AND cm2.user_id != $1"#,
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
 /// Search users who share at least one community with the given user.

@@ -43,7 +43,7 @@ pub async fn handle_socket(
     }
 
     // Broadcast presence: this user is online
-    broadcast_presence(conn_mgr, user_id, "online");
+    broadcast_presence(&state.db, conn_mgr, user_id, "online").await;
 
     tracing::info!(%user_id, %session_id, "WebSocket connected");
 
@@ -176,7 +176,7 @@ pub async fn handle_socket(
 
     // If no more sessions for this user, broadcast offline
     if !conn_mgr.is_online(&user_id) {
-        broadcast_presence(conn_mgr, user_id, "offline");
+        broadcast_presence(&state.db, conn_mgr, user_id, "offline").await;
     }
 
     tracing::info!(%user_id, %session_id, "WebSocket disconnected");
@@ -551,7 +551,7 @@ async fn handle_client_message(
 
         ClientMessage::UpdatePresence { status } => {
             let status_str = format!("{:?}", status).to_lowercase();
-            broadcast_presence(conn_mgr, user_id, &status_str);
+            broadcast_presence(&state.db, conn_mgr, user_id, &status_str).await;
         }
 
         ClientMessage::Subscribe { channel_ids } => {
@@ -928,6 +928,10 @@ async fn handle_client_message(
                 }
                 Err(e) => {
                     tracing::error!("Failed to add reaction: {e}");
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "internal_error".to_string(),
+                        message: "failed to add reaction".to_string(),
+                    });
                 }
             }
         }
@@ -962,6 +966,10 @@ async fn handle_client_message(
                 Ok(false) => {} // reaction didn't exist, no-op
                 Err(e) => {
                     tracing::error!("Failed to remove reaction: {e}");
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "internal_error".to_string(),
+                        message: "failed to remove reaction".to_string(),
+                    });
                 }
             }
         }
@@ -975,7 +983,12 @@ async fn handle_client_message(
     }
 }
 
-fn broadcast_presence(conn_mgr: &crate::ws::connection_manager::ConnectionManager, user_id: Uuid, status: &str) {
+async fn broadcast_presence(
+    db: &sqlx::PgPool,
+    conn_mgr: &crate::ws::connection_manager::ConnectionManager,
+    user_id: Uuid,
+    status: &str,
+) {
     let presence_status = match status {
         "online" => chatalot_common::ws_messages::PresenceStatus::Online,
         "idle" => chatalot_common::ws_messages::PresenceStatus::Idle,
@@ -989,10 +1002,17 @@ fn broadcast_presence(conn_mgr: &crate::ws::connection_manager::ConnectionManage
         status: presence_status,
     };
 
-    // Send to all online users
-    for uid in conn_mgr.online_users() {
-        if uid != user_id {
-            conn_mgr.send_to_user(&uid, &msg);
+    // Only send to users who share a community with this user
+    match community_repo::get_community_mates(db, user_id).await {
+        Ok(mates) => {
+            for uid in mates {
+                if conn_mgr.is_online(&uid) {
+                    conn_mgr.send_to_user(&uid, &msg);
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to get community mates for presence broadcast: {e}");
         }
     }
 }

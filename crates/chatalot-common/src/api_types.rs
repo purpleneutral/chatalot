@@ -457,6 +457,13 @@ pub struct AdminUsersQuery {
     pub offset: Option<i64>,
 }
 
+/// Reusable pagination query parameters for list endpoints.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaginationQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 // ── Admin Security Suite ──
 
 #[derive(Debug, Serialize, Deserialize)]

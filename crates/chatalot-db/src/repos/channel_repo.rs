@@ -141,6 +141,8 @@ pub async fn list_members(
 pub async fn list_members_with_users(
     pool: &PgPool,
     channel_id: Uuid,
+    limit: i64,
+    offset: i64,
 ) -> Result<Vec<ChannelMemberInfo>, sqlx::Error> {
     sqlx::query_as::<_, ChannelMemberInfo>(
         r#"
@@ -156,9 +158,12 @@ pub async fn list_members_with_users(
                 ELSE 2
             END,
             cm.joined_at ASC
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(channel_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await
 }
