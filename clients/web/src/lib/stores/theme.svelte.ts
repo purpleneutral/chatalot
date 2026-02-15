@@ -47,7 +47,12 @@ class ThemeStore {
 		if (typeof document === 'undefined') return;
 		document.documentElement.setAttribute('data-theme', this.resolved);
 		localStorage.setItem('chatalot-theme', this.current);
+		// Re-apply preferences so preset theme colors update for new dark/light mode
+		this.onThemeChange?.();
 	}
+
+	/** Callback to re-apply preferences when theme changes. Set by PreferencesStore. */
+	onThemeChange: (() => void) | null = null;
 }
 
 export const themeStore = new ThemeStore();

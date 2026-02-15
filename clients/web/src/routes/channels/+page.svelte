@@ -1380,7 +1380,25 @@
 		reactionPickerMessageId = null;
 	}
 
+	function formatRelativeTime(isoString: string): string {
+		const d = new Date(isoString);
+		const now = Date.now();
+		const diff = now - d.getTime();
+		const secs = Math.floor(diff / 1000);
+		if (secs < 60) return 'just now';
+		const mins = Math.floor(secs / 60);
+		if (mins < 60) return `${mins}m ago`;
+		const hrs = Math.floor(mins / 60);
+		if (hrs < 24) return `${hrs}h ago`;
+		const days = Math.floor(hrs / 24);
+		if (days < 7) return `${days}d ago`;
+		return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+	}
+
 	function formatTime(isoString: string): string {
+		if (preferencesStore.preferences.relativeTimestamps) {
+			return formatRelativeTime(isoString);
+		}
 		const d = new Date(isoString);
 		const use24h = preferencesStore.preferences.timeFormat === '24h';
 		return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !use24h });
@@ -3589,7 +3607,7 @@
 							</div>
 						{/if}
 						<div
-							id="msg-{msg.id}" class="group relative flex rounded-lg px-2 pl-3 transition hover:bg-white/[0.04] {msg.pending ? 'opacity-50' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
+							id="msg-{msg.id}" class="chat-message group relative flex rounded-lg px-2 pl-3 transition hover:bg-white/[0.04] {msg.pending ? 'opacity-50' : ''} {msg.senderId === authStore.user?.id ? 'chat-message-own' : ''} {preferencesStore.preferences.messageDensity === 'compact' ? 'mb-0.5 gap-2 py-0.5' : grouped ? 'mb-0 gap-3 py-0.5' : 'mb-4 gap-3 py-1'}"
 							style="border-left: 2px solid {getUserColor(msg.senderId)}; background: {getUserColor(msg.senderId).replace('65%)', '65% / 0.06)')};"
 							oncontextmenu={(e) => showContextMenu(e, msg.id)}
 							role="article"

@@ -292,6 +292,44 @@ body {
 	overflow: hidden;
 }
 
+/* ── Reduce motion ── */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+	animation-duration: 0.01ms !important;
+	animation-iteration-count: 1 !important;
+	transition-duration: 0.01ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+	:root:not(.reduce-motion-override) *,
+	:root:not(.reduce-motion-override) *::before,
+	:root:not(.reduce-motion-override) *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/* ── Animated accent ── */
+@keyframes accent-shift {
+	0%, 100% { filter: hue-rotate(0deg); }
+	50% { filter: hue-rotate(30deg); }
+}
+.animated-accent .accent-animate {
+	animation: accent-shift 6s ease-in-out infinite;
+}
+
+/* ── Chat bubble style ── */
+[data-bubbles='true'] .chat-message {
+	border-left: none !important;
+	border-radius: 18px 18px 18px 4px;
+	padding: 0.5rem 0.75rem;
+	margin-bottom: 0.25rem;
+}
+[data-bubbles='true'] .chat-message-own {
+	border-radius: 18px 18px 4px 18px;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
 	width: 6px;

@@ -14,6 +14,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.8.0',
+			date: '2026-02-14',
+			changes: [
+				'Preset themes: Monokai, Dracula, Nord, Solarized, AMOLED, and Catppuccin color palettes',
+				'Custom theme creator: pick your own colors for backgrounds, text, and accents',
+				'Chat bubble style: switch between flat (Discord-style) and rounded bubbles (iMessage-style)',
+				'Relative timestamps: show "5m ago" instead of exact times (toggle in Settings > Appearance)',
+				'Animated accent: subtle color shift effect on accent elements',
+				'Reduce motion: disable all animations for accessibility',
+				'Invite links now use the server\'s public URL instead of local hostname',
+			]
+		},
+		{
 			version: '0.7.0',
 			date: '2026-02-14',
 			changes: [

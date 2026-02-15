@@ -5,7 +5,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { soundStore } from '$lib/stores/sound.svelte';
 	import { notificationStore } from '$lib/stores/notification.svelte';
-	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, type AccentColor, type NoiseSuppression } from '$lib/stores/preferences.svelte';
+	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, type AccentColor, type NoiseSuppression, type PresetTheme } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
@@ -163,6 +163,8 @@
 		{ id: 'teal', label: 'Teal' },
 		{ id: 'cyan', label: 'Cyan' },
 	];
+
+	const presetThemeList = (Object.keys(PRESET_THEMES) as PresetTheme[]).filter(k => k !== 'custom');
 
 	onMount(async () => {
 		if (!authStore.isAuthenticated) {
@@ -520,32 +522,101 @@
 						</div>
 					</section>
 
-					<!-- Accent Color -->
+					<!-- Preset Themes -->
 					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
-						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Accent Color</h3>
-						<div class="flex flex-wrap gap-3">
-							{#each accentColorList as color}
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Color Palette</h3>
+						<div class="grid grid-cols-4 gap-2">
+							{#each presetThemeList as themeId}
+								{@const t = PRESET_THEMES[themeId]}
 								<button
-									onclick={() => preferencesStore.set('accentColor', color.id)}
-									class="group flex flex-col items-center gap-1.5"
-									title={color.label}
+									onclick={() => preferencesStore.set('presetTheme', themeId)}
+									class="group flex flex-col items-center gap-1.5 rounded-lg border p-2 transition
+										{preferencesStore.preferences.presetTheme === themeId
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
 								>
-									<div
-										class="flex h-10 w-10 items-center justify-center rounded-full transition-transform hover:scale-110
-											{preferencesStore.preferences.accentColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-[var(--bg-secondary)]' : ''}"
-										style="background-color: {ACCENT_COLORS[color.id].main};"
-									>
-										{#if preferencesStore.preferences.accentColor === color.id}
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-												<polyline points="20 6 9 17 4 12" />
-											</svg>
-										{/if}
+									<div class="flex h-8 w-full overflow-hidden rounded">
+										<div class="flex-1" style="background: {t.colors.dark.bgPrimary}"></div>
+										<div class="flex-1" style="background: {t.colors.dark.bgTertiary}"></div>
+										<div class="flex-1" style="background: {t.colors.dark.accent}"></div>
 									</div>
-									<span class="text-xs text-[var(--text-secondary)]">{color.label}</span>
+									<span class="text-xs text-[var(--text-secondary)]">{t.label}</span>
 								</button>
 							{/each}
+							<!-- Custom theme button -->
+							<button
+								onclick={() => preferencesStore.set('presetTheme', 'custom')}
+								class="group flex flex-col items-center gap-1.5 rounded-lg border p-2 transition
+									{preferencesStore.preferences.presetTheme === 'custom'
+										? 'border-[var(--accent)] bg-[var(--accent)]/10'
+										: 'border-white/10 hover:border-white/20'}"
+							>
+								<div class="flex h-8 w-full items-center justify-center rounded bg-white/5">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<circle cx="13.5" cy="6.5" r="2.5" /><circle cx="19" cy="11.5" r="2.5" /><circle cx="6" cy="12.5" r="2.5" /><circle cx="17" cy="18.5" r="2.5" /><circle cx="8.5" cy="18.5" r="2.5" />
+									</svg>
+								</div>
+								<span class="text-xs text-[var(--text-secondary)]">Custom</span>
+							</button>
 						</div>
+
+						<!-- Custom theme color pickers -->
+						{#if preferencesStore.preferences.presetTheme === 'custom'}
+							<div class="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+								{#each [
+									{ key: 'bgPrimary', label: 'Background' },
+									{ key: 'bgSecondary', label: 'Surface' },
+									{ key: 'bgTertiary', label: 'Elevated' },
+									{ key: 'textPrimary', label: 'Text' },
+									{ key: 'textSecondary', label: 'Muted text' },
+									{ key: 'accent', label: 'Accent' },
+									{ key: 'accentHover', label: 'Accent hover' }
+								] as field}
+									<label class="flex items-center gap-2">
+										<input
+											type="color"
+											value={preferencesStore.preferences.customThemeColors[field.key as keyof typeof preferencesStore.preferences.customThemeColors]}
+											oninput={(e) => {
+												const updated = { ...preferencesStore.preferences.customThemeColors, [field.key]: (e.target as HTMLInputElement).value };
+												preferencesStore.set('customThemeColors', updated);
+											}}
+											class="h-8 w-8 cursor-pointer rounded border border-white/10 bg-transparent"
+										/>
+										<span class="text-sm text-[var(--text-secondary)]">{field.label}</span>
+									</label>
+								{/each}
+							</div>
+						{/if}
 					</section>
+
+					<!-- Accent Color (only shown for default theme) -->
+					{#if preferencesStore.preferences.presetTheme === 'default'}
+						<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+							<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Accent Color</h3>
+							<div class="flex flex-wrap gap-3">
+								{#each accentColorList as color}
+									<button
+										onclick={() => preferencesStore.set('accentColor', color.id)}
+										class="group flex flex-col items-center gap-1.5"
+										title={color.label}
+									>
+										<div
+											class="flex h-10 w-10 items-center justify-center rounded-full transition-transform hover:scale-110
+												{preferencesStore.preferences.accentColor === color.id ? 'ring-2 ring-white ring-offset-2 ring-offset-[var(--bg-secondary)]' : ''}"
+											style="background-color: {ACCENT_COLORS[color.id].main};"
+										>
+											{#if preferencesStore.preferences.accentColor === color.id}
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+													<polyline points="20 6 9 17 4 12" />
+												</svg>
+											{/if}
+										</div>
+										<span class="text-xs text-[var(--text-secondary)]">{color.label}</span>
+									</button>
+								{/each}
+							</div>
+						</section>
+					{/if}
 
 					<!-- Message Density -->
 					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
@@ -577,6 +648,33 @@
 							</div>
 						</div>
 
+						<!-- Chat Bubble Style -->
+						<div class="mb-4">
+							<div class="mb-2 font-medium">Bubble style</div>
+							<div class="flex gap-3">
+								<button
+									onclick={() => preferencesStore.set('chatBubbleStyle', 'flat')}
+									class="flex-1 rounded-lg border p-3 text-left transition
+										{preferencesStore.preferences.chatBubbleStyle === 'flat'
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
+								>
+									<div class="mb-1 text-sm font-medium">Flat</div>
+									<div class="text-xs text-[var(--text-secondary)]">Discord-style with color border</div>
+								</button>
+								<button
+									onclick={() => preferencesStore.set('chatBubbleStyle', 'bubbles')}
+									class="flex-1 rounded-lg border p-3 text-left transition
+										{preferencesStore.preferences.chatBubbleStyle === 'bubbles'
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
+								>
+									<div class="mb-1 text-sm font-medium">Bubbles</div>
+									<div class="text-xs text-[var(--text-secondary)]">iMessage-style rounded bubbles</div>
+								</button>
+							</div>
+						</div>
+
 						<!-- Time Format -->
 						<div class="mb-4 flex items-center justify-between">
 							<div>
@@ -599,6 +697,21 @@
 							</div>
 						</div>
 
+						<!-- Relative Timestamps -->
+						<div class="mb-4 flex items-center justify-between">
+							<div>
+								<div class="font-medium">Relative timestamps</div>
+								<div class="text-sm text-[var(--text-secondary)]">Show "5m ago" instead of exact time</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('relativeTimestamps', !preferencesStore.preferences.relativeTimestamps)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								aria-label="Toggle relative timestamps"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.relativeTimestamps ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
+						</div>
+
 						<!-- Font Size -->
 						<div class="flex items-center justify-between">
 							<div>
@@ -616,6 +729,41 @@
 									</button>
 								{/each}
 							</div>
+						</div>
+					</section>
+
+					<!-- Accessibility -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Accessibility</h3>
+
+						<!-- Reduce Motion -->
+						<div class="mb-4 flex items-center justify-between">
+							<div>
+								<div class="font-medium">Reduce motion</div>
+								<div class="text-sm text-[var(--text-secondary)]">Disable animations and transitions</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('reduceMotion', !preferencesStore.preferences.reduceMotion)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								aria-label="Toggle reduce motion"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.reduceMotion ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
+						</div>
+
+						<!-- Animated Accent -->
+						<div class="flex items-center justify-between">
+							<div>
+								<div class="font-medium">Animated accent</div>
+								<div class="text-sm text-[var(--text-secondary)]">Subtle color shift on accent elements</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('animatedAccent', !preferencesStore.preferences.animatedAccent)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								aria-label="Toggle animated accent"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.animatedAccent ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
 						</div>
 					</section>
 
