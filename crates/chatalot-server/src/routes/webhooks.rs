@@ -25,7 +25,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 
 /// Public route for executing webhooks (no auth — uses token).
 pub fn public_routes() -> Router<Arc<AppState>> {
-    Router::new().route("/webhooks/{token}", post(execute_webhook))
+    Router::new().route("/webhooks/execute/{token}", post(execute_webhook))
 }
 
 async fn create_webhook(
