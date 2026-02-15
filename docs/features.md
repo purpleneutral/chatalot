@@ -38,12 +38,15 @@ Complete reference of Chatalot's features, organized by category.
 
 - **Communities** — Top-level organization containing groups and channels with invite codes
 - **Groups** — Sub-organization within communities for channel grouping
+- **Personal groups** — Moderators+ can create a group assigned to a specific member, giving them their own isolated space with owner-level control (create channels, edit settings); moderators retain override access and can manage or remove the group
 - **Text channels** — Standard messaging channels with topic support
 - **Voice channels** — Peer-to-peer WebRTC calls (up to 5 participants) with video grid
 - **Direct messages** — Private 1:1 conversations with E2E encryption
 - **Channel topic editing** — Inline editing in the channel header
 - **Channel roles** — Owner, admin, and member roles with graduated permissions
 - **Invite system** — Generate invite codes with optional usage limits and expiration dates
+- **Privacy controls** — Communities, groups, and channels each have `visibility` (public/private) and `discoverable` toggles; personal groups default to private and non-discoverable
+- **Allow invites toggle** — Moderators can control whether a personal group's assigned member can invite others
 
 ## User Experience
 
@@ -129,7 +132,7 @@ All preferences sync to the server and persist across devices.
 ## Technical Details
 
 - **Server**: Rust (axum + tokio), single binary serving API + WebSocket + static files
-- **Database**: PostgreSQL 17 with sqlx (21 migrations)
+- **Database**: PostgreSQL 17 with sqlx (32 migrations)
 - **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 16 API modules, 9 components)
 - **Desktop client**: Tauri 2.0
 - **Deployment**: Single `docker compose up -d` — two containers (app + PostgreSQL)

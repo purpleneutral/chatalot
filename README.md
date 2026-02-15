@@ -30,6 +30,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 ### What you get
 
 - **Communities, groups, and channels** — organize your server with roles, permissions, and invite links
+- **Personal groups** — moderators assign isolated spaces to members with full channel control; privacy and invite permissions managed by moderators
 - **Voice and video calls** — peer-to-peer WebRTC with video grid (up to 5 participants)
 - **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups), compiled to WASM and running client-side
 - **Rich messaging** — markdown, syntax-highlighted code blocks, inline media previews, GIF search, emoji autocomplete, reactions, replies, and forwarding
@@ -247,7 +248,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (21 files)
+├── migrations/                # PostgreSQL migrations (32 files)
 ├── scripts/
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
 │   ├── generate-secrets.sh    # Generate JWT keys + .env
@@ -306,7 +307,7 @@ npm run dev
 ### Tests
 
 ```bash
-cargo test          # 23 crypto unit tests
+cargo test          # 44 unit tests (crypto, auth, middleware)
 cargo clippy        # Lint checks
 cd clients/web && npm run check   # Svelte type checking
 ```
