@@ -6,11 +6,20 @@ Chatalot is a self-hosted chat platform for friends, teams, and communities who 
 
 No data harvesting. No algorithmic feeds. No subscription tiers to unlock basic features. Just a fast, modern chat experience that belongs entirely to you.
 
-<!-- TODO: Add screenshot
 <p align="center">
-  <img src="docs/screenshots/chat.png" alt="Chatalot chat interface" width="800">
+  <img src="docs/screenshots/chat-hero.png" alt="Chatalot chat interface — light mode" width="800">
 </p>
--->
+
+<details>
+<summary>Dark mode & customization</summary>
+
+<p align="center">
+  <img src="docs/screenshots/chat-dark.png" alt="Chatalot chat interface — dark mode" width="800">
+  <br><br>
+  <img src="docs/screenshots/settings-appearance.png" alt="Chatalot appearance settings — themes, palettes, accent colors" width="800">
+</p>
+
+</details>
 
 ## Why Chatalot?
 
