@@ -7,6 +7,8 @@
 	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
 	import { memberStore } from '$lib/stores/members.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { blockUser, unblockUser } from '$lib/api/users';
+	import { createTimeout } from '$lib/api/communities';
 
 	let {
 		userId,
@@ -14,7 +16,9 @@
 		channelId = undefined,
 		anchorRect,
 		onclose,
-		onstartdm
+		onstartdm,
+		blockedIds = [],
+		canModerate = false
 	}: {
 		userId: string;
 		communityId?: string;
@@ -22,6 +26,8 @@
 		anchorRect: { x: number; y: number };
 		onclose: () => void;
 		onstartdm?: (userId: string) => void;
+		blockedIds?: string[];
+		canModerate?: boolean;
 	} = $props();
 
 	const user = $derived(userStore.getUser(userId));
@@ -36,6 +42,10 @@
 	);
 	const role = $derived(channelMember?.role ?? 'member');
 	const isOwnProfile = $derived(userId === authStore.user?.id);
+	let isBlocked = $state(blockedIds.includes(userId));
+	let blockLoading = $state(false);
+	let showTimeoutPicker = $state(false);
+	let timeoutLoading = $state(false);
 
 	const statusLabels: Record<string, string> = {
 		online: 'Online',
@@ -97,6 +107,50 @@
 		if (onstartdm && !isOwnProfile) {
 			onstartdm(userId);
 			onclose();
+		}
+	}
+
+	const timeoutOptions = [
+		{ label: '1 minute', seconds: 60 },
+		{ label: '5 minutes', seconds: 300 },
+		{ label: '15 minutes', seconds: 900 },
+		{ label: '1 hour', seconds: 3600 },
+		{ label: '1 day', seconds: 86400 },
+		{ label: '1 week', seconds: 604800 }
+	];
+
+	async function handleTimeout(seconds: number) {
+		if (!communityId || !channelId) return;
+		timeoutLoading = true;
+		try {
+			await createTimeout(communityId, channelId, userId, seconds);
+			toastStore.success('User timed out');
+			showTimeoutPicker = false;
+			onclose();
+		} catch (e: any) {
+			toastStore.error(e?.message ?? 'Failed to timeout user');
+		} finally {
+			timeoutLoading = false;
+		}
+	}
+
+	async function handleToggleBlock() {
+		blockLoading = true;
+		try {
+			if (isBlocked) {
+				await unblockUser(userId);
+				isBlocked = false;
+				toastStore.success('User unblocked');
+			} else {
+				await blockUser(userId);
+				isBlocked = true;
+				toastStore.success('User blocked');
+			}
+			window.dispatchEvent(new CustomEvent('chatalot:blocks-changed'));
+		} catch (e: any) {
+			toastStore.error(e?.message ?? 'Failed to update block');
+		} finally {
+			blockLoading = false;
 		}
 	}
 </script>
@@ -205,6 +259,50 @@
 					</svg>
 					Copy User ID
 				</button>
+				{#if !isOwnProfile && canModerate && communityId && channelId}
+					{#if showTimeoutPicker}
+						<div class="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 p-2">
+							<p class="mb-1 text-xs font-medium text-[var(--text-secondary)]">Timeout duration:</p>
+							{#each timeoutOptions as opt}
+								<button
+									onclick={() => handleTimeout(opt.seconds)}
+									disabled={timeoutLoading}
+									class="rounded px-2 py-1 text-left text-xs text-[var(--text-primary)] transition hover:bg-white/10"
+								>
+									{opt.label}
+								</button>
+							{/each}
+							<button
+								onclick={() => showTimeoutPicker = false}
+								class="mt-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+							>
+								Cancel
+							</button>
+						</div>
+					{:else}
+						<button
+							onclick={() => showTimeoutPicker = true}
+							class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-yellow-400 transition hover:bg-yellow-500/10"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+							</svg>
+							Timeout
+						</button>
+					{/if}
+				{/if}
+				{#if !isOwnProfile}
+					<button
+						onclick={handleToggleBlock}
+						disabled={blockLoading}
+						class="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition {isBlocked ? 'text-[var(--text-secondary)] hover:bg-white/5' : 'text-[var(--danger)] hover:bg-[var(--danger)]/10'}"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+						</svg>
+						{isBlocked ? 'Unblock User' : 'Block User'}
+					</button>
+				{/if}
 			</div>
 		</div>
 	</div>

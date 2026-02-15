@@ -11,6 +11,7 @@ export interface Channel {
 	read_only: boolean;
 	slow_mode_seconds: number;
 	discoverable: boolean;
+	archived: boolean;
 }
 
 export interface ReactionInfo {
@@ -97,6 +98,12 @@ export async function searchMessages(channelId: string, query: string, limit?: n
 	const params = new URLSearchParams({ q: query });
 	if (limit) params.set('limit', String(limit));
 	return api.get<Message[]>(`/channels/${channelId}/messages/search?${params.toString()}`);
+}
+
+export async function searchMessagesGlobal(query: string, limit?: number): Promise<Message[]> {
+	const params = new URLSearchParams({ q: query });
+	if (limit) params.set('limit', String(limit));
+	return api.get<Message[]>(`/messages/search?${params.toString()}`);
 }
 
 // ── Pinned Messages ──

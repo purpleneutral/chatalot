@@ -596,6 +596,7 @@ async fn list_group_channels(
                 read_only: ch.read_only,
                 slow_mode_seconds: ch.slow_mode_seconds,
                 discoverable: ch.discoverable,
+                archived: ch.archived,
             })
             .collect(),
     ))
@@ -671,6 +672,7 @@ async fn create_group_channel(
         read_only: channel.read_only,
         slow_mode_seconds: channel.slow_mode_seconds,
         discoverable: channel.discoverable,
+        archived: channel.archived,
     }))
 }
 
@@ -723,6 +725,7 @@ async fn update_group_channel(
         req.slow_mode_seconds,
         None,
         req.discoverable,
+        req.archived,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
@@ -738,6 +741,7 @@ async fn update_group_channel(
         read_only: channel.read_only,
         slow_mode_seconds: channel.slow_mode_seconds,
         discoverable: channel.discoverable,
+        archived: channel.archived,
     }))
 }
 

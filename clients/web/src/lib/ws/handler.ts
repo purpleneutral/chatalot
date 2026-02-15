@@ -233,6 +233,15 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		case 'user_timed_out': {
+			if (msg.user_id === authStore.user?.id) {
+				const until = new Date(msg.expires_at);
+				const reason = msg.reason ? `: ${msg.reason}` : '';
+				toastStore.error(`You have been timed out until ${until.toLocaleTimeString()}${reason}`);
+			}
+			break;
+		}
+
 		case 'new_dm_channel': {
 			// Subscribe to the new DM channel so we receive messages
 			wsClient.send({ type: 'subscribe', channel_ids: [msg.channel_id] });

@@ -19,3 +19,22 @@ export async function searchUsers(query: string): Promise<UserPublic[]> {
 export async function getUser(userId: string): Promise<UserPublic> {
 	return api.get<UserPublic>(`/users/${userId}`);
 }
+
+// ── Blocking ──
+
+export interface BlockedUser {
+	blocked_id: string;
+	created_at: string;
+}
+
+export async function blockUser(userId: string): Promise<void> {
+	await api.post('/users/block', { user_id: userId });
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+	await api.post(`/users/unblock/${userId}`, {});
+}
+
+export async function listBlockedUsers(): Promise<BlockedUser[]> {
+	return api.get<BlockedUser[]>('/users/blocked');
+}

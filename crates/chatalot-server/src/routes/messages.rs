@@ -22,6 +22,7 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/channels/{id}/messages", get(get_messages))
         .route("/channels/{id}/messages/search", get(search_messages))
+        .route("/messages/search", get(global_search_messages))
         .route("/channels/{id}/pins", get(list_pins))
         .route(
             "/channels/{id}/pins/{msg_id}",
@@ -95,6 +96,59 @@ async fn search_messages(
     let limit = query.limit.unwrap_or(20).min(50);
     let messages =
         message_repo::search_messages(&state.db, channel_id, &query.q, limit).await?;
+
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let reaction_rows =
+        reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
+    let mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>> =
+        std::collections::HashMap::new();
+    for r in reaction_rows {
+        reactions_map
+            .entry(r.message_id)
+            .or_default()
+            .push(ReactionInfo {
+                emoji: r.emoji,
+                user_ids: r.user_ids,
+            });
+    }
+
+    let responses: Vec<MessageResponse> = messages
+        .into_iter()
+        .map(|m| {
+            let reactions = reactions_map.remove(&m.id).unwrap_or_default();
+            MessageResponse {
+                id: m.id,
+                channel_id: m.channel_id,
+                sender_id: m.sender_id,
+                ciphertext: m.ciphertext,
+                nonce: m.nonce,
+                message_type: m.message_type,
+                reply_to_id: m.reply_to_id,
+                sender_key_id: m.sender_key_id,
+                edited_at: m.edited_at.map(|t| t.to_rfc3339()),
+                created_at: m.created_at.to_rfc3339(),
+                reactions,
+            }
+        })
+        .collect();
+
+    Ok(Json(responses))
+}
+
+async fn global_search_messages(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Query(query): Query<SearchQuery>,
+) -> Result<Json<Vec<MessageResponse>>, AppError> {
+    if query.q.len() < 2 {
+        return Err(AppError::Validation(
+            "search query must be at least 2 characters".to_string(),
+        ));
+    }
+
+    let limit = query.limit.unwrap_or(20).min(50);
+    let messages =
+        message_repo::search_messages_global(&state.db, claims.sub, &query.q, limit).await?;
 
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
     let reaction_rows =

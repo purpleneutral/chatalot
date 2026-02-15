@@ -169,6 +169,7 @@ async fn update_channel(
         req.slow_mode_seconds,
         req.message_ttl_seconds.map(|v| if v == 0 { None } else { Some(v) }),
         req.discoverable,
+        req.archived,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
@@ -459,5 +460,6 @@ fn channel_to_response(ch: &chatalot_db::models::channel::Channel) -> ChannelRes
         read_only: ch.read_only,
         slow_mode_seconds: ch.slow_mode_seconds,
         discoverable: ch.discoverable,
+        archived: ch.archived,
     }
 }

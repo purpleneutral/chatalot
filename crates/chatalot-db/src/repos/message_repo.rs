@@ -95,6 +95,34 @@ pub async fn get_messages(
     }
 }
 
+/// Search messages across all channels a user is a member of.
+/// Note: This works because messages are currently stored as UTF-8 bytes (Phase 1).
+pub async fn search_messages_global(
+    pool: &PgPool,
+    user_id: Uuid,
+    query: &str,
+    limit: i64,
+) -> Result<Vec<Message>, sqlx::Error> {
+    let limit = limit.min(50);
+    let pattern = format!("%{}%", query);
+    sqlx::query_as::<_, Message>(
+        r#"
+        SELECT m.* FROM messages m
+        INNER JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = $1
+        WHERE m.deleted_at IS NULL
+          AND m.quarantined_at IS NULL
+          AND convert_from(m.ciphertext, 'UTF8') ILIKE $2
+        ORDER BY m.created_at DESC
+        LIMIT $3
+        "#,
+    )
+    .bind(user_id)
+    .bind(pattern)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
 /// Search messages in a channel by content (plaintext search on ciphertext bytes).
 /// Note: This works because messages are currently stored as UTF-8 bytes (Phase 1).
 /// Will need to change when E2E encryption is enabled in Phase 2.

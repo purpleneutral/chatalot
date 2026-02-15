@@ -94,6 +94,21 @@
 		}
 	}
 
+	async function toggleArchived() {
+		saving = true;
+		try {
+			const updated = await apiUpdateChannel(groupId, channel.id, { archived: !channel.archived });
+			channelStore.updateChannel(updated);
+			channel = updated;
+			onupdated?.(updated);
+			toastStore.success(updated.archived ? 'Channel archived' : 'Channel unarchived');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to update');
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function toggleDiscoverable() {
 		saving = true;
 		try {
@@ -215,6 +230,11 @@
 						Read-only
 					</span>
 				{/if}
+				{#if channel.archived}
+					<span class="ml-1 inline-flex items-center gap-0.5 rounded bg-orange-500/20 px-1.5 py-0.5 text-orange-400">
+						Archived
+					</span>
+				{/if}
 			</p>
 
 			<!-- Topic -->
@@ -278,6 +298,21 @@
 					</span>
 					<span class="rounded-full px-2 py-0.5 text-xs {channel.discoverable ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/10 text-[var(--text-secondary)]'}">
 						{channel.discoverable ? 'ON' : 'OFF'}
+					</span>
+				</button>
+
+				<!-- Archive toggle -->
+				<button
+					onclick={toggleArchived}
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					disabled={saving}
+				>
+					<span class="flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21,8 21,21 3,21 3,8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+						Archive
+					</span>
+					<span class="rounded-full px-2 py-0.5 text-xs {channel.archived ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/10 text-[var(--text-secondary)]'}">
+						{channel.archived ? 'ON' : 'OFF'}
 					</span>
 				</button>
 

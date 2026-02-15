@@ -47,6 +47,7 @@ export type ServerMessage =
 	| { type: 'message_unpinned'; message_id: string; channel_id: string }
 	| { type: 'sender_key_updated'; channel_id: string; user_id: string; chain_id: number; distribution: object }
 	| { type: 'sender_key_rotation_required'; channel_id: string; reason: string }
+	| { type: 'user_timed_out'; channel_id: string; user_id: string; expires_at: string; reason: string | null }
 	| { type: 'error'; code: string; message: string }
 	| { type: 'pong'; timestamp: number }
 	| { type: 'keys_low'; remaining: number };

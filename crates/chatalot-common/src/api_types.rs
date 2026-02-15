@@ -127,6 +127,8 @@ pub struct ChannelResponse {
     pub slow_mode_seconds: i32,
     #[serde(default = "default_true")]
     pub discoverable: bool,
+    #[serde(default)]
+    pub archived: bool,
 }
 
 // ── Channel Members ──
@@ -315,6 +317,7 @@ pub struct UpdateChannelRequest {
     pub slow_mode_seconds: Option<i32>,
     pub message_ttl_seconds: Option<i32>,
     pub discoverable: Option<bool>,
+    pub archived: Option<bool>,
 }
 
 // ── Invites ──

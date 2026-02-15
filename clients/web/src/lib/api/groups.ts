@@ -97,7 +97,7 @@ export async function createGroupChannel(
 export async function updateChannel(
 	groupId: string,
 	channelId: string,
-	updates: { name?: string; topic?: string; read_only?: boolean; slow_mode_seconds?: number; discoverable?: boolean }
+	updates: { name?: string; topic?: string; read_only?: boolean; slow_mode_seconds?: number; discoverable?: boolean; archived?: boolean }
 ): Promise<Channel> {
 	const body: Record<string, string | boolean | number | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
@@ -105,6 +105,7 @@ export async function updateChannel(
 	if (updates.read_only !== undefined) body.read_only = updates.read_only;
 	if (updates.slow_mode_seconds !== undefined) body.slow_mode_seconds = updates.slow_mode_seconds;
 	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
+	if (updates.archived !== undefined) body.archived = updates.archived;
 	return api.patch<Channel>(`/groups/${groupId}/channels/${channelId}`, body);
 }
 

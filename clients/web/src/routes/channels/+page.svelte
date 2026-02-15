@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message, type ReactionInfo } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message, type ReactionInfo } from '$lib/api/channels';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
-	import { searchUsers, type UserPublic } from '$lib/api/users';
+	import { searchUsers, listBlockedUsers, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
 	import { fetchLinkPreview } from '$lib/api/link-preview';
 	import { getServerConfig, getPublicUrl } from '$lib/api/auth';
@@ -100,6 +100,9 @@
 
 	// WebSocket connection status
 	let connectionStatus = $state<'connected' | 'reconnecting' | null>(null);
+
+	// Blocked users
+	let blockedUserIds = $state<string[]>([]);
 
 	// DM state
 	let dmChannels = $state<DmChannel[]>([]);
@@ -411,6 +414,7 @@
 	let searchQuery = $state('');
 	let searchResults = $state<ChatMessage[]>([]);
 	let searching = $state(false);
+	let searchScope = $state<'channel' | 'global'>('channel');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Infinite scroll state
@@ -728,6 +732,19 @@
 		} else {
 			wsClient.connect();
 		}
+
+		// Load blocked user IDs
+		listBlockedUsers().then(blocks => {
+			blockedUserIds = blocks.map(b => b.blocked_id);
+		}).catch(() => {});
+
+		// Listen for block/unblock events to refresh the list
+		window.addEventListener('chatalot:blocks-changed', async () => {
+			try {
+				const blocks = await listBlockedUsers();
+				blockedUserIds = blocks.map(b => b.blocked_id);
+			} catch {}
+		});
 
 		// Load communities + channels + DMs
 		try {
@@ -2552,6 +2569,7 @@
 		if (!showSearch) {
 			searchQuery = '';
 			searchResults = [];
+			searchScope = 'channel';
 		}
 	}
 
@@ -2562,10 +2580,14 @@
 			return;
 		}
 		searchTimeout = setTimeout(async () => {
-			if (!channelStore.activeChannelId || !searchQuery.trim()) return;
+			const q = searchQuery.trim();
+			if (!q) return;
+			if (searchScope === 'channel' && !channelStore.activeChannelId) return;
 			searching = true;
 			try {
-				const raw = await searchMessages(channelStore.activeChannelId, searchQuery.trim());
+				const raw = searchScope === 'global'
+					? await searchMessagesGlobal(q)
+					: await searchMessages(channelStore.activeChannelId!, q);
 				searchResults = await Promise.all(raw.reverse().map(async (m) => ({
 					id: m.id,
 					channelId: m.channel_id,
@@ -3877,24 +3899,36 @@
 				<!-- Search panel -->
 				{#if showSearch}
 					<div class="border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-3" transition:slide={{ duration: 150 }}>
-						<input
-							type="text"
-							bind:value={searchQuery}
-							oninput={handleSearchInput}
-							placeholder="Search messages..."
-							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-						/>
+						<div class="flex gap-2">
+							<input
+								type="text"
+								bind:value={searchQuery}
+								oninput={handleSearchInput}
+								placeholder={searchScope === 'global' ? 'Search all channels...' : 'Search this channel...'}
+								class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+							/>
+							<button
+								onclick={() => { searchScope = searchScope === 'channel' ? 'global' : 'channel'; searchResults = []; if (searchQuery.trim()) handleSearchInput(); }}
+								class="shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition {searchScope === 'global' ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-white/10 text-[var(--text-secondary)] hover:bg-white/5'}"
+								title="Toggle between channel and global search"
+							>
+								{searchScope === 'global' ? 'All' : 'Channel'}
+							</button>
+						</div>
 						{#if searching}
 							<p class="mt-2 text-xs text-[var(--text-secondary)]">Searching...</p>
 						{:else if searchResults.length > 0}
 							<div class="mt-2 max-h-60 space-y-1 overflow-y-auto">
 								{#each searchResults as result (result.id)}
 									<button
-										onclick={() => jumpToSearchResult(result.id)}
+										onclick={() => { if (searchScope === 'global' && result.channelId !== channelStore.activeChannelId) { channelStore.setActive(result.channelId); } jumpToSearchResult(result.id); }}
 										class="flex w-full flex-col rounded-lg px-3 py-2 text-left transition hover:bg-white/5"
 									>
 										<div class="flex items-baseline gap-2">
 											<span class="text-xs font-semibold text-[var(--text-primary)]">{userStore.getDisplayName(result.senderId)}</span>
+											{#if searchScope === 'global'}
+												<span class="text-xs text-[var(--accent)]">#{channelStore.channels.find(c => c.id === result.channelId)?.name ?? 'unknown'}</span>
+											{/if}
 											<span class="text-xs text-[var(--text-secondary)]">{formatTime(result.createdAt)}</span>
 										</div>
 										<span class="truncate text-sm text-[var(--text-secondary)]">{@html highlightSearchMatch(result.content, searchQuery)}</span>
@@ -5106,6 +5140,8 @@
 			anchorRect={profileCardAnchor}
 			onclose={closeProfileCard}
 			onstartdm={startDmFromProfileCard}
+			blockedIds={blockedUserIds}
+			canModerate={isCommunityModeratorOrAbove()}
 		/>
 	{/if}
 

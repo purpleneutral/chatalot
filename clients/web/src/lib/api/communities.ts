@@ -166,6 +166,40 @@ export async function acceptInvite(
 	);
 }
 
+// ── Timeouts ──
+
+export interface Timeout {
+	id: string;
+	user_id: string;
+	channel_id: string;
+	issued_by: string;
+	reason: string | null;
+	expires_at: string;
+	created_at: string;
+}
+
+export async function createTimeout(
+	communityId: string,
+	channelId: string,
+	userId: string,
+	durationSeconds: number,
+	reason?: string
+): Promise<Timeout> {
+	return api.post<Timeout>(`/communities/${communityId}/channels/${channelId}/timeout`, {
+		user_id: userId,
+		duration_seconds: durationSeconds,
+		reason: reason ?? null
+	});
+}
+
+export async function removeTimeout(
+	communityId: string,
+	channelId: string,
+	userId: string
+): Promise<void> {
+	await api.delete(`/communities/${communityId}/channels/${channelId}/timeout/${userId}`);
+}
+
 // ── Groups within community ──
 
 export async function listCommunityGroups(id: string): Promise<Group[]> {
