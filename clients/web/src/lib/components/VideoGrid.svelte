@@ -188,11 +188,11 @@
 </script>
 
 {#if voiceStore.isInCall}
-	<div class="{expanded ? 'flex-1' : ''} border-b border-white/10 bg-[var(--bg-secondary)] {expanded ? 'flex flex-col' : ''}">
+	<div class="{expanded ? 'flex-1 min-h-0' : 'max-h-[500px]'} overflow-hidden border-b border-white/10 bg-[var(--bg-secondary)] {expanded ? 'flex flex-col' : ''}">
 
 		{#if hasAnyScreenShare && !focusStream}
 			<!-- ═══ TILED MODE: Stream as master pane + participant tiles stacked on right ═══ -->
-			<div class="relative flex gap-1 p-2 {expanded ? 'flex-1 min-h-0' : ''}" style="{expanded ? '' : 'max-height: 500px;'}">
+			<div class="relative flex gap-1 overflow-hidden p-2 {expanded ? 'flex-1 min-h-0' : ''}" style="{expanded ? '' : 'max-height: 500px;'}">
 				<!-- Master pane: screen shares -->
 				<div class="flex min-w-0 flex-1 flex-col gap-1 min-h-0">
 					{#if voiceStore.activeCall?.screenSharing}
@@ -443,7 +443,7 @@
 
 		{:else}
 			<!-- ═══ STANDARD MODE: No screen share — normal participant grid ═══ -->
-			<div class="grid {gridCols} gap-1 p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: 400px;'}">
+			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: 400px;'}">
 				<!-- Local video/avatar -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
