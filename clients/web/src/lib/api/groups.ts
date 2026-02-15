@@ -10,6 +10,7 @@ export interface Group {
 	created_at: string;
 	member_count: number;
 	visibility: string;
+	discoverable: boolean;
 }
 
 export interface GroupMember {
@@ -45,12 +46,13 @@ export async function createGroup(
 
 export async function updateGroup(
 	id: string,
-	updates: { name?: string; description?: string; visibility?: string }
+	updates: { name?: string; description?: string; visibility?: string; discoverable?: boolean }
 ): Promise<Group> {
-	const body: Record<string, string | null> = {};
+	const body: Record<string, string | boolean | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
 	if (updates.description !== undefined) body.description = updates.description;
 	if (updates.visibility !== undefined) body.visibility = updates.visibility;
+	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
 	return api.patch<Group>(`/groups/${id}`, body);
 }
 

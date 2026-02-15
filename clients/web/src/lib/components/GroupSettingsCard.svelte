@@ -83,6 +83,20 @@
 		}
 	}
 
+	async function toggleDiscoverable() {
+		saving = true;
+		try {
+			const updated = await apiUpdateGroup(group.id, { discoverable: !group.discoverable });
+			groupStore.updateGroup(group.id, updated);
+			group = updated;
+			toastStore.success(updated.discoverable ? 'Group is now discoverable' : 'Group is now hidden');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to update');
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function toggleVisibility() {
 		const newVis = group.visibility === 'public' ? 'private' : 'public';
 		saving = true;
@@ -245,6 +259,21 @@
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
 						Make Public
 					{/if}
+				</button>
+
+				<!-- Discoverable toggle -->
+				<button
+					onclick={toggleDiscoverable}
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					disabled={saving}
+				>
+					<span class="flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+						Discoverable
+					</span>
+					<span class="rounded-full px-2 py-0.5 text-xs {group.discoverable ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/10 text-[var(--text-secondary)]'}">
+						{group.discoverable ? 'ON' : 'OFF'}
+					</span>
 				</button>
 
 				<!-- Create Invite -->

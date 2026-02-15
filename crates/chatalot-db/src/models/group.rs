@@ -12,6 +12,7 @@ pub struct Group {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub visibility: String,
+    pub discoverable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

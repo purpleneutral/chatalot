@@ -80,6 +80,7 @@ pub async fn update_group(
     name: Option<&str>,
     description: Option<&str>,
     visibility: Option<&str>,
+    discoverable: Option<bool>,
 ) -> Result<Option<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
         r#"
@@ -87,6 +88,7 @@ pub async fn update_group(
         SET name = COALESCE($2, name),
             description = COALESCE($3, description),
             visibility = COALESCE($4, visibility),
+            discoverable = COALESCE($5, discoverable),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -96,6 +98,7 @@ pub async fn update_group(
     .bind(name)
     .bind(description)
     .bind(visibility)
+    .bind(discoverable)
     .fetch_optional(pool)
     .await
 }
@@ -356,7 +359,7 @@ pub async fn list_all_groups(pool: &PgPool) -> Result<Vec<Group>, sqlx::Error> {
 }
 
 /// List groups in communities the user belongs to (for scoped discovery).
-/// Only shows public groups + private groups the user is already a member of.
+/// Only shows discoverable public groups + groups the user is already a member of.
 pub async fn list_discoverable_groups(
     pool: &PgPool,
     user_id: Uuid,
@@ -365,7 +368,7 @@ pub async fn list_discoverable_groups(
         r#"SELECT g.* FROM groups g
          JOIN community_members cm ON cm.community_id = g.community_id
          WHERE cm.user_id = $1
-           AND (g.visibility = 'public'
+           AND ((g.visibility = 'public' AND g.discoverable = TRUE)
                 OR EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = g.id AND gm.user_id = $1))
          ORDER BY g.name ASC"#,
     )

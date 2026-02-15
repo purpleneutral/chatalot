@@ -137,6 +137,7 @@ async fn create_group(
         created_at: group.created_at.to_rfc3339(),
         member_count,
         visibility: group.visibility,
+        discoverable: group.discoverable,
     }))
 }
 
@@ -160,6 +161,7 @@ async fn list_groups(
                 created_at: g.created_at.to_rfc3339(),
                 member_count: count,
                 visibility: g.visibility,
+                discoverable: g.discoverable,
             }
         })
         .collect();
@@ -192,6 +194,7 @@ async fn discover_groups(
                 created_at: g.created_at.to_rfc3339(),
                 member_count: count,
                 visibility: g.visibility,
+                discoverable: g.discoverable,
             }
         })
         .collect();
@@ -222,6 +225,7 @@ async fn get_group(
         created_at: group.created_at.to_rfc3339(),
         member_count: count,
         visibility: group.visibility,
+        discoverable: group.discoverable,
     }))
 }
 
@@ -260,6 +264,7 @@ async fn update_group(
         req.name.as_deref(),
         req.description.as_deref(),
         req.visibility.as_deref(),
+        req.discoverable,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
@@ -275,6 +280,7 @@ async fn update_group(
         created_at: group.created_at.to_rfc3339(),
         member_count: count,
         visibility: group.visibility,
+        discoverable: group.discoverable,
     }))
 }
 
@@ -722,9 +728,16 @@ async fn get_invite_info(
 
     let count = group_repo::get_member_count(&state.db, group.id).await?;
 
+    // Redact info for non-discoverable groups
+    let (display_name, display_desc) = if group.discoverable {
+        (group.name, group.description)
+    } else {
+        ("Private Group".to_string(), None)
+    };
+
     Ok(Json(InviteInfoResponse {
-        group_name: group.name,
-        group_description: group.description,
+        group_name: display_name,
+        group_description: display_desc,
         member_count: count,
         code: invite.code,
     }))

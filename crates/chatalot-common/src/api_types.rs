@@ -276,6 +276,7 @@ pub struct UpdateGroupRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub visibility: Option<String>,
+    pub discoverable: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -288,6 +289,7 @@ pub struct GroupResponse {
     pub created_at: String,
     pub member_count: i64,
     pub visibility: String,
+    pub discoverable: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

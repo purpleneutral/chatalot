@@ -767,6 +767,7 @@ async fn list_community_groups(
                 created_at: g.created_at.to_rfc3339(),
                 member_count: count,
                 visibility: g.visibility,
+                discoverable: g.discoverable,
             }
         })
         .collect();
