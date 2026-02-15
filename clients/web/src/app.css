@@ -330,6 +330,27 @@ body {
 	border-radius: 18px 18px 4px 18px;
 }
 
+/* ── Touch device support ── */
+@media (hover: none) {
+	/* Show action buttons that are normally hover-only on touch devices */
+	.group-hover\/grp\:flex,
+	.group-hover\/ch\:block {
+		display: flex !important;
+	}
+	/* Make hover-revealed message actions always visible */
+	.group:hover .group-hover\:flex {
+		display: flex;
+	}
+}
+
+/* ── Responsive sidebar ── */
+@media (max-width: 767px) {
+	.sidebar-width {
+		width: 80vw;
+		max-width: 300px;
+	}
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
 	width: 6px;

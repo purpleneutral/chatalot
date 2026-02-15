@@ -1361,7 +1361,11 @@
 		e.preventDefault();
 		e.stopPropagation();
 		contextMenuMessageId = messageId;
-		contextMenuPos = { x: e.clientX, y: e.clientY };
+		// Clamp position to keep menu within viewport
+		const menuW = 200, menuH = 280;
+		const x = Math.min(e.clientX, window.innerWidth - menuW);
+		const y = Math.min(e.clientY, window.innerHeight - menuH);
+		contextMenuPos = { x: Math.max(0, x), y: Math.max(0, y) };
 	}
 
 	// Reactions
@@ -2461,10 +2465,10 @@
 		{/if}
 
 		<!-- Community Rail + Sidebar wrapper -->
-		<div class="fixed inset-y-0 left-0 z-40 flex transition-transform md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
+		<div class="fixed inset-y-0 left-0 z-40 flex transition-transform duration-200 md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
 
 		<!-- Community Rail -->
-		<nav class="flex w-[72px] flex-col items-center gap-2 overflow-y-auto border-r border-white/10 bg-[var(--bg-primary)] py-3 scrollbar-none">
+		<nav class="hidden md:flex w-[72px] flex-col items-center gap-2 overflow-y-auto border-r border-white/10 bg-[var(--bg-primary)] py-3 scrollbar-none">
 			{#each communityStore.communities as community (community.id)}
 				{@const isActive = communityStore.activeCommunityId === community.id}
 				<div class="group relative flex items-center">
@@ -2517,17 +2521,44 @@
 		</nav>
 
 		<!-- Sidebar -->
-		<aside class="flex w-60 flex-col border-r border-white/10 bg-[var(--bg-secondary)]">
-			<div class="flex h-14 items-center justify-between border-b border-white/10 px-4">
-				<h1 class="truncate text-lg font-bold text-[var(--text-primary)]" title={communityStore.activeCommunity?.name ?? 'Chatalot'}>{communityStore.activeCommunity?.name ?? 'Chatalot'}</h1>
-				<div class="flex items-center gap-1">
+		<aside class="flex w-[80vw] max-w-[300px] md:w-60 md:max-w-none flex-col border-r border-white/10 bg-[var(--bg-secondary)]">
+			<!-- Mobile community switcher (hidden on desktop where rail is visible) -->
+			<div class="flex md:hidden items-center gap-1.5 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none">
+				{#each communityStore.communities as community (community.id)}
+					<button
+						onclick={() => { switchCommunity(community.id); }}
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition
+							{communityStore.activeCommunityId === community.id
+								? 'bg-[var(--accent)] text-white'
+								: 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-white/10'}"
+						title={community.name}
+					>
+						{#if community.icon_url}
+							<img src={community.icon_url} alt={community.name} class="h-full w-full rounded-lg object-cover" />
+						{:else}
+							{community.name.slice(0, 2).toUpperCase()}
+						{/if}
+					</button>
+				{/each}
+				<button
+					onclick={() => { showJoinCommunity = !showJoinCommunity; communityInvitePreview = null; joinCommunityCode = ''; }}
+					class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[var(--success)] transition hover:bg-[var(--success)] hover:text-white"
+					title="Join Community"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+				</button>
+			</div>
+
+			<div class="flex h-14 items-center justify-between border-b border-white/10 px-3 md:px-4">
+				<h1 class="truncate text-base md:text-lg font-bold text-[var(--text-primary)]" title={communityStore.activeCommunity?.name ?? 'Chatalot'}>{communityStore.activeCommunity?.name ?? 'Chatalot'}</h1>
+				<div class="flex items-center gap-0.5">
 					{#if authStore.user?.is_admin || authStore.user?.is_owner}
 						<button
 							onclick={() => goto('/admin')}
-							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							class="hidden sm:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 							title="Admin Panel"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
 							</svg>
 						</button>
@@ -2535,20 +2566,20 @@
 					{#if communityStore.activeCommunityId}
 						<button
 							onclick={() => goto('/community')}
-							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							class="hidden sm:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 							title="Community Settings"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
 							</svg>
 						</button>
 					{/if}
 					<button
 						onclick={() => goto('/settings')}
-						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						title="User Settings"
+						class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						title="Settings"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
 						</svg>
 					</button>
@@ -2562,10 +2593,10 @@
 								showNewDm = !showNewDm;
 							}
 						}}
-						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						title={sidebarTab === 'groups' ? 'Create group' : sidebarTab === 'channels' ? 'Create channel' : 'New DM'}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 						</svg>
 					</button>
@@ -3369,7 +3400,7 @@
 			{/if}
 			{#if activeChannel}
 				<!-- Channel header -->
-				<header class="flex h-14 items-center justify-between border-b border-white/10 px-4 md:px-6">
+				<header class="flex h-12 md:h-14 items-center justify-between border-b border-white/10 px-3 md:px-6">
 					<div class="flex items-center">
 						<!-- Mobile menu button -->
 						<button
@@ -3390,7 +3421,7 @@
 						{/if}
 						<h2 class="font-semibold text-[var(--text-primary)]">{getChannelDisplayName()}</h2>
 						{#if editingTopic}
-							<div class="ml-4 flex items-center gap-1">
+							<div class="ml-4 hidden md:flex items-center gap-1">
 								<input
 									type="text"
 									bind:value={topicInput}
@@ -3404,7 +3435,7 @@
 						{:else if activeChannel.topic}
 							<button
 								onclick={() => { if ((myRole === 'owner' || myRole === 'admin') && activeChannel?.group_id) { topicInput = activeChannel.topic ?? ''; editingTopic = true; } }}
-								class="ml-4 truncate text-sm text-[var(--text-secondary)] {(myRole === 'owner' || myRole === 'admin') && activeChannel.group_id ? 'cursor-pointer hover:text-[var(--text-primary)]' : 'cursor-default'}"
+								class="ml-4 hidden md:block truncate text-sm text-[var(--text-secondary)] {(myRole === 'owner' || myRole === 'admin') && activeChannel.group_id ? 'cursor-pointer hover:text-[var(--text-primary)]' : 'cursor-default'}"
 								title={(myRole === 'owner' || myRole === 'admin') && activeChannel.group_id ? 'Click to edit topic' : activeChannel.topic}
 							>
 								{activeChannel.topic}
@@ -3412,28 +3443,28 @@
 						{:else if (myRole === 'owner' || myRole === 'admin') && activeChannel.group_id}
 							<button
 								onclick={() => { topicInput = ''; editingTopic = true; }}
-								class="ml-4 truncate text-sm text-[var(--text-secondary)]/50 hover:text-[var(--text-secondary)] cursor-pointer"
+								class="ml-4 hidden md:block truncate text-sm text-[var(--text-secondary)]/50 hover:text-[var(--text-secondary)] cursor-pointer"
 							>
 								Set a topic...
 							</button>
 						{/if}
 					</div>
-					<div class="flex items-center gap-1">
+					<div class="flex items-center gap-0.5 md:gap-1">
 						<button
 							onclick={toggleSearch}
-							class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showSearch ? 'text-[var(--accent)]' : ''}"
+							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showSearch ? 'text-[var(--accent)]' : ''}"
 							title="Search messages"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 							</svg>
 						</button>
 						<button
 							onclick={togglePinnedPanel}
-							class="relative rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showPinnedPanel ? 'text-[var(--accent)]' : ''}"
+							class="relative hidden md:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showPinnedPanel ? 'text-[var(--accent)]' : ''}"
 							title="Pinned messages"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
 							</svg>
 							{#if channelStore.activeChannelId && messageStore.getPinnedCount(channelStore.activeChannelId) > 0}
@@ -3443,18 +3474,18 @@
 							{/if}
 						</button>
 						{#if activeChannel.channel_type !== 'dm'}
-							<div class="relative">
+							<div class="relative hidden md:block">
 								<button
 									onclick={(e) => { e.stopPropagation(); showNotifDropdown = !showNotifDropdown; }}
-									class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+									class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 									title="Notification settings"
 								>
 									{#if notificationStore.getChannelLevel(activeChannel.id) === 'nothing'}
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M13.73 21a2 2 0 0 1-3.46 0" /><path d="M18.63 13A17.89 17.89 0 0 1 18 8" /><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.33-5" /><line x1="1" y1="1" x2="23" y2="23" />
 										</svg>
 									{:else}
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
 										</svg>
 									{/if}
@@ -3480,10 +3511,10 @@
 						{#if activeChannel.channel_type !== 'dm'}
 							<button
 								onclick={toggleMemberPanel}
-								class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showMemberPanel ? 'text-[var(--accent)]' : ''}"
+								class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showMemberPanel ? 'text-[var(--accent)]' : ''}"
 								title="Members"
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
 								</svg>
 							</button>
@@ -3584,7 +3615,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-				<div bind:this={messageListEl} class="min-h-0 flex-1 overflow-y-auto px-6 py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
+				<div bind:this={messageListEl} class="min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6 md:py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
 					{#if loadingOlder}
 						<Skeleton variant="message" count={3} />
 					{/if}
@@ -3691,7 +3722,7 @@
 											<img
 												src={blobUrl}
 												alt={fileInfo.filename}
-												class="max-h-80 max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
+												class="max-h-80 max-w-[75vw] md:max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
 												onclick={() => openLightbox(blobUrl, fileInfo.filename)}
 												onkeydown={(e) => { if (e.key === 'Enter') openLightbox(blobUrl, fileInfo.filename); }}
 											/>
@@ -3716,7 +3747,7 @@
 											</div>
 											{:then blobUrl}
 											<!-- svelte-ignore a11y_media_has_caption -->
-											<video src={blobUrl} controls class="max-h-96 max-w-lg rounded-lg border border-white/10"></video>
+											<video src={blobUrl} controls class="max-h-96 max-w-[85vw] md:max-w-lg rounded-lg border border-white/10"></video>
 											{:catch}
 											<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
 												<span class="text-sm text-[var(--text-secondary)]">Failed to load video</span>
@@ -3731,7 +3762,7 @@
 											</div>
 										</div>
 									{:else if fileInfo && AUDIO_EXTS.test(fileInfo.filename)}
-										<div class="mt-1 max-w-sm">
+										<div class="mt-1 max-w-[85vw] md:max-w-sm">
 											<div class="flex items-center gap-3 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5">
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 													<path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
@@ -3784,7 +3815,7 @@
 												<img
 													src={imgUrl}
 													alt="Linked content"
-													class="max-h-80 max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
+													class="max-h-80 max-w-[75vw] md:max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
 													loading="lazy"
 													onclick={() => openLightbox(imgUrl, 'Image')}
 													onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }}
@@ -3797,7 +3828,7 @@
 										{#each linkUrls.slice(0, 3) as linkUrl}
 											{#await fetchLinkPreview(linkUrl) then preview}
 												{#if preview && (preview.title || preview.description)}
-													<a href={linkUrl} target="_blank" rel="noopener noreferrer" class="link-embed mt-2 block max-w-md rounded-lg border-l-4 border-[var(--accent)] bg-[var(--bg-secondary)] p-3 transition hover:bg-white/5">
+													<a href={linkUrl} target="_blank" rel="noopener noreferrer" class="link-embed mt-2 block max-w-[85vw] md:max-w-md rounded-lg border-l-4 border-[var(--accent)] bg-[var(--bg-secondary)] p-3 transition hover:bg-white/5">
 														{#if preview.site_name}
 															<div class="text-xs text-[var(--text-secondary)]">{preview.site_name}</div>
 														{/if}
@@ -4116,9 +4147,9 @@
 
 				<!-- Reply banner -->
 				{#if replyingTo}
-					<div class="flex items-center gap-2 border-t border-white/10 bg-[var(--bg-secondary)] px-4 py-2">
+					<div class="flex items-center gap-2 border-t border-white/10 bg-[var(--bg-secondary)] px-3 py-2 md:px-4">
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
-						<span class="text-xs text-[var(--text-secondary)]">Replying to</span>
+						<span class="hidden sm:inline text-xs text-[var(--text-secondary)]">Replying to</span>
 						<span class="text-xs font-medium text-[var(--text-primary)]">{userStore.getDisplayName(replyingTo.senderId)}</span>
 						<span class="flex-1 truncate text-xs text-[var(--text-secondary)]">{replyingTo.content.slice(0, 60)}</span>
 						<button onclick={cancelReply} class="shrink-0 rounded p-0.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="Cancel reply">
@@ -4128,7 +4159,7 @@
 				{/if}
 
 				<!-- Message input -->
-				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative bg-[var(--bg-primary)] p-4">
+				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative bg-[var(--bg-primary)] px-2 py-2 md:p-4">
 					<!-- Emoji autocomplete popup -->
 					{#if showEmojiPopup && emojiResults.length > 0}
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-10">
@@ -4168,7 +4199,7 @@
 					{/if}
 					<!-- GIF picker panel -->
 					{#if showGifPicker}
-						<div class="absolute bottom-full left-0 right-0 z-20 mb-1 mx-4 max-h-[360px] rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
+						<div class="absolute bottom-full left-0 right-0 z-20 mb-1 mx-1 md:mx-4 max-h-[360px] rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
 							<div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
 								<input
@@ -4217,13 +4248,13 @@
 							</div>
 						</div>
 					{/if}
-					<div class="flex gap-2">
+					<div class="flex gap-1.5 md:gap-2">
 						<!-- File upload button -->
 						<button
 							type="button"
 							onclick={() => fileInputEl?.click()}
 							disabled={uploading}
-							class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-30"
+							class="shrink-0 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-2 py-2 md:px-3 md:py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-30"
 							title="Upload file"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4234,7 +4265,7 @@
 						<button
 							type="button"
 							onclick={toggleGifPicker}
-							class="rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showGifPicker ? 'border-[var(--accent)] text-[var(--accent)]' : ''}"
+							class="hidden sm:block shrink-0 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showGifPicker ? 'border-[var(--accent)] text-[var(--accent)]' : ''}"
 							title="GIF"
 						>
 							<span class="text-xs font-bold">GIF</span>
@@ -4253,14 +4284,15 @@
 							onpaste={handlePaste}
 							placeholder="Message {activeChannel.channel_type === 'dm' ? '@' : '#'}{getChannelDisplayName()}..."
 							rows="1"
-							class="flex-1 resize-none rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
+							class="flex-1 resize-none rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2 md:px-4 md:py-2.5 text-sm md:text-base text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
 						></textarea>
 						<button
 							type="submit"
 							disabled={!messageInput.trim()}
-							class="rounded-lg bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-30"
+							class="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-2 md:px-4 md:py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-30"
 						>
-							Send
+							<span class="hidden sm:inline">Send</span>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
 						</button>
 						{#if voiceStore.isInCall}
 							<button
@@ -4274,7 +4306,7 @@
 						{/if}
 					</div>
 					{#if preferencesStore.preferences.showFormattingToolbar}
-					<div class="mt-1 flex items-center gap-1">
+					<div class="mt-1 hidden sm:flex items-center gap-1">
 						<div class="flex items-center gap-0.5">
 							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Bold (Ctrl+B)">B</button>
 							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Italic (Ctrl+I)">I</button>
@@ -4341,6 +4373,8 @@
 
 		<!-- Member panel (right sidebar) -->
 		{#if showMemberPanel && activeChannel && activeChannel.channel_type !== 'dm'}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleMemberPanel} onkeydown={() => {}} transition:fade={{ duration: 150 }}></div>
 			{#snippet memberRow(member: typeof channelMembers[0])}
 				<div class="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
 					<Avatar userId={member.user_id} size="sm" showStatus />
@@ -4397,7 +4431,7 @@
 				</div>
 			{/snippet}
 
-			<aside class="hidden w-60 flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto md:block">
+			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
 				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
 					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Members</h3>
 					<button

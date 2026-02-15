@@ -14,6 +14,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.9.0',
+			date: '2026-02-14',
+			changes: [
+				'Mobile-friendly layout: sidebar, header, and input area adapt to screen size',
+				'Community rail hidden on mobile — compact horizontal switcher in sidebar instead',
+				'Member panel slides in as overlay on mobile, stays as sidebar on desktop',
+				'Responsive images, videos, and link previews scale to fit small screens',
+				'Send button shows arrow icon on small screens, text on larger screens',
+				'Context menu clamped to viewport so it never clips off-screen',
+				'Touch-friendly tap targets throughout the UI',
+			]
+		},
+		{
 			version: '0.8.0',
 			date: '2026-02-14',
 			changes: [

@@ -74,7 +74,7 @@
 				<!-- Noise suppression toggle -->
 				<button
 					onclick={cycleNoiseSuppression}
-					class="relative rounded-lg p-2 text-sm transition {nsActive ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
+					class="relative hidden sm:block rounded-lg p-2 text-sm transition {nsActive ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
 					title="Noise suppression: {SUPPRESSION_LABELS[nsLevel]}"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -108,7 +108,7 @@
 				<!-- Screen share -->
 				<button
 					onclick={() => webrtcManager.toggleScreenShare()}
-					class="rounded-lg p-2 text-sm transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
+					class="hidden sm:block rounded-lg p-2 text-sm transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
 					title={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'}
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
