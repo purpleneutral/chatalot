@@ -229,6 +229,20 @@ async fn main() -> anyhow::Result<()> {
                 {
                     Ok(messages) => {
                         for msg in messages {
+                            // Verify user is still a member before delivering
+                            match chatalot_db::repos::channel_repo::is_member(
+                                &state.db, msg.channel_id, msg.user_id,
+                            ).await {
+                                Ok(false) | Err(_) => {
+                                    tracing::info!("Dropping scheduled message {}: user no longer a member", msg.id);
+                                    let _ = chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                        &state.db, msg.id,
+                                    ).await;
+                                    continue;
+                                }
+                                Ok(true) => {}
+                            }
+
                             // Deliver the message as if the user sent it now
                             let message_id = uuid::Uuid::now_v7();
                             match chatalot_db::repos::message_repo::create_message(

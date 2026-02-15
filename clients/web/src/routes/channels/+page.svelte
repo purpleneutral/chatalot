@@ -196,6 +196,13 @@
 	let newCommunityName = $state('');
 	let newCommunityDescription = $state('');
 	let creatingCommunity = $state(false);
+	let creatingGroup = $state(false);
+	let creatingChannel = $state(false);
+	let creatingGroupChannel = $state(false);
+
+	// Slow mode cooldown
+	let slowModeCooldown = $state(0);
+	let slowModeTimer: ReturnType<typeof setInterval> | null = null;
 
 	// Notification dropdown state
 	let showNotifDropdown = $state(false);
@@ -746,6 +753,19 @@
 			} catch {}
 		});
 
+		// Listen for slow mode cooldown events
+		window.addEventListener('chatalot:slow-mode', ((e: CustomEvent<{ seconds: number }>) => {
+			slowModeCooldown = e.detail.seconds;
+			if (slowModeTimer) clearInterval(slowModeTimer);
+			slowModeTimer = setInterval(() => {
+				slowModeCooldown--;
+				if (slowModeCooldown <= 0) {
+					slowModeCooldown = 0;
+					if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
+				}
+			}, 1000);
+		}) as EventListener);
+
 		// Load communities + channels + DMs
 		try {
 			const [communities, channels, dms] = await Promise.all([
@@ -932,6 +952,10 @@
 	}
 
 	async function selectChannel(channelId: string) {
+		// Reset slow mode cooldown on channel switch
+		slowModeCooldown = 0;
+		if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
+
 		// Save draft of current channel before switching
 		if (channelStore.activeChannelId) {
 			const draft = messageInput.trim();
@@ -1317,8 +1341,8 @@
 	async function handleCreateChannel(e: SubmitEvent) {
 		e.preventDefault();
 		const name = newChannelName.trim();
-		if (!name) return;
-
+		if (!name || creatingChannel) return;
+		creatingChannel = true;
 		try {
 			const channel = await createChannel(name, 'text');
 			channelStore.addChannel(channel);
@@ -1328,6 +1352,8 @@
 			showCreateChannel = false;
 		} catch (err) {
 			console.error('Failed to create channel:', err);
+		} finally {
+			creatingChannel = false;
 		}
 	}
 
@@ -2350,7 +2376,8 @@
 	async function handleCreateGroup(e: SubmitEvent) {
 		e.preventDefault();
 		const name = newGroupName.trim();
-		if (!name || !communityStore.activeCommunityId) return;
+		if (!name || !communityStore.activeCommunityId || creatingGroup) return;
+		creatingGroup = true;
 		try {
 			const assignId = newGroupAssignMemberId || undefined;
 			const group = await apiCreateGroup(communityStore.activeCommunityId, name, newGroupDescription.trim() || undefined, undefined, assignId);
@@ -2378,6 +2405,8 @@
 			toastStore.success(`Group "${group.name}" created`);
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to create group');
+		} finally {
+			creatingGroup = false;
 		}
 	}
 
@@ -2460,7 +2489,8 @@
 	async function handleCreateGroupChannel(e: SubmitEvent, groupId: string) {
 		e.preventDefault();
 		const name = newGroupChannelName.trim();
-		if (!name) return;
+		if (!name || creatingGroupChannel) return;
+		creatingGroupChannel = true;
 		try {
 			const ch = await createGroupChannel(groupId, name, newGroupChannelType);
 			channelStore.addChannel(ch);
@@ -2476,6 +2506,8 @@
 			toastStore.success(`Channel "${ch.name}" created`);
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to create channel');
+		} finally {
+			creatingGroupChannel = false;
 		}
 	}
 
@@ -2974,9 +3006,10 @@
 						</button>
 						<button
 							type="submit"
-							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+							disabled={creatingChannel || !newChannelName.trim()}
+							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 						>
-							Create
+							{creatingChannel ? 'Creating...' : 'Create'}
 						</button>
 					</div>
 				</form>
@@ -3018,9 +3051,10 @@
 						</button>
 						<button
 							type="submit"
-							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+							disabled={creatingGroup || !newGroupName.trim()}
+							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 						>
-							{newGroupAssignMemberId ? 'Create Personal Group' : 'Create Group'}
+							{creatingGroup ? 'Creating...' : newGroupAssignMemberId ? 'Create Personal Group' : 'Create Group'}
 						</button>
 					</div>
 				</form>
@@ -3226,8 +3260,10 @@
 												{:else}
 													<span class="text-[var(--text-secondary)]">#</span>
 												{/if}
-												<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}">{channel.name}</span>
-												{#if channel.read_only}
+												<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''} {channel.archived ? 'opacity-50 italic' : ''}">{channel.name}</span>
+												{#if channel.archived}
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="Archived"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+												{:else if channel.read_only}
 													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 												{/if}
 												{#if unreadCount > 0 && channelStore.activeChannelId !== channel.id}
@@ -3307,9 +3343,10 @@
 												</button>
 												<button
 													type="submit"
-													class="flex-1 rounded bg-[var(--accent)] px-2 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]"
+													disabled={creatingGroupChannel || !newGroupChannelName.trim()}
+													class="flex-1 rounded bg-[var(--accent)] px-2 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 												>
-													Create
+													{creatingGroupChannel ? 'Creating...' : 'Create'}
 												</button>
 											</div>
 										</form>
@@ -3415,7 +3452,10 @@
 							{:else}
 								<span class="text-[var(--text-secondary)]">#</span>
 							{/if}
-							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}">{channel.name}</span>
+							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''} {channel.archived ? 'opacity-50 italic' : ''}">{channel.name}</span>
+							{#if channel.archived}
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="Archived"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+							{/if}
 							{#if unreadCount > 0 && channelStore.activeChannelId !== channel.id}
 								<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
 									{unreadCount > 99 ? '99+' : unreadCount}
@@ -4587,6 +4627,15 @@
 						<span class="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 							This channel is read-only
+						</span>
+					</div>
+				{/if}
+				<!-- Slow mode cooldown -->
+				{#if slowModeCooldown > 0 && !isReadOnlyForMe}
+					<div class="border-t border-white/10 bg-blue-500/10 px-4 py-1.5 text-center">
+						<span class="inline-flex items-center gap-1.5 text-xs text-blue-400">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+							Slow mode — wait {slowModeCooldown}s
 						</span>
 					</div>
 				{/if}

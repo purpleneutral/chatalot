@@ -108,11 +108,22 @@ async fn list_polls(
     }
 
     let polls = poll_repo::list_for_channel(&state.db, channel_id).await?;
-    let mut responses = Vec::new();
-    for poll in &polls {
-        let votes = poll_repo::get_votes(&state.db, poll.id).await.unwrap_or_default();
-        responses.push(poll_to_response(poll, &votes));
+    let poll_ids: Vec<Uuid> = polls.iter().map(|p| p.id).collect();
+    let all_votes = poll_repo::get_votes_for_polls(&state.db, &poll_ids).await?;
+
+    // Group votes by poll_id
+    let mut votes_by_poll: std::collections::HashMap<Uuid, Vec<_>> = std::collections::HashMap::new();
+    for vote in all_votes {
+        votes_by_poll.entry(vote.poll_id).or_default().push(vote);
     }
+
+    let responses: Vec<_> = polls
+        .iter()
+        .map(|poll| {
+            let votes = votes_by_poll.get(&poll.id).map(|v| v.as_slice()).unwrap_or(&[]);
+            poll_to_response(poll, votes)
+        })
+        .collect();
     Ok(Json(responses))
 }
 

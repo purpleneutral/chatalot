@@ -89,6 +89,19 @@ pub async fn get_votes(pool: &PgPool, poll_id: Uuid) -> Result<Vec<PollVote>, sq
     .await
 }
 
+/// Get all votes for a batch of polls in a single query.
+pub async fn get_votes_for_polls(
+    pool: &PgPool,
+    poll_ids: &[Uuid],
+) -> Result<Vec<PollVote>, sqlx::Error> {
+    sqlx::query_as::<_, PollVote>(
+        "SELECT * FROM poll_votes WHERE poll_id = ANY($1) ORDER BY poll_id, option_index ASC",
+    )
+    .bind(poll_ids)
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn close(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
     let result =
         sqlx::query("UPDATE polls SET closed = true WHERE id = $1 AND closed = false")

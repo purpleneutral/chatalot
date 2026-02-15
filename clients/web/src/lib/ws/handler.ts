@@ -325,6 +325,14 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		case 'error': {
 			console.error(`Server error: [${msg.code}] ${msg.message}`);
+			if (msg.code === 'slow_mode') {
+				const match = msg.message.match(/wait (\d+)/);
+				const seconds = match ? parseInt(match[1], 10) : 5;
+				window.dispatchEvent(new CustomEvent('chatalot:slow-mode', { detail: { seconds } }));
+			} else if (msg.code === 'timed_out') {
+				const { addToast } = await import('$lib/stores/toast.svelte');
+				addToast(msg.message, 'error');
+			}
 			break;
 		}
 

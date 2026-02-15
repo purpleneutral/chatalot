@@ -70,6 +70,7 @@ pub async fn get_messages(
               AND created_at < (SELECT created_at FROM messages WHERE id = $2)
               AND deleted_at IS NULL
               AND quarantined_at IS NULL
+              AND (expires_at IS NULL OR expires_at > NOW())
             ORDER BY created_at DESC
             LIMIT $3
             "#,
@@ -83,7 +84,10 @@ pub async fn get_messages(
         sqlx::query_as::<_, Message>(
             r#"
             SELECT * FROM messages
-            WHERE channel_id = $1 AND deleted_at IS NULL AND quarantined_at IS NULL
+            WHERE channel_id = $1
+              AND deleted_at IS NULL
+              AND quarantined_at IS NULL
+              AND (expires_at IS NULL OR expires_at > NOW())
             ORDER BY created_at DESC
             LIMIT $2
             "#,

@@ -850,7 +850,9 @@ pub struct WebhookResponse {
     pub id: Uuid,
     pub channel_id: Uuid,
     pub name: String,
-    pub token: String,
+    /// Only set when webhook is first created; omitted in list responses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
     pub avatar_url: Option<String>,
     pub active: bool,
     pub created_at: String,

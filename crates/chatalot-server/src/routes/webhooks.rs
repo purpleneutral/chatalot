@@ -61,7 +61,7 @@ async fn create_webhook(
     )
     .await?;
 
-    Ok(Json(webhook_to_response(&webhook)))
+    Ok(Json(webhook_to_response(&webhook, true)))
 }
 
 async fn list_webhooks(
@@ -78,7 +78,7 @@ async fn list_webhooks(
     }
 
     let webhooks = webhook_repo::list_for_channel(&state.db, channel_id).await?;
-    Ok(Json(webhooks.iter().map(webhook_to_response).collect()))
+    Ok(Json(webhooks.iter().map(|w| webhook_to_response(w, false)).collect()))
 }
 
 async fn update_webhook(
@@ -109,7 +109,7 @@ async fn update_webhook(
     .await?
     .ok_or_else(|| AppError::NotFound("webhook not found".into()))?;
 
-    Ok(Json(webhook_to_response(&updated)))
+    Ok(Json(webhook_to_response(&updated, false)))
 }
 
 async fn delete_webhook(
@@ -182,12 +182,12 @@ async fn execute_webhook(
     Ok(())
 }
 
-fn webhook_to_response(w: &chatalot_db::models::webhook::Webhook) -> WebhookResponse {
+fn webhook_to_response(w: &chatalot_db::models::webhook::Webhook, include_token: bool) -> WebhookResponse {
     WebhookResponse {
         id: w.id,
         channel_id: w.channel_id,
         name: w.name.clone(),
-        token: w.token.clone(),
+        token: if include_token { Some(w.token.clone()) } else { None },
         avatar_url: w.avatar_url.clone(),
         active: w.active,
         created_at: w.created_at.to_rfc3339(),
