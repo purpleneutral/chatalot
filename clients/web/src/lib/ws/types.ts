@@ -60,6 +60,7 @@ export type ServerMessage =
 	| { type: 'channel_deleted'; channel_id: string }
 	| { type: 'group_deleted'; group_id: string }
 	| { type: 'announcement'; id: string; title: string; body: string; created_by: string; created_at: string }
+	| { type: 'read_receipt'; channel_id: string; user_id: string; message_id: string; timestamp: string }
 	| { type: 'error'; code: string; message: string }
 	| { type: 'pong'; timestamp: number }
 	| { type: 'keys_low'; remaining: number };

@@ -1230,6 +1230,19 @@
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.showLinkPreviews ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
 							</button>
 						</div>
+						<div class="mt-4 flex items-center justify-between">
+							<div>
+								<div class="font-medium">Send read receipts</div>
+								<div class="text-sm text-[var(--text-secondary)]">Let others see when you've read their messages</div>
+							</div>
+							<button
+								onclick={() => preferencesStore.set('sendReadReceipts', !preferencesStore.preferences.sendReadReceipts)}
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								aria-label="Toggle read receipts"
+							>
+								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.sendReadReceipts ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+							</button>
+						</div>
 					</section>
 
 				<!-- ══════════════════ VOICE TAB ══════════════════ -->

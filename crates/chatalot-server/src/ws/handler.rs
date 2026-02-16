@@ -1143,6 +1143,22 @@ async fn handle_client_message(
                 .unwrap_or(false)
             {
                 let _ = unread_repo::mark_read(&state.db, user_id, channel_id, message_id).await;
+
+                // Broadcast read receipt to channel if user hasn't opted out
+                if !unread_repo::is_read_receipts_disabled(&state.db, user_id)
+                    .await
+                    .unwrap_or(false)
+                {
+                    conn_mgr.broadcast_to_channel(
+                        channel_id,
+                        ServerMessage::ReadReceipt {
+                            channel_id,
+                            user_id,
+                            message_id,
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                        },
+                    );
+                }
             }
         }
 

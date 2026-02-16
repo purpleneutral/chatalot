@@ -203,6 +203,14 @@ pub enum ServerMessage {
         emoji: String,
     },
 
+    // Read receipts
+    ReadReceipt {
+        channel_id: Uuid,
+        user_id: Uuid,
+        message_id: Uuid,
+        timestamp: String,
+    },
+
     // Channel moderation
     MemberKicked {
         channel_id: Uuid,

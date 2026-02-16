@@ -4,7 +4,8 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, getEditHistory, type Channel, type ChannelMember, type Message, type MessageEdit, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, getEditHistory, getReadCursors, type Channel, type ChannelMember, type Message, type MessageEdit, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
+	import { readReceiptStore } from '$lib/stores/readReceipts.svelte';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
 	import { searchUsers, listBlockedUsers, createReport, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
@@ -1414,6 +1415,11 @@
 					wsClient.send({ type: 'mark_read', channel_id: channelId, message_id: lastMsg.id });
 				}
 
+				// Load read cursors for read receipt display
+				getReadCursors(channelId)
+					.then(cursors => readReceiptStore.setChannelCursors(channelId, cursors))
+					.catch(err => console.warn('Failed to load read cursors:', err));
+
 				// Load sender keys for group channels
 				if (!isDmChannel) {
 					try {
@@ -2332,6 +2338,19 @@
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to close poll');
 		}
+	}
+
+	function isReadReceiptPoint(msgs: typeof messages, idx: number): boolean {
+		const msg = msgs[idx];
+		if (activeChannel?.channel_type === 'dm') {
+			// In DMs: only show on own messages, at the end of a consecutive own-message group
+			if (msg.senderId !== authStore.user?.id) return false;
+			const next = msgs[idx + 1];
+			return !next || next.senderId !== msg.senderId;
+		}
+		// In group channels: show at the end of each sender group
+		const next = msgs[idx + 1];
+		return !next || next.senderId !== msg.senderId;
 	}
 
 	function isGroupedMessage(msgs: typeof messages, idx: number): boolean {
@@ -5265,6 +5284,39 @@
 											</button>
 										{/each}
 									</div>
+								{/if}
+
+								<!-- Read receipts -->
+								{#if channelStore.activeChannelId && isReadReceiptPoint(messages, idx)}
+									{#if activeChannel?.channel_type === 'dm' && msg.senderId === authStore.user?.id}
+										{@const otherUserId = getPeerUserIdForDm(channelStore.activeChannelId)}
+										{@const otherLastRead = otherUserId ? readReceiptStore.getLastReadMessageId(channelStore.activeChannelId, otherUserId) : null}
+										{@const otherReadTimestamp = otherUserId ? readReceiptStore.getLastReadTimestamp(channelStore.activeChannelId, otherUserId) : null}
+										{@const msgIdx = messages.findIndex(m => m.id === msg.id)}
+										{@const readIdx = otherLastRead ? messages.findIndex(m => m.id === otherLastRead) : -1}
+										{#if readIdx >= msgIdx && otherReadTimestamp}
+											<div class="mt-1 flex items-center gap-1 text-[10px] text-[var(--text-secondary)]">
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+													<polyline points="20 6 9 17 4 12"/>
+												</svg>
+												<span>Read {formatRelativeTime(otherReadTimestamp)}</span>
+											</div>
+										{/if}
+									{:else if activeChannel?.channel_type !== 'dm'}
+										{@const readers = readReceiptStore.getReadersAtMessage(channelStore.activeChannelId, msg.id, messages, authStore.user?.id ?? '')}
+										{#if readers.length > 0}
+											<div class="mt-1 flex items-center gap-0.5" title="{readers.map(uid => getDisplayNameForContext(uid)).join(', ')}">
+												<div class="flex -space-x-1.5">
+													{#each readers.slice(0, 5) as readerId (readerId)}
+														<Avatar userId={readerId} size="xs" />
+													{/each}
+												</div>
+												{#if readers.length > 5}
+													<span class="ml-1 text-[10px] text-[var(--text-secondary)]">+{readers.length - 5}</span>
+												{/if}
+											</div>
+										{/if}
+									{/if}
 								{/if}
 							</div>
 

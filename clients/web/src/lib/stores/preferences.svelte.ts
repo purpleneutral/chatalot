@@ -90,6 +90,7 @@ export interface UserPreferences {
 	presetTheme: PresetTheme;
 	customThemeColors: CustomThemeColors;
 	voiceBackground: VoiceBackground;
+	sendReadReceipts: boolean;
 }
 
 const DEFAULT_CUSTOM_COLORS: CustomThemeColors = {
@@ -125,7 +126,8 @@ const DEFAULTS: UserPreferences = {
 	reduceMotion: false,
 	presetTheme: 'default',
 	customThemeColors: { ...DEFAULT_CUSTOM_COLORS },
-	voiceBackground: { type: 'none' }
+	voiceBackground: { type: 'none' },
+	sendReadReceipts: true
 };
 
 export const PRESET_THEMES: Record<PresetTheme, { label: string; colors: { dark: CustomThemeColors; light: CustomThemeColors } }> = {

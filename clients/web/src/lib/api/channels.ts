@@ -59,6 +59,18 @@ export interface ChannelMember {
 	joined_at: string;
 }
 
+// ── Read Cursors ──
+
+export interface ReadCursorInfo {
+	user_id: string;
+	last_read_message_id: string | null;
+	last_read_at: string;
+}
+
+export async function getReadCursors(channelId: string): Promise<ReadCursorInfo[]> {
+	return api.get<ReadCursorInfo[]>(`/channels/${channelId}/read-cursors`);
+}
+
 export async function getChannelMembers(channelId: string): Promise<ChannelMember[]> {
 	return api.get<ChannelMember[]>(`/channels/${channelId}/members`);
 }

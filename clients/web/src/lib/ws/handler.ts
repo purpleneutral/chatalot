@@ -11,12 +11,22 @@ import { notificationStore } from '$lib/stores/notification.svelte';
 import { userStore } from '$lib/stores/users.svelte';
 import { groupStore } from '$lib/stores/groups.svelte';
 import { communityStore } from '$lib/stores/communities.svelte';
+import { readReceiptStore } from '$lib/stores/readReceipts.svelte';
 import { detectMentions } from '$lib/utils/mentions';
 import { getUser } from '$lib/api/users';
 import { wsClient } from './connection';
 import type { ServerMessage } from './types';
 import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
 import { decryptMessage } from '$lib/crypto/decrypt';
+
+// Debounced mark-read for incoming messages while viewing a channel
+let markReadTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedMarkRead(channelId: string, messageId: string) {
+	if (markReadTimer) clearTimeout(markReadTimer);
+	markReadTimer = setTimeout(() => {
+		wsClient.send({ type: 'mark_read', channel_id: channelId, message_id: messageId });
+	}, 1000);
+}
 
 /** Fetch and cache user info if not already in the store. */
 async function ensureUser(userId: string) {
@@ -60,6 +70,11 @@ export async function handleServerMessage(msg: ServerMessage) {
 			// Only increment unread if not viewing the channel and not own message
 			if (!isViewingChannel && msg.sender_id !== authStore.user?.id) {
 				messageStore.incrementUnread(msg.channel_id);
+			}
+
+			// Auto mark-read when viewing the channel (debounced)
+			if (isViewingChannel && msg.sender_id !== authStore.user?.id) {
+				debouncedMarkRead(msg.channel_id, msg.id);
 			}
 
 			// Notifications (skip own messages)
@@ -284,6 +299,11 @@ export async function handleServerMessage(msg: ServerMessage) {
 					}
 				})
 			);
+			break;
+		}
+
+		case 'read_receipt': {
+			readReceiptStore.setReadPosition(msg.channel_id, msg.user_id, msg.message_id, msg.timestamp);
 			break;
 		}
 

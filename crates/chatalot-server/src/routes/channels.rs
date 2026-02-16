@@ -37,6 +37,7 @@ pub fn routes() -> Router<Arc<AppState>> {
             post(transfer_ownership),
         )
         .route("/channels/unread", get(get_unread_counts))
+        .route("/channels/{id}/read-cursors", get(get_read_cursors))
 }
 
 async fn create_channel(
@@ -463,6 +464,29 @@ async fn get_unread_counts(
             serde_json::json!({
                 "channel_id": c.channel_id,
                 "unread_count": c.unread_count
+            })
+        })
+        .collect();
+    Ok(Json(result))
+}
+
+async fn get_read_cursors(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    if !channel_repo::is_member(&state.db, id, claims.sub).await? {
+        return Err(AppError::Forbidden);
+    }
+
+    let cursors = unread_repo::get_channel_read_cursors(&state.db, id).await?;
+    let result: Vec<serde_json::Value> = cursors
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "user_id": c.user_id,
+                "last_read_message_id": c.last_read_message_id,
+                "last_read_at": c.last_read_at.to_rfc3339()
             })
         })
         .collect();

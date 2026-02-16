@@ -3,6 +3,40 @@ use uuid::Uuid;
 
 use crate::models::reaction::ReadCursor;
 
+/// Get all read cursors for members of a channel (for read receipt display).
+pub async fn get_channel_read_cursors(
+    pool: &PgPool,
+    channel_id: Uuid,
+) -> Result<Vec<ReadCursor>, sqlx::Error> {
+    sqlx::query_as::<_, ReadCursor>(
+        r#"
+        SELECT rc.*
+        FROM read_cursors rc
+        JOIN channel_members cm ON cm.user_id = rc.user_id AND cm.channel_id = rc.channel_id
+        WHERE rc.channel_id = $1
+        "#,
+    )
+    .bind(channel_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Check if a user has opted out of broadcasting read receipts.
+pub async fn is_read_receipts_disabled(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let row: Option<(serde_json::Value,)> =
+        sqlx::query_as("SELECT preferences FROM user_preferences WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row
+        .and_then(|r| r.0.get("sendReadReceipts").and_then(|v| v.as_bool()))
+        .map(|v| !v)
+        .unwrap_or(false))
+}
+
 /// Update the read cursor for a user in a channel.
 pub async fn mark_read(
     pool: &PgPool,
