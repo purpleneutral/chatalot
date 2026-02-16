@@ -16,6 +16,22 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.17.0',
+			date: '2026-02-16',
+			changes: [
+				'Thread panel polish: messages now render with full markdown, syntax highlighting, and emoji support',
+				'Thread panel: file attachments (images, videos, audio) display with previews and lightbox',
+				'Thread panel: link previews and inline image URLs rendered like main chat',
+				'Thread panel: hover actions — react, edit, and delete thread replies',
+				'Thread panel: reaction pills with add/remove and full emoji picker',
+				'Thread panel: edit messages inline with save/cancel and "(edited)" indicator',
+				'Thread composer upgraded to multi-line textarea with auto-resize',
+				'Fix: optimistic thread messages now properly confirm (no more stuck "sending...")',
+				'Fix: thread messages update in real-time when edited or deleted by others',
+				'Server: bookmarks and communities list endpoints now support pagination',
+			]
+		},
+		{
 			version: '0.16.0',
 			date: '2026-02-16',
 			changes: [

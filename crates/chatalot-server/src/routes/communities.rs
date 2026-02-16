@@ -165,8 +165,12 @@ async fn create_community(
 async fn list_my_communities(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<CommunityResponse>>, AppError> {
-    let communities = community_repo::list_user_communities(&state.db, claims.sub).await?;
+    let limit = pagination.limit.unwrap_or(100).clamp(1, 500);
+    let offset = pagination.offset.unwrap_or(0).max(0);
+    let communities =
+        community_repo::list_user_communities(&state.db, claims.sub, limit, offset).await?;
     let community_ids: Vec<Uuid> = communities.iter().map(|c| c.id).collect();
     let counts = community_repo::get_community_member_counts(&state.db, &community_ids).await?;
     let responses = communities

@@ -442,6 +442,15 @@ async fn handle_client_message(
 
             let message_id = Uuid::now_v7();
 
+            // Defensive: prevent a message from referencing itself as its own thread root
+            if resolved_thread_id == Some(message_id) {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "message cannot be its own thread root".to_string(),
+                });
+                return;
+            }
+
             // Compute expires_at if channel has a TTL configured
             let expires_at = channel
                 .message_ttl_seconds

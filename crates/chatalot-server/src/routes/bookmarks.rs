@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, post};
 use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
-use chatalot_common::api_types::{BookmarkResponse, CreateBookmarkRequest};
+use chatalot_common::api_types::{BookmarkResponse, CreateBookmarkRequest, PaginationQuery};
 use chatalot_db::repos::bookmark_repo;
 
 use crate::app_state::AppState;
@@ -52,8 +52,11 @@ async fn add_bookmark(
 async fn list_bookmarks(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<BookmarkResponse>>, AppError> {
-    let bookmarks = bookmark_repo::list_for_user(&state.db, claims.sub).await?;
+    let limit = pagination.limit.unwrap_or(100).clamp(1, 500);
+    let offset = pagination.offset.unwrap_or(0).max(0);
+    let bookmarks = bookmark_repo::list_for_user(&state.db, claims.sub, limit, offset).await?;
     Ok(Json(
         bookmarks
             .iter()

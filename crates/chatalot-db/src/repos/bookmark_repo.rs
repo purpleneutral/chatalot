@@ -26,11 +26,18 @@ pub async fn create(
     .await
 }
 
-pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Bookmark>, sqlx::Error> {
+pub async fn list_for_user(
+    pool: &PgPool,
+    user_id: Uuid,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Bookmark>, sqlx::Error> {
     sqlx::query_as::<_, Bookmark>(
-        "SELECT * FROM bookmarks WHERE user_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM bookmarks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(user_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await
 }

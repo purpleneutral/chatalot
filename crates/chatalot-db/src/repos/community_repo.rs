@@ -110,6 +110,8 @@ pub async fn delete_community(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Err
 pub async fn list_user_communities(
     pool: &PgPool,
     user_id: Uuid,
+    limit: i64,
+    offset: i64,
 ) -> Result<Vec<Community>, sqlx::Error> {
     sqlx::query_as::<_, Community>(
         r#"
@@ -117,9 +119,12 @@ pub async fn list_user_communities(
         INNER JOIN community_members cm ON c.id = cm.community_id
         WHERE cm.user_id = $1
         ORDER BY c.name ASC
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(user_id)
+    .bind(limit)
+    .bind(offset)
     .fetch_all(pool)
     .await
 }
