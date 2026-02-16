@@ -4127,6 +4127,7 @@
 							onclick={() => webrtcManager.toggleAudio()}
 							class="rounded-md p-1.5 transition {voiceStore.activeCall?.audioEnabled ? 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]' : 'bg-red-500/20 text-red-400'}"
 							title={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}
+						aria-label={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}
 						>
 							{#if voiceStore.activeCall?.audioEnabled}
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4147,6 +4148,7 @@
 							onclick={() => webrtcManager.toggleVideo()}
 							class="rounded-md p-1.5 transition {voiceStore.activeCall?.videoEnabled ? 'text-[var(--text-primary)] hover:bg-white/10' : 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'}"
 							title={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
+						aria-label={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
 						>
 							{#if voiceStore.activeCall?.videoEnabled}
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4164,6 +4166,7 @@
 							onclick={() => webrtcManager.toggleScreenShare()}
 							class="rounded-md p-1.5 transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'}"
 							title={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen (share a tab for audio)'}
+						aria-label={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'}
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
@@ -4508,6 +4511,7 @@
 									onclick={(e) => { e.stopPropagation(); showNotifDropdown = !showNotifDropdown; }}
 									class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 									title="Notification settings"
+								aria-label="Notification settings"
 								>
 									{#if notificationStore.getChannelLevel(activeChannel.id) === 'nothing'}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4830,6 +4834,7 @@
 									<button
 										onclick={() => toggleReaction(msg.id, '👍')}
 										title="React with 👍"
+										aria-label="React with thumbs up"
 										class="rounded p-1 text-sm transition hover:bg-white/10"
 									>👍</button>
 									<button
@@ -5606,7 +5611,7 @@
 							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Italic (Ctrl+I)">I</button>
 							<button type="button" onclick={() => wrapSelection('~~', '~~')} class="rounded px-1.5 py-0.5 text-xs line-through text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Strikethrough">S</button>
 							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Code (Ctrl+E)">&lt;&gt;</button>
-							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Link">
+							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Link" aria-label="Insert link">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
 							</button>
 						</div>
