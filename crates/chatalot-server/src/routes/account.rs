@@ -69,6 +69,8 @@ async fn get_me(
         banner_url: user.banner_url,
         status: user.status,
         custom_status: user.custom_status,
+        bio: user.bio,
+        pronouns: user.pronouns,
         is_admin: user.is_admin,
         is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
@@ -215,6 +217,8 @@ async fn update_profile(
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
         custom_status: user.custom_status.clone(),
+        bio: user.bio.clone(),
+        pronouns: user.pronouns.clone(),
     });
 
     Ok(Json(UserPublic {
@@ -225,6 +229,8 @@ async fn update_profile(
         banner_url: user.banner_url,
         status: user.status,
         custom_status: user.custom_status,
+        bio: user.bio,
+        pronouns: user.pronouns,
         is_admin: user.is_admin,
         is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
@@ -320,6 +326,8 @@ async fn upload_avatar(
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
         custom_status: user.custom_status.clone(),
+        bio: user.bio.clone(),
+        pronouns: user.pronouns.clone(),
     });
 
     Ok(Json(UserPublic {
@@ -330,6 +338,8 @@ async fn upload_avatar(
         banner_url: user.banner_url,
         status: user.status,
         custom_status: user.custom_status,
+        bio: user.bio,
+        pronouns: user.pronouns,
         is_admin: user.is_admin,
         is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
@@ -422,6 +432,8 @@ async fn upload_banner(
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
         custom_status: user.custom_status.clone(),
+        bio: user.bio.clone(),
+        pronouns: user.pronouns.clone(),
     });
 
     Ok(Json(UserPublic {
@@ -432,6 +444,8 @@ async fn upload_banner(
         banner_url: user.banner_url,
         status: user.status,
         custom_status: user.custom_status,
+        bio: user.bio,
+        pronouns: user.pronouns,
         is_admin: user.is_admin,
         is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),

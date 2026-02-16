@@ -28,6 +28,8 @@ export async function updateProfile(updates: {
 	avatar_url?: string | null;
 	banner_url?: string | null;
 	custom_status?: string | null;
+	bio?: string | null;
+	pronouns?: string | null;
 }): Promise<UserPublic> {
 	return api.put('/account/profile', updates);
 }

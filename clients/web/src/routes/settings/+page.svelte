@@ -43,6 +43,8 @@
 	// Profile editing
 	let editDisplayName = $state(authStore.user?.display_name ?? '');
 	let editCustomStatus = $state(authStore.user?.custom_status ?? '');
+	let editBio = $state(authStore.user?.bio ?? '');
+	let editPronouns = $state(authStore.user?.pronouns ?? '');
 	let profileSaving = $state(false);
 	let profileMessage = $state('');
 	let profileError = $state('');
@@ -318,7 +320,9 @@
 		try {
 			const updated = await updateProfile({
 				display_name: editDisplayName || undefined,
-				custom_status: editCustomStatus || undefined
+				custom_status: editCustomStatus || undefined,
+				bio: editBio || null,
+				pronouns: editPronouns || null
 			});
 			authStore.updateUser(updated);
 			profileMessage = 'Profile updated.';
@@ -675,6 +679,30 @@
 									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editCustomStatus.length}/128</p>
+							</div>
+							<div>
+								<label for="pronouns" class="mb-1 block text-sm font-medium">Pronouns</label>
+								<input
+									id="pronouns"
+									type="text"
+									bind:value={editPronouns}
+									maxlength="50"
+									placeholder="e.g. they/them"
+									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+								/>
+								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editPronouns.length}/50</p>
+							</div>
+							<div>
+								<label for="bio" class="mb-1 block text-sm font-medium">Bio</label>
+								<textarea
+									id="bio"
+									bind:value={editBio}
+									maxlength="500"
+									rows="3"
+									placeholder="Tell others about yourself..."
+									class="w-full resize-none rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+								></textarea>
+								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editBio.length}/500</p>
 							</div>
 							<button
 								onclick={handleProfileSave}

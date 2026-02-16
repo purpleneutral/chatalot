@@ -219,6 +219,8 @@ fn user_to_public(
         banner_url: user.banner_url.clone(),
         status: user.status.clone(),
         custom_status: user.custom_status.clone(),
+        bio: user.bio.clone(),
+        pronouns: user.pronouns.clone(),
         is_admin,
         is_owner,
         created_at: Some(user.created_at.to_rfc3339()),

@@ -294,6 +294,8 @@ pub enum ServerMessage {
         avatar_url: Option<String>,
         banner_url: Option<String>,
         custom_status: Option<String>,
+        bio: Option<String>,
+        pronouns: Option<String>,
     },
 
     // Channel/group settings changes

@@ -198,6 +198,9 @@
 			<div class="mb-1">
 				<h3 class="text-base font-bold text-[var(--text-primary)]">
 					{user?.display_name ?? userId.slice(0, 8)}
+					{#if user?.pronouns}
+						<span class="ml-1.5 text-xs font-normal text-[var(--text-secondary)]">({user.pronouns})</span>
+					{/if}
 				</h3>
 				<p class="text-sm text-[var(--text-secondary)]">
 					@{user?.username ?? '...'}
@@ -219,6 +222,11 @@
 					<span class="text-xs text-[var(--text-secondary)]">— {user.custom_status}</span>
 				{/if}
 			</div>
+
+			<!-- Bio -->
+			{#if user?.bio}
+				<p class="mb-3 text-sm text-[var(--text-primary)] leading-relaxed">{user.bio}</p>
+			{/if}
 
 			<!-- Role badge -->
 			<div class="mb-3 flex flex-wrap gap-1.5">

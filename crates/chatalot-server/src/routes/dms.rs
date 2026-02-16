@@ -109,6 +109,8 @@ fn user_to_public(u: &User) -> UserPublic {
         banner_url: u.banner_url.clone(),
         status: u.status.clone(),
         custom_status: u.custom_status.clone(),
+        bio: u.bio.clone(),
+        pronouns: u.pronouns.clone(),
         is_admin: u.is_admin,
         is_owner: u.is_owner,
         created_at: Some(u.created_at.to_rfc3339()),

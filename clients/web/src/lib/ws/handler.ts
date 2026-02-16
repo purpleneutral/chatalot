@@ -396,6 +396,8 @@ export async function handleServerMessage(msg: ServerMessage) {
 					avatar_url: msg.avatar_url,
 					banner_url: msg.banner_url,
 					custom_status: msg.custom_status,
+					bio: msg.bio,
+					pronouns: msg.pronouns,
 				});
 			}
 			// If this is the current user (e.g. profile updated from another session),
@@ -406,6 +408,8 @@ export async function handleServerMessage(msg: ServerMessage) {
 					avatar_url: msg.avatar_url,
 					banner_url: msg.banner_url,
 					custom_status: msg.custom_status,
+					bio: msg.bio,
+					pronouns: msg.pronouns,
 				});
 			}
 			break;

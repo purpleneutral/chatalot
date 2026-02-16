@@ -95,6 +95,10 @@ pub struct UserPublic {
     pub banner_url: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pronouns: Option<String>,
     #[serde(default)]
     pub is_admin: bool,
     #[serde(default)]
