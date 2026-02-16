@@ -470,6 +470,7 @@ async fn handle_client_message(
                         id: message_id,
                         channel_id,
                         created_at: stored.created_at.to_rfc3339(),
+                        thread_id: resolved_thread_id,
                     });
 
                     let new_msg = ServerMessage::NewMessage {

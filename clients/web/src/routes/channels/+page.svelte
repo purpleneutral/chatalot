@@ -287,9 +287,6 @@
 	// Keyboard shortcuts modal
 	let showShortcutsModal = $state(false);
 
-	// Forwarding
-	let forwardingMsg = $state<ChatMessage | null>(null);
-
 	// GIF picker state
 	let showGifPicker = $state(false);
 	let gifSearchQuery = $state('');
@@ -515,6 +512,9 @@
 	let threadMessages = $state<ChatMessage[]>([]);
 	let threadLoading = $state(false);
 	let threadMessageInput = $state('');
+	let threadReactionPickerMsgId = $state<string | null>(null);
+	let threadFullEmojiPickerMsgId = $state<string | null>(null);
+	let threadTextareaEl: HTMLTextAreaElement | undefined = $state();
 
 	// Chat collapse state (during voice calls)
 	let chatCollapsed = $state(false);
@@ -731,6 +731,8 @@
 		activeThreadRoot = null;
 		threadMessages = [];
 		threadMessageInput = '';
+		threadReactionPickerMsgId = null;
+		threadFullEmojiPickerMsgId = null;
 	}
 
 	async function sendThreadMessage() {
@@ -1149,6 +1151,10 @@
 
 		// Thread reply events
 		window.addEventListener('chatalot:thread-reply', handleThreadReply as EventListener);
+		window.addEventListener('chatalot:thread-message-confirmed', handleThreadMessageConfirmed as EventListener);
+		window.addEventListener('chatalot:thread-message-edited', handleThreadMessageEdited as EventListener);
+		window.addEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
+		window.addEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
 
 		// Idle detection
 		setupIdleDetection();
@@ -1171,6 +1177,10 @@
 		window.removeEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
 		window.removeEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
 		window.removeEventListener('chatalot:thread-reply', handleThreadReply as EventListener);
+		window.removeEventListener('chatalot:thread-message-confirmed', handleThreadMessageConfirmed as EventListener);
+		window.removeEventListener('chatalot:thread-message-edited', handleThreadMessageEdited as EventListener);
+		window.removeEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
+		window.removeEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
 
 		// Clean up timers
 		if (typingTimeout) clearTimeout(typingTimeout);
@@ -1280,6 +1290,66 @@
 		}
 	}
 
+	function handleThreadMessageConfirmed(e: CustomEvent<{ channelId: string; newId: string; createdAt: string; threadId: string }>) {
+		if (!showThreadPanel || activeThreadRootId !== e.detail.threadId) return;
+		const idx = threadMessages.findIndex(m => m.pending && m.threadId === e.detail.threadId);
+		if (idx !== -1) {
+			threadMessages[idx] = { ...threadMessages[idx], id: e.detail.newId, createdAt: e.detail.createdAt, pending: false };
+			threadMessages = [...threadMessages];
+		}
+	}
+
+	function handleThreadMessageEdited(e: CustomEvent<{ messageId: string; content: string; editedAt: string }>) {
+		if (!showThreadPanel) return;
+		const { messageId, content, editedAt } = e.detail;
+		if (activeThreadRoot?.id === messageId) {
+			activeThreadRoot = { ...activeThreadRoot, content, editedAt };
+		}
+		const idx = threadMessages.findIndex(m => m.id === messageId);
+		if (idx !== -1) {
+			threadMessages[idx] = { ...threadMessages[idx], content, editedAt };
+			threadMessages = [...threadMessages];
+		}
+	}
+
+	function handleThreadMessageDeleted(e: CustomEvent<{ messageId: string }>) {
+		if (!showThreadPanel) return;
+		const { messageId } = e.detail;
+		if (activeThreadRoot?.id === messageId) {
+			closeThread();
+			return;
+		}
+		threadMessages = threadMessages.filter(m => m.id !== messageId);
+	}
+
+	function handleThreadReactionUpdated(e: CustomEvent<{ messageId: string; userId: string; emoji: string; action: 'add' | 'remove' }>) {
+		if (!showThreadPanel) return;
+		const { messageId, userId, emoji, action } = e.detail;
+
+		function updateReactions(msg: ChatMessage): ChatMessage {
+			const reactions = new Map(msg.reactions ?? []);
+			const users = new Set(reactions.get(emoji) ?? []);
+			if (action === 'add') {
+				users.add(userId);
+				reactions.set(emoji, users);
+			} else {
+				users.delete(userId);
+				if (users.size === 0) reactions.delete(emoji);
+				else reactions.set(emoji, users);
+			}
+			return { ...msg, reactions };
+		}
+
+		if (activeThreadRoot?.id === messageId) {
+			activeThreadRoot = updateReactions(activeThreadRoot);
+		}
+		const idx = threadMessages.findIndex(m => m.id === messageId);
+		if (idx !== -1) {
+			threadMessages[idx] = updateReactions(threadMessages[idx]);
+			threadMessages = [...threadMessages];
+		}
+	}
+
 	async function handleDismissAnnouncement(id: string) {
 		announcements = announcements.filter(a => a.id !== id);
 		try {
@@ -1378,6 +1448,8 @@
 		contextMenuMessageId = null;
 		reactionPickerMessageId = null;
 		fullEmojiPickerMessageId = null;
+		threadReactionPickerMsgId = null;
+		threadFullEmojiPickerMsgId = null;
 		showNotifDropdown = false;
 		showStatusPicker = false;
 	}
@@ -1393,6 +1465,7 @@
 			if (detail?.unicode) {
 				toggleReaction(messageId, detail.unicode);
 				fullEmojiPickerMessageId = null;
+				threadFullEmojiPickerMsgId = null;
 			}
 		};
 		node.addEventListener('emoji-click', handler);
@@ -1401,6 +1474,11 @@
 				node.removeEventListener('emoji-click', handler);
 			}
 		};
+	}
+
+	function openThreadFullEmojiPicker(messageId: string) {
+		threadReactionPickerMsgId = null;
+		threadFullEmojiPickerMsgId = messageId;
 	}
 
 	async function selectChannel(channelId: string) {
@@ -2104,7 +2182,9 @@
 
 	// Reactions
 	function toggleReaction(messageId: string, emoji: string) {
-		const msg = messages.find(m => m.id === messageId);
+		const msg = messages.find(m => m.id === messageId)
+			?? threadMessages.find(m => m.id === messageId)
+			?? (activeThreadRoot?.id === messageId ? activeThreadRoot : null);
 		const userId = authStore.user?.id ?? '';
 		const hasReacted = msg?.reactions?.get(emoji)?.has(userId);
 
@@ -2116,6 +2196,7 @@
 			messageStore.addReaction(messageId, userId, emoji);
 		}
 		reactionPickerMessageId = null;
+		threadReactionPickerMsgId = null;
 	}
 
 	function formatRelativeTime(isoString: string): string {
@@ -6362,14 +6443,106 @@
 							<div class="flex items-baseline gap-2">
 								<span class="text-sm font-medium text-[var(--text-primary)]">{getDisplayNameForContext(activeThreadRoot.senderId)}</span>
 								<span class="text-[10px] text-[var(--text-secondary)]">{formatFullTimestamp(activeThreadRoot.createdAt)}</span>
+								{#if activeThreadRoot.editedAt}
+									<span class="text-[10px] text-[var(--text-secondary)]/60">(edited)</span>
+								{/if}
 							</div>
-							<div class="mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed break-words whitespace-pre-wrap">{activeThreadRoot.content}</div>
+							{#if activeThreadRoot.messageType === 'file'}
+								{@const fileInfo = parseFileMessage(activeThreadRoot.content)}
+								{#if fileInfo && IMAGE_EXTS.test(fileInfo.filename)}
+									<div class="mt-1">
+										{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
+											<div class="flex h-40 w-full items-center justify-center rounded-lg border border-white/10 bg-[var(--bg-primary)]"><span class="text-xs text-[var(--text-secondary)]">Loading image...</span></div>
+										{:then blobUrl}
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+											<img src={blobUrl} alt={fileInfo.filename} class="max-h-60 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" onclick={() => openLightbox(blobUrl, fileInfo.filename)} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(blobUrl, fileInfo.filename); }} />
+										{:catch}
+											<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load image</span></div>
+										{/await}
+										<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+									</div>
+								{:else if fileInfo && VIDEO_EXTS.test(fileInfo.filename)}
+									<div class="mt-1">
+										{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
+											<div class="flex h-48 w-full items-center justify-center rounded-lg border border-white/10 bg-[var(--bg-primary)]"><span class="text-xs text-[var(--text-secondary)]">Loading video...</span></div>
+										{:then blobUrl}
+											<!-- svelte-ignore a11y_media_has_caption -->
+											<video src={blobUrl} controls class="max-h-60 max-w-full rounded-lg border border-white/10"></video>
+										{:catch}
+											<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load video</span></div>
+										{/await}
+										<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+									</div>
+								{:else if fileInfo && AUDIO_EXTS.test(fileInfo.filename)}
+									<div class="mt-1 max-w-full">
+										<div class="flex items-center gap-3 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2.5">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-medium text-[var(--text-primary)]" title={fileInfo.filename}>{fileInfo.filename}</p>
+												<p class="text-xs text-[var(--text-secondary)]">{formatFileSize(fileInfo.size)}</p>
+											</div>
+										</div>
+										{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
+											<audio src={blobUrl} controls class="mt-1 w-full rounded" style="height: 32px;"></audio>
+										{:catch}
+											<p class="mt-1 text-xs text-[var(--text-secondary)]">Could not load audio</p>
+										{/await}
+									</div>
+								{:else if fileInfo}
+									<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+										<span class="text-sm text-[var(--text-primary)]">{fileInfo.filename}</span>
+										<span class="text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
+										{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
+											<a href={blobUrl} download={fileInfo.filename} class="text-xs text-[var(--accent)] hover:underline">Download</a>
+										{/await}
+									</div>
+								{/if}
+							{:else}
+								{@const imageUrls = extractImageUrls(activeThreadRoot.content)}
+								{@const linkUrls = extractNonImageUrls(activeThreadRoot.content)}
+								<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(activeThreadRoot.content)}</div>
+								{#if imageUrls.length > 0}
+									<div class="mt-2 flex flex-col gap-2">
+										{#each imageUrls as imgUrl}
+											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+											<img src={imgUrl} alt="Linked content" class="max-h-60 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+										{/each}
+									</div>
+								{/if}
+								{#if linkUrls.length > 0 && preferencesStore.preferences.showLinkPreviews}
+									{#each linkUrls.slice(0, 2) as linkUrl}
+										{#await fetchLinkPreview(linkUrl) then preview}
+											{#if preview && (preview.title || preview.description)}
+												<a href={linkUrl} target="_blank" rel="noopener noreferrer" class="link-embed mt-2 block max-w-full rounded-lg border-l-4 border-[var(--accent)] bg-[var(--bg-primary)] p-3 transition hover:bg-white/5">
+													{#if preview.site_name}<div class="text-xs text-[var(--text-secondary)]">{preview.site_name}</div>{/if}
+													{#if preview.title}<div class="text-sm font-semibold text-[var(--accent)]">{preview.title}</div>{/if}
+													{#if preview.description}<div class="mt-1 text-xs text-[var(--text-secondary)] line-clamp-3">{preview.description}</div>{/if}
+													{#if preview.image}<img src={preview.image} alt="" class="mt-2 max-h-32 rounded border border-white/10" loading="lazy" onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />{/if}
+												</a>
+											{/if}
+										{/await}
+									{/each}
+								{/if}
+							{/if}
+							<!-- Root reactions -->
+							{#if activeThreadRoot.reactions && activeThreadRoot.reactions.size > 0}
+								<div class="mt-1.5 flex flex-wrap gap-1">
+									{#each Array.from(activeThreadRoot.reactions.entries()) as [emoji, users]}
+										{@const hasReacted = users.has(authStore.user?.id ?? '')}
+										{@const reacterNames = Array.from(users).map(uid => uid === authStore.user?.id ? 'You' : getDisplayNameForContext(uid)).join(', ')}
+										<button onclick={() => toggleReaction(activeThreadRoot.id, emoji)} class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition {hasReacted ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-white/10 text-[var(--text-secondary)] hover:border-white/20 hover:bg-white/5'}" title="{reacterNames} reacted with {emoji}">
+											<span>{emoji}</span><span class="font-medium">{users.size}</span>
+										</button>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					</div>
 				</div>
 
 				<!-- Replies -->
-				<div class="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+				<div class="flex-1 overflow-y-auto px-4 py-2 space-y-1">
 					{#if threadLoading}
 						<div class="flex items-center justify-center py-8">
 							<div class="h-5 w-5 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
@@ -6382,15 +6555,192 @@
 						</div>
 					{:else}
 						{#each threadMessages as reply (reply.id)}
-							<div class="flex items-start gap-2.5 {reply.pending ? 'opacity-50' : ''}">
-								<Avatar userId={reply.senderId} size={28} />
-								<div class="min-w-0 flex-1">
-									<div class="flex items-baseline gap-2">
-										<span class="text-xs font-medium text-[var(--text-primary)]">{getDisplayNameForContext(reply.senderId)}</span>
-										<span class="text-[10px] text-[var(--text-secondary)]">{formatRelativeTime(reply.createdAt)}</span>
+							<div class="group relative rounded-md px-1 py-2 transition hover:bg-white/[0.02] {reply.pending ? 'opacity-50' : ''}">
+								<div class="flex items-start gap-2.5">
+									<Avatar userId={reply.senderId} size={28} />
+									<div class="min-w-0 flex-1">
+										<div class="flex items-baseline gap-2">
+											<span class="text-xs font-medium text-[var(--text-primary)]">{getDisplayNameForContext(reply.senderId)}</span>
+											<span class="text-[10px] text-[var(--text-secondary)]">{formatRelativeTime(reply.createdAt)}</span>
+											{#if reply.pending}
+												<span class="text-[10px] text-[var(--text-secondary)] italic">sending...</span>
+											{:else if reply.editedAt}
+												<span class="text-[10px] text-[var(--text-secondary)]/60">(edited)</span>
+											{/if}
+										</div>
+
+										{#if editingMessageId === reply.id}
+											<!-- Edit mode -->
+											<div class="mt-1">
+												<input
+													data-edit-input
+													type="text"
+													bind:value={editInput}
+													onkeydown={(e) => handleEditKeydown(e, reply.id)}
+													class="w-full rounded border border-[var(--accent)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none"
+												/>
+												<div class="mt-1 flex gap-2 text-xs">
+													<button onclick={() => submitEdit(reply.id)} class="text-[var(--accent)] hover:underline">Save</button>
+													<button onclick={cancelEdit} class="text-[var(--text-secondary)] hover:underline">Cancel</button>
+													<span class="text-[var(--text-secondary)]">esc to cancel, enter to save</span>
+												</div>
+											</div>
+										{:else if reply.messageType === 'file'}
+											{@const fileInfo = parseFileMessage(reply.content)}
+											{#if fileInfo && IMAGE_EXTS.test(fileInfo.filename)}
+												<div class="mt-1">
+													{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
+														<div class="flex h-32 w-full items-center justify-center rounded-lg border border-white/10 bg-[var(--bg-primary)]"><span class="text-xs text-[var(--text-secondary)]">Loading image...</span></div>
+													{:then blobUrl}
+														<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+														<img src={blobUrl} alt={fileInfo.filename} class="max-h-48 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" onclick={() => openLightbox(blobUrl, fileInfo.filename)} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(blobUrl, fileInfo.filename); }} />
+													{:catch}
+														<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load image</span></div>
+													{/await}
+													<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+												</div>
+											{:else if fileInfo && VIDEO_EXTS.test(fileInfo.filename)}
+												<div class="mt-1">
+													{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
+														<div class="flex h-32 w-full items-center justify-center rounded-lg border border-white/10 bg-[var(--bg-primary)]"><span class="text-xs text-[var(--text-secondary)]">Loading video...</span></div>
+													{:then blobUrl}
+														<!-- svelte-ignore a11y_media_has_caption -->
+														<video src={blobUrl} controls class="max-h-48 max-w-full rounded-lg border border-white/10"></video>
+													{:catch}
+														<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load video</span></div>
+													{/await}
+													<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+												</div>
+											{:else if fileInfo && AUDIO_EXTS.test(fileInfo.filename)}
+												<div class="mt-1 max-w-full">
+													<div class="flex items-center gap-3 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2.5">
+														<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+														<div class="min-w-0 flex-1">
+															<p class="truncate text-sm font-medium text-[var(--text-primary)]" title={fileInfo.filename}>{fileInfo.filename}</p>
+															<p class="text-xs text-[var(--text-secondary)]">{formatFileSize(fileInfo.size)}</p>
+														</div>
+													</div>
+													{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
+														<audio src={blobUrl} controls class="mt-1 w-full rounded" style="height: 32px;"></audio>
+													{:catch}
+														<p class="mt-1 text-xs text-[var(--text-secondary)]">Could not load audio</p>
+													{/await}
+												</div>
+											{:else if fileInfo}
+												<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+													<span class="text-sm text-[var(--text-primary)]">{fileInfo.filename}</span>
+													<span class="text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
+													{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
+														<a href={blobUrl} download={fileInfo.filename} class="text-xs text-[var(--accent)] hover:underline">Download</a>
+													{/await}
+												</div>
+											{/if}
+										{:else}
+											{@const imageUrls = extractImageUrls(reply.content)}
+											{@const linkUrls = extractNonImageUrls(reply.content)}
+											<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(reply.content)}</div>
+											{#if imageUrls.length > 0}
+												<div class="mt-2 flex flex-col gap-2">
+													{#each imageUrls as imgUrl}
+														<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+														<img src={imgUrl} alt="Linked content" class="max-h-48 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+													{/each}
+												</div>
+											{/if}
+											{#if linkUrls.length > 0 && preferencesStore.preferences.showLinkPreviews}
+												{#each linkUrls.slice(0, 2) as linkUrl}
+													{#await fetchLinkPreview(linkUrl) then preview}
+														{#if preview && (preview.title || preview.description)}
+															<a href={linkUrl} target="_blank" rel="noopener noreferrer" class="link-embed mt-2 block max-w-full rounded-lg border-l-4 border-[var(--accent)] bg-[var(--bg-primary)] p-2.5 transition hover:bg-white/5">
+																{#if preview.title}<div class="text-sm font-semibold text-[var(--accent)]">{preview.title}</div>{/if}
+																{#if preview.description}<div class="mt-1 text-xs text-[var(--text-secondary)] line-clamp-2">{preview.description}</div>{/if}
+															</a>
+														{/if}
+													{/await}
+												{/each}
+											{/if}
+										{/if}
+
+										<!-- Reply reactions -->
+										{#if reply.reactions && reply.reactions.size > 0}
+											<div class="mt-1.5 flex flex-wrap gap-1">
+												{#each Array.from(reply.reactions.entries()) as [emoji, users]}
+													{@const hasReacted = users.has(authStore.user?.id ?? '')}
+													{@const reacterNames = Array.from(users).map(uid => uid === authStore.user?.id ? 'You' : getDisplayNameForContext(uid)).join(', ')}
+													<button onclick={() => toggleReaction(reply.id, emoji)} class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition {hasReacted ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-white/10 text-[var(--text-secondary)] hover:border-white/20 hover:bg-white/5'}" title="{reacterNames} reacted with {emoji}">
+														<span>{emoji}</span><span class="font-medium">{users.size}</span>
+													</button>
+												{/each}
+											</div>
+										{/if}
 									</div>
-									<div class="mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed break-words whitespace-pre-wrap">{reply.content}</div>
 								</div>
+
+								<!-- Hover actions -->
+								{#if !reply.pending}
+									<div class="absolute right-1 top-1 hidden gap-0.5 rounded border border-white/10 bg-[var(--bg-secondary)] shadow-lg group-hover:flex">
+										<button
+											onclick={(e) => { e.stopPropagation(); threadReactionPickerMsgId = threadReactionPickerMsgId === reply.id ? null : reply.id; }}
+											class="p-1 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+											title="Add reaction"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
+										</button>
+										{#if reply.senderId === authStore.user?.id}
+											<button
+												onclick={() => startEditMessage(reply)}
+												class="p-1 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+												title="Edit"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+											</button>
+											<button
+												onclick={() => handleDeleteMessage(reply.id)}
+												class="p-1 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
+												title="Delete"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+											</button>
+										{:else if myRole === 'owner' || myRole === 'admin'}
+											<button
+												onclick={() => handleDeleteMessage(reply.id)}
+												class="p-1 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
+												title="Delete (mod)"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+											</button>
+										{/if}
+									</div>
+								{/if}
+
+								<!-- Reaction picker popup -->
+								{#if threadReactionPickerMsgId === reply.id}
+									<div
+										class="absolute right-1 top-8 z-10 flex items-center gap-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-xl"
+										transition:scale={{ start: 0.9, duration: 150 }}
+										role="toolbar"
+										aria-label="Reaction picker"
+									>
+										{#each QUICK_REACTIONS as emoji}
+											<button onclick={() => toggleReaction(reply.id, emoji)} class="rounded p-1 text-lg transition hover:bg-white/10">{emoji}</button>
+										{/each}
+										<button
+											onclick={(e) => { e.stopPropagation(); openThreadFullEmojiPicker(reply.id); }}
+											class="rounded p-1 text-lg text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+											title="More emojis"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
+										</button>
+									</div>
+								{/if}
+								{#if threadFullEmojiPickerMsgId === reply.id}
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<div class="absolute right-1 top-8 z-20" transition:scale={{ start: 0.9, duration: 150 }} onclick={(e) => e.stopPropagation()}>
+										<emoji-picker use:bindEmojiPicker={reply.id} class="dark"></emoji-picker>
+									</div>
+								{/if}
 							</div>
 						{/each}
 					{/if}
@@ -6398,14 +6748,17 @@
 
 				<!-- Thread composer -->
 				<div class="border-t border-white/10 px-3 py-2.5">
-					<div class="flex items-center gap-2">
-						<input
-							type="text"
+					<div class="flex items-end gap-2">
+						<textarea
+							bind:this={threadTextareaEl}
 							placeholder="Reply in thread..."
 							bind:value={threadMessageInput}
 							onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendThreadMessage(); } }}
-							class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
-						/>
+							oninput={() => { if (threadTextareaEl) { threadTextareaEl.style.height = 'auto'; threadTextareaEl.style.height = Math.min(threadTextareaEl.scrollHeight, 120) + 'px'; } }}
+							rows={1}
+							class="flex-1 resize-none rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
+							style="max-height: 120px;"
+						></textarea>
 						<button
 							onclick={sendThreadMessage}
 							disabled={!threadMessageInput.trim()}

@@ -25,7 +25,7 @@ export type ClientMessage =
 export type ServerMessage =
 	| { type: 'authenticated'; user_id: string; server_version: string }
 	| { type: 'new_message'; id: string; channel_id: string; sender_id: string; ciphertext: number[]; nonce: number[]; message_type: 'text' | 'file' | 'system'; reply_to: string | null; sender_key_id: string | null; created_at: string; thread_id?: string | null }
-	| { type: 'message_sent'; id: string; channel_id: string; created_at: string }
+	| { type: 'message_sent'; id: string; channel_id: string; created_at: string; thread_id?: string | null }
 	| { type: 'message_edited'; message_id: string; channel_id: string; sender_id: string; ciphertext: number[]; nonce: number[]; edited_at: string }
 	| { type: 'message_deleted'; message_id: string }
 	| { type: 'presence_update'; user_id: string; status: string }

@@ -143,6 +143,8 @@ pub enum ServerMessage {
         id: Uuid,
         channel_id: Uuid,
         created_at: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        thread_id: Option<Uuid>,
     },
 
     // Presence

@@ -140,6 +140,14 @@ export async function handleServerMessage(msg: ServerMessage) {
 			if (pending) {
 				messageStore.confirmMessage(msg.channel_id, pending.id, msg.id, msg.created_at);
 			}
+			// Notify thread panel of confirmed thread messages
+			if (msg.thread_id) {
+				window.dispatchEvent(
+					new CustomEvent('chatalot:thread-message-confirmed', {
+						detail: { channelId: msg.channel_id, newId: msg.id, createdAt: msg.created_at, threadId: msg.thread_id }
+					})
+				);
+			}
 			break;
 		}
 
@@ -151,21 +159,45 @@ export async function handleServerMessage(msg: ServerMessage) {
 				msg.message_id,
 			);
 			messageStore.editMessage(msg.message_id, editedContent, msg.edited_at);
+			// Notify thread panel
+			window.dispatchEvent(
+				new CustomEvent('chatalot:thread-message-edited', {
+					detail: { messageId: msg.message_id, content: editedContent, editedAt: msg.edited_at }
+				})
+			);
 			break;
 		}
 
 		case 'message_deleted': {
 			messageStore.deleteMessage(msg.message_id);
+			// Notify thread panel
+			window.dispatchEvent(
+				new CustomEvent('chatalot:thread-message-deleted', {
+					detail: { messageId: msg.message_id }
+				})
+			);
 			break;
 		}
 
 		case 'reaction_added': {
 			messageStore.addReaction(msg.message_id, msg.user_id, msg.emoji);
+			// Notify thread panel
+			window.dispatchEvent(
+				new CustomEvent('chatalot:thread-reaction-updated', {
+					detail: { messageId: msg.message_id, userId: msg.user_id, emoji: msg.emoji, action: 'add' }
+				})
+			);
 			break;
 		}
 
 		case 'reaction_removed': {
 			messageStore.removeReaction(msg.message_id, msg.user_id, msg.emoji);
+			// Notify thread panel
+			window.dispatchEvent(
+				new CustomEvent('chatalot:thread-reaction-updated', {
+					detail: { messageId: msg.message_id, userId: msg.user_id, emoji: msg.emoji, action: 'remove' }
+				})
+			);
 			break;
 		}
 
