@@ -4939,7 +4939,7 @@
 									{:else if fileInfo && VIDEO_EXTS.test(fileInfo.filename)}
 										<div class="mt-1">
 											{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
-											<div class="flex h-48 w-80 items-center justify-center rounded-lg border border-white/10 bg-[var(--bg-secondary)]">
+											<div class="flex h-48 w-full max-w-xs items-center justify-center rounded-lg border border-white/10 bg-[var(--bg-secondary)]">
 												<span class="text-xs text-[var(--text-secondary)]">Loading video...</span>
 											</div>
 											{:then blobUrl}
@@ -6376,7 +6376,7 @@
 
 	<!-- Notification Permission Prompt -->
 	{#if showNotifPrompt}
-		<div class="fixed bottom-6 right-6 z-[90] w-80 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 shadow-2xl" transition:fly={{ y: 20, duration: 200 }}>
+		<div class="fixed bottom-4 right-4 z-[90] w-[calc(100vw-2rem)] max-w-xs sm:w-80 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 shadow-2xl" transition:fly={{ y: 20, duration: 200 }}>
 			<div class="mb-2 flex items-start gap-3">
 				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
