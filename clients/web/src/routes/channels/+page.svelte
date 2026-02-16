@@ -2485,6 +2485,20 @@
 			scrollToBottom();
 			return;
 		}
+		// Home key to scroll to top of messages
+		if (e.key === 'Home') {
+			const tag = (e.target as HTMLElement)?.tagName;
+			if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+			e.preventDefault();
+			if (messageListEl) messageListEl.scrollTop = 0;
+			return;
+		}
+		// Ctrl+T / Cmd+T to focus message input
+		if (e.key === 't' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			messageInputEl?.focus();
+			return;
+		}
 		// ? or Ctrl+/ to show shortcuts
 		if ((e.key === '?' && !e.ctrlKey && !e.metaKey) || (e.key === '/' && (e.ctrlKey || e.metaKey))) {
 			const tag = (e.target as HTMLElement)?.tagName;
@@ -6139,6 +6153,14 @@
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Jump to latest</span>
 						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">End</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Scroll to top</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Home</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Focus message input</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+T</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Mark all read</span>
