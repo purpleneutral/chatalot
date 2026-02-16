@@ -40,7 +40,7 @@ async fn schedule_message(
     }
 
     // Limit to 30 days in the future
-    if scheduled_for > chrono::Utc::now() + chrono::Duration::try_days(30).unwrap() {
+    if scheduled_for > chrono::Utc::now() + chrono::TimeDelta::days(30) {
         return Err(AppError::Validation(
             "cannot schedule more than 30 days ahead".into(),
         ));

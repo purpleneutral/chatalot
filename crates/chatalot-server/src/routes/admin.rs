@@ -412,7 +412,7 @@ async fn create_registration_invite(
 
     let expires_at = req.expires_in_hours.map(|h| {
         chrono::Utc::now()
-            + chrono::Duration::try_hours(h).unwrap_or(chrono::Duration::try_hours(24).unwrap())
+            + chrono::Duration::try_hours(h).unwrap_or(chrono::TimeDelta::hours(24))
     });
 
     let invite = registration_invite_repo::create_invite(

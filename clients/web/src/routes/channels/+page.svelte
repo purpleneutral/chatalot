@@ -755,7 +755,9 @@
 		try {
 			const me = await getMe();
 			authStore.updateUser(me);
-		} catch {}
+		} catch (err) {
+			console.warn('Failed to refresh user data:', err);
+		}
 
 		// Populate user cache with current user
 		if (authStore.user) {
@@ -912,7 +914,9 @@
 		// Load announcements
 		try {
 			announcements = await listUndismissedAnnouncements();
-		} catch {}
+		} catch (err) {
+			console.warn('Failed to load announcements:', err);
+		}
 
 		// Load custom emojis for active community
 		if (communityStore.activeCommunityId) {
@@ -1013,7 +1017,9 @@
 		try {
 			const blocks = await listBlockedUsers();
 			blockedUserIds = blocks.map(b => b.blocked_id);
-		} catch {}
+		} catch (err) {
+			console.warn('Failed to load blocked users:', err);
+		}
 	}
 
 	function handlePollCreated(e: CustomEvent<{ pollId: string; channelId: string; createdBy: string; question: string }>) {
@@ -1057,7 +1063,9 @@
 		announcements = announcements.filter(a => a.id !== id);
 		try {
 			await dismissAnnouncement(id);
-		} catch {}
+		} catch (err) {
+			console.warn('Failed to dismiss announcement:', err);
+		}
 	}
 
 	function handleSlowModeEvent(e: CustomEvent<{ seconds: number }>) {
@@ -1239,6 +1247,7 @@
 				let chatMessages: ChatMessage[];
 				if (isDmChannel) {
 					await initCrypto();
+					if (thisLoadId !== channelLoadId) return;
 					const sm = getSessionManager();
 					chatMessages = await Promise.all(reversed.map(async (m) => ({
 						id: m.id,
@@ -1274,6 +1283,7 @@
 						reactions: parseReactions(m.reactions),
 					})));
 				}
+				if (thisLoadId !== channelLoadId) return;
 				messageStore.setMessages(channelId, chatMessages, FETCH_LIMIT);
 
 				// Mark the latest message as read
@@ -2686,7 +2696,9 @@
 			for (const e of emojis) map.set(e.shortcode, e);
 			customEmojiMap = map;
 			loadedCommunityEmojiId = communityId;
-		} catch {}
+		} catch (err) {
+			console.warn('Failed to load custom emojis:', err);
+		}
 	}
 
 	async function handleSubmitReport() {

@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+static COLOR_HEX_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap());
 
 use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post, put};
@@ -373,8 +376,6 @@ async fn update_community(
             "textSecondary",
             "customCss",
         ];
-        let color_re = regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap();
-
         let mut sanitized = serde_json::Map::new();
         for (key, value) in obj {
             if !ALLOWED_THEME_KEYS.contains(&key.as_str()) {
@@ -391,7 +392,7 @@ async fn update_community(
                 let color = value
                     .as_str()
                     .ok_or_else(|| AppError::Validation(format!("{key} must be a string")))?;
-                if !color_re.is_match(color) {
+                if !COLOR_HEX_RE.is_match(color) {
                     return Err(AppError::Validation(format!(
                         "{key} must be a hex color (e.g. #ff0000)"
                     )));
@@ -761,7 +762,7 @@ async fn create_invite(
     let expires_at = req.expires_in_hours.map(|h| {
         chrono::Utc::now()
             + chrono::Duration::try_hours(h as i64)
-                .unwrap_or(chrono::Duration::try_hours(24).unwrap())
+                .unwrap_or(chrono::TimeDelta::hours(24))
     });
 
     let id = Uuid::now_v7();
@@ -890,7 +891,7 @@ async fn create_timeout(
 
     let expires_at = chrono::Utc::now()
         + chrono::Duration::try_seconds(req.duration_seconds)
-            .unwrap_or(chrono::Duration::try_hours(1).unwrap());
+            .unwrap_or(chrono::TimeDelta::hours(1));
 
     let reason = req
         .reason

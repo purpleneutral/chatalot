@@ -67,7 +67,7 @@ fn record_failed_login(username: &str) {
 
     if entry.attempts >= MAX_LOGIN_ATTEMPTS {
         entry.locked_until =
-            Some(Utc::now() + chrono::Duration::try_seconds(LOCKOUT_DURATION_SECS).unwrap());
+            Some(Utc::now() + chrono::TimeDelta::seconds(LOCKOUT_DURATION_SECS));
         tracing::warn!(
             "Account '{}' locked out after {} failed attempts",
             username,
@@ -357,7 +357,7 @@ pub async fn register(
 
     let refresh_id = Uuid::new_v4();
     let expires_at =
-        Utc::now() + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
+        Utc::now() + chrono::TimeDelta::seconds(REFRESH_TOKEN_LIFETIME_SECS);
 
     user_repo::create_refresh_token(
         &state.db,
@@ -472,7 +472,7 @@ pub async fn login(
 
     let refresh_id = Uuid::new_v4();
     let expires_at =
-        Utc::now() + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
+        Utc::now() + chrono::TimeDelta::seconds(REFRESH_TOKEN_LIFETIME_SECS);
 
     user_repo::create_refresh_token(
         &state.db,
@@ -543,7 +543,7 @@ pub async fn refresh_token(
 
     let refresh_id = Uuid::new_v4();
     let expires_at =
-        Utc::now() + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
+        Utc::now() + chrono::TimeDelta::seconds(REFRESH_TOKEN_LIFETIME_SECS);
 
     user_repo::create_refresh_token(
         &state.db,
