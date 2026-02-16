@@ -39,6 +39,9 @@ class WebRTCManager {
 	// Timeouts for cleaning up peers stuck in 'disconnected' state
 	private disconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
+	// Guard against concurrent audio pipeline rebuilds
+	private rebuildingPipeline = false;
+
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
 	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
@@ -218,6 +221,12 @@ class WebRTCManager {
 
 	/// Change noise suppression level mid-call.
 	async setNoiseSuppressionLevel(level: NoiseSuppression): Promise<void> {
+		if (!voiceStore.activeCall || !this.rawStream || !this.audioContext || this.rebuildingPipeline) return;
+		this.rebuildingPipeline = true;
+		try { await this._setNoiseSuppressionLevel(level); } finally { this.rebuildingPipeline = false; }
+	}
+
+	private async _setNoiseSuppressionLevel(level: NoiseSuppression): Promise<void> {
 		if (!voiceStore.activeCall || !this.rawStream || !this.audioContext) return;
 
 		// Disconnect gain node before pipeline rebuild (will be reconnected inside)
@@ -268,6 +277,12 @@ class WebRTCManager {
 
 	/// Switch input device mid-call.
 	async switchInputDevice(deviceId: string): Promise<void> {
+		if (!voiceStore.activeCall || !this.audioContext || this.rebuildingPipeline) return;
+		this.rebuildingPipeline = true;
+		try { await this._switchInputDevice(deviceId); } finally { this.rebuildingPipeline = false; }
+	}
+
+	private async _switchInputDevice(deviceId: string): Promise<void> {
 		if (!voiceStore.activeCall || !this.audioContext) return;
 
 		audioDeviceStore.setInputDevice(deviceId);

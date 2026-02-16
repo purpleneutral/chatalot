@@ -54,6 +54,14 @@ class PresenceStore {
 			this.typingTimeouts.delete(key);
 		}
 	}
+
+	/** Clear all state (call on logout). */
+	reset() {
+		for (const timeout of this.typingTimeouts.values()) clearTimeout(timeout);
+		this.typingTimeouts.clear();
+		this.typingUsers = new Map();
+		this.statuses = new Map();
+	}
 }
 
 export const presenceStore = new PresenceStore();
