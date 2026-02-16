@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.8',
+			date: '2026-02-16',
+			changes: [
+				'Accessibility: aria-labels on 25+ icon-only buttons, color inputs, and mod action buttons',
+				'Accessibility: mobile member panel overlay now handles Escape key and has proper ARIA role',
+				'UX: DM user search and GIF picker now show error messages on failure instead of empty results',
+				'Server: invite expiration hours validated to 1-8760 range on community and admin endpoints',
+				'Performance: batch group auto-join, optimized unread count query, community members index',
+			]
+		},
+		{
 			version: '0.13.7',
 			date: '2026-02-16',
 			changes: [
