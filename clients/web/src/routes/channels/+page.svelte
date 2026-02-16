@@ -3379,6 +3379,7 @@
 					onclick={() => { showJoinCommunity = !showJoinCommunity; communityInvitePreview = null; joinCommunityCode = ''; }}
 					class="ml-3 flex h-12 w-12 items-center justify-center rounded-[24px] bg-[var(--bg-secondary)] text-[var(--success)] transition-all hover:rounded-2xl hover:bg-[var(--success)] hover:text-white"
 					title="Join a Community"
+					aria-label="Join a Community"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -3393,6 +3394,7 @@
 						onclick={() => { showCreateCommunity = !showCreateCommunity; newCommunityName = ''; newCommunityDescription = ''; }}
 						class="ml-3 flex h-12 w-12 items-center justify-center rounded-[24px] bg-[var(--bg-secondary)] text-[var(--accent)] transition-all hover:rounded-2xl hover:bg-[var(--accent)] hover:text-white"
 						title="Create a Community"
+						aria-label="Create a Community"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
@@ -3426,6 +3428,7 @@
 					onclick={() => { showJoinCommunity = !showJoinCommunity; communityInvitePreview = null; joinCommunityCode = ''; }}
 					class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[var(--success)] transition hover:bg-[var(--success)] hover:text-white"
 					title="Join Community"
+					aria-label="Join Community"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 				</button>
@@ -3439,6 +3442,7 @@
 							onclick={() => goto('/admin')}
 							class="hidden sm:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 							title="Admin Panel"
+							aria-label="Admin Panel"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -3450,6 +3454,7 @@
 							onclick={() => goto('/community')}
 							class="hidden sm:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 							title="Community Settings"
+							aria-label="Community Settings"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -3460,6 +3465,7 @@
 						onclick={() => goto('/settings')}
 						class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						title="Settings"
+						aria-label="Settings"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -3477,6 +3483,7 @@
 						}}
 						class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						title={sidebarTab === 'groups' ? 'Create group' : sidebarTab === 'channels' ? 'Create channel' : 'New DM'}
+						aria-label={sidebarTab === 'groups' ? 'Create group' : sidebarTab === 'channels' ? 'Create channel' : 'New DM'}
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -3606,6 +3613,7 @@
 							onclick={() => { showNewDm = false; dmSearchQuery = ''; dmSearchResults = []; }}
 							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 							title="Cancel"
+							aria-label="Cancel"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 						</button>
@@ -3645,6 +3653,7 @@
 						<button
 							onclick={() => { sidebarFilter = ''; }}
 							title="Clear filter"
+							aria-label="Clear filter"
 							class="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -4165,6 +4174,7 @@
 							onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; }}
 							class="rounded-md bg-red-500/20 p-1.5 text-red-400 transition hover:bg-red-500/30"
 							title="Disconnect"
+							aria-label="Disconnect from call"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
@@ -4178,7 +4188,7 @@
 			<!-- User info -->
 			<div class="relative flex items-center gap-3 border-t border-white/10 p-3">
 				{#if authStore.user}
-					<button onclick={(e) => { e.stopPropagation(); showStatusPicker = !showStatusPicker; }} class="rounded-full transition hover:ring-2 hover:ring-[var(--accent)]/50" title="Set status">
+					<button onclick={(e) => { e.stopPropagation(); showStatusPicker = !showStatusPicker; }} class="rounded-full transition hover:ring-2 hover:ring-[var(--accent)]/50" title="Set status" aria-label="Set status">
 						<Avatar userId={authStore.user.id} size="sm" showStatus />
 					</button>
 				{/if}
@@ -4623,6 +4633,7 @@
 												onclick={() => handleUnpinMessage(pin.id)}
 												class="shrink-0 rounded p-1 text-[var(--text-secondary)] hover:text-[var(--danger)] transition"
 												title="Unpin"
+												aria-label="Unpin message"
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 											</button>
@@ -5582,6 +5593,7 @@
 								onclick={() => (chatCollapsed = !chatCollapsed)}
 								class="rounded-lg border border-white/10 bg-transparent px-2 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 								title="Hide chat"
+								aria-label="Hide chat"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
 							</button>
@@ -6314,6 +6326,7 @@
 					onclick={(e) => e.stopPropagation()}
 					class="rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
 					title="Download"
+					aria-label="Download image"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>

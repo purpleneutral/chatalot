@@ -479,6 +479,7 @@
 					onclick={() => goto('/channels')}
 					class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 					title="Back to chat"
+					aria-label="Back to chat"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -526,6 +527,7 @@
 					onclick={() => goto('/channels')}
 					class="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5"
 					title="Back to chat"
+					aria-label="Back to chat"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<polyline points="15 18 9 12 15 6" />
