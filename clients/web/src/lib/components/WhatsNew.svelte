@@ -14,6 +14,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.12.0',
+			date: '2026-02-16',
+			changes: [
+				'Polls: create polls in any channel with 2-10 options, multi-select, anonymous voting, and optional expiry',
+				'Real-time poll updates: votes and poll closures broadcast instantly via WebSocket',
+				'Webhook management: create, toggle, and delete webhooks from channel settings (admin only)',
+				'Copy webhook URL with one click for easy integration with external services',
+			]
+		},
+		{
 			version: '0.11.0',
 			date: '2026-02-15',
 			changes: [

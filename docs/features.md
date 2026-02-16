@@ -24,6 +24,16 @@ Complete reference of Chatalot's features, organized by category.
 - **GIF search** — Built-in Tenor-powered picker with search and trending, auto-sends on selection
 - **Emoji autocomplete** — Type `:shortcode` to search 250+ emoji with prefix-first ranking
 
+### Polls
+- **Channel polls** — Create polls with 2-10 options, multi-select, anonymous voting, and optional expiry (15 min to 1 week)
+- **Real-time voting** — Votes broadcast instantly via WebSocket with optimistic UI updates and animated progress bars
+- **Poll management** — Creators and admins can close polls; vote percentages and counts shown per option
+
+### Webhooks
+- **Webhook management** — Admins can create, toggle, and delete webhooks per channel from channel settings
+- **Webhook execution** — External services POST to `/api/webhooks/execute/{token}` to send messages as the webhook
+- **Copy webhook URL** — One-click copy of the full webhook endpoint URL
+
 ### Organization
 - **Message grouping** — Consecutive messages from the same sender within 5 minutes collapse (hidden avatar/name, tighter spacing, hover timestamp in gutter)
 - **Pinned messages** — Pin important messages (admin/owner only, max 50 per channel); slide-out panel to browse pins; real-time pin/unpin updates via WebSocket
@@ -153,7 +163,7 @@ All preferences sync to the server and persist across devices.
 
 - **Server**: Rust (axum + tokio), single binary serving API + WebSocket + static files
 - **Database**: PostgreSQL 17 with sqlx (34 migrations)
-- **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 16 API modules, 9 components)
+- **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 18 API modules, 9 components)
 - **Desktop client**: Tauri 2.0
 - **Deployment**: Single `docker compose up -d` — two containers (app + PostgreSQL)
 - **GIF proxy**: Server-side Tenor API proxy with DashMap caching (5-min TTL, max 200 entries)
