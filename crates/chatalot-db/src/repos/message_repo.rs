@@ -1,7 +1,16 @@
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::message::Message;
+
+/// Optional filters for message search.
+pub struct SearchFilters {
+    pub sender: Option<String>,
+    pub before: Option<DateTime<Utc>>,
+    pub after: Option<DateTime<Utc>>,
+    pub has_file: Option<bool>,
+}
 
 /// Escape ILIKE special characters to prevent wildcard injection.
 fn escape_ilike(s: &str) -> String {
@@ -110,25 +119,56 @@ pub async fn search_messages_global(
     user_id: Uuid,
     query: &str,
     limit: i64,
+    filters: &SearchFilters,
 ) -> Result<Vec<Message>, sqlx::Error> {
     let limit = limit.min(50);
     let pattern = format!("%{}%", escape_ilike(query));
-    sqlx::query_as::<_, Message>(
-        r#"
-        SELECT m.* FROM messages m
+
+    let mut sql = String::from(
+        r#"SELECT m.* FROM messages m
         INNER JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = $1
         WHERE m.deleted_at IS NULL
           AND m.quarantined_at IS NULL
-          AND convert_from(m.ciphertext, 'UTF8') ILIKE $2
-        ORDER BY m.created_at DESC
-        LIMIT $3
-        "#,
-    )
-    .bind(user_id)
-    .bind(pattern)
-    .bind(limit)
-    .fetch_all(pool)
-    .await
+          AND convert_from(m.ciphertext, 'UTF8') ILIKE $2"#,
+    );
+    let mut param_idx = 4u32; // $3 is limit
+
+    if filters.sender.is_some() {
+        sql.push_str(&format!(
+            " AND m.sender_id IN (SELECT id FROM users WHERE username ILIKE ${param_idx})"
+        ));
+        param_idx += 1;
+    }
+    if filters.after.is_some() {
+        sql.push_str(&format!(" AND m.created_at >= ${param_idx}"));
+        param_idx += 1;
+    }
+    if filters.before.is_some() {
+        sql.push_str(&format!(" AND m.created_at <= ${param_idx}"));
+        let _ = param_idx;
+    }
+    if filters.has_file == Some(true) {
+        sql.push_str(" AND m.message_type = 'file'");
+    }
+
+    sql.push_str(" ORDER BY m.created_at DESC LIMIT $3");
+
+    let mut q = sqlx::query_as::<_, Message>(&sql)
+        .bind(user_id)
+        .bind(pattern)
+        .bind(limit);
+
+    if let Some(ref sender) = filters.sender {
+        q = q.bind(format!("%{}%", escape_ilike(sender)));
+    }
+    if let Some(after) = filters.after {
+        q = q.bind(after);
+    }
+    if let Some(before) = filters.before {
+        q = q.bind(before);
+    }
+
+    q.fetch_all(pool).await
 }
 
 /// Search messages in a channel by content (plaintext search on ciphertext bytes).
@@ -139,25 +179,56 @@ pub async fn search_messages(
     channel_id: Uuid,
     query: &str,
     limit: i64,
+    filters: &SearchFilters,
 ) -> Result<Vec<Message>, sqlx::Error> {
     let limit = limit.min(50);
     let pattern = format!("%{}%", escape_ilike(query));
-    sqlx::query_as::<_, Message>(
-        r#"
-        SELECT * FROM messages
+
+    let mut sql = String::from(
+        r#"SELECT * FROM messages
         WHERE channel_id = $1
           AND deleted_at IS NULL
           AND quarantined_at IS NULL
-          AND convert_from(ciphertext, 'UTF8') ILIKE $2
-        ORDER BY created_at DESC
-        LIMIT $3
-        "#,
-    )
-    .bind(channel_id)
-    .bind(pattern)
-    .bind(limit)
-    .fetch_all(pool)
-    .await
+          AND convert_from(ciphertext, 'UTF8') ILIKE $2"#,
+    );
+    let mut param_idx = 4u32; // $3 is limit
+
+    if filters.sender.is_some() {
+        sql.push_str(&format!(
+            " AND sender_id IN (SELECT id FROM users WHERE username ILIKE ${param_idx})"
+        ));
+        param_idx += 1;
+    }
+    if filters.after.is_some() {
+        sql.push_str(&format!(" AND created_at >= ${param_idx}"));
+        param_idx += 1;
+    }
+    if filters.before.is_some() {
+        sql.push_str(&format!(" AND created_at <= ${param_idx}"));
+        let _ = param_idx;
+    }
+    if filters.has_file == Some(true) {
+        sql.push_str(" AND message_type = 'file'");
+    }
+
+    sql.push_str(" ORDER BY created_at DESC LIMIT $3");
+
+    let mut q = sqlx::query_as::<_, Message>(&sql)
+        .bind(channel_id)
+        .bind(pattern)
+        .bind(limit);
+
+    if let Some(ref sender) = filters.sender {
+        q = q.bind(format!("%{}%", escape_ilike(sender)));
+    }
+    if let Some(after) = filters.after {
+        q = q.bind(after);
+    }
+    if let Some(before) = filters.before {
+        q = q.bind(before);
+    }
+
+    q.fetch_all(pool).await
 }
 
 /// Get a single message by ID (needed for broadcast after edit/delete).

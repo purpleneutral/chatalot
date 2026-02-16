@@ -95,15 +95,31 @@ export async function getMessages(channelId: string, before?: string, limit?: nu
 	return api.get<Message[]>(`/channels/${channelId}/messages${query ? '?' + query : ''}`);
 }
 
-export async function searchMessages(channelId: string, query: string, limit?: number): Promise<Message[]> {
+export interface SearchOptions {
+	limit?: number;
+	sender?: string;
+	before?: string;
+	after?: string;
+	has_file?: boolean;
+}
+
+export async function searchMessages(channelId: string, query: string, opts?: SearchOptions): Promise<Message[]> {
 	const params = new URLSearchParams({ q: query });
-	if (limit) params.set('limit', String(limit));
+	if (opts?.limit) params.set('limit', String(opts.limit));
+	if (opts?.sender) params.set('sender', opts.sender);
+	if (opts?.before) params.set('before', opts.before);
+	if (opts?.after) params.set('after', opts.after);
+	if (opts?.has_file) params.set('has_file', 'true');
 	return api.get<Message[]>(`/channels/${channelId}/messages/search?${params.toString()}`);
 }
 
-export async function searchMessagesGlobal(query: string, limit?: number): Promise<Message[]> {
+export async function searchMessagesGlobal(query: string, opts?: SearchOptions): Promise<Message[]> {
 	const params = new URLSearchParams({ q: query });
-	if (limit) params.set('limit', String(limit));
+	if (opts?.limit) params.set('limit', String(opts.limit));
+	if (opts?.sender) params.set('sender', opts.sender);
+	if (opts?.before) params.set('before', opts.before);
+	if (opts?.after) params.set('after', opts.after);
+	if (opts?.has_file) params.set('has_file', 'true');
 	return api.get<Message[]>(`/messages/search?${params.toString()}`);
 }
 

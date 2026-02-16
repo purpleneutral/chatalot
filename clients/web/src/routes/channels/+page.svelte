@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type ChannelMember, type Message, type ReactionInfo } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type ChannelMember, type Message, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
 	import { searchUsers, listBlockedUsers, createReport, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
@@ -468,6 +468,11 @@
 	let searchError = $state(false);
 	let searchScope = $state<'channel' | 'global'>('channel');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+	let showSearchFilters = $state(false);
+	let searchFilterSender = $state('');
+	let searchFilterAfter = $state('');
+	let searchFilterBefore = $state('');
+	let searchFilterHasFile = $state(false);
 
 	// Infinite scroll state
 	let loadingOlder = $state(false);
@@ -3212,10 +3217,15 @@
 			if (searchScope === 'channel' && !channelStore.activeChannelId) return;
 			searching = true;
 			searchError = false;
+			const opts: SearchOptions = {};
+			if (searchFilterSender.trim()) opts.sender = searchFilterSender.trim();
+			if (searchFilterAfter) opts.after = new Date(searchFilterAfter).toISOString();
+			if (searchFilterBefore) opts.before = new Date(searchFilterBefore + 'T23:59:59').toISOString();
+			if (searchFilterHasFile) opts.has_file = true;
 			try {
 				const raw = searchScope === 'global'
-					? await searchMessagesGlobal(q)
-					: await searchMessages(channelStore.activeChannelId!, q);
+					? await searchMessagesGlobal(q, opts)
+					: await searchMessages(channelStore.activeChannelId!, q, opts);
 				searchResults = await Promise.all(raw.reverse().map(async (m) => ({
 					id: m.id,
 					channelId: m.channel_id,
@@ -4673,6 +4683,59 @@
 								{searchScope === 'global' ? 'All' : 'Channel'}
 							</button>
 						</div>
+						<!-- Filter toggle + filter controls -->
+						<div class="mt-2 flex items-center gap-2">
+							<button
+								onclick={() => showSearchFilters = !showSearchFilters}
+								class="text-xs transition {showSearchFilters ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
+							>
+								{showSearchFilters ? 'Hide filters' : 'Filters'}
+							</button>
+							{#if searchFilterSender || searchFilterAfter || searchFilterBefore || searchFilterHasFile}
+								<button
+									onclick={() => { searchFilterSender = ''; searchFilterAfter = ''; searchFilterBefore = ''; searchFilterHasFile = false; if (searchQuery.trim()) handleSearchInput(); }}
+									class="text-xs text-[var(--danger)] hover:underline"
+								>Clear</button>
+							{/if}
+						</div>
+						{#if showSearchFilters}
+							<div class="mt-2 grid grid-cols-2 gap-2" transition:slide={{ duration: 150 }}>
+								<div>
+									<label class="mb-0.5 block text-[10px] text-[var(--text-secondary)]">From user</label>
+									<input
+										type="text"
+										bind:value={searchFilterSender}
+										onchange={handleSearchInput}
+										placeholder="username"
+										class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									/>
+								</div>
+								<div class="flex items-end">
+									<label class="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+										<input type="checkbox" bind:checked={searchFilterHasFile} onchange={handleSearchInput} class="accent-[var(--accent)]" />
+										Has file
+									</label>
+								</div>
+								<div>
+									<label class="mb-0.5 block text-[10px] text-[var(--text-secondary)]">After</label>
+									<input
+										type="date"
+										bind:value={searchFilterAfter}
+										onchange={handleSearchInput}
+										class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									/>
+								</div>
+								<div>
+									<label class="mb-0.5 block text-[10px] text-[var(--text-secondary)]">Before</label>
+									<input
+										type="date"
+										bind:value={searchFilterBefore}
+										onchange={handleSearchInput}
+										class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									/>
+								</div>
+							</div>
+						{/if}
 						{#if searching}
 							<p class="mt-2 text-xs text-[var(--text-secondary)]">Searching...</p>
 						{:else if searchError}

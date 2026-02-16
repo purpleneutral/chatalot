@@ -218,6 +218,10 @@ pub struct MessagesQuery {
 pub struct SearchQuery {
     pub q: String,
     pub limit: Option<i64>,
+    pub sender: Option<String>,
+    pub before: Option<String>,
+    pub after: Option<String>,
+    pub has_file: Option<bool>,
 }
 
 // ── DMs ──

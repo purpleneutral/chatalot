@@ -16,7 +16,26 @@ use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 use crate::permissions;
 
+use message_repo::SearchFilters;
+
 const MAX_PINS_PER_CHANNEL: i64 = 50;
+
+fn build_search_filters(query: &SearchQuery) -> SearchFilters {
+    SearchFilters {
+        sender: query.sender.clone(),
+        before: query
+            .before
+            .as_deref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|d| d.with_timezone(&chrono::Utc)),
+        after: query
+            .after
+            .as_deref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|d| d.with_timezone(&chrono::Utc)),
+        has_file: query.has_file,
+    }
+}
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -65,7 +84,9 @@ async fn search_messages(
     }
 
     let limit = query.limit.unwrap_or(20).min(50);
-    let messages = message_repo::search_messages(&state.db, channel_id, &query.q, limit).await?;
+    let filters = build_search_filters(&query);
+    let messages =
+        message_repo::search_messages(&state.db, channel_id, &query.q, limit, &filters).await?;
 
     let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
     Ok(Json(messages_to_responses(messages, reactions_map)))
@@ -83,8 +104,10 @@ async fn global_search_messages(
     }
 
     let limit = query.limit.unwrap_or(20).min(50);
+    let filters = build_search_filters(&query);
     let messages =
-        message_repo::search_messages_global(&state.db, claims.sub, &query.q, limit).await?;
+        message_repo::search_messages_global(&state.db, claims.sub, &query.q, limit, &filters)
+            .await?;
 
     let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
     Ok(Json(messages_to_responses(messages, reactions_map)))
