@@ -252,6 +252,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 				username: msg.other_user_username,
 				display_name: msg.other_user_display_name,
 				avatar_url: msg.other_user_avatar_url,
+				banner_url: null,
 				status: 'online',
 				custom_status: null
 			});
@@ -274,6 +275,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 							username: msg.other_user_username,
 							display_name: msg.other_user_display_name,
 							avatar_url: msg.other_user_avatar_url,
+							banner_url: null,
 							status: 'online',
 							custom_status: null
 						}
@@ -377,8 +379,8 @@ export async function handleServerMessage(msg: ServerMessage) {
 				const seconds = match ? parseInt(match[1], 10) : 5;
 				window.dispatchEvent(new CustomEvent('chatalot:slow-mode', { detail: { seconds } }));
 			} else if (msg.code === 'timed_out') {
-				const { addToast } = await import('$lib/stores/toast.svelte');
-				addToast(msg.message, 'error');
+				const { toastStore } = await import('$lib/stores/toast.svelte');
+				toastStore.error(msg.message);
 			}
 			break;
 		}

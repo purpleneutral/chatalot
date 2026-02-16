@@ -557,6 +557,7 @@
 					username: m.username,
 					display_name: m.display_name,
 					avatar_url: m.avatar_url,
+					banner_url: null,
 					status: 'online',
 					custom_status: null
 				})));
@@ -1140,7 +1141,12 @@
 				topic: dm.channel.topic,
 				created_by: dm.channel.created_by,
 				created_at: dm.channel.created_at,
-				group_id: null
+				group_id: null,
+				read_only: false,
+				slow_mode_seconds: 0,
+				discoverable: false,
+				archived: false,
+				voice_background: null
 			});
 		}
 	}
@@ -1227,6 +1233,7 @@
 					username: m.username,
 					display_name: m.display_name,
 					avatar_url: m.avatar_url,
+					banner_url: null,
 					status: 'online',
 					custom_status: null
 				})));
@@ -1335,6 +1342,7 @@
 						username: m.username,
 						display_name: m.display_name,
 						avatar_url: m.avatar_url,
+						banner_url: null,
 						status: 'online',
 						custom_status: null
 					})));
@@ -5321,7 +5329,7 @@
 											<span class="text-xs font-bold text-yellow-400">@</span>
 										</div>
 										<span class="font-semibold text-yellow-400">@{member.username}</span>
-										<span class="text-xs opacity-50">{member.description}</span>
+										<span class="text-xs opacity-50">{(member as any).description}</span>
 									{:else}
 										<Avatar userId={member.user_id} size="xs" />
 										<span class="font-medium">{member.display_name}</span>
