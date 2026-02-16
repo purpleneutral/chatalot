@@ -48,6 +48,11 @@ export type ServerMessage =
 	| { type: 'sender_key_updated'; channel_id: string; user_id: string; chain_id: number; distribution: object }
 	| { type: 'sender_key_rotation_required'; channel_id: string; reason: string }
 	| { type: 'user_timed_out'; channel_id: string; user_id: string; expires_at: string; reason: string | null }
+	| { type: 'poll_created'; poll_id: string; channel_id: string; created_by: string; question: string }
+	| { type: 'poll_voted'; poll_id: string; channel_id: string; option_index: number; voter_id: string | null }
+	| { type: 'poll_closed'; poll_id: string; channel_id: string }
+	| { type: 'user_warned'; channel_id: string; user_id: string; reason: string; warning_count: number }
+	| { type: 'announcement'; id: string; title: string; body: string; created_by: string; created_at: string }
 	| { type: 'error'; code: string; message: string }
 	| { type: 'pong'; timestamp: number }
 	| { type: 'keys_low'; remaining: number };

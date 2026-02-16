@@ -1,7 +1,36 @@
 import { authStore } from '$lib/stores/auth.svelte';
 import { apiBase } from '$lib/env';
 
+const MAX_RETRIES = 2;
+const RETRY_STATUSES = new Set([502, 503, 504]);
+
 class ApiClient {
+	/** Fetch with exponential backoff on transient failures (502/503/504 or network error). */
+	private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+			try {
+				const response = await fetch(url, init);
+				if (attempt < MAX_RETRIES && RETRY_STATUSES.has(response.status)) {
+					await this.delay(300 * 2 ** attempt);
+					continue;
+				}
+				return response;
+			} catch (err) {
+				lastError = err;
+				if (attempt < MAX_RETRIES) {
+					await this.delay(300 * 2 ** attempt);
+					continue;
+				}
+			}
+		}
+		throw lastError;
+	}
+
+	private delay(ms: number): Promise<void> {
+		return new Promise(r => setTimeout(r, ms));
+	}
+
 	private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
@@ -14,7 +43,7 @@ class ApiClient {
 		}
 
 		const base = apiBase();
-		const response = await fetch(`${base}${path}`, {
+		const response = await this.fetchWithRetry(`${base}${path}`, {
 			...options,
 			headers
 		});
@@ -24,7 +53,7 @@ class ApiClient {
 			const refreshed = await this.refreshToken();
 			if (refreshed) {
 				headers['Authorization'] = `Bearer ${authStore.accessToken}`;
-				const retryResponse = await fetch(`${base}${path}`, {
+				const retryResponse = await this.fetchWithRetry(`${base}${path}`, {
 					...options,
 					headers
 				});

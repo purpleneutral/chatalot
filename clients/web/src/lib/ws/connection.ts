@@ -6,6 +6,13 @@ declare const __APP_VERSION__: string;
 
 type MessageHandler = (msg: ServerMessage) => void | Promise<void>;
 
+// Message types that should be queued when offline (user-initiated actions)
+const QUEUEABLE_TYPES = new Set([
+	'send_message', 'edit_message', 'delete_message',
+	'add_reaction', 'remove_reaction', 'mark_read',
+	'typing', 'stop_typing'
+]);
+
 class WebSocketClient {
 	private ws: WebSocket | null = null;
 	private reconnectAttempts = 0;
@@ -15,6 +22,7 @@ class WebSocketClient {
 	private authenticatedCallback: (() => void) | null = null;
 	private connected = false;
 	private _reconnecting = false;
+	private offlineQueue: ClientMessage[] = [];
 
 	get isConnected(): boolean {
 		return this.connected;
@@ -80,6 +88,7 @@ class WebSocketClient {
 	disconnect() {
 		this.stopHeartbeat();
 		this._reconnecting = false;
+		this.offlineQueue.length = 0;
 		this.ws?.close();
 		this.ws = null;
 		this.connected = false;
@@ -90,7 +99,21 @@ class WebSocketClient {
 			this.ws.send(JSON.stringify(msg));
 			return true;
 		}
+		// Queue user-initiated messages for delivery on reconnect
+		if (QUEUEABLE_TYPES.has(msg.type) && this.offlineQueue.length < 50) {
+			this.offlineQueue.push(msg);
+		}
 		return false;
+	}
+
+	private flushQueue() {
+		if (this.offlineQueue.length === 0) return;
+		const queued = this.offlineQueue.splice(0);
+		for (const msg of queued) {
+			// Drop stale typing indicators (only useful in real-time)
+			if (msg.type === 'typing' || msg.type === 'stop_typing') continue;
+			this.send(msg);
+		}
 	}
 
 	private dispatch(msg: ServerMessage) {
@@ -100,6 +123,9 @@ class WebSocketClient {
 			this._reconnecting = false;
 			this.startHeartbeat();
 			this.authenticatedCallback?.();
+
+			// Deliver any messages queued while offline
+			this.flushQueue();
 
 			if (wasReconnecting) {
 				window.dispatchEvent(new CustomEvent('chatalot:connection', { detail: 'connected' }));

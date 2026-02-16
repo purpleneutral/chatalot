@@ -293,6 +293,53 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		// Polls
+		case 'poll_created': {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:poll-created', {
+					detail: { pollId: msg.poll_id, channelId: msg.channel_id, createdBy: msg.created_by, question: msg.question }
+				})
+			);
+			break;
+		}
+
+		case 'poll_voted': {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:poll-voted', {
+					detail: { pollId: msg.poll_id, channelId: msg.channel_id, optionIndex: msg.option_index, voterId: msg.voter_id }
+				})
+			);
+			break;
+		}
+
+		case 'poll_closed': {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:poll-closed', {
+					detail: { pollId: msg.poll_id, channelId: msg.channel_id }
+				})
+			);
+			break;
+		}
+
+		// Moderation
+		case 'user_warned': {
+			if (msg.user_id === authStore.user?.id) {
+				toastStore.error(`You received a warning: ${msg.reason} (${msg.warning_count} total)`);
+			}
+			break;
+		}
+
+		// Announcements
+		case 'announcement': {
+			toastStore.info(`Announcement: ${msg.title}`);
+			window.dispatchEvent(
+				new CustomEvent('chatalot:announcement', {
+					detail: { id: msg.id, title: msg.title, body: msg.body, createdBy: msg.created_by, createdAt: msg.created_at }
+				})
+			);
+			break;
+		}
+
 		case 'sender_key_updated': {
 			// Another user uploaded/rotated their sender key
 			if (msg.user_id !== authStore.user?.id) {

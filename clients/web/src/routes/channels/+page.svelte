@@ -28,6 +28,8 @@
 	import { listCommunities, listCommunityGroups, listMembers as listCommunityMembers, createCommunity, getInviteInfo as getCommunityInviteInfo, acceptInvite as acceptCommunityInvite, type Community } from '$lib/api/communities';
 	import { getPinnedMessages, pinMessage as apiPinMessage, unpinMessage as apiUnpinMessage, type PinnedMessage } from '$lib/api/channels';
 	import { searchGifs, getTrendingGifs, type GifResult } from '$lib/api/gifs';
+	import { addBookmark, removeBookmark as apiRemoveBookmark, listBookmarks } from '$lib/api/bookmarks';
+	import { bookmarkStore } from '$lib/stores/bookmarks.svelte';
 	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { searchEmoji } from '$lib/utils/emoji';
@@ -794,8 +796,9 @@
 				communityMemberStore.setMembers(communityStore.activeCommunityId, communityMembers);
 			}
 
-			// Load server-synced preferences
+			// Load server-synced preferences + bookmarks
 			preferencesStore.loadFromServer();
+			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch(() => {});
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
@@ -1677,6 +1680,26 @@
 			toastStore.success('Message text copied');
 		}
 		contextMenuMessageId = null;
+	}
+
+	async function toggleBookmark(messageId: string) {
+		contextMenuMessageId = null;
+		if (bookmarkStore.isBookmarked(messageId)) {
+			const bookmark = bookmarkStore.getByMessageId(messageId);
+			if (bookmark) {
+				try {
+					await apiRemoveBookmark(bookmark.id);
+					bookmarkStore.removeBookmark(bookmark.id);
+					toastStore.success('Bookmark removed');
+				} catch { toastStore.error('Failed to remove bookmark'); }
+			}
+		} else {
+			try {
+				const bookmark = await addBookmark(messageId);
+				bookmarkStore.addBookmark(bookmark);
+				toastStore.success('Message bookmarked');
+			} catch { toastStore.error('Failed to bookmark message'); }
+		}
 	}
 
 	async function saveTopic() {
@@ -4519,6 +4542,18 @@
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
 								Copy Text
+							</button>
+							<button
+								onclick={() => toggleBookmark(ctxMsg.id)}
+								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm {bookmarkStore.isBookmarked(ctxMsg.id) ? 'text-yellow-400' : 'text-[var(--text-primary)]'} hover:bg-white/5"
+							>
+								{#if bookmarkStore.isBookmarked(ctxMsg.id)}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+									Remove Bookmark
+								{:else}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+									Bookmark
+								{/if}
 							</button>
 							{#if (myRole === 'owner' || myRole === 'admin') && channelStore.activeChannelId}
 								<div class="my-1 border-t border-white/10"></div>
