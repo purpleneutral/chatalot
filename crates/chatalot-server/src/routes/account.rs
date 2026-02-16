@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use chatalot_common::api_types::{
     AnnouncementResponse, ChangePasswordRequest, DeleteAccountRequest, LogoutAllResponse,
-    PreferencesResponse, SessionResponse, UpdatePreferencesRequest, UpdateProfileRequest,
-    UserPublic,
+    PreferencesResponse, RegenerateRecoveryCodeResponse, SessionResponse,
+    UpdatePreferencesRequest, UpdateProfileRequest, UserPublic,
 };
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{announcement_repo, group_repo, preferences_repo, user_repo};
@@ -36,6 +36,10 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route(
             "/account/preferences",
             get(get_preferences).put(update_preferences),
+        )
+        .route(
+            "/account/regenerate-recovery-code",
+            post(regenerate_recovery_code),
         )
         .route("/account/announcements", get(get_announcements))
         .route(
@@ -110,6 +114,37 @@ async fn change_password(
     .await?;
 
     Ok(())
+}
+
+/// Regenerate the recovery code for the authenticated user.
+async fn regenerate_recovery_code(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<RegenerateRecoveryCodeResponse>, AppError> {
+    // Verify user exists
+    let _user = user_repo::find_by_id(&state.db, claims.sub)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    // Generate new recovery code
+    let (new_code, new_hash) = auth_service::generate_recovery_code();
+    user_repo::set_recovery_code_hash(&state.db, claims.sub, &new_hash).await?;
+
+    // Audit log
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "recovery_code_regenerated",
+        None,
+        None,
+        None,
+    )
+    .await?;
+
+    Ok(Json(RegenerateRecoveryCodeResponse {
+        recovery_code: new_code,
+    }))
 }
 
 async fn update_profile(

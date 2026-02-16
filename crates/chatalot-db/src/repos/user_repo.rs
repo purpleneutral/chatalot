@@ -479,3 +479,77 @@ pub async fn insert_audit_log(
     .await?;
     Ok(())
 }
+
+// ── Recovery Codes ──
+
+/// Store a hashed recovery code for a user.
+pub async fn set_recovery_code_hash(
+    pool: &PgPool,
+    user_id: Uuid,
+    hash: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET recovery_code_hash = $1 WHERE id = $2")
+        .bind(hash)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Get a user's ID and recovery code hash by username (for account recovery).
+pub async fn get_user_for_recovery(
+    pool: &PgPool,
+    username: &str,
+) -> Result<Option<(Uuid, Option<String>)>, sqlx::Error> {
+    let row: Option<(Uuid, Option<String>)> =
+        sqlx::query_as("SELECT id, recovery_code_hash FROM users WHERE username = $1 AND suspended_at IS NULL")
+            .bind(username)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row)
+}
+
+// ── TOTP Backup Codes ──
+
+/// Store hashed TOTP backup codes for a user.
+pub async fn set_totp_backup_codes(
+    pool: &PgPool,
+    user_id: Uuid,
+    hashed_codes: &[String],
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET totp_backup_codes = $1 WHERE id = $2")
+        .bind(hashed_codes)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Get TOTP backup codes for a user.
+pub async fn get_totp_backup_codes(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Option<Vec<String>>, sqlx::Error> {
+    let row: Option<(Option<Vec<String>>,)> =
+        sqlx::query_as("SELECT totp_backup_codes FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.and_then(|r| r.0))
+}
+
+/// Remove a used backup code from the array.
+pub async fn consume_totp_backup_code(
+    pool: &PgPool,
+    user_id: Uuid,
+    code_hash: &str,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE users SET totp_backup_codes = array_remove(totp_backup_codes, $1) WHERE id = $2 AND $1 = ANY(totp_backup_codes)",
+    )
+    .bind(code_hash)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}

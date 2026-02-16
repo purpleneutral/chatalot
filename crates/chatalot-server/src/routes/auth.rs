@@ -5,10 +5,13 @@ use axum::http::HeaderMap;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 
+use sha2::{Digest, Sha256};
+
 use chatalot_common::api_types::{
-    AuthResponse, LoginRequest, RefreshRequest, RegisterRequest, ServerConfigResponse,
-    TokenResponse,
+    AuthResponse, LoginRequest, RecoverAccountRequest, RecoverAccountResponse, RefreshRequest,
+    RegisterRequest, ServerConfigResponse, TokenResponse,
 };
+use chatalot_db::repos::user_repo;
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -19,6 +22,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
+        .route("/auth/recover", post(recover_account))
         .route("/auth/config", get(server_config))
 }
 
@@ -149,4 +153,79 @@ async fn refresh(
     let response =
         auth_service::refresh_token(&state, req, device.as_deref(), ip.as_deref()).await?;
     Ok(Json(response))
+}
+
+/// Recover account using a recovery code (self-service password reset).
+async fn recover_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<RecoverAccountRequest>,
+) -> Result<Json<RecoverAccountResponse>, AppError> {
+    // Validate input lengths
+    if req.username.len() > 32 || req.recovery_code.len() > 25 {
+        return Err(AppError::Validation("invalid request".to_string()));
+    }
+
+    // Check account lockout (reuse login lockout to prevent brute-force)
+    let ip = extract_client_ip(&headers);
+    let lockout_key = format!("recover:{}", req.username);
+    if let Some(remaining) = auth_service::check_lockout_by_key(&lockout_key) {
+        return Err(AppError::Validation(format!(
+            "too many attempts — try again in {remaining} seconds"
+        )));
+    }
+
+    // Look up user
+    let (user_id, recovery_hash) = match user_repo::get_user_for_recovery(&state.db, &req.username).await? {
+        Some((id, Some(hash))) => (id, hash),
+        _ => {
+            // Record failed attempt but don't reveal whether user exists
+            auth_service::record_failed_attempt(&lockout_key);
+            return Err(AppError::Validation(
+                "invalid username or recovery code".to_string(),
+            ));
+        }
+    };
+
+    // Verify recovery code (constant-time via hash comparison)
+    let provided_hash = hex::encode(Sha256::digest(req.recovery_code.as_bytes()));
+    if provided_hash != recovery_hash {
+        auth_service::record_failed_attempt(&lockout_key);
+        return Err(AppError::Validation(
+            "invalid username or recovery code".to_string(),
+        ));
+    }
+
+    // Validate new password
+    auth_service::validate_password_public(&req.new_password)?;
+
+    // Hash new password and update
+    let new_hash = auth_service::hash_password_public(&req.new_password)?;
+    user_repo::update_password(&state.db, user_id, &new_hash).await?;
+
+    // Revoke all refresh tokens
+    user_repo::revoke_all_refresh_tokens(&state.db, user_id).await?;
+
+    // Generate new recovery code
+    let (new_code, new_hash) = auth_service::generate_recovery_code();
+    user_repo::set_recovery_code_hash(&state.db, user_id, &new_hash).await?;
+
+    // Clear lockout on success
+    auth_service::clear_lockout_by_key(&lockout_key);
+
+    // Audit log
+    user_repo::insert_audit_log(
+        &state.db,
+        uuid::Uuid::now_v7(),
+        Some(user_id),
+        "account_recovered",
+        ip.as_deref(),
+        None,
+        None,
+    )
+    .await?;
+
+    Ok(Json(RecoverAccountResponse {
+        recovery_code: new_code,
+    }))
 }

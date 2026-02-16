@@ -21,6 +21,8 @@ pub struct User {
     pub pronouns: Option<String>,
     pub suspended_at: Option<DateTime<Utc>>,
     pub suspended_reason: Option<String>,
+    pub recovery_code_hash: Option<String>,
+    pub totp_backup_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

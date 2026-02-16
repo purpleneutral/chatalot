@@ -81,6 +81,31 @@ fn clear_lockout(username: &str) {
     LOGIN_ATTEMPTS.remove(username);
 }
 
+/// Check lockout by arbitrary key (for account recovery rate limiting).
+pub fn check_lockout_by_key(key: &str) -> Option<i64> {
+    check_lockout(key)
+}
+
+/// Record a failed attempt by arbitrary key.
+pub fn record_failed_attempt(key: &str) {
+    record_failed_login(key);
+}
+
+/// Clear lockout by arbitrary key.
+pub fn clear_lockout_by_key(key: &str) {
+    clear_lockout(key);
+}
+
+/// Validate password complexity (public wrapper).
+pub fn validate_password_public(password: &str) -> Result<(), AppError> {
+    validate_password(password)
+}
+
+/// Hash a password with Argon2id (public wrapper).
+pub fn hash_password_public(password: &str) -> Result<String, AppError> {
+    hash_password(password)
+}
+
 /// Hash a password with Argon2id.
 pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
@@ -113,6 +138,48 @@ fn generate_refresh_token() -> (Vec<u8>, Vec<u8>) {
     let hash = hasher.finalize().to_vec();
 
     (token, hash)
+}
+
+/// Generate a recovery code in XXXX-XXXX-XXXX-XXXX format and its SHA-256 hash.
+pub fn generate_recovery_code() -> (String, String) {
+    const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 for readability
+    let mut rng = OsRng;
+    let mut code_chars = Vec::with_capacity(19); // 16 chars + 3 dashes
+    for i in 0..16 {
+        if i > 0 && i % 4 == 0 {
+            code_chars.push(b'-');
+        }
+        let mut byte = [0u8; 1];
+        rng.fill_bytes(&mut byte);
+        code_chars.push(CHARSET[(byte[0] as usize) % CHARSET.len()]);
+    }
+    let code = String::from_utf8(code_chars).expect("valid ascii");
+    let hash = hex::encode(Sha256::digest(code.as_bytes()));
+    (code, hash)
+}
+
+/// Generate a batch of TOTP backup codes (XXXX-XXXX format) and their hashes.
+pub fn generate_backup_codes(count: usize) -> (Vec<String>, Vec<String>) {
+    const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = OsRng;
+    let mut codes = Vec::with_capacity(count);
+    let mut hashes = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut code_chars = Vec::with_capacity(9); // 8 chars + 1 dash
+        for i in 0..8 {
+            if i == 4 {
+                code_chars.push(b'-');
+            }
+            let mut byte = [0u8; 1];
+            rng.fill_bytes(&mut byte);
+            code_chars.push(CHARSET[(byte[0] as usize) % CHARSET.len()]);
+        }
+        let code = String::from_utf8(code_chars).expect("valid ascii");
+        let hash = hex::encode(Sha256::digest(code.as_bytes()));
+        codes.push(code);
+        hashes.push(hash);
+    }
+    (codes, hashes)
 }
 
 /// Issue a JWT access token.
@@ -370,6 +437,10 @@ pub async fn register(
     )
     .await?;
 
+    // Generate and store recovery code
+    let (recovery_code, recovery_hash) = generate_recovery_code();
+    user_repo::set_recovery_code_hash(&state.db, user.id, &recovery_hash).await?;
+
     // Audit log
     user_repo::insert_audit_log(
         &state.db,
@@ -389,6 +460,7 @@ pub async fn register(
         access_token,
         refresh_token: refresh_token_hex,
         user: user_to_public(&user, is_admin, is_owner),
+        recovery_code: Some(recovery_code),
     })
 }
 
@@ -427,7 +499,7 @@ pub async fn login(
         return Err(AppError::Unauthorized);
     }
 
-    // TOTP verification
+    // TOTP verification (with backup code fallback)
     if user.totp_enabled {
         let code = req
             .totp_code
@@ -437,23 +509,43 @@ pub async fn login(
             .totp_secret
             .as_ref()
             .ok_or_else(|| AppError::Internal("totp_enabled but no secret".to_string()))?;
-        if !crate::routes::totp::verify_totp_code(
+        let totp_ok = crate::routes::totp::verify_totp_code(
             totp_secret,
             code,
             &state.config.totp_encryption_key,
-        )? {
-            record_failed_login(&req.username);
+        )?;
+
+        if !totp_ok {
+            // Try backup code fallback
+            let code_hash = hex::encode(Sha256::digest(code.as_bytes()));
+            let backup_ok =
+                user_repo::consume_totp_backup_code(&state.db, user.id, &code_hash).await?;
+
+            if !backup_ok {
+                record_failed_login(&req.username);
+                user_repo::insert_audit_log(
+                    &state.db,
+                    Uuid::now_v7(),
+                    Some(user.id),
+                    "login_failed_2fa",
+                    None,
+                    None,
+                    None,
+                )
+                .await?;
+                return Err(AppError::Unauthorized);
+            }
+            // Backup code consumed successfully — log it
             user_repo::insert_audit_log(
                 &state.db,
                 Uuid::now_v7(),
                 Some(user.id),
-                "login_failed_2fa",
+                "login_backup_code_used",
                 None,
                 None,
                 None,
             )
             .await?;
-            return Err(AppError::Unauthorized);
         }
     }
 
@@ -504,6 +596,7 @@ pub async fn login(
         access_token,
         refresh_token: refresh_token_hex,
         user: user_to_public(&user, user.is_admin, user.is_owner),
+        recovery_code: None,
     })
 }
 

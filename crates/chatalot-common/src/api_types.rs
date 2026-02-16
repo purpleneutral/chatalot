@@ -49,6 +49,27 @@ pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub user: UserPublic,
+    /// Recovery code shown once at registration (not included on login)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_code: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecoverAccountRequest {
+    pub username: String,
+    pub recovery_code: String,
+    pub new_password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecoverAccountResponse {
+    /// New recovery code (the previous one is invalidated)
+    pub recovery_code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegenerateRecoveryCodeResponse {
+    pub recovery_code: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -241,6 +262,18 @@ pub struct TotpSetupResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TotpVerifyRequest {
     pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TotpEnableResponse {
+    pub enabled: bool,
+    /// One-time backup codes for account recovery if TOTP device is lost
+    pub backup_codes: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BackupCodesResponse {
+    pub backup_codes: Vec<String>,
 }
 
 // ── Users ──

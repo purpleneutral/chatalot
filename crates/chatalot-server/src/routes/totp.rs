@@ -6,18 +6,23 @@ use axum::{Extension, Json, Router};
 use sha2::Digest;
 use totp_rs::{Algorithm, Secret, TOTP};
 
-use chatalot_common::api_types::{TotpSetupResponse, TotpVerifyRequest};
+use chatalot_common::api_types::{BackupCodesResponse, TotpEnableResponse, TotpSetupResponse, TotpVerifyRequest};
 use chatalot_db::repos::user_repo;
 
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
+use crate::services::auth_service;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/totp/setup", post(setup_totp))
         .route("/totp/verify", post(verify_totp))
         .route("/totp/disable", post(disable_totp))
+        .route(
+            "/totp/regenerate-backup-codes",
+            post(regenerate_backup_codes),
+        )
 }
 
 /// Generate a TOTP secret and return the otpauth URI for QR code display.
@@ -66,12 +71,12 @@ async fn setup_totp(
     }))
 }
 
-/// Verify a TOTP code to enable 2FA.
+/// Verify a TOTP code to enable 2FA. Returns backup codes on success.
 async fn verify_totp(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
     Json(req): Json<TotpVerifyRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<TotpEnableResponse>, AppError> {
     let user = user_repo::find_by_id(&state.db, claims.sub)
         .await?
         .ok_or(AppError::Unauthorized)?;
@@ -103,7 +108,14 @@ async fn verify_totp(
     // Enable TOTP
     user_repo::enable_totp(&state.db, claims.sub).await?;
 
-    Ok(Json(serde_json::json!({ "enabled": true })))
+    // Generate backup codes
+    let (codes, hashes) = auth_service::generate_backup_codes(8);
+    user_repo::set_totp_backup_codes(&state.db, claims.sub, &hashes).await?;
+
+    Ok(Json(TotpEnableResponse {
+        enabled: true,
+        backup_codes: codes,
+    }))
 }
 
 /// Disable 2FA (requires a valid code).
@@ -146,7 +158,57 @@ async fn disable_totp(
 
     user_repo::disable_totp(&state.db, claims.sub).await?;
 
+    // Clear backup codes since TOTP is disabled
+    user_repo::set_totp_backup_codes(&state.db, claims.sub, &[]).await?;
+
     Ok(Json(serde_json::json!({ "enabled": false })))
+}
+
+/// Regenerate backup codes (requires a valid TOTP code).
+async fn regenerate_backup_codes(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(req): Json<TotpVerifyRequest>,
+) -> Result<Json<BackupCodesResponse>, AppError> {
+    let user = user_repo::find_by_id(&state.db, claims.sub)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    if !user.totp_enabled {
+        return Err(AppError::Validation("2FA is not enabled".to_string()));
+    }
+
+    let stored_secret = user
+        .totp_secret
+        .ok_or_else(|| AppError::Internal("totp_enabled but no secret".to_string()))?;
+
+    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key);
+
+    let totp = TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        secret_bytes,
+        Some("Chatalot".to_string()),
+        user.username.clone(),
+    )
+    .map_err(|e| AppError::Internal(format!("totp init: {e}")))?;
+
+    if !totp
+        .check_current(&req.code)
+        .map_err(|e| AppError::Internal(format!("totp check: {e}")))?
+    {
+        return Err(AppError::Validation("invalid TOTP code".to_string()));
+    }
+
+    // Generate new backup codes (replaces old ones)
+    let (codes, hashes) = auth_service::generate_backup_codes(8);
+    user_repo::set_totp_backup_codes(&state.db, claims.sub, &hashes).await?;
+
+    Ok(Json(BackupCodesResponse {
+        backup_codes: codes,
+    }))
 }
 
 /// Verify a TOTP code during login (used by auth_service).
