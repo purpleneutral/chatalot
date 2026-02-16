@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.9',
+			date: '2026-02-16',
+			changes: [
+				'Real-time: profile changes (avatar, name, status) now broadcast instantly to all connected users',
+				'Real-time: channel settings, group settings, and community settings updates broadcast live',
+				'Real-time: channel and group deletions reflected immediately without page reload',
+				'UX: confirmation dialogs on invite and emoji deletion, disabled button styling',
+				'Fix: admin page search timer cleanup on navigation, audio device error logging',
+			]
+		},
+		{
 			version: '0.13.8',
 			date: '2026-02-16',
 			changes: [
