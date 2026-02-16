@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
@@ -99,12 +100,22 @@
 		}
 	});
 
+	onDestroy(() => {
+		for (const userId of userGains.keys()) {
+			cleanupGainNode(userId);
+		}
+		if (audioCtx) {
+			audioCtx.close();
+			audioCtx = null;
+		}
+	});
+
 	// Apply output device changes to all audio elements
 	$effect(() => {
 		const sinkId = audioDeviceStore.selectedOutputId;
 		for (const [, el] of audioEls) {
 			if (el && 'setSinkId' in el) {
-				(el as AudioElementWithSinkId).setSinkId(sinkId).catch(() => {});
+				(el as AudioElementWithSinkId).setSinkId(sinkId).catch((e) => console.warn('setSinkId failed:', e));
 			}
 		}
 	});

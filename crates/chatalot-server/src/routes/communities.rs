@@ -275,8 +275,13 @@ async fn accept_community_invite(
         ));
     }
 
+    // Atomically increment invite usage (checks max_uses in WHERE clause)
+    let incremented =
+        community_repo::increment_community_invite_usage(&state.db, invite.id).await?;
+    if !incremented {
+        return Err(AppError::Validation("invite fully used".to_string()));
+    }
     community_repo::join_community(&state.db, invite.community_id, claims.sub).await?;
-    community_repo::increment_community_invite_usage(&state.db, invite.id).await?;
 
     // Groups are isolated — new members must be explicitly invited to groups
 

@@ -1149,11 +1149,14 @@ async fn accept_invite(
         ));
     }
 
+    // Atomically increment invite usage (checks max_uses in WHERE clause)
+    let incremented = invite_repo::increment_usage(&state.db, invite.id).await?;
+    if !incremented {
+        return Err(AppError::Validation("invite fully used".to_string()));
+    }
+
     // Join the group
     group_repo::join_group(&state.db, invite.group_id, claims.sub).await?;
-
-    // Increment usage
-    invite_repo::increment_usage(&state.db, invite.id).await?;
 
     Ok(Json(AcceptInviteResponse {
         group_id: group.id,

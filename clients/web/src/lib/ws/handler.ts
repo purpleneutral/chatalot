@@ -9,6 +9,8 @@ import { webrtcManager } from '$lib/webrtc/manager';
 import { soundStore } from '$lib/stores/sound.svelte';
 import { notificationStore } from '$lib/stores/notification.svelte';
 import { userStore } from '$lib/stores/users.svelte';
+import { groupStore } from '$lib/stores/groups.svelte';
+import { communityStore } from '$lib/stores/communities.svelte';
 import { detectMentions } from '$lib/utils/mentions';
 import { getUser } from '$lib/api/users';
 import { wsClient } from './connection';
@@ -349,36 +351,26 @@ export async function handleServerMessage(msg: ServerMessage) {
 		}
 
 		case 'group_updated': {
-			window.dispatchEvent(
-				new CustomEvent('chatalot:group-updated', {
-					detail: {
-						group_id: msg.group_id,
-						name: msg.name,
-						description: msg.description,
-						icon_url: msg.icon_url,
-						banner_url: msg.banner_url,
-						accent_color: msg.accent_color,
-						visibility: msg.visibility,
-					}
-				})
-			);
+			groupStore.updateGroup(msg.group_id, {
+				name: msg.name,
+				description: msg.description,
+				icon_url: msg.icon_url,
+				banner_url: msg.banner_url,
+				accent_color: msg.accent_color,
+				visibility: msg.visibility,
+			});
 			break;
 		}
 
 		case 'community_updated': {
-			window.dispatchEvent(
-				new CustomEvent('chatalot:community-updated', {
-					detail: {
-						community_id: msg.community_id,
-						name: msg.name,
-						description: msg.description,
-						icon_url: msg.icon_url,
-						banner_url: msg.banner_url,
-						community_theme: msg.community_theme,
-						welcome_message: msg.welcome_message,
-					}
-				})
-			);
+			communityStore.updateCommunity(msg.community_id, {
+				name: msg.name,
+				description: msg.description,
+				icon_url: msg.icon_url,
+				banner_url: msg.banner_url,
+				community_theme: msg.community_theme,
+				welcome_message: msg.welcome_message,
+			});
 			break;
 		}
 
@@ -389,11 +381,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		case 'group_deleted': {
 			channelStore.removeChannelsForGroup(msg.group_id);
-			window.dispatchEvent(
-				new CustomEvent('chatalot:group-deleted', {
-					detail: { group_id: msg.group_id }
-				})
-			);
+			groupStore.removeGroup(msg.group_id);
 			break;
 		}
 

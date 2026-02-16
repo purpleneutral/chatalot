@@ -21,6 +21,7 @@ class WebSocketClient {
 	private ws: WebSocket | null = null;
 	private reconnectAttempts = 0;
 	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private handlers: Set<MessageHandler> = new Set();
 	private authenticatedCallback: (() => void) | null = null;
 	private connected = false;
@@ -90,6 +91,10 @@ class WebSocketClient {
 
 	disconnect() {
 		this.stopHeartbeat();
+		if (this.reconnectTimer) {
+			clearTimeout(this.reconnectTimer);
+			this.reconnectTimer = null;
+		}
 		this._reconnecting = false;
 		this.offlineQueue.length = 0;
 		this.ws?.close();
@@ -176,12 +181,16 @@ class WebSocketClient {
 	}
 
 	private scheduleReconnect() {
+		if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 		const delay = Math.min(
 			1000 * Math.pow(2, this.reconnectAttempts) + Math.random() * 1000,
 			MAX_RECONNECT_DELAY_MS
 		);
 		this.reconnectAttempts++;
-		setTimeout(() => this.connect(), delay);
+		this.reconnectTimer = setTimeout(() => {
+			this.reconnectTimer = null;
+			this.connect();
+		}, delay);
 	}
 }
 
