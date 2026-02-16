@@ -6,6 +6,8 @@ Chatalot is a self-hosted chat platform for friends, teams, and communities who 
 
 No data harvesting. No algorithmic feeds. No subscription tiers to unlock basic features. Just a fast, modern chat experience that belongs entirely to you.
 
+> **Our mission:** Chatalot was born from a simple belief — your conversations are yours. Not a corporation's asset, not a data point, not a product. This is an independent, passion-driven project built for the long haul, with no corporate ties, no investors, and no exit strategy. Just software that respects its users. [Read the full mission statement &rarr;](MISSION.md)
+
 <p align="center">
   <img src="docs/screenshots/chat-hero.png" alt="Chatalot chat interface — light mode" width="800">
 </p>
