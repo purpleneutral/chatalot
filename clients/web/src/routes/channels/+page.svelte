@@ -3479,6 +3479,7 @@
 						bind:value={newChannelName}
 						placeholder="Channel name..."
 						maxlength="64"
+						onkeydown={(e) => { if (e.key === 'Escape') { showCreateChannel = false; newChannelName = ''; } }}
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 					<div class="mt-2 flex gap-2">
@@ -3507,6 +3508,7 @@
 						bind:value={newGroupName}
 						placeholder="Group name..."
 						maxlength="64"
+						onkeydown={(e) => { if (e.key === 'Escape') { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; } }}
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 					<input
@@ -5498,11 +5500,11 @@
 					{#if preferencesStore.preferences.showFormattingToolbar}
 					<div class="mt-1 hidden sm:flex items-center gap-1">
 						<div class="flex items-center gap-0.5">
-							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Bold (Ctrl+B)">B</button>
-							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Italic (Ctrl+I)">I</button>
-							<button type="button" onclick={() => wrapSelection('~~', '~~')} class="rounded px-1.5 py-0.5 text-xs line-through text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Strikethrough">S</button>
-							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Code (Ctrl+E)">&lt;&gt;</button>
-							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]" title="Link">
+							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Bold (Ctrl+B)">B</button>
+							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Italic (Ctrl+I)">I</button>
+							<button type="button" onclick={() => wrapSelection('~~', '~~')} class="rounded px-1.5 py-0.5 text-xs line-through text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Strikethrough">S</button>
+							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Code (Ctrl+E)">&lt;&gt;</button>
+							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Link">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
 							</button>
 						</div>

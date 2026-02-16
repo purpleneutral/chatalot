@@ -589,6 +589,7 @@
 									maxlength="64"
 									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
+								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editDisplayName.length}/64</p>
 							</div>
 							<div>
 								<label for="customStatus" class="mb-1 block text-sm font-medium">Custom Status</label>
@@ -600,6 +601,7 @@
 									placeholder="What's on your mind?"
 									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
+								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editCustomStatus.length}/128</p>
 							</div>
 							<button
 								onclick={handleProfileSave}
