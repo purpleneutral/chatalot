@@ -1022,6 +1022,7 @@
 														onclick={() => setter('')}
 														class="text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
 														title="Clear"
+														aria-label="Clear field"
 													>&times;</button>
 												{/if}
 											</div>

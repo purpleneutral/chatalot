@@ -4216,7 +4216,7 @@
 				<div role="dialog" tabindex="-1" class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Join a Community</h3>
-						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">&times;</button>
+						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" aria-label="Close">&times;</button>
 					</div>
 					<input
 						type="text"
@@ -4251,7 +4251,7 @@
 				>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Create a Community</h3>
-						<button type="button" onclick={() => { showCreateCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">&times;</button>
+						<button type="button" onclick={() => { showCreateCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" aria-label="Close">&times;</button>
 					</div>
 					<div class="space-y-3">
 						<div>
