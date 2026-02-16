@@ -181,7 +181,7 @@ All preferences sync to the server and persist across devices.
 
 - **Server**: Rust (axum + tokio), single binary serving API + WebSocket + static files
 - **Database**: PostgreSQL 17 with sqlx (34 migrations)
-- **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 20 API modules, 9 components)
+- **Web client**: Svelte 5 SPA with Tailwind CSS (17 stores, 22 API modules, 9 components)
 - **Desktop client**: Tauri 2.0
 - **Deployment**: Single `docker compose up -d` — two containers (app + PostgreSQL)
 - **GIF proxy**: Server-side Tenor API proxy with DashMap caching (5-min TTL, max 200 entries)

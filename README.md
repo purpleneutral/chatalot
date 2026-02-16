@@ -34,12 +34,16 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Voice and video calls** — peer-to-peer WebRTC with video grid (up to 5 participants)
 - **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups), compiled to WASM and running client-side
 - **Rich messaging** — markdown, syntax-highlighted code blocks, inline media previews, GIF search, emoji autocomplete, reactions, replies, and forwarding
+- **Polls** — create polls with 2-10 options, multi-select, anonymous voting, optional expiry, and real-time vote broadcasting
+- **Custom emoji** — upload per-community emoji (PNG/GIF/WebP), use with `:shortcode:` syntax, autocomplete in composer
 - **File sharing** — drag-and-drop, clipboard paste, inline image/video/audio previews with lightbox viewer
 - **Desktop notifications** — configurable per-channel with sound controls
 - **Customization** — themes, 8 accent colors, message density, font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
+- **Webhooks** — create incoming webhooks for channels, post messages from external services
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0
 - **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA, rate limiting, invite-only registration
-- **Admin panel** — user management, invite codes, and system feedback
+- **Moderation** — message reports, user warnings, blocking, bans, timeouts, slow mode
+- **Admin panel** — user management, invite codes, announcements, report review, and system feedback
 
 For a complete feature list, see [docs/features.md](docs/features.md).
 
@@ -241,7 +245,7 @@ chatalot/
 │   │       ├── lib/api/       # REST client
 │   │       ├── lib/crypto/    # E2E crypto (WASM loader, IndexedDB, session manager)
 │   │       ├── lib/ws/        # WebSocket client
-│   │       ├── lib/stores/    # Svelte 5 rune-based state (15 stores)
+│   │       ├── lib/stores/    # Svelte 5 rune-based state (17 stores)
 │   │       ├── lib/components/# Reusable UI components
 │   │       ├── lib/utils/     # Emoji data, helpers
 │   │       ├── lib/webrtc/    # WebRTC call manager
