@@ -482,8 +482,15 @@ async fn delete_registration_invite(
 async fn delete_files_from_disk(files: &[FileRecord]) -> u64 {
     let mut count = 0u64;
     for file in files {
-        if tokio::fs::remove_file(&file.storage_path).await.is_ok() {
-            count += 1;
+        match tokio::fs::remove_file(&file.storage_path).await {
+            Ok(()) => count += 1,
+            Err(e) => {
+                tracing::warn!(
+                    file_id = %file.id,
+                    path = %file.storage_path,
+                    "Failed to delete file from disk: {e}"
+                );
+            }
         }
     }
     count

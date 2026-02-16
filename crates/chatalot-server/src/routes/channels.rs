@@ -154,6 +154,12 @@ async fn update_channel(
         ));
     }
 
+    if let Some(ref bg) = req.voice_background
+        && !bg.is_empty()
+    {
+        super::account::validate_avatar_url(bg)?;
+    }
+
     let channel = channel_repo::update_channel(
         &state.db,
         id,
