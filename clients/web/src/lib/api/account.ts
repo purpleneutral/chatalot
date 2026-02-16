@@ -1,6 +1,4 @@
 import { api } from './client';
-import { apiBase } from '$lib/env';
-import { authStore } from '$lib/stores/auth.svelte';
 import type { UserPublic } from './users';
 
 export async function getMe(): Promise<UserPublic> {
@@ -51,73 +49,13 @@ export async function revokeSession(sessionId: string): Promise<void> {
 }
 
 export async function uploadAvatar(file: File): Promise<UserPublic> {
-	const formData = new FormData();
-	formData.append('avatar', file);
-
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const response = await fetch(`${apiBase()}/account/avatar`, {
-		method: 'POST',
-		headers,
-		body: formData
-	});
-
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-
-	return response.json();
+	return api.upload('/account/avatar', 'avatar', file);
 }
 
 export async function uploadBanner(file: File): Promise<UserPublic> {
-	const formData = new FormData();
-	formData.append('banner', file);
-
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const response = await fetch(`${apiBase()}/account/banner`, {
-		method: 'POST',
-		headers,
-		body: formData
-	});
-
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-
-	return response.json();
+	return api.upload('/account/banner', 'banner', file);
 }
 
 export async function uploadVoiceBackground(file: File): Promise<{ url: string }> {
-	const formData = new FormData();
-	formData.append('background', file);
-
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const response = await fetch(`${apiBase()}/account/voice-background`, {
-		method: 'POST',
-		headers,
-		body: formData
-	});
-
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-
-	return response.json();
+	return api.upload('/account/voice-background', 'background', file);
 }

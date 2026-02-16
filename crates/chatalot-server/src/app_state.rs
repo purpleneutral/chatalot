@@ -15,6 +15,7 @@ pub struct AppState {
     pub start_time: Instant,
     pub connections: ConnectionManager,
     pub client_version: String,
+    pub http_client: reqwest::Client,
 }
 
 impl AppState {
@@ -34,6 +35,11 @@ impl AppState {
             .and_then(|v| v["version"].as_str().map(String::from))
             .unwrap_or_else(|| "unknown".to_string());
 
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::limited(3))
+            .build()?;
+
         Ok(Self {
             config,
             db,
@@ -42,6 +48,7 @@ impl AppState {
             start_time,
             connections: ConnectionManager::new(),
             client_version,
+            http_client,
         })
     }
 }

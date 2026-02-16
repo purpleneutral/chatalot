@@ -1,6 +1,4 @@
 import { api } from './client';
-import { apiBase } from '$lib/env';
-import { authStore } from '$lib/stores/auth.svelte';
 import type { Group } from './groups';
 
 export interface Community {
@@ -94,35 +92,11 @@ export async function updateCommunity(
 }
 
 export async function uploadCommunityIcon(id: string, file: File): Promise<Community> {
-	const formData = new FormData();
-	formData.append('icon', file);
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) headers['Authorization'] = `Bearer ${token}`;
-	const response = await fetch(`${apiBase()}/communities/${id}/icon`, {
-		method: 'POST', headers, body: formData
-	});
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-	return response.json();
+	return api.upload(`/communities/${id}/icon`, 'icon', file);
 }
 
 export async function uploadCommunityBanner(id: string, file: File): Promise<Community> {
-	const formData = new FormData();
-	formData.append('banner', file);
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) headers['Authorization'] = `Bearer ${token}`;
-	const response = await fetch(`${apiBase()}/communities/${id}/banner`, {
-		method: 'POST', headers, body: formData
-	});
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-	return response.json();
+	return api.upload(`/communities/${id}/banner`, 'banner', file);
 }
 
 export async function deleteCommunity(id: string): Promise<void> {

@@ -120,11 +120,10 @@ async fn submit_feedback(
     );
 
     // Create Forgejo issue via API
-    let client = reqwest::Client::new();
     let base_url = api_url.trim_end_matches('/');
     let issues_url = format!("{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues");
 
-    let response = client
+    let response = state.http_client
         .post(&issues_url)
         .header("Authorization", format!("token {api_token}"))
         .header("Content-Type", "application/json")
@@ -174,7 +173,7 @@ async fn submit_feedback(
         let attach_url =
             format!("{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues/{issue_idx}/assets");
 
-        let attach_resp = client
+        let attach_resp = state.http_client
             .post(&attach_url)
             .header("Authorization", format!("token {api_token}"))
             .multipart(form)

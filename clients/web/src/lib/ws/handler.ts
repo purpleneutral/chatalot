@@ -379,7 +379,6 @@ export async function handleServerMessage(msg: ServerMessage) {
 				const seconds = match ? parseInt(match[1], 10) : 5;
 				window.dispatchEvent(new CustomEvent('chatalot:slow-mode', { detail: { seconds } }));
 			} else if (msg.code === 'timed_out') {
-				const { toastStore } = await import('$lib/stores/toast.svelte');
 				toastStore.error(msg.message);
 			}
 			break;

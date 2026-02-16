@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
-use axum::extract::Query;
+use axum::extract::{Query, State};
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use dashmap::DashMap;
@@ -35,6 +35,7 @@ fn get_giphy_key() -> Option<String> {
 }
 
 async fn search_gifs(
+    State(state): State<Arc<AppState>>,
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<GifSearchQuery>,
 ) -> Result<Json<GifSearchResponse>, AppError> {
@@ -76,12 +77,13 @@ async fn search_gifs(
         ("rating", "g".into()),
     ];
 
-    let response = fetch_giphy("https://api.giphy.com/v1/gifs/search", &params).await?;
+    let response = fetch_giphy(&state.http_client, "https://api.giphy.com/v1/gifs/search", &params).await?;
     cache_gif_response(&cache_key, &response);
     Ok(Json(response))
 }
 
 async fn trending_gifs(
+    State(state): State<Arc<AppState>>,
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<GifSearchQuery>,
 ) -> Result<Json<GifSearchResponse>, AppError> {
@@ -115,20 +117,16 @@ async fn trending_gifs(
         ("rating", "g".into()),
     ];
 
-    let response = fetch_giphy("https://api.giphy.com/v1/gifs/trending", &params).await?;
+    let response = fetch_giphy(&state.http_client, "https://api.giphy.com/v1/gifs/trending", &params).await?;
     cache_gif_response(&cache_key, &response);
     Ok(Json(response))
 }
 
 async fn fetch_giphy(
+    client: &reqwest::Client,
     base_url: &str,
     params: &[(&str, String)],
 ) -> Result<GifSearchResponse, AppError> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
-
     let resp = client
         .get(base_url)
         .query(params)

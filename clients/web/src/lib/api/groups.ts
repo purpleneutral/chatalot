@@ -1,6 +1,4 @@
 import { api } from './client';
-import { apiBase } from '$lib/env';
-import { authStore } from '$lib/stores/auth.svelte';
 import type { Channel } from './channels';
 
 export interface Group {
@@ -134,53 +132,17 @@ export async function deleteChannel(groupId: string, channelId: string): Promise
 // ── Group Assets ──
 
 export async function uploadGroupIcon(id: string, file: File): Promise<Group> {
-	const formData = new FormData();
-	formData.append('icon', file);
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) headers['Authorization'] = `Bearer ${token}`;
-	const response = await fetch(`${apiBase()}/groups/${id}/icon`, {
-		method: 'POST', headers, body: formData
-	});
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-	return response.json();
+	return api.upload(`/groups/${id}/icon`, 'icon', file);
 }
 
 export async function uploadGroupBanner(id: string, file: File): Promise<Group> {
-	const formData = new FormData();
-	formData.append('banner', file);
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) headers['Authorization'] = `Bearer ${token}`;
-	const response = await fetch(`${apiBase()}/groups/${id}/banner`, {
-		method: 'POST', headers, body: formData
-	});
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-	return response.json();
+	return api.upload(`/groups/${id}/banner`, 'banner', file);
 }
 
 // ── Channel Voice Background ──
 
 export async function uploadChannelVoiceBackground(groupId: string, channelId: string, file: File): Promise<Channel> {
-	const formData = new FormData();
-	formData.append('background', file);
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) headers['Authorization'] = `Bearer ${token}`;
-	const response = await fetch(`${apiBase()}/groups/${groupId}/channels/${channelId}/voice-background`, {
-		method: 'POST', headers, body: formData
-	});
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-	return response.json();
+	return api.upload(`/groups/${groupId}/channels/${channelId}/voice-background`, 'background', file);
 }
 
 // ── Invites ──

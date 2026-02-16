@@ -1,3 +1,4 @@
+import { api } from './client';
 import { authStore } from '$lib/stores/auth.svelte';
 import { apiBase } from '$lib/env';
 
@@ -21,43 +22,13 @@ export async function uploadFile(
 	file: File,
 	channelId?: string
 ): Promise<FileUploadResponse> {
-	const formData = new FormData();
-	formData.append('file', file);
-	formData.append('name', file.name);
-	if (channelId) {
-		formData.append('channel_id', channelId);
-	}
-
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const response = await fetch(`${apiBase()}/files/upload`, {
-		method: 'POST',
-		headers,
-		body: formData
-	});
-
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-
-	return response.json();
+	const extra: Record<string, string> = { name: file.name };
+	if (channelId) extra.channel_id = channelId;
+	return api.upload('/files/upload', 'file', file, extra);
 }
 
 export async function getFileMetadata(fileId: string): Promise<FileMetadata> {
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const response = await fetch(`${apiBase()}/files/${fileId}/meta`, { headers });
-	if (!response.ok) throw new Error(`Failed to get file metadata: ${response.status}`);
-	return response.json();
+	return api.get(`/files/${fileId}/meta`);
 }
 
 export function getFileDownloadUrl(fileId: string): string {

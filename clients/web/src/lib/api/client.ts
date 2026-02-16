@@ -5,6 +5,8 @@ const MAX_RETRIES = 2;
 const RETRY_STATUSES = new Set([502, 503, 504]);
 
 class ApiClient {
+	private refreshPromise: Promise<boolean> | null = null;
+
 	/** Fetch with exponential backoff on transient failures (502/503/504 or network error). */
 	private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
 		let lastError: unknown;
@@ -94,6 +96,17 @@ class ApiClient {
 	}
 
 	private async refreshToken(): Promise<boolean> {
+		// Deduplicate concurrent refresh attempts (e.g. multiple 401s at once)
+		if (this.refreshPromise) return this.refreshPromise;
+		this.refreshPromise = this.doRefreshToken();
+		try {
+			return await this.refreshPromise;
+		} finally {
+			this.refreshPromise = null;
+		}
+	}
+
+	private async doRefreshToken(): Promise<boolean> {
 		const refreshToken = authStore.refreshToken;
 		if (!refreshToken) return false;
 
@@ -145,6 +158,47 @@ class ApiClient {
 			options.body = JSON.stringify(body);
 		}
 		return this.request<T>(path, options);
+	}
+
+	/** Upload a file via multipart/form-data. */
+	async upload<T>(path: string, fieldName: string, file: File, extraFields?: Record<string, string>): Promise<T> {
+		const formData = new FormData();
+		if (extraFields) {
+			for (const [key, value] of Object.entries(extraFields)) {
+				formData.append(key, value);
+			}
+		}
+		formData.append(fieldName, file);
+
+		const headers: Record<string, string> = {};
+		const token = authStore.accessToken;
+		if (token) headers['Authorization'] = `Bearer ${token}`;
+
+		const base = apiBase();
+		const response = await this.fetchWithRetry(`${base}${path}`, {
+			method: 'POST',
+			headers,
+			body: formData,
+		});
+
+		if (response.status === 401 && token) {
+			const refreshed = await this.refreshToken();
+			if (refreshed) {
+				headers['Authorization'] = `Bearer ${authStore.accessToken}`;
+				const retryResponse = await this.fetchWithRetry(`${base}${path}`, {
+					method: 'POST',
+					headers,
+					body: formData,
+				});
+				if (!retryResponse.ok) throw await this.parseError(retryResponse);
+				return retryResponse.json();
+			}
+			authStore.logout();
+			throw new Error('Session expired');
+		}
+
+		if (!response.ok) throw await this.parseError(response);
+		return response.json();
 	}
 }
 

@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
-use axum::extract::Query;
+use axum::extract::{Query, State};
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use dashmap::DashMap;
@@ -41,6 +41,7 @@ pub fn routes() -> Router<Arc<AppState>> {
 }
 
 async fn get_link_preview(
+    State(state): State<Arc<AppState>>,
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<LinkPreviewQuery>,
 ) -> Result<Json<LinkPreviewResponse>, AppError> {
@@ -76,14 +77,9 @@ async fn get_link_preview(
     }
 
     // Fetch the URL
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .redirect(reqwest::redirect::Policy::limited(3))
-        .user_agent("ChatalotBot/1.0 (link preview)")
-        .build()
-        .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
-
-    let response = client.get(&url).send().await.map_err(|e| {
+    let response = state.http_client.get(&url)
+        .header(reqwest::header::USER_AGENT, "ChatalotBot/1.0 (link preview)")
+        .send().await.map_err(|e| {
         tracing::debug!("Link preview fetch failed for {url}: {e}");
         AppError::Validation("Could not fetch URL".into())
     })?;

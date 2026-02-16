@@ -1,6 +1,4 @@
 import { api } from './client';
-import { apiBase } from '$lib/env';
-import { authStore } from '$lib/stores/auth.svelte';
 
 export interface CustomEmoji {
 	id: string;
@@ -17,28 +15,7 @@ export async function listCommunityEmojis(communityId: string): Promise<CustomEm
 }
 
 export async function uploadEmoji(communityId: string, shortcode: string, file: File): Promise<CustomEmoji> {
-	const formData = new FormData();
-	formData.append('shortcode', shortcode);
-	formData.append('file', file);
-
-	const headers: Record<string, string> = {};
-	const token = authStore.accessToken;
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const response = await fetch(`${apiBase()}/communities/${communityId}/emojis`, {
-		method: 'POST',
-		headers,
-		body: formData
-	});
-
-	if (!response.ok) {
-		const body = await response.json().catch(() => null);
-		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
-	}
-
-	return response.json();
+	return api.upload(`/communities/${communityId}/emojis`, 'file', file, { shortcode });
 }
 
 export async function deleteEmoji(communityId: string, emojiId: string): Promise<void> {
