@@ -5070,6 +5070,9 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			role="dialog"
+			aria-modal="true"
+			aria-label={confirmDialog.title}
 			transition:fade={{ duration: 150 }}
 			onclick={() => confirmDialog = null}
 			onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}
@@ -5088,6 +5091,7 @@
 						type="text"
 						bind:value={confirmInput}
 						placeholder={confirmDialog.inputPlaceholder}
+						onkeydown={(e) => { if (e.key === 'Enter') { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; } }}
 						class="mb-4 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 				{/if}
@@ -5114,6 +5118,9 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Keyboard Shortcuts"
 			transition:fade={{ duration: 150 }}
 			onclick={() => showShortcutsModal = false}
 			onkeydown={(e) => { if (e.key === 'Escape') showShortcutsModal = false; }}

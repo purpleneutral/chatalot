@@ -807,6 +807,20 @@ async fn handle_client_message(
             ciphertext,
             nonce,
         } => {
+            // Validate ciphertext size
+            const MAX_CIPHERTEXT_SIZE: usize = 65_536;
+            if ciphertext.is_empty() || ciphertext.len() > MAX_CIPHERTEXT_SIZE {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: if ciphertext.is_empty() {
+                        "message cannot be empty".to_string()
+                    } else {
+                        "message too large".to_string()
+                    },
+                });
+                return;
+            }
+
             // Look up the message first to get channel_id for broadcast
             let msg_record = match message_repo::get_message_by_id(&state.db, message_id).await {
                 Ok(Some(m)) => m,

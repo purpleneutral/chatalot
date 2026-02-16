@@ -3,6 +3,8 @@ class PresenceStore {
 	private statuses = $state<Map<string, string>>(new Map());
 	// channelId -> Set of user IDs currently typing
 	private typingUsers = $state<Map<string, Set<string>>>(new Map());
+	// Track typing timeouts to cancel them (key: "channelId:userId")
+	private typingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 	getStatus(userId: string): string {
 		return this.statuses.get(userId) ?? 'offline';
@@ -25,8 +27,14 @@ class PresenceStore {
 		next.set(channelId, users);
 		this.typingUsers = next;
 
-		// Auto-clear after 5 seconds
-		setTimeout(() => this.clearTyping(channelId, userId), 5000);
+		// Cancel existing timeout for this user/channel and set a new one
+		const key = `${channelId}:${userId}`;
+		const existing = this.typingTimeouts.get(key);
+		if (existing) clearTimeout(existing);
+		this.typingTimeouts.set(key, setTimeout(() => {
+			this.clearTyping(channelId, userId);
+			this.typingTimeouts.delete(key);
+		}, 5000));
 	}
 
 	clearTyping(channelId: string, userId: string) {
@@ -37,6 +45,14 @@ class PresenceStore {
 		updated.delete(userId);
 		next.set(channelId, updated);
 		this.typingUsers = next;
+
+		// Clean up the timeout
+		const key = `${channelId}:${userId}`;
+		const timeout = this.typingTimeouts.get(key);
+		if (timeout) {
+			clearTimeout(timeout);
+			this.typingTimeouts.delete(key);
+		}
 	}
 }
 

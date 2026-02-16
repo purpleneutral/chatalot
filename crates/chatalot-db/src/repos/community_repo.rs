@@ -462,7 +462,8 @@ pub async fn list_community_bans(
         FROM community_bans cb
         INNER JOIN users u ON u.id = cb.user_id
         WHERE cb.community_id = $1
-        ORDER BY cb.created_at DESC"#,
+        ORDER BY cb.created_at DESC
+        LIMIT 500"#,
     )
     .bind(community_id)
     .fetch_all(pool)
@@ -502,7 +503,7 @@ pub async fn list_community_invites(
     community_id: Uuid,
 ) -> Result<Vec<CommunityInvite>, sqlx::Error> {
     sqlx::query_as::<_, CommunityInvite>(
-        "SELECT * FROM community_invites WHERE community_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM community_invites WHERE community_id = $1 ORDER BY created_at DESC LIMIT 200",
     )
     .bind(community_id)
     .fetch_all(pool)

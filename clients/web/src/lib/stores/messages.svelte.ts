@@ -218,6 +218,25 @@ class MessageStore {
 		this.unreadCounts = next;
 	}
 
+	/** Clean up all data for a channel (call on leave/delete). */
+	clearChannel(channelId: string) {
+		const nextMessages = new Map(this.messagesByChannel);
+		nextMessages.delete(channelId);
+		this.messagesByChannel = nextMessages;
+
+		const nextUnread = new Map(this.unreadCounts);
+		nextUnread.delete(channelId);
+		this.unreadCounts = nextUnread;
+
+		const nextPinned = new Map(this.pinnedIds);
+		nextPinned.delete(channelId);
+		this.pinnedIds = nextPinned;
+
+		this.fetchedChannels.delete(channelId);
+		this.noMoreMessages.delete(channelId);
+		this.loadingChannels.delete(channelId);
+	}
+
 	// ── Pinned message tracking ──
 
 	isPinned(channelId: string, messageId: string): boolean {

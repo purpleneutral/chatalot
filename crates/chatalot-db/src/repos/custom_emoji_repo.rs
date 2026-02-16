@@ -34,7 +34,7 @@ pub async fn list_for_community(
     community_id: Uuid,
 ) -> Result<Vec<CustomEmoji>, sqlx::Error> {
     sqlx::query_as::<_, CustomEmoji>(
-        "SELECT * FROM custom_emojis WHERE community_id = $1 ORDER BY shortcode ASC",
+        "SELECT * FROM custom_emojis WHERE community_id = $1 ORDER BY shortcode ASC LIMIT 500",
     )
     .bind(community_id)
     .fetch_all(pool)
