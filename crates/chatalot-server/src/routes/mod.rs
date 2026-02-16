@@ -24,6 +24,7 @@ pub mod webhooks;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::extract::DefaultBodyLimit;
 use axum::http::header;
 use axum::routing::get;
 use tower_http::compression::CompressionLayer;
@@ -122,6 +123,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(axum::middleware::from_fn(security_headers))
         .layer(cors)
+        .layer(DefaultBodyLimit::max(110 * 1024 * 1024)) // 110MB (slightly above MAX_FILE_SIZE_MB default)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
