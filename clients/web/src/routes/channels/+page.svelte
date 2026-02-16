@@ -29,6 +29,7 @@
 	import { getPinnedMessages, pinMessage as apiPinMessage, unpinMessage as apiUnpinMessage, type PinnedMessage } from '$lib/api/channels';
 	import { searchGifs, getTrendingGifs, type GifResult } from '$lib/api/gifs';
 	import { addBookmark, removeBookmark as apiRemoveBookmark, listBookmarks } from '$lib/api/bookmarks';
+	import { createPoll as apiCreatePoll, listPolls, getPoll, votePoll, removeVote as apiRemoveVote, closePoll as apiClosePoll, type Poll } from '$lib/api/polls';
 	import { bookmarkStore } from '$lib/stores/bookmarks.svelte';
 	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
@@ -237,6 +238,18 @@
 	let showPinnedPanel = $state(false);
 	let pinnedMessages = $state<(PinnedMessage & { _decryptedContent?: string })[]>([]);
 	let loadingPins = $state(false);
+
+	// Polls state
+	let showPollPanel = $state(false);
+	let polls = $state<Poll[]>([]);
+	let loadingPolls = $state(false);
+	let showCreatePoll = $state(false);
+	let newPollQuestion = $state('');
+	let newPollOptions = $state(['', '']);
+	let newPollMultiSelect = $state(false);
+	let newPollAnonymous = $state(false);
+	let newPollExpiry = $state<number | null>(null);
+	let creatingPoll = $state(false);
 
 	// Scroll-to-bottom button
 	let showScrollBottom = $state(false);
@@ -890,6 +903,11 @@
 
 		// New DM channel → add to sidebar
 		window.addEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
+
+		// Poll events
+		window.addEventListener('chatalot:poll-created', handlePollCreated as EventListener);
+		window.addEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
+		window.addEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
 	});
 
 	onDestroy(() => {
@@ -904,6 +922,9 @@
 		window.removeEventListener('chatalot:connection', handleConnectionChange as EventListener);
 		window.removeEventListener('chatalot:blocks-changed', handleBlocksChanged);
 		window.removeEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
+		window.removeEventListener('chatalot:poll-created', handlePollCreated as EventListener);
+		window.removeEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
+		window.removeEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
 
 		// Clean up timers
 		if (typingTimeout) clearTimeout(typingTimeout);
@@ -922,6 +943,35 @@
 			const blocks = await listBlockedUsers();
 			blockedUserIds = blocks.map(b => b.blocked_id);
 		} catch {}
+	}
+
+	function handlePollCreated(e: CustomEvent<{ pollId: string; channelId: string; createdBy: string; question: string }>) {
+		if (e.detail.channelId === channelStore.activeChannelId && showPollPanel) {
+			// Reload polls to get full data
+			loadPolls();
+		}
+	}
+
+	function handlePollVoted(e: CustomEvent<{ pollId: string; channelId: string; optionIndex: number; voterId: string | null }>) {
+		if (e.detail.channelId !== channelStore.activeChannelId) return;
+		const { pollId, optionIndex, voterId } = e.detail;
+		// Skip if this is our own vote (already optimistically updated)
+		if (voterId === authStore.user?.id) return;
+		polls = polls.map(p => {
+			if (p.id !== pollId) return p;
+			return { ...p, votes: p.votes.map((v, i) => {
+				if (i === optionIndex) {
+					const newVoterIds = voterId && !p.anonymous ? [...v.voter_ids, voterId] : v.voter_ids;
+					return { ...v, count: v.count + 1, voter_ids: newVoterIds };
+				}
+				return v;
+			}) };
+		});
+	}
+
+	function handlePollClosed(e: CustomEvent<{ pollId: string; channelId: string }>) {
+		if (e.detail.channelId !== channelStore.activeChannelId) return;
+		polls = polls.map(p => p.id === e.detail.pollId ? { ...p, closed: true } : p);
 	}
 
 	function handleSlowModeEvent(e: CustomEvent<{ seconds: number }>) {
@@ -1069,6 +1119,8 @@
 		messageStore.clearUnread(channelId);
 		sidebarOpen = false;
 		memberFilter = '';
+		polls = [];
+		if (showPollPanel) loadPolls();
 		localStorage.setItem('chatalot:activeChannel', channelId);
 		tick().then(() => messageInputEl?.focus());
 
@@ -1935,6 +1987,116 @@
 		}
 	}
 
+	// ── Polls ──
+
+	async function loadPolls() {
+		if (!channelStore.activeChannelId) return;
+		loadingPolls = true;
+		try {
+			polls = await listPolls(channelStore.activeChannelId);
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to load polls');
+		} finally {
+			loadingPolls = false;
+		}
+	}
+
+	async function togglePollPanel() {
+		showPollPanel = !showPollPanel;
+		if (showPollPanel) {
+			await loadPolls();
+		}
+	}
+
+	function openCreatePoll() {
+		newPollQuestion = '';
+		newPollOptions = ['', ''];
+		newPollMultiSelect = false;
+		newPollAnonymous = false;
+		newPollExpiry = null;
+		showCreatePoll = true;
+	}
+
+	async function handleCreatePoll() {
+		if (!channelStore.activeChannelId || creatingPoll) return;
+		const question = newPollQuestion.trim();
+		const options = newPollOptions.map(o => o.trim()).filter(o => o);
+		if (!question || options.length < 2) {
+			toastStore.error('Need a question and at least 2 options');
+			return;
+		}
+		creatingPoll = true;
+		try {
+			const poll = await apiCreatePoll(channelStore.activeChannelId, {
+				question,
+				options,
+				multi_select: newPollMultiSelect,
+				anonymous: newPollAnonymous,
+				expires_in_minutes: newPollExpiry ?? undefined,
+			});
+			polls = [poll, ...polls];
+			showCreatePoll = false;
+			showPollPanel = true;
+			toastStore.success('Poll created');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to create poll');
+		} finally {
+			creatingPoll = false;
+		}
+	}
+
+	async function handleVotePoll(pollId: string, optionIndex: number) {
+		const poll = polls.find(p => p.id === pollId);
+		if (!poll || poll.closed) return;
+		const userId = authStore.user?.id;
+		if (!userId) return;
+
+		// Check if already voted for this option
+		const optVotes = poll.votes[optionIndex];
+		const alreadyVoted = optVotes?.voter_ids.includes(userId);
+
+		try {
+			if (alreadyVoted) {
+				await apiRemoveVote(pollId, optionIndex);
+				// Optimistic update
+				polls = polls.map(p => {
+					if (p.id !== pollId) return p;
+					return { ...p, votes: p.votes.map((v, i) => i === optionIndex ? { ...v, count: Math.max(0, v.count - 1), voter_ids: v.voter_ids.filter(id => id !== userId) } : v) };
+				});
+			} else {
+				await votePoll(pollId, optionIndex);
+				// For single-select, remove previous votes first (optimistic)
+				polls = polls.map(p => {
+					if (p.id !== pollId) return p;
+					const newVotes = p.votes.map((v, i) => {
+						if (i === optionIndex) {
+							return { ...v, count: v.count + 1, voter_ids: [...v.voter_ids, userId] };
+						}
+						if (!p.multi_select && v.voter_ids.includes(userId)) {
+							return { ...v, count: Math.max(0, v.count - 1), voter_ids: v.voter_ids.filter(id => id !== userId) };
+						}
+						return v;
+					});
+					return { ...p, votes: newVotes };
+				});
+			}
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to vote');
+			// Reload to get correct state
+			await loadPolls();
+		}
+	}
+
+	async function handleClosePoll(pollId: string) {
+		try {
+			await apiClosePoll(pollId);
+			polls = polls.map(p => p.id === pollId ? { ...p, closed: true } : p);
+			toastStore.success('Poll closed');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to close poll');
+		}
+	}
+
 	function isGroupedMessage(msgs: typeof messages, idx: number): boolean {
 		if (idx === 0) return false;
 		const prev = msgs[idx - 1];
@@ -2179,6 +2341,8 @@
 			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); return; }
 			if (showSearch) { showSearch = false; e.preventDefault(); return; }
 			if (showPinnedPanel) { showPinnedPanel = false; e.preventDefault(); return; }
+			if (showPollPanel) { showPollPanel = false; e.preventDefault(); return; }
+			if (showCreatePoll) { showCreatePoll = false; e.preventDefault(); return; }
 			if (showMemberPanel) { showMemberPanel = false; e.preventDefault(); return; }
 		}
 	}
@@ -4061,6 +4225,22 @@
 							{/if}
 						</button>
 						{#if activeChannel.channel_type !== 'dm'}
+						<button
+							onclick={togglePollPanel}
+							class="relative hidden md:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showPollPanel ? 'text-[var(--accent)]' : ''}"
+							title="Polls"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16V12"/><path d="M12 16V8"/><path d="M17 16v-5"/>
+							</svg>
+							{#if polls.filter(p => !p.closed).length > 0}
+								<span class="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-white">
+									{polls.filter(p => !p.closed).length}
+								</span>
+							{/if}
+						</button>
+						{/if}
+						{#if activeChannel.channel_type !== 'dm'}
 							<div class="relative hidden md:block">
 								<button
 									onclick={(e) => { e.stopPropagation(); showNotifDropdown = !showNotifDropdown; }}
@@ -4195,6 +4375,93 @@
 							</div>
 						{:else}
 							<p class="text-xs text-[var(--text-secondary)]">No pinned messages yet.</p>
+						{/if}
+					</div>
+				{/if}
+
+				<!-- Polls panel -->
+				{#if showPollPanel}
+					<div class="border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-3" transition:slide={{ duration: 150 }}>
+						<div class="flex items-center justify-between mb-2">
+							<h3 class="text-sm font-semibold text-[var(--text-primary)]">
+								Polls
+								{#if polls.length > 0}
+									<span class="ml-1 text-xs font-normal text-[var(--text-secondary)]">({polls.filter(p => !p.closed).length} active)</span>
+								{/if}
+							</h3>
+							<div class="flex items-center gap-2">
+								<button onclick={openCreatePoll} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]">
+									New Poll
+								</button>
+								<button aria-label="Close polls" onclick={() => showPollPanel = false} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+								</button>
+							</div>
+						</div>
+						{#if loadingPolls}
+							<p class="text-xs text-[var(--text-secondary)]">Loading...</p>
+						{:else if polls.length > 0}
+							<div class="max-h-80 space-y-3 overflow-y-auto">
+								{#each polls as poll (poll.id)}
+									{@const totalVotes = poll.votes.reduce((s, v) => s + v.count, 0)}
+									{@const myUserId = authStore.user?.id ?? ''}
+									{@const isExpired = poll.expires_at ? new Date(poll.expires_at) < new Date() : false}
+									{@const isClosed = poll.closed || isExpired}
+									<div class="rounded-lg bg-white/5 px-3 py-2.5">
+										<div class="flex items-start justify-between gap-2">
+											<div class="min-w-0 flex-1">
+												<p class="text-sm font-medium text-[var(--text-primary)]">{poll.question}</p>
+												<div class="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--text-secondary)]">
+													<span>by {getDisplayNameForContext(poll.created_by)}</span>
+													{#if poll.multi_select}<span class="rounded bg-white/10 px-1">Multi-select</span>{/if}
+													{#if poll.anonymous}<span class="rounded bg-white/10 px-1">Anonymous</span>{/if}
+													{#if isClosed}<span class="rounded bg-red-500/20 px-1 text-red-400">{isExpired ? 'Expired' : 'Closed'}</span>{/if}
+													{#if poll.expires_at && !isClosed}
+														<span>Expires {new Date(poll.expires_at).toLocaleDateString()}</span>
+													{/if}
+												</div>
+											</div>
+											{#if !isClosed && (poll.created_by === myUserId || myRole === 'owner' || myRole === 'admin')}
+												<button
+													onclick={() => handleClosePoll(poll.id)}
+													class="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+													title="Close poll"
+												>
+													Close
+												</button>
+											{/if}
+										</div>
+										<div class="mt-2 space-y-1.5">
+											{#each poll.options as option, idx}
+												{@const optVote = poll.votes[idx]}
+												{@const count = optVote?.count ?? 0}
+												{@const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0}
+												{@const myVote = optVote?.voter_ids.includes(myUserId)}
+												<button
+													onclick={() => handleVotePoll(poll.id, idx)}
+													disabled={isClosed}
+													class="group/opt relative flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition {myVote ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-white/10 hover:border-white/20 hover:bg-white/5'} disabled:cursor-default disabled:opacity-70"
+												>
+													<div class="absolute inset-0 rounded-md bg-[var(--accent)]/10 transition-all" style="width: {pct}%"></div>
+													<span class="relative flex-1 truncate text-[var(--text-primary)]">{option}</span>
+													<span class="relative text-xs font-medium text-[var(--text-secondary)]">
+														{count} ({pct}%)
+													</span>
+													{#if myVote}
+														<svg xmlns="http://www.w3.org/2000/svg" class="relative h-3.5 w-3.5 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+													{/if}
+												</button>
+											{/each}
+										</div>
+										<p class="mt-1.5 text-[10px] text-[var(--text-secondary)]">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<div class="text-center py-4">
+								<p class="text-xs text-[var(--text-secondary)]">No polls yet.</p>
+								<button onclick={openCreatePoll} class="mt-2 rounded bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]">Create one</button>
+							</div>
 						{/if}
 					</div>
 				{/if}
@@ -4937,6 +5204,19 @@
 						>
 							<span class="text-xs font-bold">GIF</span>
 						</button>
+						<!-- Poll button -->
+						{#if activeChannel?.channel_type !== 'dm'}
+							<button
+								type="button"
+								onclick={openCreatePoll}
+								class="hidden sm:block shrink-0 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-2 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+								title="Create poll"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16V12"/><path d="M12 16V8"/><path d="M17 16v-5"/>
+								</svg>
+							</button>
+						{/if}
 						<input
 							bind:this={fileInputEl}
 							type="file"
@@ -5294,6 +5574,124 @@
 					>
 						{confirmDialog.confirmLabel ?? 'Confirm'}
 					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Create Poll Modal -->
+	{#if showCreatePoll}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Create Poll"
+			transition:fade={{ duration: 150 }}
+			onclick={() => showCreatePoll = false}
+			onkeydown={(e) => { if (e.key === 'Escape') showCreatePoll = false; }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
+				transition:scale={{ start: 0.95, duration: 200 }}
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
+				<div class="mb-4 flex items-center justify-between">
+					<h2 class="text-lg font-bold text-[var(--text-primary)]">Create Poll</h2>
+					<button aria-label="Close" onclick={() => showCreatePoll = false} class="rounded p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+					</button>
+				</div>
+				<div class="space-y-4">
+					<div>
+						<label for="poll-question" class="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Question</label>
+						<input
+							id="poll-question"
+							type="text"
+							bind:value={newPollQuestion}
+							maxlength="500"
+							placeholder="What do you want to ask?"
+							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+						/>
+					</div>
+					<div>
+						<label class="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Options (2-10)</label>
+						<div class="space-y-1.5">
+							{#each newPollOptions as opt, idx}
+								<div class="flex items-center gap-1.5">
+									<input
+										type="text"
+										bind:value={newPollOptions[idx]}
+										maxlength="200"
+										placeholder="Option {idx + 1}"
+										class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+									/>
+									{#if newPollOptions.length > 2}
+										<button
+											type="button"
+											onclick={() => { newPollOptions = newPollOptions.filter((_, i) => i !== idx); }}
+											class="shrink-0 rounded p-1 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+										</button>
+									{/if}
+								</div>
+							{/each}
+							{#if newPollOptions.length < 10}
+								<button
+									type="button"
+									onclick={() => { newPollOptions = [...newPollOptions, '']; }}
+									class="flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+									Add option
+								</button>
+							{/if}
+						</div>
+					</div>
+					<div class="flex flex-wrap gap-4">
+						<label class="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+							<input type="checkbox" bind:checked={newPollMultiSelect} class="rounded" />
+							Allow multiple votes
+						</label>
+						<label class="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+							<input type="checkbox" bind:checked={newPollAnonymous} class="rounded" />
+							Anonymous voting
+						</label>
+					</div>
+					<div>
+						<label for="poll-expiry" class="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Expires after</label>
+						<select
+							id="poll-expiry"
+							bind:value={newPollExpiry}
+							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+						>
+							<option value={null}>Never</option>
+							<option value={15}>15 minutes</option>
+							<option value={60}>1 hour</option>
+							<option value={360}>6 hours</option>
+							<option value={1440}>1 day</option>
+							<option value={4320}>3 days</option>
+							<option value={10080}>1 week</option>
+						</select>
+					</div>
+					<div class="flex justify-end gap-2">
+						<button
+							onclick={() => showCreatePoll = false}
+							class="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5"
+						>
+							Cancel
+						</button>
+						<button
+							onclick={handleCreatePoll}
+							disabled={creatingPoll || !newPollQuestion.trim() || newPollOptions.filter(o => o.trim()).length < 2}
+							class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{creatingPoll ? 'Creating...' : 'Create Poll'}
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
