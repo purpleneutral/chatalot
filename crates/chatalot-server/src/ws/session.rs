@@ -52,10 +52,28 @@ async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
                         }
                     }
                 }
-                _ => return, // First message must be Authenticate
+                _ => {
+                    let err = chatalot_common::ws_messages::ServerMessage::Error {
+                        code: "auth_required".to_string(),
+                        message: "first message must be Authenticate".to_string(),
+                    };
+                    if let Ok(json) = serde_json::to_string(&err) {
+                        let _ = socket.send(Message::Text(json.into())).await;
+                    }
+                    return;
+                }
             }
         }
-        _ => return, // Timeout or error
+        _ => {
+            let err = chatalot_common::ws_messages::ServerMessage::Error {
+                code: "auth_timeout".to_string(),
+                message: "authentication timed out".to_string(),
+            };
+            if let Ok(json) = serde_json::to_string(&err) {
+                let _ = socket.send(Message::Text(json.into())).await;
+            }
+            return;
+        }
     };
 
     // Hand off to the main handler

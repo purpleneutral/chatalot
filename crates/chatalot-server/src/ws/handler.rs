@@ -49,10 +49,15 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     // Writer task: forwards messages from the mpsc channel to the WebSocket
     let write_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            if let Ok(text) = serde_json::to_string(&msg)
-                && ws_sink.send(Message::Text(text.into())).await.is_err()
-            {
-                break;
+            match serde_json::to_string(&msg) {
+                Ok(text) => {
+                    if ws_sink.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(%user_id, "failed to serialize outgoing WS message: {e}");
+                }
             }
         }
     });
@@ -76,6 +81,9 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     // Track spawned subscription tasks so we can abort them on disconnect
     let mut subscription_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
+    // Maximum incoming WebSocket message size (1 MB)
+    const MAX_WS_MESSAGE_SIZE: usize = 1_048_576;
+
     // Per-connection message rate limiter (token bucket: 10 msg/s burst, refills at 5/s)
     const RATE_LIMIT_BURST: f64 = 10.0;
     const RATE_LIMIT_REFILL: f64 = 5.0;
@@ -86,6 +94,15 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     while let Some(Ok(msg)) = ws_stream.next().await {
         match msg {
             Message::Text(text) => {
+                // Reject oversized messages
+                if text.len() > MAX_WS_MESSAGE_SIZE {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "validation_error".to_string(),
+                        message: "message too large".to_string(),
+                    });
+                    continue;
+                }
+
                 // Refill tokens
                 let now = tokio::time::Instant::now();
                 let elapsed = now.duration_since(last_refill).as_secs_f64();
@@ -586,6 +603,14 @@ async fn handle_client_message(
         ClientMessage::Subscribe { channel_ids } => {
             // Subscribe this session to channel broadcasts.
             // Verify membership for each channel before subscribing.
+            const MAX_SUBSCRIPTION_TASKS: usize = 500;
+            if subscription_tasks.len() + channel_ids.len() > MAX_SUBSCRIPTION_TASKS {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "too many active subscriptions".to_string(),
+                });
+                return;
+            }
             if channel_ids.len() > 200 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
