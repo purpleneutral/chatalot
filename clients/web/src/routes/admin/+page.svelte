@@ -14,7 +14,7 @@
 		listReports, reviewReport, type Report, type ReportsResponse
 	} from '$lib/api/admin';
 	import { createAnnouncement, listAllAnnouncements, type Announcement } from '$lib/api/announcements';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security' | 'announcements';
 	let activeTab = $state<Tab>('users');
@@ -80,6 +80,10 @@
 			return;
 		}
 		loadUsers();
+	});
+
+	onDestroy(() => {
+		clearTimeout(searchTimeout);
 	});
 
 	function switchTab(tab: Tab) {

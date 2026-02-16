@@ -56,6 +56,9 @@ export type ServerMessage =
 	| { type: 'user_profile_updated'; user_id: string; display_name: string; avatar_url: string | null; banner_url: string | null; custom_status: string | null }
 	| { type: 'channel_updated'; channel_id: string; name: string | null; topic: string | null; read_only: boolean; slow_mode_seconds: number; archived: boolean; voice_background: string | null }
 	| { type: 'group_updated'; group_id: string; name: string; description: string | null; icon_url: string | null; banner_url: string | null; accent_color: string | null; visibility: string }
+	| { type: 'community_updated'; community_id: string; name: string; description: string | null; icon_url: string | null; banner_url: string | null; community_theme: object | null; welcome_message: string | null }
+	| { type: 'channel_deleted'; channel_id: string }
+	| { type: 'group_deleted'; group_id: string }
 	| { type: 'announcement'; id: string; title: string; body: string; created_by: string; created_at: string }
 	| { type: 'error'; code: string; message: string }
 	| { type: 'pong'; timestamp: number }

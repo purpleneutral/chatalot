@@ -33,7 +33,7 @@
 		// Set output device if supported
 		const sinkId = audioDeviceStore.selectedOutputId;
 		if (sinkId && 'setSinkId' in node) {
-			(node as AudioElementWithSinkId).setSinkId(sinkId).catch(() => {});
+			(node as AudioElementWithSinkId).setSinkId(sinkId).catch((e) => console.warn('setSinkId failed:', e));
 		}
 
 		return {

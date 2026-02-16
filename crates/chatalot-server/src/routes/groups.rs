@@ -515,6 +515,9 @@ async fn delete_group_handler(
 
     group_repo::delete_group(&state.db, id).await?;
 
+    // Broadcast group deletion to all connected users
+    state.connections.broadcast_all(ServerMessage::GroupDeleted { group_id: id });
+
     user_repo::insert_audit_log(
         &state.db,
         Uuid::now_v7(),
@@ -886,6 +889,11 @@ async fn delete_group_channel(
     }
 
     channel_repo::delete_channel(&state.db, path.channel_id).await?;
+
+    // Broadcast channel deletion to all connected users
+    state.connections.broadcast_all(ServerMessage::ChannelDeleted {
+        channel_id: path.channel_id,
+    });
 
     user_repo::insert_audit_log(
         &state.db,

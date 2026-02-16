@@ -365,6 +365,38 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		case 'community_updated': {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:community-updated', {
+					detail: {
+						community_id: msg.community_id,
+						name: msg.name,
+						description: msg.description,
+						icon_url: msg.icon_url,
+						banner_url: msg.banner_url,
+						community_theme: msg.community_theme,
+						welcome_message: msg.welcome_message,
+					}
+				})
+			);
+			break;
+		}
+
+		case 'channel_deleted': {
+			channelStore.removeChannel(msg.channel_id);
+			break;
+		}
+
+		case 'group_deleted': {
+			channelStore.removeChannelsForGroup(msg.group_id);
+			window.dispatchEvent(
+				new CustomEvent('chatalot:group-deleted', {
+					detail: { group_id: msg.group_id }
+				})
+			);
+			break;
+		}
+
 		// User profile changes
 		case 'user_profile_updated': {
 			// Update user cache so display names / avatars refresh everywhere

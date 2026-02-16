@@ -315,6 +315,21 @@ pub enum ServerMessage {
         accent_color: Option<String>,
         visibility: String,
     },
+    CommunityUpdated {
+        community_id: Uuid,
+        name: String,
+        description: Option<String>,
+        icon_url: Option<String>,
+        banner_url: Option<String>,
+        community_theme: Option<serde_json::Value>,
+        welcome_message: Option<String>,
+    },
+    ChannelDeleted {
+        channel_id: Uuid,
+    },
+    GroupDeleted {
+        group_id: Uuid,
+    },
 
     // Announcements
     Announcement {
