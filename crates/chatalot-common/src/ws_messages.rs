@@ -91,6 +91,7 @@ pub enum ClientMessage {
         channel_id: Uuid,
         message_id: Uuid,
     },
+    MarkAllRead,
 
     // Keepalive
     Ping {

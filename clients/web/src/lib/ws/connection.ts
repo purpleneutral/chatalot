@@ -9,7 +9,7 @@ type MessageHandler = (msg: ServerMessage) => void | Promise<void>;
 // Message types that should be queued when offline (user-initiated actions)
 const QUEUEABLE_TYPES = new Set([
 	'send_message', 'edit_message', 'delete_message',
-	'add_reaction', 'remove_reaction', 'mark_read',
+	'add_reaction', 'remove_reaction', 'mark_read', 'mark_all_read',
 	'typing', 'stop_typing'
 ]);
 

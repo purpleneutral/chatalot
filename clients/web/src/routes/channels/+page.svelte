@@ -2410,7 +2410,18 @@
 		});
 	}
 
+	function markAllRead() {
+		wsClient.send({ type: 'mark_all_read' });
+		messageStore.clearAllUnread();
+	}
+
 	function handleGlobalKeydown(e: KeyboardEvent) {
+		// Shift+Escape to mark all channels as read
+		if (e.key === 'Escape' && e.shiftKey) {
+			e.preventDefault();
+			markAllRead();
+			return;
+		}
 		// Ctrl+K / Cmd+K for quick channel switcher
 		if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
 			e.preventDefault();
@@ -3557,8 +3568,8 @@
 			{/if}
 
 			<!-- Sidebar search filter -->
-			<div class="px-2 pt-2">
-				<div class="relative">
+			<div class="flex items-center gap-1.5 px-2 pt-2">
+				<div class="relative flex-1">
 					<svg xmlns="http://www.w3.org/2000/svg" class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 					</svg>
@@ -3578,6 +3589,17 @@
 						</button>
 					{/if}
 				</div>
+				{#if messageStore.hasAnyUnread}
+					<button
+						onclick={markAllRead}
+						title="Mark all as read (Shift+Esc)"
+						class="shrink-0 rounded-md border border-white/10 bg-[var(--bg-primary)] p-1.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+						</svg>
+					</button>
+				{/if}
 			</div>
 
 			<div class="flex-1 overflow-y-auto p-2">
@@ -6016,6 +6038,10 @@
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Jump to latest</span>
 						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">End</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Mark all read</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Shift+Esc</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Close modal</span>

@@ -78,6 +78,29 @@ pub async fn count_unread(
     Ok(count.0)
 }
 
+/// Mark all channels as read for a user (set cursor to latest message).
+pub async fn mark_all_read(pool: &PgPool, user_id: Uuid) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO read_cursors (user_id, channel_id, last_read_message_id, last_read_at)
+        SELECT $1, cm.channel_id, latest.id, NOW()
+        FROM channel_members cm
+        JOIN LATERAL (
+            SELECT id FROM messages
+            WHERE channel_id = cm.channel_id AND deleted_at IS NULL
+            ORDER BY created_at DESC LIMIT 1
+        ) latest ON true
+        WHERE cm.user_id = $1
+        ON CONFLICT (user_id, channel_id) DO UPDATE
+        SET last_read_message_id = EXCLUDED.last_read_message_id, last_read_at = NOW()
+        "#,
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Get unread counts for all channels a user is a member of.
 #[derive(Debug, sqlx::FromRow, serde::Serialize)]
 pub struct ChannelUnreadCount {

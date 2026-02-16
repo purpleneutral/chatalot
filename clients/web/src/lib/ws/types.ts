@@ -19,6 +19,7 @@ export type ClientMessage =
 	| { type: 'add_reaction'; message_id: string; emoji: string }
 	| { type: 'remove_reaction'; message_id: string; emoji: string }
 	| { type: 'mark_read'; channel_id: string; message_id: string }
+	| { type: 'mark_all_read' }
 	| { type: 'ping'; timestamp: number };
 
 export type ServerMessage =

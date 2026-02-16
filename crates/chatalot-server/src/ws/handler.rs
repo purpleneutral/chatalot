@@ -1081,6 +1081,10 @@ async fn handle_client_message(
                 let _ = unread_repo::mark_read(&state.db, user_id, channel_id, message_id).await;
             }
         }
+
+        ClientMessage::MarkAllRead => {
+            let _ = unread_repo::mark_all_read(&state.db, user_id).await;
+        }
     }
 }
 

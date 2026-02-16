@@ -218,6 +218,17 @@ class MessageStore {
 		this.unreadCounts = next;
 	}
 
+	clearAllUnread() {
+		this.unreadCounts = new Map();
+	}
+
+	get hasAnyUnread(): boolean {
+		for (const count of this.unreadCounts.values()) {
+			if (count > 0) return true;
+		}
+		return false;
+	}
+
 	/** Clean up all data for a channel (call on leave/delete). */
 	clearChannel(channelId: string) {
 		const nextMessages = new Map(this.messagesByChannel);
