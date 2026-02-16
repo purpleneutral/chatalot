@@ -935,6 +935,9 @@
 
 		// Announcement events
 		window.addEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
+
+		// Idle detection
+		setupIdleDetection();
 	});
 
 	onDestroy(() => {
@@ -960,7 +963,47 @@
 		if (slowModeTimer) clearInterval(slowModeTimer);
 		if (gifSearchDebounceTimer) clearTimeout(gifSearchDebounceTimer);
 		if (searchTimeout) clearTimeout(searchTimeout);
+		clearIdleDetection();
 	});
+
+	// ── Idle Detection ──
+	let idleTimer: ReturnType<typeof setTimeout> | undefined;
+	let isAutoIdle = false;
+	const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+	function resetIdleTimer() {
+		if (idleTimer) clearTimeout(idleTimer);
+		// If we auto-set idle, restore to online on activity
+		if (isAutoIdle) {
+			isAutoIdle = false;
+			const savedStatus = localStorage.getItem('chatalot:status') ?? 'online';
+			if (savedStatus === 'online' || savedStatus === 'idle') {
+				wsClient.send({ type: 'update_presence', status: 'online' });
+				if (authStore.user) presenceStore.setStatus(authStore.user.id, 'online');
+			}
+		}
+		idleTimer = setTimeout(() => {
+			// Only auto-idle if user's chosen status is "online"
+			const savedStatus = localStorage.getItem('chatalot:status') ?? 'online';
+			if (savedStatus === 'online' && wsClient.isConnected()) {
+				isAutoIdle = true;
+				wsClient.send({ type: 'update_presence', status: 'idle' });
+				if (authStore.user) presenceStore.setStatus(authStore.user.id, 'idle');
+			}
+		}, IDLE_TIMEOUT);
+	}
+
+	function setupIdleDetection() {
+		const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+		events.forEach(e => document.addEventListener(e, resetIdleTimer, { passive: true }));
+		resetIdleTimer();
+	}
+
+	function clearIdleDetection() {
+		if (idleTimer) clearTimeout(idleTimer);
+		const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+		events.forEach(e => document.removeEventListener(e, resetIdleTimer));
+	}
 
 	function handleUpdateAvailable() {
 		pendingUpdate = true;
