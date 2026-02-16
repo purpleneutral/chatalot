@@ -163,6 +163,51 @@ pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> Result<
     Ok(())
 }
 
+/// Add multiple users to a group and all its discoverable channels at once.
+pub async fn join_group_batch(
+    pool: &PgPool,
+    group_id: Uuid,
+    user_ids: &[Uuid],
+) -> Result<u64, sqlx::Error> {
+    if user_ids.is_empty() {
+        return Ok(0);
+    }
+    let mut tx = pool.begin().await?;
+
+    // Batch insert into group_members
+    let result = sqlx::query(
+        r#"
+        INSERT INTO group_members (group_id, user_id, role)
+        SELECT $1, unnest($2::uuid[]), 'member'
+        ON CONFLICT (group_id, user_id) DO NOTHING
+        "#,
+    )
+    .bind(group_id)
+    .bind(user_ids)
+    .execute(&mut *tx)
+    .await?;
+    let added = result.rows_affected();
+
+    // Batch insert into all discoverable channels for these users
+    sqlx::query(
+        r#"
+        INSERT INTO channel_members (channel_id, user_id, role)
+        SELECT c.id, u.uid, 'member'
+        FROM channels c
+        CROSS JOIN unnest($2::uuid[]) AS u(uid)
+        WHERE c.group_id = $1 AND c.discoverable = TRUE
+        ON CONFLICT (channel_id, user_id) DO NOTHING
+        "#,
+    )
+    .bind(group_id)
+    .bind(user_ids)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(added)
+}
+
 /// Leave a group — removes from group and all its channels.
 pub async fn leave_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;

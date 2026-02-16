@@ -234,17 +234,12 @@ async fn create_group(
                 "Community is too large for public group auto-join; create a private group and use invites".into(),
             ));
         }
-        for uid in &member_ids {
-            if *uid == claims.sub {
-                continue; // Creator already added as owner
-            }
-            if group_repo::join_group(&state.db, group_id, *uid)
-                .await
-                .is_ok()
-            {
-                member_count += 1;
-            }
-        }
+        let other_ids: Vec<Uuid> = member_ids
+            .into_iter()
+            .filter(|uid| *uid != claims.sub) // Creator already added as owner
+            .collect();
+        let added = group_repo::join_group_batch(&state.db, group_id, &other_ids).await?;
+        member_count += added as i64;
     }
 
     Ok(Json(GroupResponse {

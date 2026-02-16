@@ -120,17 +120,14 @@ pub async fn get_all_unread_counts(
         FROM channel_members cm
         LEFT JOIN read_cursors rc
             ON rc.user_id = cm.user_id AND rc.channel_id = cm.channel_id
-        LEFT JOIN messages m
+        LEFT JOIN messages cursor_msg
+            ON cursor_msg.id = rc.last_read_message_id
+        JOIN messages m
             ON m.channel_id = cm.channel_id
             AND m.deleted_at IS NULL
             AND m.sender_id != $1
+            AND m.created_at > COALESCE(cursor_msg.created_at, '1970-01-01T00:00:00Z'::timestamptz)
         WHERE cm.user_id = $1
-          AND (
-            rc.last_read_message_id IS NULL AND m.id IS NOT NULL
-            OR m.created_at > (
-                SELECT created_at FROM messages WHERE id = rc.last_read_message_id
-            )
-          )
         GROUP BY cm.channel_id
         "#,
     )
