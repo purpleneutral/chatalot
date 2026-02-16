@@ -3630,6 +3630,7 @@
 					<button
 						onclick={markAllRead}
 						title="Mark all as read (Shift+Esc)"
+						aria-label="Mark all as read"
 						class="shrink-0 rounded-md border border-white/10 bg-[var(--bg-primary)] p-1.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4428,6 +4429,7 @@
 							onclick={toggleSearch}
 							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showSearch ? 'text-[var(--accent)]' : ''}"
 							title="Search messages"
+							aria-label="Search messages"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -4437,6 +4439,7 @@
 							onclick={togglePinnedPanel}
 							class="relative hidden md:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showPinnedPanel ? 'text-[var(--accent)]' : ''}"
 							title="Pinned messages"
+							aria-label="Pinned messages"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/>
@@ -4452,6 +4455,7 @@
 							onclick={togglePollPanel}
 							class="relative hidden md:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showPollPanel ? 'text-[var(--accent)]' : ''}"
 							title="Polls"
+							aria-label="Polls"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16V12"/><path d="M12 16V8"/><path d="M17 16v-5"/>
@@ -4503,6 +4507,7 @@
 								onclick={toggleMemberPanel}
 								class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showMemberPanel ? 'text-[var(--accent)]' : ''}"
 								title="Members"
+								aria-label="Members"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -4717,6 +4722,7 @@
 							onclick={() => handleDismissAnnouncement(ann.id)}
 							class="shrink-0 rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
 							title="Dismiss"
+							aria-label="Dismiss"
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 						</button>
@@ -4793,6 +4799,7 @@
 									<button
 										onclick={() => startReply(msg)}
 										title="Reply"
+										aria-label="Reply"
 										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
@@ -4800,6 +4807,7 @@
 									<button
 										onclick={(e) => showContextMenu(e, msg.id)}
 										title="More actions"
+										aria-label="More actions"
 										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
@@ -5038,6 +5046,7 @@
 										onclick={(e) => { e.stopPropagation(); reactionPickerMessageId = reactionPickerMessageId === msg.id ? null : msg.id; }}
 										class="p-1.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
 										title="Add reaction"
+											aria-label="Add reaction"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />
@@ -5047,6 +5056,7 @@
 										onclick={() => startReply(msg)}
 										class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
 										title="Reply"
+											aria-label="Reply"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 									</button>
@@ -5054,6 +5064,7 @@
 										onclick={() => forwardMessage(msg)}
 										class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
 										title="Forward"
+											aria-label="Forward"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
 									</button>
@@ -5063,6 +5074,7 @@
 												onclick={() => handleUnpinMessage(msg.id)}
 												class="p-1.5 text-yellow-400 transition hover:text-yellow-300"
 												title="Unpin message"
+												aria-label="Unpin message"
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1">
 													<path d="M16 2L10 8l-4-2-4 4 7 7 4-4-2-4 6-6z" />
@@ -5073,6 +5085,7 @@
 												onclick={() => handlePinMessage(msg.id)}
 												class="p-1.5 text-[var(--text-secondary)] transition hover:text-yellow-400"
 												title="Pin message"
+												aria-label="Pin message"
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 													<path d="M16 2L10 8l-4-2-4 4 7 7 4-4-2-4 6-6z" />
@@ -5085,6 +5098,7 @@
 											onclick={() => startEditMessage(msg)}
 											class="p-1.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
 											title="Edit"
+											aria-label="Edit message"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -5094,6 +5108,7 @@
 											onclick={() => handleDeleteMessage(msg.id)}
 											class="p-1.5 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
 											title="Delete"
+											aria-label="Delete message"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -5104,6 +5119,7 @@
 											onclick={() => handleDeleteMessage(msg.id)}
 											class="p-1.5 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
 											title="Delete (mod)"
+											aria-label="Delete message (moderator)"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -5133,6 +5149,7 @@
 										onclick={(e) => { e.stopPropagation(); openFullEmojiPicker(msg.id); }}
 										class="rounded p-1 text-lg text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
 										title="More emojis"
+											aria-label="More emojis"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 											<circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
@@ -5346,7 +5363,7 @@
 						<span class="hidden sm:inline text-xs text-[var(--text-secondary)]">Replying to</span>
 						<span class="text-xs font-medium text-[var(--text-primary)]">{userStore.getDisplayName(replyingTo.senderId)}</span>
 						<span class="flex-1 truncate text-xs text-[var(--text-secondary)]" title={replyingTo.content}>{replyingTo.content.slice(0, 60)}</span>
-						<button onclick={cancelReply} class="shrink-0 rounded p-0.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="Cancel reply">
+						<button onclick={cancelReply} class="shrink-0 rounded p-0.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="Cancel reply" aria-label="Cancel reply">
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 						</button>
 					</div>
@@ -5498,6 +5515,7 @@
 								onclick={openCreatePoll}
 								class="hidden sm:block shrink-0 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-2 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 								title="Create poll"
+								aria-label="Create poll"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 16V12"/><path d="M12 16V8"/><path d="M17 16v-5"/>
@@ -5608,7 +5626,7 @@
 		<!-- Member panel (right sidebar) -->
 		{#if showMemberPanel && activeChannel && activeChannel.channel_type !== 'dm'}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleMemberPanel} onkeydown={() => {}} transition:fade={{ duration: 150 }}></div>
+			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleMemberPanel} onkeydown={(e) => { if (e.key === 'Escape') toggleMemberPanel(); }} role="button" tabindex="-1" aria-label="Close member panel" transition:fade={{ duration: 150 }}></div>
 			{#snippet memberRow(member: typeof channelMembers[0])}
 				<div class="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5">
 					<Avatar userId={member.user_id} size="sm" showStatus />
@@ -5638,6 +5656,7 @@
 									onclick={() => handleRoleChange(member.user_id, member.role === 'admin' ? 'member' : 'admin')}
 									class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"
 									title={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+									aria-label={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
 								>
 									{#if member.role === 'admin'}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
@@ -5650,6 +5669,7 @@
 								onclick={() => handleKick(member.user_id, member.display_name)}
 								class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
 								title="Kick"
+								aria-label="Kick member"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 							</button>
@@ -5657,6 +5677,7 @@
 								onclick={() => handleBan(member.user_id, member.display_name)}
 								class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
 								title="Ban"
+								aria-label="Ban member"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg>
 							</button>
@@ -5782,6 +5803,7 @@
 									onclick={() => { setFeedbackScreenshot(null); if (feedbackFileInput) feedbackFileInput.value = ''; }}
 									class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white shadow hover:bg-red-600"
 									title="Remove screenshot"
+										aria-label="Remove screenshot"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 								</button>
@@ -6263,6 +6285,7 @@
 					onclick={closeLightbox}
 					class="rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
 					title="Close"
+					aria-label="Close lightbox"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -6276,6 +6299,7 @@
 					onclick={(e) => { e.stopPropagation(); lightboxPrev(); }}
 					class="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white transition hover:bg-black/70"
 					title="Previous image"
+					aria-label="Previous image"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
 				</button>
@@ -6287,6 +6311,7 @@
 					onclick={(e) => { e.stopPropagation(); lightboxNext(); }}
 					class="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white transition hover:bg-black/70"
 					title="Next image"
+					aria-label="Next image"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
 				</button>

@@ -712,6 +712,7 @@
 											onclick={() => handleKick(member)}
 											class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--danger)]"
 											title="Kick"
+										aria-label="Kick member"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
@@ -721,6 +722,7 @@
 											onclick={() => handleBan(member)}
 											class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--danger)]"
 											title="Ban"
+											aria-label="Ban member"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
@@ -1006,6 +1008,7 @@
 											value={value || '#000000'}
 											oninput={(e) => setter((e.target as HTMLInputElement).value)}
 											class="h-8 w-8 cursor-pointer rounded border border-white/10 bg-transparent"
+											aria-label="{label} color"
 										/>
 										<div class="flex-1">
 											<span class="block text-xs font-medium text-[var(--text-primary)]">{label}</span>
@@ -1135,6 +1138,7 @@
 												onclick={() => handleDeleteEmoji(emoji)}
 												class="hidden shrink-0 rounded p-1 text-[var(--text-secondary)] transition hover:bg-red-500/10 hover:text-red-400 group-hover:block"
 												title="Delete emoji"
+												aria-label="Delete emoji"
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 											</button>
