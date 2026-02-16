@@ -97,6 +97,26 @@ All preferences sync to the server and persist across devices.
 | **Link previews** | Show / Hide | Show |
 | **Formatting toolbar** | Show / Hide | Show |
 
+### Profile Customization
+- **Profile banners** — Upload a banner image (max 5 MB) displayed on profile cards; supports PNG, JPEG, WebP, and GIF
+- **GIF avatars** — Animated avatar support
+
+### Community Theming
+- **Community theme editor** — Admins can override 7 CSS color variables (accent, accent hover, 3 backgrounds, 2 text colors) per community
+- **Custom CSS** — Server-side sanitized CSS injection for advanced community styling; allowlisted properties only, no XSS vectors
+- **Community icon and banner** — Upload custom icon (2 MB) and banner (5 MB) images
+- **Welcome message** — Configurable splash screen shown to members on their first visit; tracked via localStorage dismissal
+- **Live theme preview** — Color pickers show a mock chat preview before saving
+
+### Group Customization
+- **Group icon and banner** — Upload custom icon and banner images per group
+- **Accent color** — Per-group accent color displayed on group names in the sidebar
+
+### Voice Call Backgrounds
+- **Per-user backgrounds** — Choose a background for your video tile when camera is off: solid color, gradient, preset, or custom image upload
+- **6 animated presets** — Fireplace, Aurora, Rain, Sunset, Space, and Cozy — CSS-only animations with no image assets
+- **Per-channel ambiance** — Admins can set a shared background image for voice channel grids
+
 - **Custom scrollbars** — Themed scrollbars matching the active theme (WebKit and Firefox)
 - **PWA support** — Installable as a progressive web app
 
@@ -132,7 +152,7 @@ All preferences sync to the server and persist across devices.
 ## Technical Details
 
 - **Server**: Rust (axum + tokio), single binary serving API + WebSocket + static files
-- **Database**: PostgreSQL 17 with sqlx (32 migrations)
+- **Database**: PostgreSQL 17 with sqlx (34 migrations)
 - **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 16 API modules, 9 components)
 - **Desktop client**: Tauri 2.0
 - **Deployment**: Single `docker compose up -d` — two containers (app + PostgreSQL)

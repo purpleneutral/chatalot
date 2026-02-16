@@ -14,6 +14,20 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.11.0',
+			date: '2026-02-15',
+			changes: [
+				'Profile banners: upload a banner image displayed on your profile card',
+				'Community theming: admins can set accent colors, backgrounds, text colors, and custom CSS for their community',
+				'Community welcome message: shown as a splash screen when members first visit',
+				'Community icon and banner uploads with live preview',
+				'Group customization: icon, banner, and accent color per group',
+				'Voice call backgrounds: choose from 6 animated presets (Fireplace, Aurora, Rain, Sunset, Space, Cozy) or set a solid color, gradient, or custom image',
+				'Per-channel voice ambiance: admins can set a shared background for voice channels',
+				'Server-side CSS sanitizer with allowlisted properties to prevent XSS in community themes',
+			]
+		},
+		{
 			version: '0.10.0',
 			date: '2026-02-14',
 			changes: [

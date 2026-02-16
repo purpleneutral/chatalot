@@ -36,7 +36,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Rich messaging** — markdown, syntax-highlighted code blocks, inline media previews, GIF search, emoji autocomplete, reactions, replies, and forwarding
 - **File sharing** — drag-and-drop, clipboard paste, inline image/video/audio previews with lightbox viewer
 - **Desktop notifications** — configurable per-channel with sound controls
-- **Customization** — themes, 8 accent colors, message density, font size, time format, and more
+- **Customization** — themes, 8 accent colors, message density, font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0
 - **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA, rate limiting, invite-only registration
 - **Admin panel** — user management, invite codes, and system feedback
@@ -248,7 +248,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (32 files)
+├── migrations/                # PostgreSQL migrations (34 files)
 ├── scripts/
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
 │   ├── generate-secrets.sh    # Generate JWT keys + .env
@@ -307,7 +307,7 @@ npm run dev
 ### Tests
 
 ```bash
-cargo test          # 44 unit tests (crypto, auth, middleware)
+cargo test          # 52 unit tests (crypto, auth, security, CSS sanitizer)
 cargo clippy        # Lint checks
 cd clients/web && npm run check   # Svelte type checking
 ```
