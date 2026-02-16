@@ -30,7 +30,7 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount } from 'svelte';
 
-	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans' | 'settings'>('overview');
+	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans' | 'settings' | 'theme'>('overview');
 	let community = $state<Community | null>(null);
 	let members = $state<CommunityMember[]>([]);
 	let invites = $state<CommunityInvite[]>([]);
@@ -62,6 +62,17 @@
 	let policyInvites = $state('admin');
 	let communityDiscoverable = $state(true);
 	let savingPolicies = $state(false);
+
+	// Theme state
+	let themeAccent = $state('');
+	let themeAccentHover = $state('');
+	let themeBgPrimary = $state('');
+	let themeBgSecondary = $state('');
+	let themeBgTertiary = $state('');
+	let themeTextPrimary = $state('');
+	let themeTextSecondary = $state('');
+	let themeCustomCss = $state('');
+	let savingTheme = $state(false);
 
 	let canManage = $derived(myRole === 'owner' || myRole === 'admin' || authStore.user?.is_owner);
 	let isOwner = $derived(myRole === 'owner' || authStore.user?.is_owner);
@@ -97,6 +108,17 @@
 			policyInvites = c.who_can_create_invites ?? 'admin';
 			communityDiscoverable = c.discoverable ?? true;
 			editWelcomeMessage = c.welcome_message ?? '';
+
+			// Load theme values
+			const t = c.community_theme;
+			themeAccent = t?.accent ?? '';
+			themeAccentHover = t?.accentHover ?? '';
+			themeBgPrimary = t?.bgPrimary ?? '';
+			themeBgSecondary = t?.bgSecondary ?? '';
+			themeBgTertiary = t?.bgTertiary ?? '';
+			themeTextPrimary = t?.textPrimary ?? '';
+			themeTextSecondary = t?.textSecondary ?? '';
+			themeCustomCss = t?.customCss ?? '';
 
 			// Find my role
 			const me = m.find((mem) => mem.user_id === authStore.user?.id);
@@ -342,6 +364,45 @@
 		}
 	}
 
+	async function handleSaveTheme() {
+		if (!community) return;
+		savingTheme = true;
+		try {
+			const theme: Record<string, string> = {};
+			if (themeAccent) theme.accent = themeAccent;
+			if (themeAccentHover) theme.accentHover = themeAccentHover;
+			if (themeBgPrimary) theme.bgPrimary = themeBgPrimary;
+			if (themeBgSecondary) theme.bgSecondary = themeBgSecondary;
+			if (themeBgTertiary) theme.bgTertiary = themeBgTertiary;
+			if (themeTextPrimary) theme.textPrimary = themeTextPrimary;
+			if (themeTextSecondary) theme.textSecondary = themeTextSecondary;
+			if (themeCustomCss.trim()) theme.customCss = themeCustomCss.trim();
+
+			const updated = await updateCommunity(community.id, {
+				community_theme: Object.keys(theme).length > 0 ? theme : null
+			});
+			community = updated;
+			communityStore.updateCommunity(community.id, { community_theme: updated.community_theme });
+			communityStore.applyCommunityTheme(updated.community_theme);
+			toastStore.success('Theme saved');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to save theme');
+		} finally {
+			savingTheme = false;
+		}
+	}
+
+	function handleResetTheme() {
+		themeAccent = '';
+		themeAccentHover = '';
+		themeBgPrimary = '';
+		themeBgSecondary = '';
+		themeBgTertiary = '';
+		themeTextPrimary = '';
+		themeTextSecondary = '';
+		themeCustomCss = '';
+	}
+
 	function switchTab(tab: typeof activeTab) {
 		activeTab = tab;
 		if (tab === 'invites' && invites.length === 0) loadInvites();
@@ -389,7 +450,7 @@
 		<div class="mx-auto flex w-full max-w-4xl flex-1 gap-6 p-6">
 			<!-- Sidebar tabs -->
 			<nav class="w-48 space-y-1">
-				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings']] : [])] as [tab, label]}
+				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme']] : [])] as [tab, label]}
 					<button
 						onclick={() => switchTab(tab as typeof activeTab)}
 						class="w-full rounded-lg px-3 py-2 text-left text-sm transition {activeTab === tab ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
@@ -822,6 +883,120 @@
 									</tbody>
 								</table>
 							</div>
+						</div>
+					</div>
+
+				{:else if activeTab === 'theme'}
+					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Community Theme</h2>
+
+					<div class="space-y-6">
+						<!-- Live Preview -->
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Preview</h3>
+							<div class="overflow-hidden rounded-lg border border-white/10" style="background: {themeBgPrimary || 'var(--bg-primary)'}">
+								<div class="flex h-8 items-center gap-2 px-3" style="background: {themeBgSecondary || 'var(--bg-secondary)'}">
+									<div class="h-3 w-3 rounded-full" style="background: {themeAccent || 'var(--accent)'}"></div>
+									<span class="text-xs font-medium" style="color: {themeTextPrimary || 'var(--text-primary)'}">Channel Name</span>
+								</div>
+								<div class="space-y-2 p-3">
+									<div class="flex items-start gap-2">
+										<div class="h-6 w-6 rounded-full" style="background: {themeBgTertiary || 'var(--bg-tertiary)'}"></div>
+										<div>
+											<span class="text-xs font-medium" style="color: {themeAccent || 'var(--accent)'}">User</span>
+											<p class="text-xs" style="color: {themeTextPrimary || 'var(--text-primary)'}">Hello, this is a preview message!</p>
+										</div>
+									</div>
+									<div class="flex items-start gap-2">
+										<div class="h-6 w-6 rounded-full" style="background: {themeBgTertiary || 'var(--bg-tertiary)'}"></div>
+										<div>
+											<span class="text-xs font-medium" style="color: {themeTextSecondary || 'var(--text-secondary)'}">Another User</span>
+											<p class="text-xs" style="color: {themeTextPrimary || 'var(--text-primary)'}">Looking good!</p>
+										</div>
+									</div>
+								</div>
+								<div class="flex h-8 items-center px-3" style="background: {themeBgTertiary || 'var(--bg-tertiary)'}">
+									<span class="text-xs" style="color: {themeTextSecondary || 'var(--text-secondary)'}">Type a message...</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Color Pickers -->
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Colors</h3>
+							<div class="grid grid-cols-2 gap-4">
+								{#each [
+									['Accent', themeAccent, (v: string) => themeAccent = v],
+									['Accent Hover', themeAccentHover, (v: string) => themeAccentHover = v],
+									['Background Primary', themeBgPrimary, (v: string) => themeBgPrimary = v],
+									['Background Secondary', themeBgSecondary, (v: string) => themeBgSecondary = v],
+									['Background Tertiary', themeBgTertiary, (v: string) => themeBgTertiary = v],
+									['Text Primary', themeTextPrimary, (v: string) => themeTextPrimary = v],
+									['Text Secondary', themeTextSecondary, (v: string) => themeTextSecondary = v],
+								] as [label, value, setter]}
+									<div class="flex items-center gap-3">
+										<input
+											type="color"
+											value={value || '#000000'}
+											oninput={(e) => setter((e.target as HTMLInputElement).value)}
+											class="h-8 w-8 cursor-pointer rounded border border-white/10 bg-transparent"
+										/>
+										<div class="flex-1">
+											<label class="block text-xs font-medium text-[var(--text-primary)]">{label}</label>
+											<div class="flex items-center gap-1">
+												<input
+													type="text"
+													value={value}
+													oninput={(e) => setter((e.target as HTMLInputElement).value)}
+													placeholder="Default"
+													class="w-24 rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+												/>
+												{#if value}
+													<button
+														onclick={() => setter('')}
+														class="text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]"
+														title="Clear"
+													>&times;</button>
+												{/if}
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Custom CSS -->
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<h3 class="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Custom CSS</h3>
+							<p class="mb-3 text-xs text-[var(--text-secondary)]">
+								Allowed properties: color, background, border, font, spacing, shadows, opacity, text-decoration.
+								No url() (except /api/ paths), no position, no @import.
+								Max 4 KB.
+							</p>
+							<textarea
+								bind:value={themeCustomCss}
+								rows="6"
+								maxlength="4096"
+								placeholder="/* e.g. --my-custom-var: #ff0000; */"
+								spellcheck="false"
+								class="w-full resize-y rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 font-mono text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+							></textarea>
+						</div>
+
+						<!-- Actions -->
+						<div class="flex gap-2">
+							<button
+								onclick={handleSaveTheme}
+								disabled={savingTheme}
+								class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+							>
+								{savingTheme ? 'Saving...' : 'Save Theme'}
+							</button>
+							<button
+								onclick={handleResetTheme}
+								class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							>
+								Reset to Defaults
+							</button>
 						</div>
 					</div>
 				{/if}

@@ -202,6 +202,10 @@
 	let creatingChannel = $state(false);
 	let creatingGroupChannel = $state(false);
 
+	// Welcome splash state
+	let showWelcomeSplash = $state(false);
+	let welcomeCommunity = $state<Community | null>(null);
+
 	// Slow mode cooldown
 	let slowModeCooldown = $state(0);
 	let slowModeTimer: ReturnType<typeof setInterval> | null = null;
@@ -865,6 +869,18 @@
 		}
 
 		initialized = true;
+
+		// Show welcome splash for active community on first visit
+		if (communityStore.activeCommunityId) {
+			const activeCom = communityStore.communities.find(c => c.id === communityStore.activeCommunityId);
+			if (activeCom?.welcome_message) {
+				const dismissKey = `chatalot:welcomeDismissed:${activeCom.id}`;
+				if (!localStorage.getItem(dismissKey)) {
+					welcomeCommunity = activeCom;
+					showWelcomeSplash = true;
+				}
+			}
+		}
 
 		// Close context menu on click outside
 		document.addEventListener('click', closeContextMenu);
@@ -2402,6 +2418,16 @@
 					selectChannel(firstChs[0].id);
 				}
 			}
+
+			// Show welcome splash if community has a welcome message and user hasn't seen it
+			const c = communityStore.communities.find((c) => c.id === communityId);
+			if (c?.welcome_message) {
+				const dismissKey = `chatalot:welcomeDismissed:${communityId}`;
+				if (!localStorage.getItem(dismissKey)) {
+					welcomeCommunity = c;
+					showWelcomeSplash = true;
+				}
+			}
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to load community');
 		}
@@ -3879,6 +3905,39 @@
 						{creatingCommunity ? 'Creating...' : 'Create Community'}
 					</button>
 				</form>
+			</div>
+		{/if}
+
+		<!-- Welcome Splash modal -->
+		{#if showWelcomeSplash && welcomeCommunity}
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" transition:fade={{ duration: 200 }}>
+				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+				<div role="dialog" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+					{#if welcomeCommunity.banner_url}
+						<img src={welcomeCommunity.banner_url} alt="" class="h-32 w-full object-cover" />
+					{:else}
+						<div class="h-20 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
+					{/if}
+					<div class="p-6">
+						<div class="flex items-center gap-3">
+							{#if welcomeCommunity.icon_url}
+								<img src={welcomeCommunity.icon_url} alt="" class="h-12 w-12 rounded-full border-2 border-[var(--bg-secondary)] object-cover" />
+							{/if}
+							<h3 class="text-xl font-bold text-[var(--text-primary)]">{welcomeCommunity.name}</h3>
+						</div>
+						<p class="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{welcomeCommunity.welcome_message}</p>
+						<button
+							onclick={() => {
+								localStorage.setItem(`chatalot:welcomeDismissed:${welcomeCommunity!.id}`, '1');
+								showWelcomeSplash = false;
+								welcomeCommunity = null;
+							}}
+							class="mt-6 w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+						>
+							Got it
+						</button>
+					</div>
+				</div>
 			</div>
 		{/if}
 

@@ -78,9 +78,10 @@ export async function updateCommunity(
 		who_can_create_invites?: string;
 		discoverable?: boolean;
 		welcome_message?: string | null;
+		community_theme?: Record<string, string> | null;
 	}
 ): Promise<Community> {
-	const body: Record<string, string | boolean | null> = {};
+	const body: Record<string, string | boolean | Record<string, string> | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
 	if (updates.description !== undefined) body.description = updates.description;
 	if (updates.iconUrl !== undefined) body.icon_url = updates.iconUrl;
@@ -88,6 +89,7 @@ export async function updateCommunity(
 	if (updates.who_can_create_invites !== undefined) body.who_can_create_invites = updates.who_can_create_invites;
 	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
 	if (updates.welcome_message !== undefined) body.welcome_message = updates.welcome_message;
+	if (updates.community_theme !== undefined) body.community_theme = updates.community_theme;
 	return api.patch<Community>(`/communities/${id}`, body);
 }
 
