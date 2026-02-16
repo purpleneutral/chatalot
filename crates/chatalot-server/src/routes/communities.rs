@@ -353,6 +353,15 @@ async fn update_community(
         ));
     }
 
+    // Validate welcome_message length
+    if let Some(ref msg) = req.welcome_message
+        && msg.len() > 2000
+    {
+        return Err(AppError::Validation(
+            "welcome_message must be at most 2000 characters".to_string(),
+        ));
+    }
+
     // Validate community_theme if provided
     let validated_theme = if let Some(ref theme) = req.community_theme {
         let raw = serde_json::to_string(theme)

@@ -1113,6 +1113,14 @@ async fn review_report(
         ));
     }
 
+    if let Some(ref notes) = req.admin_notes
+        && notes.len() > 5000
+    {
+        return Err(AppError::Validation(
+            "admin notes must be at most 5000 characters".to_string(),
+        ));
+    }
+
     let report = report_repo::review_report(
         &state.db,
         report_id,

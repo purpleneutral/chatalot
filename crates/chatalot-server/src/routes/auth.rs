@@ -110,6 +110,7 @@ async fn register(
     let device = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
+        .filter(|ua| ua.len() <= 512)
         .map(parse_device_name);
     let ip = extract_client_ip(&headers);
 
@@ -125,6 +126,7 @@ async fn login(
     let device = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
+        .filter(|ua| ua.len() <= 512)
         .map(parse_device_name);
     let ip = extract_client_ip(&headers);
 
@@ -140,6 +142,7 @@ async fn refresh(
     let device = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
+        .filter(|ua| ua.len() <= 512)
         .map(parse_device_name);
     let ip = extract_client_ip(&headers);
 

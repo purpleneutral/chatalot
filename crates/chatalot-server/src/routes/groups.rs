@@ -434,6 +434,17 @@ async fn update_group(
         ));
     }
 
+    // Validate accent_color format if provided
+    if let Some(ref color) = req.accent_color {
+        static COLOR_HEX_RE: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap());
+        if !COLOR_HEX_RE.is_match(color) {
+            return Err(AppError::Validation(
+                "accent_color must be a hex color (e.g. #ff0000)".to_string(),
+            ));
+        }
+    }
+
     let group = group_repo::update_group(
         &state.db,
         id,
@@ -926,6 +937,14 @@ async fn create_invite(
         ));
     }
 
+    if let Some(h) = req.expires_in_hours
+        && !(1..=8760).contains(&h)
+    {
+        return Err(AppError::Validation(
+            "expires_in_hours must be between 1 and 8760".to_string(),
+        ));
+    }
+
     let expires_at = req
         .expires_in_hours
         .map(|h| chrono::Utc::now() + chrono::Duration::hours(h as i64));
@@ -1020,6 +1039,10 @@ async fn get_invite_info(
     State(state): State<Arc<AppState>>,
     Path(code): Path<String>,
 ) -> Result<Json<InviteInfoResponse>, AppError> {
+    if code.len() > 100 {
+        return Err(AppError::NotFound("invite not found".to_string()));
+    }
+
     let invite = invite_repo::get_invite_by_code(&state.db, &code)
         .await?
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
@@ -1064,6 +1087,10 @@ async fn accept_invite(
     Extension(claims): Extension<AccessClaims>,
     Path(code): Path<String>,
 ) -> Result<Json<AcceptInviteResponse>, AppError> {
+    if code.len() > 100 {
+        return Err(AppError::NotFound("invite not found".to_string()));
+    }
+
     let invite = invite_repo::get_invite_by_code(&state.db, &code)
         .await?
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;

@@ -318,6 +318,14 @@ async fn ban_member(
     Path((channel_id, target_user_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<BanRequest>,
 ) -> Result<(), AppError> {
+    if let Some(ref reason) = req.reason
+        && reason.len() > 500
+    {
+        return Err(AppError::Validation(
+            "ban reason must be at most 500 characters".to_string(),
+        ));
+    }
+
     let actor_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
         .await?
         .ok_or(AppError::Forbidden)?;
