@@ -123,6 +123,19 @@ export async function searchMessagesGlobal(query: string, opts?: SearchOptions):
 	return api.get<Message[]>(`/messages/search?${params.toString()}`);
 }
 
+// ── Edit History ──
+
+export interface MessageEdit {
+	id: string;
+	old_ciphertext: number[];
+	old_nonce: number[];
+	edited_at: string;
+}
+
+export async function getEditHistory(channelId: string, messageId: string): Promise<MessageEdit[]> {
+	return api.get<MessageEdit[]>(`/channels/${channelId}/messages/${messageId}/history`);
+}
+
 // ── Pinned Messages ──
 
 export interface PinnedMessage {

@@ -6,7 +6,8 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
-    MessageResponse, MessagesQuery, PinnedMessageResponse, ReactionInfo, SearchQuery,
+    MessageEditResponse, MessageResponse, MessagesQuery, PinnedMessageResponse, ReactionInfo,
+    SearchQuery,
 };
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{channel_repo, message_repo, pin_repo, reaction_repo};
@@ -41,6 +42,10 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/channels/{id}/messages", get(get_messages))
         .route("/channels/{id}/messages/search", get(search_messages))
+        .route(
+            "/channels/{id}/messages/{msg_id}/history",
+            get(get_edit_history),
+        )
         .route("/messages/search", get(global_search_messages))
         .route("/channels/{id}/pins", get(list_pins))
         .route(
@@ -278,4 +283,38 @@ fn messages_to_responses(
             }
         })
         .collect()
+}
+
+// ── Edit History ──
+
+async fn get_edit_history(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path((channel_id, msg_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Vec<MessageEditResponse>>, AppError> {
+    // Verify membership
+    if !channel_repo::is_member(&state.db, channel_id, claims.sub).await? {
+        return Err(AppError::Forbidden);
+    }
+
+    // Verify message belongs to channel
+    let msg = message_repo::get_message_by_id(&state.db, msg_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("message not found".into()))?;
+    if msg.channel_id != channel_id {
+        return Err(AppError::NotFound("message not found".into()));
+    }
+
+    let edits = message_repo::get_edit_history(&state.db, msg_id).await?;
+    Ok(Json(
+        edits
+            .into_iter()
+            .map(|e| MessageEditResponse {
+                id: e.id,
+                old_ciphertext: e.old_ciphertext,
+                old_nonce: e.old_nonce,
+                edited_at: e.edited_at.to_rfc3339(),
+            })
+            .collect(),
+    ))
 }

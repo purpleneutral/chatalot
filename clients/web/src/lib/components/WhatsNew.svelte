@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.15.0',
+			date: '2026-02-16',
+			changes: [
+				'User profiles: bio and pronouns now displayed on profile cards and editable in settings',
+				'Saved Items: browse your bookmarked messages in a dedicated panel — click to jump, one-click remove',
+				'Scheduled messages: pick a date & time to send a message later, manage pending messages in a panel',
+				'Search filters: narrow results by sender, date range, and whether messages contain files',
+				'Message edit history: click "(edited)" on any edited message to view all previous versions',
+			]
+		},
+		{
 			version: '0.14.1',
 			date: '2026-02-16',
 			changes: [

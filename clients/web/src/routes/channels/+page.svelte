@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type ChannelMember, type Message, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, getEditHistory, type Channel, type ChannelMember, type Message, type MessageEdit, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
 	import { searchUsers, listBlockedUsers, createReport, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
@@ -495,6 +495,11 @@
 	// Bookmarks panel state
 	let showBookmarksPanel = $state(false);
 
+	// Edit history modal state
+	let showEditHistory = $state(false);
+	let editHistoryEntries = $state<{ content: string; editedAt: string }[]>([]);
+	let editHistoryLoading = $state(false);
+
 	// Scheduled messages state
 	let showSchedulePicker = $state(false);
 	let scheduleDate = $state('');
@@ -609,6 +614,23 @@
 			bookmarkStore.removeBookmark(bookmarkId);
 			toastStore.success('Bookmark removed');
 		} catch { toastStore.error('Failed to remove bookmark'); }
+	}
+
+	async function loadEditHistory(channelId: string, messageId: string) {
+		editHistoryLoading = true;
+		showEditHistory = true;
+		try {
+			const edits = await getEditHistory(channelId, messageId);
+			editHistoryEntries = edits.map(e => ({
+				content: new TextDecoder().decode(new Uint8Array(e.old_ciphertext)),
+				editedAt: e.edited_at
+			}));
+		} catch {
+			toastStore.error('Failed to load edit history');
+			showEditHistory = false;
+		} finally {
+			editHistoryLoading = false;
+		}
 	}
 
 	async function handleScheduleMessage() {
@@ -2589,6 +2611,7 @@
 		// Escape to close modals and panels
 		if (e.key === 'Escape') {
 			if (showQuickSwitcher) { showQuickSwitcher = false; e.preventDefault(); return; }
+			if (showEditHistory) { showEditHistory = false; e.preventDefault(); return; }
 			if (lightboxImage) { closeLightbox(); e.preventDefault(); return; }
 			if (showGifPicker) { showGifPicker = false; e.preventDefault(); return; }
 			if (showShortcutsModal) { showShortcutsModal = false; e.preventDefault(); return; }
@@ -5059,7 +5082,11 @@
 										{#if msg.pending}
 											<span class="text-xs text-[var(--text-secondary)] italic">sending...</span>
 										{:else if msg.editedAt}
-											<span class="text-xs text-[var(--text-secondary)] cursor-default" title="Edited {formatFullTimestamp(msg.editedAt)}">(edited)</span>
+											<button
+												class="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline cursor-pointer bg-transparent border-none p-0"
+												title="Edited {formatFullTimestamp(msg.editedAt)} — click to view history"
+												onclick={(e) => { e.stopPropagation(); loadEditHistory(msg.channelId, msg.id); }}
+											>(edited)</button>
 										{/if}
 										{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
 											<span title="Pinned"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg></span>
@@ -6829,6 +6856,39 @@
 					</button>
 				{/if}
 			{/if}
+		</div>
+	{/if}
+
+	<!-- Edit History Modal -->
+	{#if showEditHistory}
+		<div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" transition:fade={{ duration: 150 }} onclick={() => showEditHistory = false} onkeydown={(e) => { if (e.key === 'Escape') showEditHistory = false; }} role="dialog" tabindex="-1">
+			<div class="w-full max-w-lg rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl border border-white/10" onclick={(e) => e.stopPropagation()}>
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-lg font-semibold text-[var(--text-primary)]">Edit History</h3>
+					<button onclick={() => showEditHistory = false} class="rounded p-1 text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+					</button>
+				</div>
+				{#if editHistoryLoading}
+					<div class="flex items-center justify-center py-8">
+						<div class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+					</div>
+				{:else if editHistoryEntries.length === 0}
+					<p class="text-center text-sm text-[var(--text-secondary)] py-8">No previous versions found.</p>
+				{:else}
+					<div class="space-y-3 max-h-96 overflow-y-auto">
+						{#each editHistoryEntries as entry, i}
+							<div class="rounded-lg bg-[var(--bg-primary)] p-3 border border-white/5">
+								<div class="flex items-center justify-between mb-1.5">
+									<span class="text-xs font-medium text-[var(--text-secondary)]">Version {editHistoryEntries.length - i}</span>
+									<span class="text-xs text-[var(--text-secondary)]">{formatFullTimestamp(entry.editedAt)}</span>
+								</div>
+								<p class="text-sm text-[var(--text-primary)] whitespace-pre-wrap break-words">{entry.content}</p>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		</div>
 	{/if}
 

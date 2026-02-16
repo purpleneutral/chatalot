@@ -968,6 +968,18 @@ async fn handle_client_message(
                 return;
             }
 
+            // Save old content for edit history
+            if let Err(e) = message_repo::save_edit_history(
+                &state.db,
+                message_id,
+                &msg_record.ciphertext,
+                &msg_record.nonce,
+            )
+            .await
+            {
+                tracing::warn!("Failed to save edit history: {e}");
+            }
+
             match message_repo::edit_message(&state.db, message_id, user_id, &ciphertext, &nonce)
                 .await
             {

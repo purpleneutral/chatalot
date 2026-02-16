@@ -20,3 +20,12 @@ pub struct Message {
     pub quarantined_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct MessageEdit {
+    pub id: Uuid,
+    pub message_id: Uuid,
+    pub old_ciphertext: Vec<u8>,
+    pub old_nonce: Vec<u8>,
+    pub edited_at: DateTime<Utc>,
+}

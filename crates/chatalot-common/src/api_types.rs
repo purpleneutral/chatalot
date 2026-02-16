@@ -224,6 +224,14 @@ pub struct SearchQuery {
     pub has_file: Option<bool>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessageEditResponse {
+    pub id: Uuid,
+    pub old_ciphertext: Vec<u8>,
+    pub old_nonce: Vec<u8>,
+    pub edited_at: String,
+}
+
 // ── DMs ──
 
 #[derive(Debug, Serialize, Deserialize)]

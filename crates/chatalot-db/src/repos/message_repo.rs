@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::message::Message;
+use crate::models::message::{Message, MessageEdit};
 
 /// Optional filters for message search.
 pub struct SearchFilters {
@@ -387,4 +387,42 @@ pub async fn edit_message(
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
+}
+
+/// Save old content before an edit (for edit history).
+pub async fn save_edit_history(
+    pool: &PgPool,
+    message_id: Uuid,
+    old_ciphertext: &[u8],
+    old_nonce: &[u8],
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO message_edits (message_id, old_ciphertext, old_nonce)
+        VALUES ($1, $2, $3)
+        "#,
+    )
+    .bind(message_id)
+    .bind(old_ciphertext)
+    .bind(old_nonce)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Get edit history for a message (oldest first).
+pub async fn get_edit_history(
+    pool: &PgPool,
+    message_id: Uuid,
+) -> Result<Vec<MessageEdit>, sqlx::Error> {
+    sqlx::query_as::<_, MessageEdit>(
+        r#"
+        SELECT * FROM message_edits
+        WHERE message_id = $1
+        ORDER BY edited_at ASC
+        "#,
+    )
+    .bind(message_id)
+    .fetch_all(pool)
+    .await
 }
