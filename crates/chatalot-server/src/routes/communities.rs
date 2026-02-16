@@ -197,6 +197,10 @@ async fn get_community_invite_info(
     State(state): State<Arc<AppState>>,
     Path(code): Path<String>,
 ) -> Result<Json<CommunityInviteInfoResponse>, AppError> {
+    if code.len() > 100 {
+        return Err(AppError::Validation("invalid invite code".to_string()));
+    }
+
     let invite = community_repo::get_community_invite_by_code(&state.db, &code)
         .await?
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
@@ -204,13 +208,13 @@ async fn get_community_invite_info(
     if let Some(expires_at) = invite.expires_at
         && expires_at < chrono::Utc::now()
     {
-        return Err(AppError::NotFound("invite expired".to_string()));
+        return Err(AppError::Validation("invite expired".to_string()));
     }
 
     if let Some(max_uses) = invite.max_uses
         && invite.used_count >= max_uses
     {
-        return Err(AppError::NotFound("invite fully used".to_string()));
+        return Err(AppError::Validation("invite fully used".to_string()));
     }
 
     let community = community_repo::get_community(&state.db, invite.community_id)
@@ -239,6 +243,10 @@ async fn accept_community_invite(
     Extension(claims): Extension<AccessClaims>,
     Path(code): Path<String>,
 ) -> Result<Json<AcceptCommunityInviteResponse>, AppError> {
+    if code.len() > 100 {
+        return Err(AppError::Validation("invalid invite code".to_string()));
+    }
+
     let invite = community_repo::get_community_invite_by_code(&state.db, &code)
         .await?
         .ok_or_else(|| AppError::NotFound("invite not found".to_string()))?;
@@ -719,6 +727,13 @@ async fn ban_member(
         .as_deref()
         .map(str::trim)
         .filter(|r| !r.is_empty());
+    if let Some(r) = reason
+        && r.len() > 500
+    {
+        return Err(AppError::Validation(
+            "reason must be at most 500 characters".to_string(),
+        ));
+    }
     community_repo::ban_from_community(&state.db, ctx.community_id, path.uid, claims.sub, reason)
         .await?;
 

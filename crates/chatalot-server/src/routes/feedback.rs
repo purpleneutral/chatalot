@@ -166,7 +166,7 @@ async fn submit_feedback(
         let part = reqwest::multipart::Part::bytes(data)
             .file_name(filename)
             .mime_str(mime)
-            .unwrap_or_else(|_| reqwest::multipart::Part::bytes(vec![]));
+            .map_err(|e| AppError::Validation(format!("invalid mime type: {e}")))?;
 
         let form = reqwest::multipart::Form::new().part("attachment", part);
 
