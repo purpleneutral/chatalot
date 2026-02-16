@@ -63,6 +63,8 @@
 	let sessions = $state<SessionInfo[]>([]);
 	let sessionsLoading = $state(false);
 	let sessionsError = $state('');
+	let revokingSessionId = $state<string | null>(null);
+	let revokingAll = $state(false);
 
 	// Delete account
 	let showDeleteConfirm = $state(false);
@@ -342,21 +344,30 @@
 	}
 
 	async function handleRevokeSession(id: string) {
+		if (revokingSessionId) return;
+		revokingSessionId = id;
 		try {
 			await revokeSession(id);
 			sessions = sessions.filter(s => s.id !== id);
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to revoke session');
+		} finally {
+			revokingSessionId = null;
 		}
 	}
 
 	async function handleLogoutAll() {
+		if (revokingAll) return;
+		if (!confirm('Revoke all sessions? You will be logged out everywhere.')) return;
+		revokingAll = true;
 		try {
 			await logoutAll();
 			authStore.logout();
 			goto('/login');
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to logout');
+		} finally {
+			revokingAll = false;
 		}
 	}
 
@@ -1506,9 +1517,10 @@
 							<h3 class="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Active Sessions</h3>
 							<button
 								onclick={handleLogoutAll}
-								class="rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-500/10"
+								disabled={revokingAll}
+								class="rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
 							>
-								Revoke All
+								{revokingAll ? 'Revoking...' : 'Revoke All'}
 							</button>
 						</div>
 
@@ -1548,9 +1560,10 @@
 										</div>
 										<button
 											onclick={() => handleRevokeSession(session.id)}
-											class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10"
+											disabled={revokingSessionId === session.id}
+											class="rounded px-2 py-1 text-xs text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
 										>
-											Revoke
+											{revokingSessionId === session.id ? 'Revoking...' : 'Revoke'}
 										</button>
 									</div>
 								{/each}

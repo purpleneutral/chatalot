@@ -601,9 +601,17 @@
 
 	function handleVoiceKick(userId: string, channelId: string) {
 		const displayName = userStore.getDisplayName(userId);
-		wsClient.send({ type: 'kick_from_voice', channel_id: channelId, user_id: userId });
-		toastStore.success(`${displayName} was kicked from voice`);
 		voiceContextMenu = null;
+		showConfirmDialog({
+			title: 'Kick from Voice',
+			message: `Kick ${displayName} from the voice channel?`,
+			confirmLabel: 'Kick',
+			danger: true,
+			onConfirm: () => {
+				wsClient.send({ type: 'kick_from_voice', channel_id: channelId, user_id: userId });
+				toastStore.success(`${displayName} was kicked from voice`);
+			},
+		});
 	}
 
 	function handleBan(userId: string, displayName: string) {
