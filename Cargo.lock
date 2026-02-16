@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "chatalot-common"
-version = "0.13.3"
+version = "0.13.4"
 dependencies = [
  "chrono",
  "serde",
@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "chatalot-crypto"
-version = "0.13.3"
+version = "0.13.4"
 dependencies = [
  "chacha20poly1305",
  "ed25519-dalek",
@@ -304,7 +304,7 @@ dependencies = [
 
 [[package]]
 name = "chatalot-db"
-version = "0.13.3"
+version = "0.13.4"
 dependencies = [
  "chrono",
  "serde",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "chatalot-server"
-version = "0.13.3"
+version = "0.13.4"
 dependencies = [
  "anyhow",
  "argon2",

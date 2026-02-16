@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.4',
+			date: '2026-02-16',
+			changes: [
+				'Clipboard error handling: all copy actions now show error toasts instead of failing silently',
+				'Accessibility: aria-labels on all icon-only buttons (feedback, sign out, scroll, video focus, close)',
+				'Performance: DM list loading optimized from N+1 queries to batch fetch',
+				'Performance: added database indexes for group invites, DM pairs, scheduled messages',
+				'Race condition fix: channel member loading now discards stale results on fast switching',
+				'Server refactoring: deduplicated message response building code',
+			]
+		},
+		{
 			version: '0.13.3',
 			date: '2026-02-16',
 			changes: [
