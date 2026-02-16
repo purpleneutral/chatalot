@@ -14,6 +14,21 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.0',
+			date: '2026-02-16',
+			changes: [
+				'Announcements: server-wide banners from admins with per-user dismissal',
+				'Custom emoji: upload community emoji, use with :shortcode: in messages, autocomplete in composer',
+				'Report messages: right-click any message to report it to admins',
+				'Warning system: moderators can issue warnings to users in channels',
+				'Auto-idle: status automatically set to idle after 5 minutes of inactivity',
+				'Message "sending..." indicator for pending messages',
+				'Copy message link from context menu',
+				'Smooth scroll-to-bottom animation',
+				'Empty channel state with friendly placeholder',
+			]
+		},
+		{
 			version: '0.12.0',
 			date: '2026-02-16',
 			changes: [

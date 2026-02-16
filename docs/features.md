@@ -34,6 +34,16 @@ Complete reference of Chatalot's features, organized by category.
 - **Webhook execution** — External services POST to `/api/webhooks/execute/{token}` to send messages as the webhook
 - **Copy webhook URL** — One-click copy of the full webhook endpoint URL
 
+### Custom Emoji
+- **Community emoji** — Upload custom emoji (PNG/GIF/WebP, max 256 KB, 50 per community) managed in community settings
+- **Inline rendering** — Custom emoji display inline in messages via `:shortcode:` syntax
+- **Autocomplete** — Custom emoji appear alongside standard emoji in the composer autocomplete popup
+
+### Announcements
+- **Server-wide banners** — Admins create announcements that appear as dismissible banners for all users
+- **Per-user dismissal** — Dismissed announcements don't reappear; tracked server-side
+- **Real-time delivery** — New announcements broadcast via WebSocket and show instant toast notification
+
 ### Organization
 - **Message grouping** — Consecutive messages from the same sender within 5 minutes collapse (hidden avatar/name, tighter spacing, hover timestamp in gutter)
 - **Pinned messages** — Pin important messages (admin/owner only, max 50 per channel); slide-out panel to browse pins; real-time pin/unpin updates via WebSocket
@@ -42,7 +52,7 @@ Complete reference of Chatalot's features, organized by category.
 - **Unread separator** — "NEW MESSAGES" divider when entering a channel with unread messages
 - **Date separators** — Visual dividers between messages on different days
 - **Smart auto-scroll** — Only auto-scrolls to new messages if already near bottom; doesn't interrupt reading history
-- **Scroll-to-bottom button** — Appears when scrolled up, shows unread count badge
+- **Scroll-to-bottom button** — Appears when scrolled up, shows unread count badge; smooth scroll animation
 
 ## Channels & Communities
 
@@ -152,9 +162,17 @@ All preferences sync to the server and persist across devices.
 - **Audit logging** — Auth events logged with IP and user agent
 - **Session management** — View and revoke active sessions; logout all devices
 
+## Moderation
+
+- **Report messages** — Users can report messages from the context menu; admins review in the admin panel
+- **User warnings** — Moderators can issue warnings to users in channels with reason tracking
+- **User blocking** — Block users to hide their messages and prevent DMs
+- **Community bans** — Ban users from communities with optional timeouts
+- **Auto-idle** — Status automatically set to idle after 5 minutes of inactivity; restores on input
+
 ## Administration
 
-- **Admin panel** — In-browser user management, invite code generation, system feedback
+- **Admin panel** — In-browser user management, invite code generation, announcements, reports review, system feedback
 - **Invite-only registration** — Default mode; open and closed modes also available
 - **User management** — View, promote, and manage all users
 - **Server admin badge** — Distinguished in profile cards
@@ -163,7 +181,7 @@ All preferences sync to the server and persist across devices.
 
 - **Server**: Rust (axum + tokio), single binary serving API + WebSocket + static files
 - **Database**: PostgreSQL 17 with sqlx (34 migrations)
-- **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 18 API modules, 9 components)
+- **Web client**: Svelte 5 SPA with Tailwind CSS (15 stores, 20 API modules, 9 components)
 - **Desktop client**: Tauri 2.0
 - **Deployment**: Single `docker compose up -d` — two containers (app + PostgreSQL)
 - **GIF proxy**: Server-side Tenor API proxy with DashMap caching (5-min TTL, max 200 entries)
