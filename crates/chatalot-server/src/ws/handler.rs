@@ -81,6 +81,9 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     // Track spawned subscription tasks so we can abort them on disconnect
     let mut subscription_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
+    // Per-connection reaction cooldown tracker
+    let mut last_reaction_time = tokio::time::Instant::now() - tokio::time::Duration::from_secs(1);
+
     // Maximum incoming WebSocket message size (1 MB)
     const MAX_WS_MESSAGE_SIZE: usize = 1_048_576;
 
@@ -126,6 +129,7 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
                             &state,
                             &tx,
                             &mut subscription_tasks,
+                            &mut last_reaction_time,
                         )
                         .await;
                     }
@@ -215,6 +219,7 @@ async fn handle_client_message(
     state: &AppState,
     tx: &mpsc::UnboundedSender<ServerMessage>,
     subscription_tasks: &mut Vec<tokio::task::JoinHandle<()>>,
+    last_reaction_time: &mut tokio::time::Instant,
 ) {
     let conn_mgr = &state.connections;
     match msg {
@@ -577,14 +582,16 @@ async fn handle_client_message(
                 .await
                 .unwrap_or(false)
             {
-                conn_mgr.set_typing(channel_id, user_id);
-                conn_mgr.broadcast_to_channel(
-                    channel_id,
-                    ServerMessage::UserTyping {
+                // set_typing returns false if a broadcast was sent within the last 3 seconds
+                if conn_mgr.set_typing(channel_id, user_id) {
+                    conn_mgr.broadcast_to_channel(
                         channel_id,
-                        user_id,
-                    },
-                );
+                        ServerMessage::UserTyping {
+                            channel_id,
+                            user_id,
+                        },
+                    );
+                }
             }
         }
 
@@ -990,6 +997,17 @@ async fn handle_client_message(
         }
 
         ClientMessage::AddReaction { message_id, emoji } => {
+            // Per-connection reaction cooldown (200ms between reactions)
+            let now = tokio::time::Instant::now();
+            if now.duration_since(*last_reaction_time) < tokio::time::Duration::from_millis(200) {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "rate_limited".to_string(),
+                    message: "adding reactions too quickly".to_string(),
+                });
+                return;
+            }
+            *last_reaction_time = now;
+
             // Validate emoji length
             if emoji.is_empty() || emoji.len() > 32 {
                 let _ = tx.send(ServerMessage::Error {

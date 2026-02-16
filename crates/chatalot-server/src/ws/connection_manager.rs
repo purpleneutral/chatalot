@@ -103,9 +103,18 @@ impl ConnectionManager {
     }
 
     /// Record that a user started typing in a channel.
-    pub fn set_typing(&self, channel_id: Uuid, user_id: Uuid) {
-        self.typing_state
-            .insert((channel_id, user_id), tokio::time::Instant::now());
+    /// Returns `true` if the typing indicator should be broadcast (i.e., enough
+    /// time has elapsed since the last one), `false` to suppress duplicate broadcasts.
+    pub fn set_typing(&self, channel_id: Uuid, user_id: Uuid) -> bool {
+        let now = tokio::time::Instant::now();
+        let key = (channel_id, user_id);
+        if let Some(prev) = self.typing_state.get(&key)
+            && now.duration_since(*prev) < std::time::Duration::from_secs(3)
+        {
+            return false;
+        }
+        self.typing_state.insert(key, now);
+        true
     }
 
     /// Clear typing state for a user in a channel.
