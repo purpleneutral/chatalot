@@ -255,6 +255,7 @@
 	let showPinnedPanel = $state(false);
 	let pinnedMessages = $state<(PinnedMessage & { _decryptedContent?: string })[]>([]);
 	let loadingPins = $state(false);
+	let loadingPinsError = $state(false);
 
 	// Polls state
 	let showPollPanel = $state(false);
@@ -461,11 +462,13 @@
 	let searchQuery = $state('');
 	let searchResults = $state<ChatMessage[]>([]);
 	let searching = $state(false);
+	let searchError = $state(false);
 	let searchScope = $state<'channel' | 'global'>('channel');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Infinite scroll state
 	let loadingOlder = $state(false);
+	let loadingOlderError = $state(false);
 	const FETCH_LIMIT = 50;
 
 	function parseReactions(reactions?: ReactionInfo[]): Map<string, Set<string>> | undefined {
@@ -2058,6 +2061,7 @@
 	async function loadPinnedMessages() {
 		if (!channelStore.activeChannelId) return;
 		loadingPins = true;
+		loadingPinsError = false;
 		try {
 			const pins = await getPinnedMessages(channelStore.activeChannelId);
 			pinnedMessages = await Promise.all(pins.map(async (pin) => ({
@@ -2074,7 +2078,8 @@
 			})));
 			messageStore.setPinnedIds(channelStore.activeChannelId, pins.map(p => p.id));
 		} catch (err) {
-			console.error('Failed to load pins:', err);
+			console.warn('Failed to load pins:', err);
+			loadingPinsError = true;
 		} finally {
 			loadingPins = false;
 		}
@@ -3110,6 +3115,7 @@
 			if (!q) return;
 			if (searchScope === 'channel' && !channelStore.activeChannelId) return;
 			searching = true;
+			searchError = false;
 			try {
 				const raw = searchScope === 'global'
 					? await searchMessagesGlobal(q)
@@ -3131,8 +3137,9 @@
 					createdAt: m.created_at
 				})));
 			} catch (err) {
-				console.error('Search failed:', err);
+				console.warn('Search failed:', err);
 				searchResults = [];
+				searchError = true;
 			} finally {
 				searching = false;
 			}
@@ -3196,6 +3203,7 @@
 
 		const oldestMsg = currentMessages[0];
 		loadingOlder = true;
+		loadingOlderError = false;
 		const prevHeight = el.scrollHeight;
 		try {
 			const raw = await getMessages(channelStore.activeChannelId, oldestMsg.id, FETCH_LIMIT);
@@ -3221,7 +3229,8 @@
 			await tick();
 			el.scrollTop = el.scrollHeight - prevHeight;
 		} catch (err) {
-			console.error('Failed to load older messages:', err);
+			console.warn('Failed to load older messages:', err);
+			loadingOlderError = true;
 		} finally {
 			loadingOlder = false;
 		}
@@ -3330,7 +3339,7 @@
 						title={community.name}
 					>
 						{#if community.icon_url}
-							<img src={community.icon_url} alt={community.name} class="h-full w-full object-cover" />
+							<img src={community.icon_url} alt={community.name} class="h-full w-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 						{:else}
 							<span class="text-sm font-bold text-[var(--text-primary)]">{community.name.slice(0, 2).toUpperCase()}</span>
 						{/if}
@@ -3384,7 +3393,7 @@
 						title={community.name}
 					>
 						{#if community.icon_url}
-							<img src={community.icon_url} alt={community.name} class="h-full w-full rounded-lg object-cover" />
+							<img src={community.icon_url} alt={community.name} class="h-full w-full rounded-lg object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 						{:else}
 							{community.name.slice(0, 2).toUpperCase()}
 						{/if}
@@ -3712,7 +3721,7 @@
 										<path d="M8 5l8 7-8 7z" />
 									</svg>
 									{#if group.icon_url}
-										<img src={group.icon_url} alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" />
+										<img src={group.icon_url} alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 									{:else if group.assigned_member_id}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 									{:else if group.visibility === 'private'}
@@ -4299,7 +4308,7 @@
 					<div class="p-6">
 						<div class="flex items-center gap-3">
 							{#if welcomeCommunity.icon_url}
-								<img src={welcomeCommunity.icon_url} alt="" class="h-12 w-12 rounded-full border-2 border-[var(--bg-secondary)] object-cover" />
+								<img src={welcomeCommunity.icon_url} alt="" class="h-12 w-12 rounded-full border-2 border-[var(--bg-secondary)] object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 							{/if}
 							<h3 class="text-xl font-bold text-[var(--text-primary)]">{welcomeCommunity.name}</h3>
 						</div>
@@ -4524,6 +4533,8 @@
 						</div>
 						{#if searching}
 							<p class="mt-2 text-xs text-[var(--text-secondary)]">Searching...</p>
+						{:else if searchError}
+							<p class="mt-2 text-xs text-[var(--danger)]">Search failed. Try again.</p>
 						{:else if searchResults.length > 0}
 							<div class="mt-2 max-h-60 space-y-1 overflow-y-auto">
 								{#each searchResults as result (result.id)}
@@ -4564,6 +4575,8 @@
 						</div>
 						{#if loadingPins}
 							<p class="text-xs text-[var(--text-secondary)]">Loading...</p>
+						{:else if loadingPinsError}
+							<p class="text-xs text-[var(--danger)]">Failed to load pins. <button onclick={loadPinnedMessages} class="text-[var(--accent)] hover:underline">Retry</button></p>
 						{:else if pinnedMessages.length > 0}
 							<div class="max-h-60 space-y-2 overflow-y-auto">
 								{#each pinnedMessages as pin (pin.id)}
@@ -4727,7 +4740,12 @@
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<div bind:this={messageListEl} class="min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6 md:py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
-					{#if loadingOlder}
+					{#if loadingOlderError}
+						<div class="mb-4 rounded-lg border border-[var(--danger)]/20 bg-[var(--danger)]/5 px-4 py-3 text-center">
+							<p class="text-sm text-[var(--danger)]">Failed to load older messages</p>
+							<button onclick={() => { loadingOlderError = false; handleMessageScroll(); }} class="mt-1 text-xs text-[var(--accent)] hover:underline">Retry</button>
+						</div>
+					{:else if loadingOlder}
 						<Skeleton variant="message" count={3} />
 					{/if}
 					{#if initialized && messages.length === 0 && !loadingOlder}
