@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.5',
+			date: '2026-02-16',
+			changes: [
+				'Security: invite deletion now validates ownership to prevent cross-group/community abuse',
+				'Security: moderation actions (timeout/warn) now verify channel belongs to the community',
+				'Performance: shared HTTP connection pool for server-side outbound requests (GIFs, link previews, feedback)',
+				'Reliability: concurrent token refresh requests are now deduplicated to prevent auth race conditions',
+				'Refactoring: centralized file upload helper (-130 lines of duplicated code across 5 API modules)',
+			]
+		},
+		{
 			version: '0.13.4',
 			date: '2026-02-16',
 			changes: [
