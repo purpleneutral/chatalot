@@ -149,6 +149,7 @@ fn user_to_public(
         username: user.username.clone(),
         display_name: user.display_name.clone(),
         avatar_url: user.avatar_url.clone(),
+        banner_url: user.banner_url.clone(),
         status: user.status.clone(),
         custom_status: user.custom_status.clone(),
         is_admin,

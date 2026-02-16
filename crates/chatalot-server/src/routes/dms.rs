@@ -69,6 +69,7 @@ async fn create_dm(
             slow_mode_seconds: 0,
             discoverable: true,
             archived: false,
+            voice_background: None,
         },
         other_user: user_to_public(&target),
     }))
@@ -95,6 +96,7 @@ async fn list_dms(
                 slow_mode_seconds: 0,
                 discoverable: true,
                 archived: false,
+                voice_background: None,
             },
             other_user: user_to_public(&other_user),
         })
@@ -109,6 +111,7 @@ fn user_to_public(u: &User) -> UserPublic {
         username: u.username.clone(),
         display_name: u.display_name.clone(),
         avatar_url: u.avatar_url.clone(),
+        banner_url: u.banner_url.clone(),
         status: u.status.clone(),
         custom_status: u.custom_status.clone(),
         is_admin: u.is_admin,

@@ -152,12 +152,15 @@ async fn create_community(
         name: community.name,
         description: community.description,
         icon_url: community.icon_url,
+        banner_url: community.banner_url,
         owner_id: community.owner_id,
         created_at: community.created_at.to_rfc3339(),
         member_count: 1,
         who_can_create_groups: community.who_can_create_groups,
         who_can_create_invites: community.who_can_create_invites,
         discoverable: community.discoverable,
+        community_theme: community.community_theme,
+        welcome_message: community.welcome_message,
     }))
 }
 
@@ -177,12 +180,15 @@ async fn list_my_communities(
                 name: c.name,
                 description: c.description,
                 icon_url: c.icon_url,
+                banner_url: c.banner_url,
                 owner_id: c.owner_id,
                 created_at: c.created_at.to_rfc3339(),
                 member_count: count,
                 who_can_create_groups: c.who_can_create_groups,
                 who_can_create_invites: c.who_can_create_invites,
                 discoverable: c.discoverable,
+                community_theme: c.community_theme,
+                welcome_message: c.welcome_message,
             }
         })
         .collect();
@@ -297,12 +303,15 @@ async fn get_community(
         name: community.name,
         description: community.description,
         icon_url: community.icon_url,
+        banner_url: community.banner_url,
         owner_id: community.owner_id,
         created_at: community.created_at.to_rfc3339(),
         member_count: count,
         who_can_create_groups: community.who_can_create_groups,
         who_can_create_invites: community.who_can_create_invites,
         discoverable: community.discoverable,
+        community_theme: community.community_theme,
+        welcome_message: community.welcome_message,
     }))
 }
 
@@ -366,12 +375,15 @@ async fn update_community(
         name: community.name,
         description: community.description,
         icon_url: community.icon_url,
+        banner_url: community.banner_url,
         owner_id: community.owner_id,
         created_at: community.created_at.to_rfc3339(),
         member_count: count,
         who_can_create_groups: community.who_can_create_groups,
         who_can_create_invites: community.who_can_create_invites,
         discoverable: community.discoverable,
+        community_theme: community.community_theme,
+        welcome_message: community.welcome_message,
     }))
 }
 
@@ -781,6 +793,9 @@ async fn list_community_groups(
                 id: g.id,
                 name: g.name,
                 description: g.description,
+                icon_url: g.icon_url,
+                banner_url: g.banner_url,
+                accent_color: g.accent_color,
                 owner_id: g.owner_id,
                 community_id: g.community_id,
                 created_at: g.created_at.to_rfc3339(),

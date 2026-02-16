@@ -17,6 +17,7 @@ pub struct Channel {
     pub message_ttl_seconds: Option<i32>,
     pub discoverable: bool,
     pub archived: bool,
+    pub voice_background: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

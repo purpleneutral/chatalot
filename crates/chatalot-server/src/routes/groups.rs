@@ -227,6 +227,9 @@ async fn create_group(
         id: group.id,
         name: group.name,
         description: group.description,
+        icon_url: group.icon_url,
+        banner_url: group.banner_url,
+        accent_color: group.accent_color,
         owner_id: group.owner_id,
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
@@ -253,6 +256,9 @@ async fn list_groups(
                 id: g.id,
                 name: g.name,
                 description: g.description,
+                icon_url: g.icon_url,
+                banner_url: g.banner_url,
+                accent_color: g.accent_color,
                 owner_id: g.owner_id,
                 community_id: g.community_id,
                 created_at: g.created_at.to_rfc3339(),
@@ -288,6 +294,9 @@ async fn discover_groups(
                 id: g.id,
                 name: g.name,
                 description: g.description,
+                icon_url: g.icon_url,
+                banner_url: g.banner_url,
+                accent_color: g.accent_color,
                 owner_id: g.owner_id,
                 community_id: g.community_id,
                 created_at: g.created_at.to_rfc3339(),
@@ -322,6 +331,9 @@ async fn get_group(
         id: group.id,
         name: group.name,
         description: group.description,
+        icon_url: group.icon_url,
+        banner_url: group.banner_url,
+        accent_color: group.accent_color,
         owner_id: group.owner_id,
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
@@ -413,6 +425,9 @@ async fn update_group(
         id: group.id,
         name: group.name,
         description: group.description,
+        icon_url: group.icon_url,
+        banner_url: group.banner_url,
+        accent_color: group.accent_color,
         owner_id: group.owner_id,
         community_id: group.community_id,
         created_at: group.created_at.to_rfc3339(),
@@ -619,6 +634,7 @@ async fn list_group_channels(
                 slow_mode_seconds: ch.slow_mode_seconds,
                 discoverable: ch.discoverable,
                 archived: ch.archived,
+                voice_background: ch.voice_background.clone(),
             })
             .collect(),
     ))
@@ -707,6 +723,7 @@ async fn create_group_channel(
         slow_mode_seconds: channel.slow_mode_seconds,
         discoverable: channel.discoverable,
         archived: channel.archived,
+        voice_background: channel.voice_background,
     }))
 }
 
@@ -787,6 +804,7 @@ async fn update_group_channel(
         slow_mode_seconds: channel.slow_mode_seconds,
         discoverable: channel.discoverable,
         archived: channel.archived,
+        voice_background: channel.voice_background,
     }))
 }
 

@@ -15,6 +15,9 @@ pub struct Group {
     pub discoverable: bool,
     pub assigned_member_id: Option<Uuid>,
     pub allow_invites: bool,
+    pub icon_url: Option<String>,
+    pub banner_url: Option<String>,
+    pub accent_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

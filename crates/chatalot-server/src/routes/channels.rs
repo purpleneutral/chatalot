@@ -464,5 +464,6 @@ fn channel_to_response(ch: &chatalot_db::models::channel::Channel) -> ChannelRes
         slow_mode_seconds: ch.slow_mode_seconds,
         discoverable: ch.discoverable,
         archived: ch.archived,
+        voice_background: ch.voice_background.clone(),
     }
 }

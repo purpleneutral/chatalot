@@ -70,6 +70,8 @@ pub struct UserPublic {
     pub username: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banner_url: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     #[serde(default)]
@@ -129,6 +131,8 @@ pub struct ChannelResponse {
     pub discoverable: bool,
     #[serde(default)]
     pub archived: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voice_background: Option<String>,
 }
 
 // ── Channel Members ──
@@ -282,6 +286,9 @@ pub struct UpdateGroupRequest {
     pub visibility: Option<String>,
     pub discoverable: Option<bool>,
     pub allow_invites: Option<bool>,
+    pub icon_url: Option<String>,
+    pub banner_url: Option<String>,
+    pub accent_color: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -297,6 +304,12 @@ pub struct GroupResponse {
     pub discoverable: bool,
     pub assigned_member_id: Option<Uuid>,
     pub allow_invites: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banner_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accent_color: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -318,6 +331,7 @@ pub struct UpdateChannelRequest {
     pub message_ttl_seconds: Option<i32>,
     pub discoverable: Option<bool>,
     pub archived: Option<bool>,
+    pub voice_background: Option<String>,
 }
 
 // ── Invites ──
@@ -381,6 +395,7 @@ pub struct ChangePasswordRequest {
 pub struct UpdateProfileRequest {
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
+    pub banner_url: Option<String>,
     pub custom_status: Option<String>,
     pub bio: Option<String>,
     pub pronouns: Option<String>,
@@ -622,6 +637,9 @@ pub struct UpdateCommunityRequest {
     pub who_can_create_groups: Option<String>,
     pub who_can_create_invites: Option<String>,
     pub discoverable: Option<bool>,
+    pub banner_url: Option<String>,
+    pub community_theme: Option<serde_json::Value>,
+    pub welcome_message: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -636,6 +654,12 @@ pub struct CommunityResponse {
     pub who_can_create_groups: String,
     pub who_can_create_invites: String,
     pub discoverable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banner_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub community_theme: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub welcome_message: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

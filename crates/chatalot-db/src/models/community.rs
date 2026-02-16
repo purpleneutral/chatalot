@@ -15,6 +15,9 @@ pub struct Community {
     pub who_can_create_invites: String,
     pub warn_escalation: Option<serde_json::Value>,
     pub discoverable: bool,
+    pub community_theme: Option<serde_json::Value>,
+    pub banner_url: Option<String>,
+    pub welcome_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

@@ -10,6 +10,7 @@ pub struct User {
     pub email: String,
     pub password_hash: String,
     pub avatar_url: Option<String>,
+    pub banner_url: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     pub totp_secret: Option<Vec<u8>>,
