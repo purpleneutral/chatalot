@@ -11,6 +11,8 @@ class BookmarkStore {
 	}
 
 	addBookmark(bookmark: Bookmark) {
+		// Deduplicate: skip if this message is already bookmarked
+		if (this.bookmarkedMessageIds.has(bookmark.message_id)) return;
 		this.bookmarks = [...this.bookmarks, bookmark];
 		const next = new Set(this.bookmarkedMessageIds);
 		next.add(bookmark.message_id);

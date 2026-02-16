@@ -13,7 +13,8 @@ use tokio::sync::Mutex;
 pub struct RateLimiter {
     buckets: Mutex<HashMap<IpAddr, Bucket>>,
     max_tokens: u32,
-    refill_rate: f64, // tokens per second
+    refill_rate: f64,   // tokens per second
+    last_eviction: Mutex<Instant>,
 }
 
 struct Bucket {
@@ -21,18 +22,34 @@ struct Bucket {
     last_refill: Instant,
 }
 
+/// Evict stale buckets every 5 minutes
+const EVICTION_INTERVAL_SECS: u64 = 300;
+/// Remove buckets idle for more than 10 minutes
+const BUCKET_TTL_SECS: u64 = 600;
+
 impl RateLimiter {
     pub fn new(max_requests_per_second: u32, burst: u32) -> Self {
         Self {
             buckets: Mutex::new(HashMap::new()),
             max_tokens: burst,
             refill_rate: max_requests_per_second as f64,
+            last_eviction: Mutex::new(Instant::now()),
         }
     }
 
     async fn check(&self, ip: IpAddr) -> bool {
         let mut buckets = self.buckets.lock().await;
         let now = Instant::now();
+
+        // Periodically evict stale buckets to prevent unbounded growth
+        let mut last_eviction = self.last_eviction.lock().await;
+        if now.duration_since(*last_eviction).as_secs() >= EVICTION_INTERVAL_SECS {
+            buckets.retain(|_, b| {
+                now.duration_since(b.last_refill).as_secs() < BUCKET_TTL_SECS
+            });
+            *last_eviction = now;
+        }
+        drop(last_eviction);
 
         let bucket = buckets.entry(ip).or_insert(Bucket {
             tokens: self.max_tokens as f64,

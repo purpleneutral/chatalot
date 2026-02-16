@@ -55,6 +55,9 @@ class VoiceStore {
 		this.activeCall = null;
 		this.remoteStreams = new Map();
 		this.remoteScreenStreams = new Map();
+		this.activeSpeakers = new Set();
+		this.remoteVideoEnabled = new Set();
+		this.screenShareMuted = new Set();
 	}
 
 	setAudioEnabled(enabled: boolean) {

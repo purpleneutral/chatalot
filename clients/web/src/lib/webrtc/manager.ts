@@ -36,10 +36,28 @@ class WebRTCManager {
 	// Mic input gain node (inserted after noise suppression)
 	private micGainNode: GainNode | null = null;
 
+	// Timeouts for cleaning up peers stuck in 'disconnected' state
+	private disconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
 	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
 	private levelCheckInterval: ReturnType<typeof setInterval> | null = null;
+
+	private clearDisconnectTimeout(userId: string): void {
+		const timeout = this.disconnectTimeouts.get(userId);
+		if (timeout) {
+			clearTimeout(timeout);
+			this.disconnectTimeouts.delete(userId);
+		}
+	}
+
+	private clearAllDisconnectTimeouts(): void {
+		for (const timeout of this.disconnectTimeouts.values()) {
+			clearTimeout(timeout);
+		}
+		this.disconnectTimeouts.clear();
+	}
 
 	/// Join a voice channel: acquire media, tell server, set up peers.
 	async joinCall(channelId: string, withVideo: boolean = false): Promise<void> {
@@ -185,6 +203,7 @@ class WebRTCManager {
 		this.peers.clear();
 		this.pendingCandidates.clear();
 		this.mainStreamIds.clear();
+		this.clearAllDisconnectTimeouts();
 
 		voiceStore.clearCall();
 		this.channelId = null;
@@ -592,6 +611,7 @@ class WebRTCManager {
 
 	/// Called when a user leaves the voice channel.
 	onUserLeft(userId: string): void {
+		this.clearDisconnectTimeout(userId);
 		this.stopMonitoringStream(userId);
 		voiceStore.setRemoteVideo(userId, false);
 		voiceStore.removeRemoteScreenStream(userId);
@@ -872,15 +892,21 @@ class WebRTCManager {
 		pc.onconnectionstatechange = () => {
 			if (pc.connectionState === 'failed') {
 				console.warn(`Peer connection to ${userId} failed, cleaning up`);
-				this.stopMonitoringStream(userId);
-				this.mainStreamIds.delete(userId);
-				pc.close();
-				this.peers.delete(userId);
-				this.pendingCandidates.delete(userId);
-				voiceStore.removeRemoteStream(userId);
-				voiceStore.removeRemoteScreenStream(userId);
+				this.clearDisconnectTimeout(userId);
+				this.onUserLeft(userId);
 			} else if (pc.connectionState === 'disconnected') {
-				console.warn(`Peer connection to ${userId} disconnected`);
+				console.warn(`Peer connection to ${userId} disconnected, will clean up in 10s if not recovered`);
+				this.clearDisconnectTimeout(userId);
+				this.disconnectTimeouts.set(userId, setTimeout(() => {
+					this.disconnectTimeouts.delete(userId);
+					const current = this.peers.get(userId);
+					if (current && (current.connectionState === 'disconnected' || current.connectionState === 'failed')) {
+						console.warn(`Peer connection to ${userId} still disconnected after 10s, cleaning up`);
+						this.onUserLeft(userId);
+					}
+				}, 10_000));
+			} else if (pc.connectionState === 'connected') {
+				this.clearDisconnectTimeout(userId);
 			}
 		};
 

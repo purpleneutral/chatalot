@@ -64,11 +64,17 @@ export function getFileDownloadUrl(fileId: string): string {
 	return `${apiBase()}/files/${fileId}`;
 }
 
+const MAX_BLOB_CACHE = 100;
 const blobUrlCache = new Map<string, string>();
 
 export async function getAuthenticatedBlobUrl(fileId: string): Promise<string> {
 	const cached = blobUrlCache.get(fileId);
-	if (cached) return cached;
+	if (cached) {
+		// Move to end (most recently used)
+		blobUrlCache.delete(fileId);
+		blobUrlCache.set(fileId, cached);
+		return cached;
+	}
 
 	const headers: Record<string, string> = {};
 	const token = authStore.accessToken;
@@ -81,6 +87,14 @@ export async function getAuthenticatedBlobUrl(fileId: string): Promise<string> {
 
 	const blob = await resp.blob();
 	const url = URL.createObjectURL(blob);
+
+	// Evict oldest entry if cache is full
+	if (blobUrlCache.size >= MAX_BLOB_CACHE) {
+		const oldest = blobUrlCache.keys().next().value!;
+		URL.revokeObjectURL(blobUrlCache.get(oldest)!);
+		blobUrlCache.delete(oldest);
+	}
+
 	blobUrlCache.set(fileId, url);
 	return url;
 }
