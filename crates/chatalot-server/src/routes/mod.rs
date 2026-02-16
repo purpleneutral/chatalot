@@ -12,6 +12,7 @@ pub mod gifs;
 pub mod groups;
 pub mod health;
 pub mod keys;
+pub mod legal;
 pub mod link_preview;
 pub mod messages;
 pub mod polls;
@@ -49,6 +50,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     // Public routes (no auth required)
     let public_routes = auth_routes
         .merge(health::routes())
+        .merge(legal::routes())
         .merge(account::public_routes())
         .merge(webhooks::public_routes());
 

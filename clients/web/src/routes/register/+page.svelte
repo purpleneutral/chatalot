@@ -250,6 +250,13 @@
 				>
 					{loading ? 'Creating account...' : 'Create Account'}
 				</button>
+
+				<p class="text-xs text-[var(--text-secondary)]/70">
+					By registering, you agree to the
+					<a href="/terms" class="text-[var(--accent)] hover:underline">Terms of Service</a>
+					and
+					<a href="/privacy" class="text-[var(--accent)] hover:underline">Privacy Policy</a>.
+				</p>
 			</form>
 
 			<p class="mt-4 text-center text-sm text-[var(--text-secondary)]">
