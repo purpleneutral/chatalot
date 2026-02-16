@@ -32,7 +32,8 @@ async fn create_poll(
         return Err(AppError::Forbidden);
     }
 
-    if req.question.is_empty() || req.question.len() > 500 {
+    let question = req.question.trim();
+    if question.is_empty() || question.len() > 500 {
         return Err(AppError::Validation("question must be 1-500 characters".into()));
     }
 
@@ -40,7 +41,8 @@ async fn create_poll(
         return Err(AppError::Validation("polls must have 2-10 options".into()));
     }
 
-    for opt in &req.options {
+    let options: Vec<String> = req.options.iter().map(|o| o.trim().to_string()).collect();
+    for opt in &options {
         if opt.is_empty() || opt.len() > 200 {
             return Err(AppError::Validation("each option must be 1-200 characters".into()));
         }
@@ -53,7 +55,7 @@ async fn create_poll(
     }
 
     let id = Uuid::now_v7();
-    let options_json = serde_json::to_value(&req.options)
+    let options_json = serde_json::to_value(&options)
         .map_err(|_| AppError::Validation("invalid options".into()))?;
 
     let expires_at = req
@@ -66,7 +68,7 @@ async fn create_poll(
         id,
         channel_id,
         claims.sub,
-        &req.question,
+        question,
         &options_json,
         req.multi_select,
         req.anonymous,
@@ -80,7 +82,7 @@ async fn create_poll(
             poll_id: id,
             channel_id,
             created_by: claims.sub,
-            question: req.question,
+            question: question.to_string(),
         },
     );
 

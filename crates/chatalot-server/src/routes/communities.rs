@@ -120,13 +120,15 @@ async fn create_community(
         return Err(AppError::Forbidden);
     }
 
-    if req.name.is_empty() || req.name.len() > 64 {
+    let name = req.name.trim();
+    if name.is_empty() || name.len() > 64 {
         return Err(AppError::Validation(
             "community name must be 1-64 characters".to_string(),
         ));
     }
 
-    if let Some(ref desc) = req.description
+    let description = req.description.as_deref().map(str::trim);
+    if let Some(desc) = description
         && desc.len() > 2048
     {
         return Err(AppError::Validation(
@@ -138,8 +140,8 @@ async fn create_community(
     let community = community_repo::create_community(
         &state.db,
         id,
-        &req.name,
-        req.description.as_deref(),
+        name,
+        description,
         None,
         claims.sub,
     )
@@ -313,15 +315,17 @@ async fn update_community(
         return Err(AppError::Forbidden);
     }
 
-    if let Some(ref name) = req.name
-        && (name.is_empty() || name.len() > 64)
+    let name = req.name.as_deref().map(str::trim);
+    if let Some(n) = name
+        && (n.is_empty() || n.len() > 64)
     {
         return Err(AppError::Validation(
             "community name must be 1-64 characters".to_string(),
         ));
     }
 
-    if let Some(ref desc) = req.description
+    let description = req.description.as_deref().map(str::trim);
+    if let Some(desc) = description
         && desc.len() > 2048
     {
         return Err(AppError::Validation(
@@ -345,8 +349,8 @@ async fn update_community(
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
-        req.name.as_deref(),
-        req.description.as_deref(),
+        name,
+        description,
         req.icon_url.as_deref(),
         req.who_can_create_groups.as_deref(),
         req.who_can_create_invites.as_deref(),
@@ -626,12 +630,17 @@ async fn ban_member(
         }
     }
 
+    let reason = req
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
     community_repo::ban_from_community(
         &state.db,
         ctx.community_id,
         path.uid,
         claims.sub,
-        req.reason.as_deref(),
+        reason,
     )
     .await?;
 
@@ -823,6 +832,11 @@ async fn create_timeout(
     let expires_at = chrono::Utc::now()
         + chrono::Duration::try_seconds(req.duration_seconds).unwrap_or(chrono::Duration::try_hours(1).unwrap());
 
+    let reason = req
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
     let id = Uuid::now_v7();
     let timeout = timeout_repo::create(
         &state.db,
@@ -830,7 +844,7 @@ async fn create_timeout(
         req.user_id,
         path.chid,
         claims.sub,
-        req.reason.as_deref(),
+        reason,
         expires_at,
     )
     .await?;

@@ -101,13 +101,15 @@ async fn create_group(
     Extension(claims): Extension<AccessClaims>,
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<GroupResponse>, AppError> {
-    if req.name.is_empty() || req.name.len() > 64 {
+    let name = req.name.trim();
+    if name.is_empty() || name.len() > 64 {
         return Err(AppError::Validation(
             "group name must be 1-64 characters".to_string(),
         ));
     }
 
-    if let Some(ref desc) = req.description
+    let description = req.description.as_deref().map(str::trim);
+    if let Some(desc) = description
         && desc.len() > 2048
     {
         return Err(AppError::Validation(
@@ -164,8 +166,8 @@ async fn create_group(
     let group = group_repo::create_group(
         &state.db,
         group_id,
-        &req.name,
-        req.description.as_deref(),
+        name,
+        description,
         claims.sub,
         req.community_id,
         visibility,

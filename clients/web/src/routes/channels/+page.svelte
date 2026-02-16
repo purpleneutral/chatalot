@@ -902,6 +902,38 @@
 			setTimeout(() => {
 				if (connectionStatus === 'connected') connectionStatus = null;
 			}, 3000);
+
+			// Re-sync unread counts after reconnect
+			fetch('/api/channels/unread', {
+				headers: { 'Authorization': `Bearer ${authStore.accessToken}` }
+			}).then(async res => {
+				if (res.ok) {
+					const counts = await res.json();
+					messageStore.setUnreadCounts(counts);
+					const active = channelStore.activeChannelId;
+					if (active) messageStore.clearUnread(active);
+				}
+			}).catch(() => {});
+
+			// Reload messages for the active channel to catch anything missed
+			const activeId = channelStore.activeChannelId;
+			if (activeId) {
+				getMessages(activeId, undefined, FETCH_LIMIT).then(rawMessages => {
+					const reversed = rawMessages.reverse();
+					const chatMsgs: ChatMessage[] = reversed.map(m => ({
+						id: m.id,
+						channelId: m.channel_id,
+						senderId: m.sender_id,
+						content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+						messageType: m.message_type,
+						replyToId: m.reply_to_id,
+						editedAt: m.edited_at,
+						createdAt: m.created_at,
+						reactions: m.reactions ? new Map(m.reactions.map((r: ReactionInfo) => [r.emoji, new Set(r.user_ids)])) : undefined
+					}));
+					messageStore.setMessages(activeId, chatMsgs, FETCH_LIMIT);
+				}).catch(() => {});
+			}
 		}
 	}
 
@@ -2052,6 +2084,24 @@
 			} else {
 				openQuickSwitcher();
 			}
+			return;
+		}
+		// Ctrl+F / Cmd+F for channel search
+		if (e.key === 'f' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			showSearch = !showSearch;
+			if (!showSearch) {
+				searchQuery = '';
+				searchResults = [];
+			}
+			return;
+		}
+		// End key to scroll to latest message
+		if (e.key === 'End') {
+			const tag = (e.target as HTMLElement)?.tagName;
+			if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+			e.preventDefault();
+			scrollToBottom();
 			return;
 		}
 		// ? or Ctrl+/ to show shortcuts
@@ -5208,6 +5258,10 @@
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Show shortcuts</span>
 						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">?</kbd>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-[var(--text-secondary)]">Jump to latest</span>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">End</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Close modal</span>
