@@ -526,11 +526,17 @@ pub async fn get_community_invite_by_code(
         .await
 }
 
-pub async fn delete_community_invite(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM community_invites WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+pub async fn delete_community_invite(
+    pool: &PgPool,
+    id: Uuid,
+    community_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result =
+        sqlx::query("DELETE FROM community_invites WHERE id = $1 AND community_id = $2")
+            .bind(id)
+            .bind(community_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 

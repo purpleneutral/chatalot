@@ -21,7 +21,9 @@ use chatalot_common::api_types::{
     WarningResponse,
 };
 use chatalot_common::ws_messages::ServerMessage;
-use chatalot_db::repos::{community_repo, custom_emoji_repo, timeout_repo, user_repo, warning_repo};
+use chatalot_db::repos::{
+    channel_repo, community_repo, custom_emoji_repo, timeout_repo, user_repo, warning_repo,
+};
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -845,7 +847,8 @@ async fn delete_invite(
         return Err(AppError::Forbidden);
     }
 
-    let deleted = community_repo::delete_community_invite(&state.db, path.iid).await?;
+    let deleted =
+        community_repo::delete_community_invite(&state.db, path.iid, ctx.community_id).await?;
     if !deleted {
         return Err(AppError::NotFound("invite not found".to_string()));
     }
@@ -898,17 +901,27 @@ async fn list_community_groups(
 
 #[derive(serde::Deserialize)]
 struct ChannelActionPath {
-    #[allow(dead_code)]
     cid: Uuid,
     chid: Uuid,
 }
 
 #[derive(serde::Deserialize)]
 struct ChannelUserPath {
-    #[allow(dead_code)]
     cid: Uuid,
     chid: Uuid,
     uid: Uuid,
+}
+
+/// Verify a channel belongs to the expected community (via its group).
+async fn verify_channel_community(
+    db: &sqlx::PgPool,
+    channel_id: Uuid,
+    community_id: Uuid,
+) -> Result<(), AppError> {
+    if !channel_repo::channel_belongs_to_community(db, channel_id, community_id).await? {
+        return Err(AppError::NotFound("channel not found in this community".to_string()));
+    }
+    Ok(())
 }
 
 async fn create_timeout(
@@ -921,6 +934,7 @@ async fn create_timeout(
     if !ctx.can_moderate() {
         return Err(AppError::Forbidden);
     }
+    verify_channel_community(&state.db, path.chid, path.cid).await?;
 
     if req.duration_seconds < 60 || req.duration_seconds > 30 * 24 * 3600 {
         return Err(AppError::Validation(
@@ -978,6 +992,7 @@ async fn remove_timeout(
     if !ctx.can_moderate() {
         return Err(AppError::Forbidden);
     }
+    verify_channel_community(&state.db, path.chid, path.cid).await?;
 
     if !timeout_repo::remove(&state.db, path.uid, path.chid).await? {
         return Err(AppError::NotFound("no active timeout found".into()));
@@ -1012,6 +1027,7 @@ async fn create_warning(
     if !ctx.can_moderate() {
         return Err(AppError::Forbidden);
     }
+    verify_channel_community(&state.db, path.chid, path.cid).await?;
 
     if req.reason.is_empty() || req.reason.len() > 1000 {
         return Err(AppError::Validation(
@@ -1060,6 +1076,7 @@ async fn list_warnings(
     if !ctx.can_moderate() {
         return Err(AppError::Forbidden);
     }
+    verify_channel_community(&state.db, path.chid, path.cid).await?;
 
     let warnings = warning_repo::list_for_user(&state.db, path.uid, path.chid).await?;
     Ok(Json(

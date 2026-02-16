@@ -70,9 +70,14 @@ pub async fn list_group_invites(
     .await
 }
 
-pub async fn delete_invite(pool: &PgPool, invite_id: Uuid) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM group_invites WHERE id = $1")
+pub async fn delete_invite(
+    pool: &PgPool,
+    invite_id: Uuid,
+    group_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM group_invites WHERE id = $1 AND group_id = $2")
         .bind(invite_id)
+        .bind(group_id)
         .execute(pool)
         .await?;
 

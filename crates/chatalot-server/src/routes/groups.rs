@@ -1031,7 +1031,10 @@ async fn delete_invite(
         return Err(AppError::Forbidden);
     }
 
-    invite_repo::delete_invite(&state.db, path.invite_id).await?;
+    let deleted = invite_repo::delete_invite(&state.db, path.invite_id, path.id).await?;
+    if !deleted {
+        return Err(AppError::NotFound("invite not found".to_string()));
+    }
     Ok(())
 }
 

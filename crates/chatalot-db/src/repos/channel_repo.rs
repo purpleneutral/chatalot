@@ -71,6 +71,26 @@ pub async fn get_channel(pool: &PgPool, id: Uuid) -> Result<Option<Channel>, sql
         .await
 }
 
+/// Check if a channel belongs to a community (via its group).
+pub async fn channel_belongs_to_community(
+    pool: &PgPool,
+    channel_id: Uuid,
+    community_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let row: (bool,) = sqlx::query_as(
+        r#"SELECT EXISTS(
+            SELECT 1 FROM channels c
+            JOIN groups g ON c.group_id = g.id
+            WHERE c.id = $1 AND g.community_id = $2
+        )"#,
+    )
+    .bind(channel_id)
+    .bind(community_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
 /// Check if a user is a member of a channel.
 pub async fn is_member(
     pool: &PgPool,
