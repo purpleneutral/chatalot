@@ -1298,9 +1298,13 @@
 		}
 	}
 
-	function scrollToBottom() {
+	function scrollToBottom(smooth = false) {
 		if (messageListEl) {
-			messageListEl.scrollTop = messageListEl.scrollHeight;
+			if (smooth) {
+				messageListEl.scrollTo({ top: messageListEl.scrollHeight, behavior: 'smooth' });
+			} else {
+				messageListEl.scrollTop = messageListEl.scrollHeight;
+			}
 		}
 	}
 
@@ -4693,7 +4697,9 @@
 										<span class="text-xs text-[var(--text-secondary)]" title={formatFullTimestamp(msg.createdAt)}>
 											{formatTime(msg.createdAt)}
 										</span>
-										{#if msg.editedAt}
+										{#if msg.pending}
+											<span class="text-xs text-[var(--text-secondary)] italic">sending...</span>
+										{:else if msg.editedAt}
 											<span class="text-xs text-[var(--text-secondary)] cursor-default" title="Edited {formatFullTimestamp(msg.editedAt)}">(edited)</span>
 										{/if}
 										{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
@@ -5067,6 +5073,13 @@
 								Copy Text
 							</button>
 							<button
+								onclick={() => { navigator.clipboard.writeText(`${window.location.origin}/channels#msg-${ctxMsg.id}`); toastStore.success('Message link copied'); contextMenuMessageId = null; }}
+								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+								Copy Link
+							</button>
+							<button
 								onclick={() => toggleBookmark(ctxMsg.id)}
 								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm {bookmarkStore.isBookmarked(ctxMsg.id) ? 'text-yellow-400' : 'text-[var(--text-primary)]'} hover:bg-white/5"
 							>
@@ -5142,7 +5155,7 @@
 				{#if showScrollBottom}
 					<div class="relative">
 						<button
-							onclick={() => scrollToBottom()}
+							onclick={() => scrollToBottom(true)}
 							class="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-lg transition hover:bg-[var(--bg-tertiary)]"
 							title="Scroll to bottom"
 							transition:scale={{ start: 0.8, duration: 150 }}
