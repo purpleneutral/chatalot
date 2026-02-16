@@ -46,14 +46,20 @@ async fn create_poll(
         }
     }
 
+    if let Some(m) = req.expires_in_minutes
+        && !(1..=10080).contains(&m)
+    {
+        return Err(AppError::Validation("expires_in_minutes must be 1-10080".into()));
+    }
+
     let id = Uuid::now_v7();
     let options_json = serde_json::to_value(&req.options)
         .map_err(|_| AppError::Validation("invalid options".into()))?;
 
-    let expires_at = req.expires_in_minutes.map(|m| {
-        chrono::Utc::now()
-            + chrono::Duration::try_minutes(m).unwrap_or(chrono::Duration::try_hours(24).unwrap())
-    });
+    let expires_at = req
+        .expires_in_minutes
+        .and_then(chrono::Duration::try_minutes)
+        .map(|d| chrono::Utc::now() + d);
 
     let poll = poll_repo::create(
         &state.db,

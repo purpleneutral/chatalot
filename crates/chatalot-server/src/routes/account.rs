@@ -154,9 +154,9 @@ async fn update_profile(
         claims.sub,
         display_name,
         req.avatar_url.as_ref().map(|s| Some(s.as_str())),
-        custom_status.map(Some),
-        bio.map(Some),
-        pronouns.map(Some),
+        custom_status.map(|s| if s.is_empty() { None } else { Some(s) }),
+        bio.map(|s| if s.is_empty() { None } else { Some(s) }),
+        pronouns.map(|s| if s.is_empty() { None } else { Some(s) }),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;

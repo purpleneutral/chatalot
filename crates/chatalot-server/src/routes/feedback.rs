@@ -85,8 +85,9 @@ async fn submit_feedback(
             "description must be 1-5000 characters".to_string(),
         ));
     }
+    let category = category.trim();
     let valid_categories = ["bug", "feature", "ui", "other"];
-    if !valid_categories.contains(&category.as_str()) {
+    if !valid_categories.contains(&category) {
         return Err(AppError::Validation(
             "category must be one of: bug, feature, ui, other".to_string(),
         ));
@@ -108,7 +109,7 @@ async fn submit_feedback(
     };
 
     // Build issue body
-    let category_label = match category.as_str() {
+    let category_label = match category {
         "bug" => "Bug Report",
         "feature" => "Feature Request",
         "ui" => "UI/UX",

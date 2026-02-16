@@ -515,9 +515,14 @@ async fn set_nickname(
         return Err(AppError::Forbidden);
     }
 
-    let nickname = req.nickname.as_deref().map(str::trim);
+    // Empty string clears the nickname; None means no change
+    let nickname = req
+        .nickname
+        .as_deref()
+        .map(str::trim)
+        .and_then(|n| if n.is_empty() { None } else { Some(n) });
     if let Some(nick) = nickname
-        && (nick.is_empty() || nick.len() > 64)
+        && nick.len() > 64
     {
         return Err(AppError::Validation(
             "nickname must be 1-64 characters".to_string(),
@@ -1029,7 +1034,10 @@ async fn upload_emoji(
     let ct = content_type
         .as_deref()
         .ok_or_else(|| AppError::Validation("missing content type".into()))?;
-    let sc = shortcode.ok_or_else(|| AppError::Validation("shortcode is required".into()))?;
+    let sc = shortcode
+        .ok_or_else(|| AppError::Validation("shortcode is required".into()))?
+        .trim()
+        .to_string();
 
     if !ALLOWED_EMOJI_TYPES.contains(&ct) {
         return Err(AppError::Validation(

@@ -345,6 +345,27 @@ async fn handle_client_message(
                 }
             }
 
+            // Validate reply_to references a message in the same channel
+            if let Some(reply_id) = reply_to {
+                match message_repo::get_message_by_id(&state.db, reply_id).await {
+                    Ok(Some(reply_msg)) if reply_msg.channel_id == channel_id => {}
+                    Ok(Some(_)) => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "validation_error".to_string(),
+                            message: "cannot reply to message from another channel".to_string(),
+                        });
+                        return;
+                    }
+                    _ => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "validation_error".to_string(),
+                            message: "replied-to message not found".to_string(),
+                        });
+                        return;
+                    }
+                }
+            }
+
             let msg_type_str = match message_type {
                 MessageType::Text => "text",
                 MessageType::File => "file",
