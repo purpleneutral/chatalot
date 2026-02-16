@@ -17,6 +17,7 @@ use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 
 const KEYS_LOW_THRESHOLD: i64 = 25;
+const MAX_OTP_BATCH_SIZE: usize = 200;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -96,9 +97,9 @@ async fn upload_one_time_prekeys(
     Extension(claims): Extension<AccessClaims>,
     Json(prekeys): Json<Vec<OneTimePrekeyUpload>>,
 ) -> Result<(), AppError> {
-    if prekeys.len() > 200 {
+    if prekeys.len() > MAX_OTP_BATCH_SIZE {
         return Err(AppError::Validation(
-            "maximum 200 one-time prekeys per upload".to_string(),
+            format!("maximum {MAX_OTP_BATCH_SIZE} one-time prekeys per upload"),
         ));
     }
 

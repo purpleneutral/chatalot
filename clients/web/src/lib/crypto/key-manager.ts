@@ -109,7 +109,7 @@ export class KeyManager {
 				})),
 			);
 
-			console.log(`Replenished ${OTP_REPLENISH_BATCH} one-time prekeys (starting at ${startId})`);
+			console.info(`Replenished ${OTP_REPLENISH_BATCH} one-time prekeys (starting at ${startId})`);
 		} catch (err) {
 			console.error('Failed to replenish prekeys:', err);
 		}

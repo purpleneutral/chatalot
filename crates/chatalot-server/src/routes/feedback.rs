@@ -14,6 +14,9 @@ pub fn routes() -> Router<Arc<AppState>> {
 }
 
 const MAX_SCREENSHOT_SIZE: usize = 5 * 1024 * 1024; // 5MB
+const MAX_TITLE_LEN: usize = 200;
+const MAX_DESCRIPTION_LEN: usize = 5000;
+const VALID_CATEGORIES: &[&str] = &["bug", "feature", "ui", "other"];
 
 async fn submit_feedback(
     State(state): State<Arc<AppState>>,
@@ -71,20 +74,19 @@ async fn submit_feedback(
 
     // Validate
     let title = title.trim();
-    if title.is_empty() || title.len() > 200 {
+    if title.is_empty() || title.len() > MAX_TITLE_LEN {
         return Err(AppError::Validation(
-            "title must be 1-200 characters".to_string(),
+            format!("title must be 1-{MAX_TITLE_LEN} characters"),
         ));
     }
     let description = description.trim();
-    if description.is_empty() || description.len() > 5000 {
+    if description.is_empty() || description.len() > MAX_DESCRIPTION_LEN {
         return Err(AppError::Validation(
-            "description must be 1-5000 characters".to_string(),
+            format!("description must be 1-{MAX_DESCRIPTION_LEN} characters"),
         ));
     }
     let category = category.trim();
-    let valid_categories = ["bug", "feature", "ui", "other"];
-    if !valid_categories.contains(&category) {
+    if !VALID_CATEGORIES.contains(&category) {
         return Err(AppError::Validation(
             "category must be one of: bug, feature, ui, other".to_string(),
         ));

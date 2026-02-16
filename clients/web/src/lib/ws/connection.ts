@@ -13,10 +13,13 @@ const QUEUEABLE_TYPES = new Set([
 	'typing', 'stop_typing'
 ]);
 
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const MAX_RECONNECT_DELAY_MS = 30_000;
+const MAX_OFFLINE_QUEUE_SIZE = 50;
+
 class WebSocketClient {
 	private ws: WebSocket | null = null;
 	private reconnectAttempts = 0;
-	private maxReconnectDelay = 30000;
 	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 	private handlers: Set<MessageHandler> = new Set();
 	private authenticatedCallback: (() => void) | null = null;
@@ -100,7 +103,7 @@ class WebSocketClient {
 			return true;
 		}
 		// Queue user-initiated messages for delivery on reconnect
-		if (QUEUEABLE_TYPES.has(msg.type) && this.offlineQueue.length < 50) {
+		if (QUEUEABLE_TYPES.has(msg.type) && this.offlineQueue.length < MAX_OFFLINE_QUEUE_SIZE) {
 			this.offlineQueue.push(msg);
 		}
 		return false;
@@ -162,7 +165,7 @@ class WebSocketClient {
 		this.stopHeartbeat();
 		this.heartbeatTimer = setInterval(() => {
 			this.send({ type: 'ping', timestamp: Date.now() });
-		}, 30000);
+		}, HEARTBEAT_INTERVAL_MS);
 	}
 
 	private stopHeartbeat() {
@@ -175,7 +178,7 @@ class WebSocketClient {
 	private scheduleReconnect() {
 		const delay = Math.min(
 			1000 * Math.pow(2, this.reconnectAttempts) + Math.random() * 1000,
-			this.maxReconnectDelay
+			MAX_RECONNECT_DELAY_MS
 		);
 		this.reconnectAttempts++;
 		setTimeout(() => this.connect(), delay);

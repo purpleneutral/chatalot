@@ -12,6 +12,9 @@ use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 
+const MAX_SCHEDULE_DAYS_AHEAD: i64 = 30;
+const MAX_SCHEDULED_PER_USER: usize = 50;
+
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/messages/schedule", post(schedule_message))
@@ -39,10 +42,10 @@ async fn schedule_message(
         ));
     }
 
-    // Limit to 30 days in the future
-    if scheduled_for > chrono::Utc::now() + chrono::TimeDelta::days(30) {
+    // Limit how far in the future a message can be scheduled
+    if scheduled_for > chrono::Utc::now() + chrono::TimeDelta::days(MAX_SCHEDULE_DAYS_AHEAD) {
         return Err(AppError::Validation(
-            "cannot schedule more than 30 days ahead".into(),
+            format!("cannot schedule more than {MAX_SCHEDULE_DAYS_AHEAD} days ahead"),
         ));
     }
 
@@ -54,9 +57,9 @@ async fn schedule_message(
 
     // Enforce per-user limit
     let existing = scheduled_message_repo::list_for_user(&state.db, claims.sub).await?;
-    if existing.len() >= 50 {
+    if existing.len() >= MAX_SCHEDULED_PER_USER {
         return Err(AppError::Validation(
-            "cannot have more than 50 scheduled messages".into(),
+            format!("cannot have more than {MAX_SCHEDULED_PER_USER} scheduled messages"),
         ));
     }
 
