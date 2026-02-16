@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.14.0',
+			date: '2026-02-16',
+			changes: [
+				'Security: typing indicator broadcasts throttled (3s cooldown) to prevent spam',
+				'Security: reaction additions rate-limited (200ms cooldown) per connection',
+				'Security: text field length validation on webhook names, admin reasons, and timeouts',
+				'Keyboard: Home key scrolls to top of messages, Ctrl+T focuses message input',
+			]
+		},
+		{
 			version: '0.13.9',
 			date: '2026-02-16',
 			changes: [
