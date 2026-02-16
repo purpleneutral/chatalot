@@ -25,6 +25,7 @@ use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 use crate::middleware::community_gate::CommunityContext;
+use crate::services::css_sanitizer;
 
 /// Public routes (no community gate — user may not be member).
 pub fn public_routes() -> Router<Arc<AppState>> {
@@ -359,6 +360,52 @@ async fn update_community(
         return Err(AppError::Validation("who_can_create_invites must be 'everyone', 'moderator', or 'admin'".to_string()));
     }
 
+    // Validate community_theme if provided
+    let validated_theme = if let Some(ref theme) = req.community_theme {
+        let raw = serde_json::to_string(theme)
+            .map_err(|e| AppError::Validation(format!("invalid theme JSON: {e}")))?;
+        if raw.len() > 8192 {
+            return Err(AppError::Validation("community_theme too large (max 8KB)".into()));
+        }
+        let obj = theme.as_object().ok_or_else(|| {
+            AppError::Validation("community_theme must be a JSON object".into())
+        })?;
+
+        const ALLOWED_THEME_KEYS: &[&str] = &[
+            "accent", "accentHover", "bgPrimary", "bgSecondary", "bgTertiary",
+            "textPrimary", "textSecondary", "customCss",
+        ];
+        let color_re = regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap();
+
+        let mut sanitized = serde_json::Map::new();
+        for (key, value) in obj {
+            if !ALLOWED_THEME_KEYS.contains(&key.as_str()) {
+                return Err(AppError::Validation(format!("unknown theme key: {key}")));
+            }
+            if key == "customCss" {
+                let css = value.as_str().ok_or_else(|| {
+                    AppError::Validation("customCss must be a string".into())
+                })?;
+                let clean = css_sanitizer::sanitize_css(css)
+                    .map_err(|e| AppError::Validation(format!("customCss: {e}")))?;
+                sanitized.insert(key.clone(), serde_json::Value::String(clean));
+            } else {
+                let color = value.as_str().ok_or_else(|| {
+                    AppError::Validation(format!("{key} must be a string"))
+                })?;
+                if !color_re.is_match(color) {
+                    return Err(AppError::Validation(format!(
+                        "{key} must be a hex color (e.g. #ff0000)"
+                    )));
+                }
+                sanitized.insert(key.clone(), value.clone());
+            }
+        }
+        Some(serde_json::Value::Object(sanitized))
+    } else {
+        None
+    };
+
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
@@ -369,7 +416,7 @@ async fn update_community(
         req.who_can_create_invites.as_deref(),
         req.discoverable,
         req.banner_url.as_deref(),
-        req.community_theme.as_ref(),
+        validated_theme.as_ref(),
         req.welcome_message.as_deref(),
     )
     .await?
