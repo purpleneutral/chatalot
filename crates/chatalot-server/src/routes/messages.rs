@@ -46,6 +46,10 @@ pub fn routes() -> Router<Arc<AppState>> {
             "/channels/{id}/messages/{msg_id}/history",
             get(get_edit_history),
         )
+        .route(
+            "/channels/{id}/threads/{msg_id}",
+            get(get_thread_messages),
+        )
         .route("/messages/search", get(global_search_messages))
         .route("/channels/{id}/pins", get(list_pins))
         .route(
@@ -69,7 +73,8 @@ async fn get_messages(
     let messages = message_repo::get_messages(&state.db, channel_id, query.before, limit).await?;
 
     let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
-    Ok(Json(messages_to_responses(messages, reactions_map)))
+    let thread_map = fetch_thread_map(&state.db, &messages).await?;
+    Ok(Json(messages_to_responses(messages, reactions_map, thread_map)))
 }
 
 async fn search_messages(
@@ -94,7 +99,8 @@ async fn search_messages(
         message_repo::search_messages(&state.db, channel_id, &query.q, limit, &filters).await?;
 
     let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
-    Ok(Json(messages_to_responses(messages, reactions_map)))
+    let thread_map = fetch_thread_map(&state.db, &messages).await?;
+    Ok(Json(messages_to_responses(messages, reactions_map, thread_map)))
 }
 
 async fn global_search_messages(
@@ -115,7 +121,36 @@ async fn global_search_messages(
             .await?;
 
     let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
-    Ok(Json(messages_to_responses(messages, reactions_map)))
+    let thread_map = fetch_thread_map(&state.db, &messages).await?;
+    Ok(Json(messages_to_responses(messages, reactions_map, thread_map)))
+}
+
+// ── Threads ──
+
+async fn get_thread_messages(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path((channel_id, msg_id)): Path<(Uuid, Uuid)>,
+    Query(query): Query<MessagesQuery>,
+) -> Result<Json<Vec<MessageResponse>>, AppError> {
+    if !channel_repo::is_member(&state.db, channel_id, claims.sub).await? {
+        return Err(AppError::Forbidden);
+    }
+
+    // Verify the root message belongs to this channel
+    let root = message_repo::get_message_by_id(&state.db, msg_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("thread root not found".into()))?;
+    if root.channel_id != channel_id {
+        return Err(AppError::NotFound("thread root not found".into()));
+    }
+
+    let limit = query.limit.unwrap_or(50).min(100);
+    let messages = message_repo::get_thread_messages(&state.db, msg_id, query.before, limit).await?;
+
+    let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
+    let empty_thread_map = std::collections::HashMap::new();
+    Ok(Json(messages_to_responses(messages, reactions_map, empty_thread_map)))
 }
 
 // ── Pinned Messages ──
@@ -260,14 +295,28 @@ async fn fetch_reactions_map(
     Ok(map)
 }
 
+async fn fetch_thread_map(
+    db: &sqlx::PgPool,
+    messages: &[chatalot_db::models::message::Message],
+) -> Result<std::collections::HashMap<Uuid, message_repo::ThreadInfo>, AppError> {
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let thread_infos = message_repo::get_thread_reply_counts(db, &message_ids).await?;
+    Ok(thread_infos
+        .into_iter()
+        .map(|t| (t.root_message_id, t))
+        .collect())
+}
+
 fn messages_to_responses(
     messages: Vec<chatalot_db::models::message::Message>,
     mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>>,
+    thread_map: std::collections::HashMap<Uuid, message_repo::ThreadInfo>,
 ) -> Vec<MessageResponse> {
     messages
         .into_iter()
         .map(|m| {
             let reactions = reactions_map.remove(&m.id).unwrap_or_default();
+            let thread_info = thread_map.get(&m.id);
             MessageResponse {
                 id: m.id,
                 channel_id: m.channel_id,
@@ -280,6 +329,9 @@ fn messages_to_responses(
                 edited_at: m.edited_at.map(|t| t.to_rfc3339()),
                 created_at: m.created_at.to_rfc3339(),
                 reactions,
+                thread_id: m.thread_id,
+                thread_reply_count: thread_info.map(|t| t.reply_count),
+                thread_last_reply_at: thread_info.map(|t| t.last_reply_at.to_rfc3339()),
             }
         })
         .collect()

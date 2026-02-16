@@ -2,7 +2,7 @@
 
 export type ClientMessage =
 	| { type: 'authenticate'; token: string }
-	| { type: 'send_message'; channel_id: string; ciphertext: number[]; nonce: number[]; message_type: 'text' | 'file' | 'system'; reply_to: string | null; sender_key_id: string | null }
+	| { type: 'send_message'; channel_id: string; ciphertext: number[]; nonce: number[]; message_type: 'text' | 'file' | 'system'; reply_to: string | null; sender_key_id: string | null; thread_id?: string | null }
 	| { type: 'edit_message'; message_id: string; ciphertext: number[]; nonce: number[] }
 	| { type: 'delete_message'; message_id: string }
 	| { type: 'update_presence'; status: 'online' | 'idle' | 'dnd' | 'invisible' }
@@ -24,7 +24,7 @@ export type ClientMessage =
 
 export type ServerMessage =
 	| { type: 'authenticated'; user_id: string; server_version: string }
-	| { type: 'new_message'; id: string; channel_id: string; sender_id: string; ciphertext: number[]; nonce: number[]; message_type: 'text' | 'file' | 'system'; reply_to: string | null; sender_key_id: string | null; created_at: string }
+	| { type: 'new_message'; id: string; channel_id: string; sender_id: string; ciphertext: number[]; nonce: number[]; message_type: 'text' | 'file' | 'system'; reply_to: string | null; sender_key_id: string | null; created_at: string; thread_id?: string | null }
 	| { type: 'message_sent'; id: string; channel_id: string; created_at: string }
 	| { type: 'message_edited'; message_id: string; channel_id: string; sender_id: string; ciphertext: number[]; nonce: number[]; edited_at: string }
 	| { type: 'message_deleted'; message_id: string }

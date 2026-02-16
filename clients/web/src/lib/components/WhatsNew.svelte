@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.16.0',
+			date: '2026-02-16',
+			changes: [
+				'Read receipts: see when your messages are read in DMs (checkmark + "Read 5m ago") and who has read up to each message in channels (avatar stack)',
+				'Read receipts opt-out: toggle "Send read receipts" in Settings > Chat to stop broadcasting your read position',
+				'Threaded replies: click "Reply in Thread" on any message to start a focused conversation — thread panel opens on the right with its own composer',
+				'Thread badges: messages with replies show a clickable "N replies — Last reply 5m ago" badge for easy thread discovery',
+				'Thread icon added to message hover bar and right-click context menu for quick access',
+			]
+		},
+		{
 			version: '0.15.0',
 			date: '2026-02-16',
 			changes: [

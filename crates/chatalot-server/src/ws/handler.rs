@@ -234,6 +234,7 @@ async fn handle_client_message(
             message_type,
             reply_to,
             sender_key_id,
+            thread_id,
         } => {
             // Reject empty or oversized ciphertext (64 KiB limit)
             const MAX_CIPHERTEXT_SIZE: usize = 65_536;
@@ -405,6 +406,33 @@ async fn handle_client_message(
                 }
             }
 
+            // Validate and resolve thread_id — must be in same channel.
+            // If the target message is itself a thread reply, follow to the real root.
+            let resolved_thread_id = if let Some(tid) = thread_id {
+                match message_repo::get_message_by_id(&state.db, tid).await {
+                    Ok(Some(root_msg)) if root_msg.channel_id == channel_id => {
+                        // If the "root" is itself in a thread, follow to the real root
+                        Some(root_msg.thread_id.unwrap_or(tid))
+                    }
+                    Ok(Some(_)) => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "validation_error".to_string(),
+                            message: "thread root must be in the same channel".to_string(),
+                        });
+                        return;
+                    }
+                    _ => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "validation_error".to_string(),
+                            message: "thread root message not found".to_string(),
+                        });
+                        return;
+                    }
+                }
+            } else {
+                None
+            };
+
             let msg_type_str = match message_type {
                 MessageType::Text => "text",
                 MessageType::File => "file",
@@ -432,6 +460,7 @@ async fn handle_client_message(
                 reply_to,
                 None,
                 expires_at,
+                resolved_thread_id,
             )
             .await
             {
@@ -453,6 +482,7 @@ async fn handle_client_message(
                         reply_to,
                         sender_key_id,
                         created_at: stored.created_at.to_rfc3339(),
+                        thread_id: resolved_thread_id,
                     };
 
                     // For DM channels, deliver directly to the other member

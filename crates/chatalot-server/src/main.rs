@@ -292,6 +292,7 @@ async fn main() -> anyhow::Result<()> {
                                 None,
                                 None,
                                 None,
+                                None,
                             )
                             .await
                             {
@@ -309,6 +310,7 @@ async fn main() -> anyhow::Result<()> {
                                             reply_to: None,
                                             sender_key_id: None,
                                             created_at: stored.created_at.to_rfc3339(),
+                                            thread_id: None,
                                         },
                                     );
                                     // Delete the scheduled message after delivery

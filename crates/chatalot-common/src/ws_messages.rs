@@ -18,6 +18,8 @@ pub enum ClientMessage {
         message_type: MessageType,
         reply_to: Option<Uuid>,
         sender_key_id: Option<Uuid>,
+        #[serde(default)]
+        thread_id: Option<Uuid>,
     },
     EditMessage {
         message_id: Uuid,
@@ -120,6 +122,8 @@ pub enum ServerMessage {
         reply_to: Option<Uuid>,
         sender_key_id: Option<Uuid>,
         created_at: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        thread_id: Option<Uuid>,
     },
     MessageEdited {
         message_id: Uuid,

@@ -204,6 +204,12 @@ pub struct MessageResponse {
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reactions: Vec<ReactionInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_reply_count: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_last_reply_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

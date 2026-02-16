@@ -12,6 +12,7 @@ pub struct Message {
     pub message_type: String,
     pub sender_key_id: Option<Uuid>,
     pub reply_to_id: Option<Uuid>,
+    pub thread_id: Option<Uuid>,
     pub edited_at: Option<DateTime<Utc>>,
     pub deleted_at: Option<DateTime<Utc>>,
     pub plaintext: Option<String>,

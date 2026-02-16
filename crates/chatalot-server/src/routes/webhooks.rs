@@ -213,6 +213,7 @@ async fn execute_webhook(
             reply_to: None,
             sender_key_id: None,
             created_at: stored.created_at.to_rfc3339(),
+            thread_id: None,
         },
     );
 

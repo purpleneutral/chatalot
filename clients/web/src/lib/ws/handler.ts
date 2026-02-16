@@ -59,9 +59,21 @@ export async function handleServerMessage(msg: ServerMessage) {
 				messageType: msg.message_type,
 				replyToId: msg.reply_to,
 				editedAt: null,
-				createdAt: msg.created_at
+				createdAt: msg.created_at,
+				threadId: msg.thread_id ?? null,
 			};
 			messageStore.addMessage(msg.channel_id, chatMsg);
+
+			// If this is a thread reply, increment the reply count on the root message
+			if (msg.thread_id) {
+				messageStore.incrementThreadReplyCount(msg.thread_id, msg.created_at);
+				// Notify thread panel if open
+				window.dispatchEvent(
+					new CustomEvent('chatalot:thread-reply', {
+						detail: { threadId: msg.thread_id, message: chatMsg }
+					})
+				);
+			}
 
 			// Check if user is actively viewing this channel
 			const isViewingChannel = !notificationStore.pageHidden

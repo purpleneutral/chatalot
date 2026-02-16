@@ -12,6 +12,9 @@ export interface ChatMessage {
 	createdAt: string;
 	pending?: boolean;      // Optimistic send, not yet confirmed
 	reactions?: Map<string, Set<string>>; // emoji -> set of user IDs
+	threadId?: string | null;
+	threadReplyCount?: number;
+	threadLastReplyAt?: string | null;
 }
 
 export interface UnreadCount {
@@ -246,6 +249,28 @@ class MessageStore {
 		this.fetchedChannels.delete(channelId);
 		this.noMoreMessages.delete(channelId);
 		this.loadingChannels.delete(channelId);
+	}
+
+	// ── Thread tracking ──
+
+	/** Increment thread reply count on a root message when a new thread reply arrives. */
+	incrementThreadReplyCount(rootMessageId: string, replyCreatedAt: string) {
+		const next = new Map(this.messagesByChannel);
+		for (const [channelId, messages] of next) {
+			const idx = messages.findIndex(m => m.id === rootMessageId);
+			if (idx !== -1) {
+				next.set(
+					channelId,
+					messages.map(m =>
+						m.id === rootMessageId
+							? { ...m, threadReplyCount: (m.threadReplyCount ?? 0) + 1, threadLastReplyAt: replyCreatedAt }
+							: m
+					)
+				);
+				break;
+			}
+		}
+		this.messagesByChannel = next;
 	}
 
 	// ── Pinned message tracking ──

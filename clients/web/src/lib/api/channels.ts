@@ -32,6 +32,9 @@ export interface Message {
 	edited_at: string | null;
 	created_at: string;
 	reactions?: ReactionInfo[];
+	thread_id?: string | null;
+	thread_reply_count?: number | null;
+	thread_last_reply_at?: string | null;
 }
 
 export async function listChannels(): Promise<Channel[]> {
@@ -105,6 +108,14 @@ export async function getMessages(channelId: string, before?: string, limit?: nu
 	if (limit) params.set('limit', String(limit));
 	const query = params.toString();
 	return api.get<Message[]>(`/channels/${channelId}/messages${query ? '?' + query : ''}`);
+}
+
+export async function getThreadMessages(channelId: string, threadId: string, before?: string, limit?: number): Promise<Message[]> {
+	const params = new URLSearchParams();
+	if (before) params.set('before', before);
+	if (limit) params.set('limit', String(limit));
+	const query = params.toString();
+	return api.get<Message[]>(`/channels/${channelId}/threads/${threadId}${query ? '?' + query : ''}`);
 }
 
 export interface SearchOptions {

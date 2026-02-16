@@ -32,11 +32,12 @@ pub async fn create_message(
     reply_to_id: Option<Uuid>,
     plaintext: Option<&str>,
     expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    thread_id: Option<Uuid>,
 ) -> Result<Message, sqlx::Error> {
     sqlx::query_as::<_, Message>(
         r#"
-        INSERT INTO messages (id, channel_id, sender_id, ciphertext, nonce, message_type, sender_key_id, reply_to_id, plaintext, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO messages (id, channel_id, sender_id, ciphertext, nonce, message_type, sender_key_id, reply_to_id, plaintext, expires_at, thread_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
         "#,
     )
@@ -50,6 +51,7 @@ pub async fn create_message(
     .bind(reply_to_id)
     .bind(plaintext)
     .bind(expires_at)
+    .bind(thread_id)
     .fetch_one(pool)
     .await
 }
@@ -229,6 +231,83 @@ pub async fn search_messages(
     }
 
     q.fetch_all(pool).await
+}
+
+/// Thread info for batch-fetching reply counts.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ThreadInfo {
+    pub root_message_id: Uuid,
+    pub reply_count: i64,
+    pub last_reply_at: DateTime<Utc>,
+}
+
+/// Get messages in a thread (replies to a root message), ordered chronologically.
+pub async fn get_thread_messages(
+    pool: &PgPool,
+    thread_id: Uuid,
+    before: Option<Uuid>,
+    limit: i64,
+) -> Result<Vec<Message>, sqlx::Error> {
+    let limit = limit.min(100);
+
+    if let Some(before_id) = before {
+        sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE thread_id = $1
+              AND created_at < (SELECT created_at FROM messages WHERE id = $2)
+              AND deleted_at IS NULL
+              AND quarantined_at IS NULL
+            ORDER BY created_at ASC
+            LIMIT $3
+            "#,
+        )
+        .bind(thread_id)
+        .bind(before_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_as::<_, Message>(
+            r#"
+            SELECT * FROM messages
+            WHERE thread_id = $1
+              AND deleted_at IS NULL
+              AND quarantined_at IS NULL
+            ORDER BY created_at ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(thread_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    }
+}
+
+/// Batch-fetch thread reply counts for a set of message IDs (root messages).
+pub async fn get_thread_reply_counts(
+    pool: &PgPool,
+    message_ids: &[Uuid],
+) -> Result<Vec<ThreadInfo>, sqlx::Error> {
+    if message_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as::<_, ThreadInfo>(
+        r#"
+        SELECT thread_id AS root_message_id,
+               COUNT(*) AS reply_count,
+               MAX(created_at) AS last_reply_at
+        FROM messages
+        WHERE thread_id = ANY($1)
+          AND deleted_at IS NULL
+          AND quarantined_at IS NULL
+        GROUP BY thread_id
+        "#,
+    )
+    .bind(message_ids)
+    .fetch_all(pool)
+    .await
 }
 
 /// Get a single message by ID (needed for broadcast after edit/delete).

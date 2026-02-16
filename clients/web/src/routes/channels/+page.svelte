@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, getEditHistory, getReadCursors, type Channel, type ChannelMember, type Message, type MessageEdit, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, getThreadMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, getEditHistory, getReadCursors, type Channel, type ChannelMember, type Message, type MessageEdit, type ReactionInfo, type SearchOptions } from '$lib/api/channels';
 	import { readReceiptStore } from '$lib/stores/readReceipts.svelte';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
 	import { searchUsers, listBlockedUsers, createReport, type UserPublic } from '$lib/api/users';
@@ -508,6 +508,14 @@
 	let scheduledMessages = $state<ScheduledMessage[]>([]);
 	let showScheduledPanel = $state(false);
 
+	// Thread panel state
+	let showThreadPanel = $state(false);
+	let activeThreadRootId = $state<string | null>(null);
+	let activeThreadRoot = $state<ChatMessage | null>(null);
+	let threadMessages = $state<ChatMessage[]>([]);
+	let threadLoading = $state(false);
+	let threadMessageInput = $state('');
+
 	// Chat collapse state (during voice calls)
 	let chatCollapsed = $state(false);
 
@@ -576,7 +584,7 @@
 	// Member panel functions
 	async function toggleMemberPanel() {
 		showMemberPanel = !showMemberPanel;
-		if (showMemberPanel) { sidebarOpen = false; showBookmarksPanel = false; showScheduledPanel = false; } // Ensure mutual exclusivity
+		if (showMemberPanel) { sidebarOpen = false; showBookmarksPanel = false; showScheduledPanel = false; showThreadPanel = false; } // Ensure mutual exclusivity
 		if (showMemberPanel && channelStore.activeChannelId) {
 			membersLoading = true;
 			try {
@@ -605,6 +613,7 @@
 		if (showBookmarksPanel) {
 			showMemberPanel = false;
 			showScheduledPanel = false;
+			showThreadPanel = false;
 			sidebarOpen = false;
 		}
 	}
@@ -662,6 +671,7 @@
 		if (showScheduledPanel) {
 			showMemberPanel = false;
 			showBookmarksPanel = false;
+			showThreadPanel = false;
 			sidebarOpen = false;
 			loadScheduledMessages();
 		}
@@ -673,6 +683,87 @@
 			scheduledMessages = scheduledMessages.filter(m => m.id !== id);
 			toastStore.success('Scheduled message cancelled');
 		} catch { toastStore.error('Failed to cancel'); }
+	}
+
+	async function openThread(rootId: string) {
+		const channelId = channelStore.activeChannelId;
+		if (!channelId) return;
+
+		// Find the root message
+		const root = messageStore.getMessages(channelId).find(m => m.id === rootId);
+		if (!root) return;
+
+		activeThreadRootId = rootId;
+		activeThreadRoot = root;
+		threadMessages = [];
+		showThreadPanel = true;
+		threadLoading = true;
+		// Close other panels
+		showMemberPanel = false;
+		showBookmarksPanel = false;
+		showScheduledPanel = false;
+		sidebarOpen = false;
+
+		try {
+			const msgs = await getThreadMessages(channelId, rootId);
+			threadMessages = msgs.map(m => ({
+				id: m.id,
+				channelId: m.channel_id,
+				senderId: m.sender_id ?? '',
+				content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+				messageType: m.message_type,
+				replyToId: m.reply_to_id ?? null,
+				editedAt: m.edited_at ?? null,
+				createdAt: m.created_at,
+				threadId: m.thread_id ?? null,
+				reactions: m.reactions ? new Map(m.reactions.map(r => [r.emoji, new Set(r.user_ids)])) : undefined,
+			}));
+		} catch {
+			toastStore.error('Failed to load thread');
+		} finally {
+			threadLoading = false;
+		}
+	}
+
+	function closeThread() {
+		showThreadPanel = false;
+		activeThreadRootId = null;
+		activeThreadRoot = null;
+		threadMessages = [];
+		threadMessageInput = '';
+	}
+
+	async function sendThreadMessage() {
+		const text = threadMessageInput.trim();
+		if (!text || !channelStore.activeChannelId || !activeThreadRootId) return;
+
+		const bytes = new TextEncoder().encode(text);
+		wsClient.send({
+			type: 'send_message',
+			channel_id: channelStore.activeChannelId,
+			ciphertext: Array.from(bytes),
+			nonce: Array.from(new Uint8Array(12)),
+			message_type: 'text',
+			reply_to: null,
+			sender_key_id: null,
+			thread_id: activeThreadRootId,
+		});
+
+		// Optimistic add to thread panel
+		const optimisticMsg: ChatMessage = {
+			id: crypto.randomUUID(),
+			channelId: channelStore.activeChannelId,
+			senderId: authStore.user?.id ?? '',
+			content: text,
+			messageType: 'text',
+			replyToId: null,
+			editedAt: null,
+			createdAt: new Date().toISOString(),
+			threadId: activeThreadRootId,
+			pending: true,
+		};
+		threadMessages = [...threadMessages, optimisticMsg];
+		threadMessageInput = '';
 	}
 
 	async function handleRoleChange(userId: string, newRole: string) {
@@ -1056,6 +1147,9 @@
 		// Announcement events
 		window.addEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
 
+		// Thread reply events
+		window.addEventListener('chatalot:thread-reply', handleThreadReply as EventListener);
+
 		// Idle detection
 		setupIdleDetection();
 	});
@@ -1076,6 +1170,7 @@
 		window.removeEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
 		window.removeEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
 		window.removeEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
+		window.removeEventListener('chatalot:thread-reply', handleThreadReply as EventListener);
 
 		// Clean up timers
 		if (typingTimeout) clearTimeout(typingTimeout);
@@ -1175,6 +1270,16 @@
 		}
 	}
 
+	function handleThreadReply(e: CustomEvent<{ threadId: string; message: ChatMessage }>) {
+		if (showThreadPanel && activeThreadRootId === e.detail.threadId) {
+			// Add to thread panel if not a duplicate and not from us (our optimistic message is already there)
+			const msg = e.detail.message;
+			if (!threadMessages.some(m => m.id === msg.id) && msg.senderId !== authStore.user?.id) {
+				threadMessages = [...threadMessages, msg];
+			}
+		}
+	}
+
 	async function handleDismissAnnouncement(id: string) {
 		announcements = announcements.filter(a => a.id !== id);
 		try {
@@ -1233,6 +1338,9 @@
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
 						createdAt: m.created_at,
+						threadId: m.thread_id ?? null,
+						threadReplyCount: m.thread_reply_count ?? undefined,
+						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
 						reactions: m.reactions ? new Map(m.reactions.map((r: ReactionInfo) => [r.emoji, new Set(r.user_ids)])) : undefined
 					}));
 					messageStore.setMessages(activeId, chatMsgs, FETCH_LIMIT);
@@ -1386,6 +1494,9 @@
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
 						createdAt: m.created_at,
+						threadId: m.thread_id ?? null,
+						threadReplyCount: m.thread_reply_count ?? undefined,
+						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
 						reactions: parseReactions(m.reactions),
 					})));
 				} else {
@@ -1403,6 +1514,9 @@
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
 						createdAt: m.created_at,
+						threadId: m.thread_id ?? null,
+						threadReplyCount: m.thread_reply_count ?? undefined,
+						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
 						reactions: parseReactions(m.reactions),
 					})));
 				}
@@ -2639,6 +2753,7 @@
 			if (showPollPanel) { showPollPanel = false; e.preventDefault(); return; }
 			if (showCreatePoll) { showCreatePoll = false; e.preventDefault(); return; }
 			if (showMemberPanel) { showMemberPanel = false; e.preventDefault(); return; }
+			if (showThreadPanel) { closeThread(); e.preventDefault(); return; }
 			if (showBookmarksPanel) { showBookmarksPanel = false; e.preventDefault(); return; }
 			if (showScheduledPanel) { showScheduledPanel = false; e.preventDefault(); return; }
 			if (showSchedulePicker) { showSchedulePicker = false; e.preventDefault(); return; }
@@ -3282,7 +3397,8 @@
 					messageType: m.message_type,
 					replyToId: m.reply_to_id,
 					editedAt: m.edited_at,
-					createdAt: m.created_at
+					createdAt: m.created_at,
+					threadId: m.thread_id ?? null,
 				})));
 			} catch (err) {
 				console.warn('Search failed:', err);
@@ -3370,6 +3486,9 @@
 				replyToId: m.reply_to_id,
 				editedAt: m.edited_at,
 				createdAt: m.created_at,
+				threadId: m.thread_id ?? null,
+				threadReplyCount: m.thread_reply_count ?? undefined,
+				threadLastReplyAt: m.thread_last_reply_at ?? undefined,
 				reactions: parseReactions(m.reactions),
 			})));
 			messageStore.prependMessages(channelStore.activeChannelId, olderMessages, FETCH_LIMIT);
@@ -5049,6 +5168,14 @@
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 									</button>
 									<button
+										onclick={() => openThread(msg.threadId ?? msg.id)}
+										title="Reply in Thread"
+										aria-label="Reply in Thread"
+										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+									</button>
+									<button
 										onclick={(e) => showContextMenu(e, msg.id)}
 										title="More actions"
 										aria-label="More actions"
@@ -5286,6 +5413,20 @@
 									</div>
 								{/if}
 
+								<!-- Thread reply badge -->
+								{#if (msg.threadReplyCount ?? 0) > 0}
+									<button
+										onclick={() => openThread(msg.id)}
+										class="mt-1.5 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10 transition cursor-pointer bg-transparent border-none"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+										<span>{msg.threadReplyCount} {msg.threadReplyCount === 1 ? 'reply' : 'replies'}</span>
+										{#if msg.threadLastReplyAt}
+											<span class="text-[var(--text-secondary)]">— Last reply {formatRelativeTime(msg.threadLastReplyAt)}</span>
+										{/if}
+									</button>
+								{/if}
+
 								<!-- Read receipts -->
 								{#if channelStore.activeChannelId && isReadReceiptPoint(messages, idx)}
 									{#if activeChannel?.channel_type === 'dm' && msg.senderId === authStore.user?.id}
@@ -5340,6 +5481,14 @@
 											aria-label="Reply"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
+									</button>
+									<button
+										onclick={() => openThread(msg.threadId ?? msg.id)}
+										class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+										title="Reply in Thread"
+										aria-label="Reply in Thread"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
 									</button>
 									<button
 										onclick={() => forwardMessage(msg)}
@@ -5504,6 +5653,13 @@
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 								Reply
+							</button>
+							<button
+								onclick={() => { if (ctxMsg) { openThread(ctxMsg.threadId ?? ctxMsg.id); contextMenuMessageId = null; } }}
+								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><line x1="9" y1="10" x2="15" y2="10" /></svg>
+								Reply in Thread
 							</button>
 							<button
 								onclick={() => { if (ctxMsg) forwardMessage(ctxMsg); }}
@@ -6176,6 +6332,88 @@
 							</div>
 						{/each}
 					{/if}
+				</div>
+			</aside>
+		{/if}
+
+		<!-- Thread panel (right sidebar) -->
+		{#if showThreadPanel && activeThreadRoot}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={closeThread} onkeydown={(e) => { if (e.key === 'Escape') closeThread(); }} role="button" tabindex="-1" aria-label="Close thread panel" transition:fade={{ duration: 150 }}></div>
+			<aside class="fixed inset-y-0 right-0 z-40 w-[85vw] max-w-[360px] md:static md:z-auto md:w-[360px] md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] flex flex-col shadow-xl md:shadow-none" transition:fly={{ x: 360, duration: 200 }}>
+				<!-- Header -->
+				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
+					<h3 class="text-sm font-semibold text-[var(--text-primary)]">Thread</h3>
+					<button
+						onclick={closeThread}
+						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						title="Close thread"
+						aria-label="Close thread panel"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+					</button>
+				</div>
+
+				<!-- Root message -->
+				<div class="border-b border-white/10 px-4 py-3">
+					<div class="flex items-start gap-2.5">
+						<Avatar userId={activeThreadRoot.senderId} size={32} />
+						<div class="min-w-0 flex-1">
+							<div class="flex items-baseline gap-2">
+								<span class="text-sm font-medium text-[var(--text-primary)]">{getDisplayNameForContext(activeThreadRoot.senderId)}</span>
+								<span class="text-[10px] text-[var(--text-secondary)]">{formatFullTimestamp(activeThreadRoot.createdAt)}</span>
+							</div>
+							<div class="mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed break-words whitespace-pre-wrap">{activeThreadRoot.content}</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Replies -->
+				<div class="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+					{#if threadLoading}
+						<div class="flex items-center justify-center py-8">
+							<div class="h-5 w-5 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+						</div>
+					{:else if threadMessages.length === 0}
+						<div class="flex flex-col items-center justify-center py-8 text-center">
+							<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-8 w-8 text-[var(--text-secondary)]/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+							<p class="text-sm text-[var(--text-secondary)]">No replies yet</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]/60">Be the first to reply</p>
+						</div>
+					{:else}
+						{#each threadMessages as reply (reply.id)}
+							<div class="flex items-start gap-2.5 {reply.pending ? 'opacity-50' : ''}">
+								<Avatar userId={reply.senderId} size={28} />
+								<div class="min-w-0 flex-1">
+									<div class="flex items-baseline gap-2">
+										<span class="text-xs font-medium text-[var(--text-primary)]">{getDisplayNameForContext(reply.senderId)}</span>
+										<span class="text-[10px] text-[var(--text-secondary)]">{formatRelativeTime(reply.createdAt)}</span>
+									</div>
+									<div class="mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed break-words whitespace-pre-wrap">{reply.content}</div>
+								</div>
+							</div>
+						{/each}
+					{/if}
+				</div>
+
+				<!-- Thread composer -->
+				<div class="border-t border-white/10 px-3 py-2.5">
+					<div class="flex items-center gap-2">
+						<input
+							type="text"
+							placeholder="Reply in thread..."
+							bind:value={threadMessageInput}
+							onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendThreadMessage(); } }}
+							class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
+						/>
+						<button
+							onclick={sendThreadMessage}
+							disabled={!threadMessageInput.trim()}
+							class="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+						</button>
+					</div>
 				</div>
 			</aside>
 		{/if}
