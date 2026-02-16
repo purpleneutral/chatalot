@@ -41,13 +41,45 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Customization** — themes, 8 accent colors, message density, font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
 - **Webhooks** — create incoming webhooks for channels, post messages from external services
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0
-- **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA, rate limiting, invite-only registration
+- **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, rate limiting, invite-only registration, self-service account recovery
 - **Moderation** — message reports, user warnings, blocking, bans, timeouts, slow mode
 - **Admin panel** — user management, invite codes, announcements, report review, and system feedback
+- **Legal framework** — built-in privacy policy and terms of service, customizable per instance
 
 For a complete feature list, see [docs/features.md](docs/features.md).
 
 > All messages are end-to-end encrypted. DMs use the Signal protocol (X3DH + Double Ratchet), group channels use Sender Keys — both compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay.
+
+## Privacy by Design
+
+Chatalot is built for people who take privacy seriously. Here's what that means in practice:
+
+### Your admin cannot read your messages
+
+All messages are end-to-end encrypted before leaving your device. The server stores only encrypted ciphertext — even someone with full database access sees nothing but random bytes.
+
+### Your password is never stored
+
+Passwords are hashed with Argon2id (64 MiB memory cost, 3 iterations, 4 parallel lanes). The original password cannot be recovered from the hash — not by admins, not by attackers, not by anyone.
+
+### No telemetry, no analytics, no tracking
+
+Chatalot collects zero telemetry. There are no analytics scripts, no usage tracking, no crash reporting, and no phone-home behavior. The software communicates only with its own database.
+
+### Account recovery without email
+
+Forgot your password? Use your recovery code — generated at registration, no email infrastructure needed. No admin intervention required. Your recovery code resets your password and generates a fresh code in one step.
+
+### What the server can vs. cannot see
+
+| The server can see | The server cannot see |
+|---|---|
+| Who sent a message and when | Message content (encrypted) |
+| File metadata (size, type) | File contents (encrypted) |
+| Your username and email | Your password (hashed) |
+| When you're online | What you're typing |
+| Channel membership | Private DM conversations |
+| Login timestamps and IPs | 2FA secrets (encrypted at rest) |
 
 ## Quick Start
 
@@ -206,7 +238,9 @@ The server is designed as an **untrusted relay** — it stores and routes messag
 - Passwords hashed with **Argon2id** (64 MiB memory, 3 iterations, 4 lanes)
 - **JWT access tokens**: 15-minute expiry, Ed25519-signed
 - **Refresh tokens**: 30-day expiry, stored as SHA-256 hash, rotated on each use
-- **TOTP 2FA**: RFC 6238, optional per-user
+- **TOTP 2FA**: RFC 6238, optional per-user, with 8 single-use backup codes
+- **Recovery codes**: self-service password reset without email, generated at registration
+- **Account lockout**: 10 failed attempts triggers 15-minute lockout
 
 ### Server Hardening
 
@@ -339,6 +373,26 @@ git clone <repo-url> chatalot && cd chatalot
 ./scripts/generate-secrets.sh
 docker compose up -d --build
 ```
+
+## For Hosts
+
+Running a Chatalot instance means you're responsible for the people who use it. Here's what that looks like:
+
+- **You control registration** — use invite-only mode (default) to decide who joins. Generate codes from the admin panel with usage limits and expiration.
+- **You moderate content** — use the reports queue, user warnings, bans, timeouts, and slow mode. You can suspend accounts and purge content.
+- **You handle data** — back up your PostgreSQL database and `data/` directory regularly. Messages are encrypted, but metadata (users, channels, memberships) is not.
+- **You're the authority** — the built-in Terms of Service and Privacy Policy are customizable defaults. Drop your own `data/terms-of-service.md` and `data/privacy-policy.md` to override them.
+- **You're not the developer** — the Chatalot developers built the software but don't operate your instance. You're responsible for security, uptime, and compliance in your jurisdiction.
+
+## For Users
+
+Joining a Chatalot instance means trusting the person who runs it. Here's what you should know:
+
+- **Verify your host** — E2E encryption protects message content, but the server admin controls the infrastructure. Only join instances run by people you trust.
+- **Save your recovery code** — it's shown once at registration. It's the only way to reset your password without admin help. You can regenerate it from Settings > Security.
+- **Enable 2FA** — TOTP-based two-factor authentication adds a second layer of protection. Save your 8 backup codes in case you lose your authenticator.
+- **E2E encryption protects content, not metadata** — the server can see who you message and when, but not what you say. Channel names, usernames, and membership are visible to admins.
+- **Your data stays on this instance** — there's no federation, no cloud sync, and no third-party analytics. When you delete your account, your data is removed.
 
 ## Support
 
