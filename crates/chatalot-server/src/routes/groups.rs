@@ -432,7 +432,7 @@ async fn update_group(
     // Validate accent_color format if provided
     if let Some(ref color) = req.accent_color {
         static COLOR_HEX_RE: std::sync::LazyLock<regex::Regex> =
-            std::sync::LazyLock::new(|| regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap());
+            std::sync::LazyLock::new(|| regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").expect("valid hex color regex"));
         if !COLOR_HEX_RE.is_match(color) {
             return Err(AppError::Validation(
                 "accent_color must be a hex color (e.g. #ff0000)".to_string(),

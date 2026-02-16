@@ -571,7 +571,7 @@
 					custom_status: null
 				})));
 			} catch (err) {
-				console.error('Failed to load members:', err);
+				toastStore.error('Failed to load members');
 			} finally {
 				membersLoading = false;
 			}
@@ -1631,7 +1631,7 @@
 					dmSearchResults = dmSearchResults.filter(u => u.id !== authStore.user?.id);
 					dmSearchError = false;
 				} catch (err) {
-					console.warn('DM search failed:', err);
+					toastStore.error('User search failed');
 					dmSearchResults = [];
 					dmSearchError = true;
 				}

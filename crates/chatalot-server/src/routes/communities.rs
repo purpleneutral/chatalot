@@ -1,7 +1,7 @@
 use std::sync::{Arc, LazyLock};
 
 static COLOR_HEX_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap());
+    LazyLock::new(|| regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").expect("valid hex color regex"));
 
 use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post, put};
