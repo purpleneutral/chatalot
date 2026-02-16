@@ -752,25 +752,10 @@
 		}).catch(() => {});
 
 		// Listen for block/unblock events to refresh the list
-		window.addEventListener('chatalot:blocks-changed', async () => {
-			try {
-				const blocks = await listBlockedUsers();
-				blockedUserIds = blocks.map(b => b.blocked_id);
-			} catch {}
-		});
+		window.addEventListener('chatalot:blocks-changed', handleBlocksChanged);
 
 		// Listen for slow mode cooldown events
-		window.addEventListener('chatalot:slow-mode', ((e: CustomEvent<{ seconds: number }>) => {
-			slowModeCooldown = e.detail.seconds;
-			if (slowModeTimer) clearInterval(slowModeTimer);
-			slowModeTimer = setInterval(() => {
-				slowModeCooldown--;
-				if (slowModeCooldown <= 0) {
-					slowModeCooldown = 0;
-					if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
-				}
-			}, 1000);
-		}) as EventListener);
+		window.addEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
 
 		// Load communities + channels + DMs
 		try {
@@ -891,10 +876,38 @@
 		window.removeEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
 		window.removeEventListener('chatalot:update-available', handleUpdateAvailable);
 		window.removeEventListener('chatalot:connection', handleConnectionChange as EventListener);
+		window.removeEventListener('chatalot:blocks-changed', handleBlocksChanged);
+		window.removeEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
+
+		// Clean up timers
+		if (typingTimeout) clearTimeout(typingTimeout);
+		if (dmSearchTimeout) clearTimeout(dmSearchTimeout);
+		if (slowModeTimer) clearInterval(slowModeTimer);
+		if (gifSearchDebounceTimer) clearTimeout(gifSearchDebounceTimer);
+		if (searchTimeout) clearTimeout(searchTimeout);
 	});
 
 	function handleUpdateAvailable() {
 		pendingUpdate = true;
+	}
+
+	async function handleBlocksChanged() {
+		try {
+			const blocks = await listBlockedUsers();
+			blockedUserIds = blocks.map(b => b.blocked_id);
+		} catch {}
+	}
+
+	function handleSlowModeEvent(e: CustomEvent<{ seconds: number }>) {
+		slowModeCooldown = e.detail.seconds;
+		if (slowModeTimer) clearInterval(slowModeTimer);
+		slowModeTimer = setInterval(() => {
+			slowModeCooldown--;
+			if (slowModeCooldown <= 0) {
+				slowModeCooldown = 0;
+				if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
+			}
+		}, 1000);
 	}
 
 	function handleConnectionChange(e: CustomEvent<string>) {
@@ -1519,6 +1532,7 @@
 			scrollToBottom();
 		} catch (err) {
 			console.error('File upload failed:', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to upload file');
 		} finally {
 			uploading = false;
 			if (fileInputEl) fileInputEl.value = '';
@@ -1625,7 +1639,11 @@
 			}
 		}
 
-		wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
+		const sent = wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
+		if (!sent) {
+			toastStore.error('Cannot edit message while offline');
+			return;
+		}
 		messageStore.editMessage(messageId, text, new Date().toISOString());
 		editingMessageId = null;
 		editInput = '';

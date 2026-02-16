@@ -886,6 +886,15 @@ async fn handle_client_message(
                 }
             };
 
+            // Verify ownership — only the sender can edit their message
+            if msg_record.sender_id != Some(user_id) {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "forbidden".to_string(),
+                    message: "you can only edit your own messages".to_string(),
+                });
+                return;
+            }
+
             // Enforce 15-minute edit window
             const EDIT_WINDOW_SECONDS: i64 = 900;
             let age = (chrono::Utc::now() - msg_record.created_at).num_seconds();
