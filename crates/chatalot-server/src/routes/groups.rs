@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, patch, post};
 use axum::{Extension, Json, Router};
+use sqlx::query_scalar;
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
@@ -161,6 +162,18 @@ async fn create_group(
         }
         v
     };
+
+    // Enforce groups-per-community limit
+    let group_count: i64 =
+        query_scalar("SELECT COUNT(*) FROM groups WHERE community_id = $1")
+            .bind(req.community_id)
+            .fetch_one(&state.db)
+            .await?;
+    if group_count >= 200 {
+        return Err(AppError::Validation(
+            "maximum of 200 groups per community".to_string(),
+        ));
+    }
 
     let group_id = Uuid::now_v7();
     let group = group_repo::create_group(
@@ -646,6 +659,18 @@ async fn create_group_channel(
     {
         return Err(AppError::Validation(
             "topic must be at most 512 characters".to_string(),
+        ));
+    }
+
+    // Enforce channel-per-group limit
+    let channel_count: i64 =
+        query_scalar("SELECT COUNT(*) FROM channels WHERE group_id = $1")
+            .bind(group_id)
+            .fetch_one(&state.db)
+            .await?;
+    if channel_count >= 100 {
+        return Err(AppError::Validation(
+            "maximum of 100 channels per group".to_string(),
         ));
     }
 

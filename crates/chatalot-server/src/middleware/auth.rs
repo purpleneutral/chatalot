@@ -46,6 +46,7 @@ pub async fn auth_middleware(
 
     let mut validation = Validation::new(Algorithm::EdDSA);
     validation.validate_exp = true;
+    validation.leeway = 60; // 60 seconds clock skew tolerance
 
     let token_data = jsonwebtoken::decode::<AccessClaims>(
         token,

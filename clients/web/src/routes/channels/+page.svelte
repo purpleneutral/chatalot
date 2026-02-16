@@ -206,6 +206,9 @@
 	let slowModeCooldown = $state(0);
 	let slowModeTimer: ReturnType<typeof setInterval> | null = null;
 
+	// Guard against stale async loads on rapid channel switching
+	let channelLoadId = 0;
+
 	// Notification dropdown state
 	let showNotifDropdown = $state(false);
 
@@ -511,6 +514,7 @@
 	// Member panel functions
 	async function toggleMemberPanel() {
 		showMemberPanel = !showMemberPanel;
+		if (showMemberPanel) sidebarOpen = false; // Ensure mutual exclusivity on mobile
 		if (showMemberPanel && channelStore.activeChannelId) {
 			membersLoading = true;
 			try {
@@ -987,6 +991,9 @@
 	}
 
 	async function selectChannel(channelId: string) {
+		// Increment load ID to invalidate any in-flight async loads from previous channel
+		const thisLoadId = ++channelLoadId;
+
 		// Reset slow mode cooldown on channel switch
 		slowModeCooldown = 0;
 		if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
@@ -1045,6 +1052,8 @@
 			messageStore.setLoading(channelId, true);
 			try {
 				const rawMessages = await getMessages(channelId, undefined, FETCH_LIMIT);
+				// Discard if user switched channels during fetch
+				if (thisLoadId !== channelLoadId) return;
 				const reversed = rawMessages.reverse();
 				const ch = channelStore.channels.find(c => c.id === channelId);
 				const isDmChannel = ch?.channel_type === 'dm';
@@ -3876,7 +3885,7 @@
 					<div class="flex items-center">
 						<!-- Mobile menu button -->
 						<button
-							onclick={() => (sidebarOpen = true)}
+							onclick={() => { sidebarOpen = true; showMemberPanel = false; }}
 							class="mr-3 rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
 							aria-label="Open sidebar"
 						>
@@ -4913,7 +4922,7 @@
 					{#if initialized}
 						<!-- Mobile menu button when no channel selected -->
 						<button
-							onclick={() => (sidebarOpen = true)}
+							onclick={() => { sidebarOpen = true; showMemberPanel = false; }}
 							class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
 						>
 							Open channels

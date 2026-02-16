@@ -586,6 +586,13 @@ async fn handle_client_message(
         ClientMessage::Subscribe { channel_ids } => {
             // Subscribe this session to channel broadcasts.
             // Verify membership for each channel before subscribing.
+            if channel_ids.len() > 200 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "cannot subscribe to more than 200 channels at once".to_string(),
+                });
+                return;
+            }
             for channel_id in channel_ids {
                 let is_member = channel_repo::is_member(&state.db, channel_id, user_id)
                     .await
@@ -632,6 +639,13 @@ async fn handle_client_message(
             session_id,
             sdp,
         } => {
+            if sdp.len() > 32_768 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "SDP too large".to_string(),
+                });
+                return;
+            }
             conn_mgr.send_to_user(
                 &target_user_id,
                 &ServerMessage::RtcOffer {
@@ -646,6 +660,13 @@ async fn handle_client_message(
             session_id,
             sdp,
         } => {
+            if sdp.len() > 32_768 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "SDP too large".to_string(),
+                });
+                return;
+            }
             conn_mgr.send_to_user(
                 &target_user_id,
                 &ServerMessage::RtcAnswer {
@@ -660,6 +681,13 @@ async fn handle_client_message(
             session_id,
             candidate,
         } => {
+            if candidate.len() > 2048 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "ICE candidate too large".to_string(),
+                });
+                return;
+            }
             conn_mgr.send_to_user(
                 &target_user_id,
                 &ServerMessage::RtcIceCandidate {
