@@ -5700,7 +5700,7 @@
 	{#if showFeedback}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onpaste={handleFeedbackPaste}>
-			<div class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" transition:scale={{ start: 0.95, duration: 200 }}>
+			<div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" transition:scale={{ start: 0.95, duration: 200 }}>
 				<h2 class="mb-1 text-lg font-semibold text-[var(--text-primary)]">Send Feedback</h2>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">Help us improve Chatalot. Your feedback creates an issue for the developers.</p>
 
