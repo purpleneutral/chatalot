@@ -330,6 +330,7 @@
 					onclick={() => focusStream = true}
 					class="absolute top-3 right-3 z-10 rounded-lg bg-black/50 p-1.5 text-white/70 transition hover:bg-black/70 hover:text-white"
 					title="Focus on stream (hide participants)"
+					aria-label="Focus on stream"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
@@ -433,6 +434,7 @@
 					onclick={() => focusStream = false}
 					class="absolute top-3 right-3 z-10 rounded-lg bg-black/50 p-1.5 text-white/70 transition hover:bg-black/70 hover:text-white"
 					title="Show participants (tiled view)"
+					aria-label="Show participants"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />

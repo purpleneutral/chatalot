@@ -157,9 +157,13 @@
 		}
 	}
 
-	function handleCopyId() {
-		navigator.clipboard.writeText(group.id);
-		toastStore.success('Group ID copied');
+	async function handleCopyId() {
+		try {
+			await navigator.clipboard.writeText(group.id);
+			toastStore.success('Group ID copied');
+		} catch {
+			toastStore.error('Failed to copy');
+		}
 	}
 
 	async function handleIconUpload(e: Event) {
@@ -386,7 +390,7 @@
 				</div>
 				{#if editingAccent}
 					<div class="mb-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
-						<input type="color" bind:value={editAccentColor} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" />
+						<input type="color" bind:value={editAccentColor} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" aria-label="Accent color" />
 						<span class="flex-1 text-xs text-[var(--text-secondary)]">{editAccentColor}</span>
 						<button onclick={saveAccentColor} disabled={saving} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white">Save</button>
 						{#if group.accent_color}

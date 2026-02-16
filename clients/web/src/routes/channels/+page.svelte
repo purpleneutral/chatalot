@@ -1239,6 +1239,7 @@
 		// Preload members for @mention autocomplete
 		getChannelMembers(channelId)
 			.then((members) => {
+				if (thisLoadId !== channelLoadId) return; // stale
 				memberStore.setMembers(channelId, members);
 				userStore.setUsers(members.map(m => ({
 					id: m.user_id,
@@ -1933,11 +1934,19 @@
 		return userStore.getDisplayName(userId);
 	}
 
+	async function copyToClipboard(text: string, successMsg: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toastStore.success(successMsg);
+		} catch {
+			toastStore.error('Failed to copy to clipboard');
+		}
+	}
+
 	function copyMessageText(msgId: string) {
 		const msg = messages.find(m => m.id === msgId);
 		if (msg) {
-			navigator.clipboard.writeText(msg.content);
-			toastStore.success('Message text copied');
+			copyToClipboard(msg.content, 'Message text copied');
 		}
 		contextMenuMessageId = null;
 	}
@@ -3164,9 +3173,13 @@
 			const wrapper = target.closest('.code-block-wrapper');
 			const pre = wrapper?.querySelector('pre');
 			if (pre) {
-				navigator.clipboard.writeText(pre.textContent || '');
-				target.textContent = 'Copied!';
-				setTimeout(() => { target.textContent = 'Copy'; }, 2000);
+				navigator.clipboard.writeText(pre.textContent || '').then(() => {
+					target.textContent = 'Copied!';
+					setTimeout(() => { target.textContent = 'Copy'; }, 2000);
+				}).catch(() => {
+					target.textContent = 'Failed';
+					setTimeout(() => { target.textContent = 'Copy'; }, 2000);
+				});
 			}
 		}
 	}
@@ -4174,6 +4187,7 @@
 					onclick={() => (showFeedback = true)}
 					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--accent)]"
 					title="Send feedback"
+					aria-label="Send feedback"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -4183,6 +4197,7 @@
 					onclick={() => { webrtcManager.leaveCall(); authStore.logout(); wsClient.disconnect(); goto('/login'); }}
 					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--danger)]"
 					title="Sign out"
+					aria-label="Sign out"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -5189,7 +5204,7 @@
 								Copy Text
 							</button>
 							<button
-								onclick={() => { navigator.clipboard.writeText(`${window.location.origin}/channels#msg-${ctxMsg.id}`); toastStore.success('Message link copied'); contextMenuMessageId = null; }}
+								onclick={() => { copyToClipboard(`${window.location.origin}/channels#msg-${ctxMsg.id}`, 'Message link copied'); contextMenuMessageId = null; }}
 								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
@@ -5274,6 +5289,7 @@
 							onclick={() => scrollToBottom(true)}
 							class="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-lg transition hover:bg-[var(--bg-tertiary)]"
 							title="Scroll to bottom"
+							aria-label="Scroll to bottom"
 							transition:scale={{ start: 0.8, duration: 150 }}
 						>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

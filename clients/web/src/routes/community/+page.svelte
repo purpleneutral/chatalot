@@ -784,7 +784,7 @@
 								</div>
 								<div class="flex items-center gap-2">
 									<button
-										onclick={async () => { await navigator.clipboard.writeText(`${getPublicUrl()}/invite/${invite.code}`); toastStore.success('Link copied!'); }}
+										onclick={async () => { try { await navigator.clipboard.writeText(`${getPublicUrl()}/invite/${invite.code}`); toastStore.success('Link copied!'); } catch { toastStore.error('Failed to copy'); } }}
 										class="rounded px-2 py-1 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
 									>
 										Copy Link

@@ -166,9 +166,13 @@
 		}
 	}
 
-	function handleCopyId() {
-		navigator.clipboard.writeText(channel.id);
-		toastStore.success('Channel ID copied');
+	async function handleCopyId() {
+		try {
+			await navigator.clipboard.writeText(channel.id);
+			toastStore.success('Channel ID copied');
+		} catch {
+			toastStore.error('Failed to copy');
+		}
 	}
 
 	async function handleDelete() {
@@ -235,16 +239,20 @@
 		}
 	}
 
-	function copyWebhookUrl(webhook: Webhook) {
+	async function copyWebhookUrl(webhook: Webhook) {
 		if (!webhook.token) {
 			toastStore.error('Token only visible at creation');
 			return;
 		}
 		const base = getPublicUrl() || window.location.origin;
-		navigator.clipboard.writeText(`${base}/api/webhooks/execute/${webhook.token}`);
-		copiedTokenId = webhook.id;
-		setTimeout(() => { copiedTokenId = null; }, 2000);
-		toastStore.success('Webhook URL copied');
+		try {
+			await navigator.clipboard.writeText(`${base}/api/webhooks/execute/${webhook.token}`);
+			copiedTokenId = webhook.id;
+			setTimeout(() => { copiedTokenId = null; }, 2000);
+			toastStore.success('Webhook URL copied');
+		} catch {
+			toastStore.error('Failed to copy');
+		}
 	}
 </script>
 

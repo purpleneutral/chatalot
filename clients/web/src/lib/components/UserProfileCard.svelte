@@ -99,9 +99,13 @@
 		return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 	});
 
-	function handleCopyId() {
-		navigator.clipboard.writeText(userId);
-		toastStore.success('User ID copied');
+	async function handleCopyId() {
+		try {
+			await navigator.clipboard.writeText(userId);
+			toastStore.success('User ID copied');
+		} catch {
+			toastStore.error('Failed to copy');
+		}
 	}
 
 	function handleSendMessage() {

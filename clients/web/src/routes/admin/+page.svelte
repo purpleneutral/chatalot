@@ -215,9 +215,13 @@
 		}
 	}
 
-	function copyText(text: string) {
-		navigator.clipboard.writeText(text);
-		toastStore.success('Copied to clipboard');
+	async function copyText(text: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toastStore.success('Copied to clipboard');
+		} catch {
+			toastStore.error('Failed to copy');
+		}
 	}
 
 	// ── File handlers ──
