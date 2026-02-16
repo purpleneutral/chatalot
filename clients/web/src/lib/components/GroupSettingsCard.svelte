@@ -302,7 +302,7 @@
 						bind:value={editName}
 						onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
 					/>
-					<button onclick={saveName} class="rounded bg-[var(--accent)] px-2 py-1 text-xs text-white" disabled={saving}>Save</button>
+					<button onclick={saveName} class="rounded bg-[var(--accent)] px-2 py-1 text-xs text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={saving}>Save</button>
 				</div>
 			{:else if isAdmin}
 				<button class="mb-0.5 text-left text-base font-bold text-[var(--text-primary)] cursor-pointer hover:underline" onclick={() => { editingName = true; editName = group.name; }}>
@@ -346,7 +346,7 @@
 					></textarea>
 					<div class="mt-1 flex justify-end gap-1">
 						<button onclick={() => editingDesc = false} class="rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5">Cancel</button>
-						<button onclick={saveDescription} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white" disabled={saving}>Save</button>
+						<button onclick={saveDescription} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={saving}>Save</button>
 					</div>
 				</div>
 			{:else if group.description && isAdmin}
@@ -370,14 +370,14 @@
 					<button
 						onclick={() => iconInputEl?.click()}
 						disabled={iconUploading}
-						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						{iconUploading ? 'Uploading...' : 'Change Icon'}
 					</button>
 					<button
 						onclick={() => bannerInputEl?.click()}
 						disabled={bannerUploading}
-						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						{bannerUploading ? 'Uploading...' : 'Change Banner'}
 					</button>

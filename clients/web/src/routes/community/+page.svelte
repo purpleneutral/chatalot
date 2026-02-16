@@ -211,6 +211,7 @@
 
 	async function handleDeleteInvite(inviteId: string) {
 		if (!community) return;
+		if (!confirm('Delete this invite link? This cannot be undone.')) return;
 		try {
 			await deleteInvite(community.id, inviteId);
 			invites = invites.filter((i) => i.id !== inviteId);
@@ -446,6 +447,7 @@
 
 	async function handleDeleteEmoji(emoji: CustomEmoji) {
 		if (!community) return;
+		if (!confirm(`Delete :${emoji.shortcode}:? This cannot be undone.`)) return;
 		try {
 			await deleteEmoji(community.id, emoji.id);
 			communityEmojis = communityEmojis.filter(e => e.id !== emoji.id);

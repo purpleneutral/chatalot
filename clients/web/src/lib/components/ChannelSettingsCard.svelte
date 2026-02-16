@@ -295,7 +295,7 @@
 						bind:value={editName}
 						onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
 					/>
-					<button onclick={saveName} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white" disabled={saving}>Save</button>
+					<button onclick={saveName} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={saving}>Save</button>
 				</div>
 			{:else if isAdmin}
 				<button class="mb-0.5 text-left text-base font-bold text-[var(--text-primary)] cursor-pointer hover:underline" onclick={() => { editingName = true; editName = channel.name ?? ''; }}>
@@ -331,7 +331,7 @@
 					></textarea>
 					<div class="mt-1 flex justify-end gap-1">
 						<button onclick={() => editingTopic = false} class="rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5">Cancel</button>
-						<button onclick={saveTopic} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white" disabled={saving}>Save</button>
+						<button onclick={saveTopic} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={saving}>Save</button>
 					</div>
 				</div>
 			{:else if channel.topic && isAdmin}
@@ -356,7 +356,7 @@
 				<!-- Read-only toggle -->
 				<button
 					onclick={toggleReadOnly}
-					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 					disabled={saving}
 				>
 					<span class="flex items-center gap-2">
@@ -371,7 +371,7 @@
 				<!-- Discoverable toggle -->
 				<button
 					onclick={toggleDiscoverable}
-					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 					disabled={saving}
 				>
 					<span class="flex items-center gap-2">
@@ -386,7 +386,7 @@
 				<!-- Archive toggle -->
 				<button
 					onclick={toggleArchived}
-					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 					disabled={saving}
 				>
 					<span class="flex items-center gap-2">
