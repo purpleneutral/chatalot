@@ -173,7 +173,12 @@
 		transition:scale={{ start: 0.9, duration: 150 }}
 	>
 		<!-- Banner / header area -->
-		<div class="relative h-16 rounded-t-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]">
+		<div class="relative h-24 overflow-hidden rounded-t-xl">
+			{#if user?.banner_url}
+				<img src={user.banner_url} alt="" class="h-full w-full object-cover" />
+			{:else}
+				<div class="h-full w-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
+			{/if}
 			<!-- Avatar overlapping the banner -->
 			<div class="absolute -bottom-8 left-4">
 				<div class="rounded-full border-4 border-[var(--bg-secondary)]">

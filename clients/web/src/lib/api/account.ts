@@ -28,6 +28,7 @@ export async function changePassword(
 export async function updateProfile(updates: {
 	display_name?: string;
 	avatar_url?: string | null;
+	banner_url?: string | null;
 	custom_status?: string | null;
 }): Promise<UserPublic> {
 	return api.put('/account/profile', updates);
@@ -60,6 +61,30 @@ export async function uploadAvatar(file: File): Promise<UserPublic> {
 	}
 
 	const response = await fetch(`${apiBase()}/account/avatar`, {
+		method: 'POST',
+		headers,
+		body: formData
+	});
+
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+
+	return response.json();
+}
+
+export async function uploadBanner(file: File): Promise<UserPublic> {
+	const formData = new FormData();
+	formData.append('banner', file);
+
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const response = await fetch(`${apiBase()}/account/banner`, {
 		method: 'POST',
 		headers,
 		body: formData

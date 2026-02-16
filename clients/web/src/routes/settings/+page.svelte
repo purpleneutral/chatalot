@@ -10,7 +10,7 @@
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { setupTotp, verifyTotp, disableTotp, type TotpSetup } from '$lib/api/totp';
-	import { changePassword, updateProfile, uploadAvatar, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
+	import { changePassword, updateProfile, uploadAvatar, uploadBanner, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount, onDestroy } from 'svelte';
@@ -39,6 +39,10 @@
 	// Avatar upload
 	let avatarInputEl: HTMLInputElement | undefined = $state();
 	let avatarUploading = $state(false);
+
+	// Banner upload
+	let bannerInputEl: HTMLInputElement | undefined = $state();
+	let bannerUploading = $state(false);
 
 	// Change password
 	let currentPassword = $state('');
@@ -215,6 +219,39 @@
 			profileMessage = 'Avatar removed.';
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to remove avatar';
+		} finally {
+			profileSaving = false;
+		}
+	}
+
+	async function handleBannerUpload(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		bannerUploading = true;
+		profileError = '';
+		try {
+			const updated = await uploadBanner(file);
+			authStore.updateUser(updated);
+			profileMessage = 'Banner updated.';
+		} catch (err) {
+			profileError = err instanceof Error ? err.message : 'Failed to upload banner';
+		} finally {
+			bannerUploading = false;
+			if (bannerInputEl) bannerInputEl.value = '';
+		}
+	}
+
+	async function handleRemoveBanner() {
+		profileSaving = true;
+		profileError = '';
+		try {
+			const updated = await updateProfile({ banner_url: null });
+			authStore.updateUser(updated);
+			profileMessage = 'Banner removed.';
+		} catch (err) {
+			profileError = err instanceof Error ? err.message : 'Failed to remove banner';
 		} finally {
 			profileSaving = false;
 		}
@@ -440,6 +477,51 @@
 									</button>
 								{/if}
 							</div>
+						</div>
+					</section>
+
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Profile Banner</h3>
+						<div class="group relative aspect-[3/1] w-full overflow-hidden rounded-lg border border-white/10">
+							{#if authStore.user?.banner_url}
+								<img
+									src={authStore.user.banner_url}
+									alt="Profile banner"
+									class="h-full w-full object-cover"
+								/>
+							{:else}
+								<div class="flex h-full w-full items-center justify-center bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]">
+									<span class="text-sm text-white/50">No banner set</span>
+								</div>
+							{/if}
+							<button
+								onclick={() => bannerInputEl?.click()}
+								disabled={bannerUploading}
+								class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-wait"
+								title="Change banner"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+								</svg>
+							</button>
+							<input
+								bind:this={bannerInputEl}
+								type="file"
+								accept="image/png,image/jpeg,image/webp,image/gif"
+								onchange={handleBannerUpload}
+								class="hidden"
+							/>
+						</div>
+						<div class="mt-2 flex items-center justify-between">
+							<span class="text-xs text-[var(--text-secondary)]">Recommended: 1200x400, max 5 MB</span>
+							{#if authStore.user?.banner_url}
+								<button
+									onclick={handleRemoveBanner}
+									class="text-xs text-[var(--danger)] hover:underline"
+								>
+									Remove banner
+								</button>
+							{/if}
 						</div>
 					</section>
 
