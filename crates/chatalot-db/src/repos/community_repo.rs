@@ -66,6 +66,9 @@ pub async fn update_community(
     who_can_create_groups: Option<&str>,
     who_can_create_invites: Option<&str>,
     discoverable: Option<bool>,
+    banner_url: Option<&str>,
+    community_theme: Option<&serde_json::Value>,
+    welcome_message: Option<&str>,
 ) -> Result<Option<Community>, sqlx::Error> {
     sqlx::query_as::<_, Community>(
         r#"
@@ -76,6 +79,9 @@ pub async fn update_community(
             who_can_create_groups = COALESCE($5, who_can_create_groups),
             who_can_create_invites = COALESCE($6, who_can_create_invites),
             discoverable = COALESCE($7, discoverable),
+            banner_url = COALESCE($8, banner_url),
+            community_theme = COALESCE($9, community_theme),
+            welcome_message = COALESCE($10, welcome_message),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -88,6 +94,9 @@ pub async fn update_community(
     .bind(who_can_create_groups)
     .bind(who_can_create_invites)
     .bind(discoverable)
+    .bind(banner_url)
+    .bind(community_theme)
+    .bind(welcome_message)
     .fetch_optional(pool)
     .await
 }

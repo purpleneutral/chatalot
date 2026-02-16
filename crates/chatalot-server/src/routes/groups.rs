@@ -415,6 +415,9 @@ async fn update_group(
         req.visibility.as_deref(),
         req.discoverable,
         allow_invites_update,
+        req.icon_url.as_deref(),
+        req.banner_url.as_deref(),
+        req.accent_color.as_deref(),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
@@ -788,6 +791,7 @@ async fn update_group_channel(
         None,
         req.discoverable,
         req.archived,
+        req.voice_background.as_deref(),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;

@@ -215,6 +215,7 @@ pub async fn update_profile(
     user_id: Uuid,
     display_name: Option<&str>,
     avatar_url: Option<Option<&str>>,
+    banner_url: Option<Option<&str>>,
     custom_status: Option<Option<&str>>,
     bio: Option<Option<&str>>,
     pronouns: Option<Option<&str>>,
@@ -229,6 +230,10 @@ pub async fn update_profile(
     }
     if avatar_url.is_some() {
         set_clauses.push(format!("avatar_url = ${param_idx}"));
+        param_idx += 1;
+    }
+    if banner_url.is_some() {
+        set_clauses.push(format!("banner_url = ${param_idx}"));
         param_idx += 1;
     }
     if custom_status.is_some() {
@@ -255,6 +260,9 @@ pub async fn update_profile(
     }
     if let Some(av) = avatar_url {
         q = q.bind(av);
+    }
+    if let Some(bn) = banner_url {
+        q = q.bind(bn);
     }
     if let Some(cs) = custom_status {
         q = q.bind(cs);

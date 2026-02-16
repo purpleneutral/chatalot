@@ -364,6 +364,9 @@ async fn update_community(
         req.who_can_create_groups.as_deref(),
         req.who_can_create_invites.as_deref(),
         req.discoverable,
+        req.banner_url.as_deref(),
+        req.community_theme.as_ref(),
+        req.welcome_message.as_deref(),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("community not found".to_string()))?;

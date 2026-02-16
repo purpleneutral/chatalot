@@ -173,6 +173,7 @@ async fn update_channel(
         req.message_ttl_seconds.map(|v| if v == 0 { None } else { Some(v) }),
         req.discoverable,
         req.archived,
+        req.voice_background.as_deref(),
     )
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;

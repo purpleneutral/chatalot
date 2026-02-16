@@ -80,7 +80,7 @@ pub async fn get_group(pool: &PgPool, id: Uuid) -> Result<Option<Group>, sqlx::E
         .await
 }
 
-/// Update a group's name, description, visibility, discoverable, and/or allow_invites.
+/// Update a group's settings.
 pub async fn update_group(
     pool: &PgPool,
     id: Uuid,
@@ -89,6 +89,9 @@ pub async fn update_group(
     visibility: Option<&str>,
     discoverable: Option<bool>,
     allow_invites: Option<bool>,
+    icon_url: Option<&str>,
+    banner_url: Option<&str>,
+    accent_color: Option<&str>,
 ) -> Result<Option<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
         r#"
@@ -98,6 +101,9 @@ pub async fn update_group(
             visibility = COALESCE($4, visibility),
             discoverable = COALESCE($5, discoverable),
             allow_invites = COALESCE($6, allow_invites),
+            icon_url = COALESCE($7, icon_url),
+            banner_url = COALESCE($8, banner_url),
+            accent_color = COALESCE($9, accent_color),
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -109,6 +115,9 @@ pub async fn update_group(
     .bind(visibility)
     .bind(discoverable)
     .bind(allow_invites)
+    .bind(icon_url)
+    .bind(banner_url)
+    .bind(accent_color)
     .fetch_optional(pool)
     .await
 }
