@@ -47,6 +47,13 @@ class MemberStore {
 		next.set(channelId, [...members, member]);
 		this.membersByChannel = next;
 	}
+
+	clearChannel(channelId: string) {
+		if (!this.membersByChannel.has(channelId)) return;
+		const next = new Map(this.membersByChannel);
+		next.delete(channelId);
+		this.membersByChannel = next;
+	}
 }
 
 export const memberStore = new MemberStore();

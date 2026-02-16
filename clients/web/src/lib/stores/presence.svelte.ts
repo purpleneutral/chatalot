@@ -55,6 +55,23 @@ class PresenceStore {
 		}
 	}
 
+	clearChannel(channelId: string) {
+		const users = this.typingUsers.get(channelId);
+		if (!users) return;
+		// Clean up timeouts for this channel
+		for (const userId of users) {
+			const key = `${channelId}:${userId}`;
+			const timeout = this.typingTimeouts.get(key);
+			if (timeout) {
+				clearTimeout(timeout);
+				this.typingTimeouts.delete(key);
+			}
+		}
+		const next = new Map(this.typingUsers);
+		next.delete(channelId);
+		this.typingUsers = next;
+	}
+
 	/** Clear all state (call on logout). */
 	reset() {
 		for (const timeout of this.typingTimeouts.values()) clearTimeout(timeout);

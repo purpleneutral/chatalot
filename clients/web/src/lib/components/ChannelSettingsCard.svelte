@@ -437,7 +437,7 @@
 							{#each webhooks as webhook (webhook.id)}
 								<div class="rounded-lg bg-white/5 px-2.5 py-2">
 									<div class="flex items-center justify-between">
-										<span class="text-xs font-medium text-[var(--text-primary)] truncate flex-1">{webhook.name}</span>
+										<span class="text-xs font-medium text-[var(--text-primary)] truncate flex-1" title={webhook.name}>{webhook.name}</span>
 										<div class="flex items-center gap-1 shrink-0">
 											<button
 												onclick={() => handleToggleWebhook(webhook)}

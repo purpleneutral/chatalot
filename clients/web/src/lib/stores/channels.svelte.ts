@@ -1,5 +1,7 @@
 import type { Channel } from '$lib/api/channels';
+import { memberStore } from './members.svelte';
 import { messageStore } from './messages.svelte';
+import { presenceStore } from './presence.svelte';
 
 class ChannelStore {
 	channels = $state<Channel[]>([]);
@@ -26,6 +28,8 @@ class ChannelStore {
 	removeChannel(channelId: string) {
 		this.channels = this.channels.filter(c => c.id !== channelId);
 		messageStore.clearChannel(channelId);
+		memberStore.clearChannel(channelId);
+		presenceStore.clearChannel(channelId);
 		if (this.activeChannelId === channelId) {
 			this.activeChannelId = null;
 		}
@@ -36,6 +40,8 @@ class ChannelStore {
 		this.channels = this.channels.filter(c => c.group_id !== groupId);
 		for (const ch of removed) {
 			messageStore.clearChannel(ch.id);
+			memberStore.clearChannel(ch.id);
+			presenceStore.clearChannel(ch.id);
 		}
 		if (removed.some(c => c.id === this.activeChannelId)) {
 			this.activeChannelId = null;

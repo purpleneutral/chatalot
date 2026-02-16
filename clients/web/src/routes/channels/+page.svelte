@@ -2302,7 +2302,7 @@
 		// Replace :custom_emoji: shortcodes with inline images
 		let processed = text.replace(/:(\w{2,32}):/g, (match, shortcode) => {
 			const emoji = customEmojiMap.get(shortcode);
-			if (emoji) {
+			if (emoji && /^https?:\/\//.test(emoji.url)) {
 				return `<img src="${emoji.url}" alt=":${shortcode}:" title=":${shortcode}:" class="custom-emoji" />`;
 			}
 			return match;
@@ -3718,7 +3718,7 @@
 									{:else if group.visibility === 'private'}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 									{/if}
-									<span class="flex-1 truncate" style={group.accent_color ? `color: ${group.accent_color}` : ''}>{group.name}</span>
+									<span class="flex-1 truncate" title={group.name} style={group.accent_color ? `color: ${group.accent_color}` : ''}>{group.name}</span>
 									<span class="text-xs text-[var(--text-secondary)]">{group.member_count}</span>
 								</button>
 								<!-- Settings gear (hover) -->
@@ -3813,7 +3813,7 @@
 														}}
 													>
 														<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
-														<span class="truncate">{userStore.getDisplayName(uid)}</span>
+														<span class="truncate" title={userStore.getDisplayName(uid)}>{userStore.getDisplayName(uid)}</span>
 													</button>
 												{/each}
 											</div>
@@ -3913,13 +3913,13 @@
 						<!-- Loading skeleton -->
 						<div class="space-y-2">
 							{#each [1, 2, 3] as _}
-								<div class="h-9 animate-pulse rounded-lg bg-white/5"></div>
+								<div class="h-9 animate-pulse rounded-lg bg-[var(--bg-tertiary)]"></div>
 							{/each}
 						</div>
 					{:else if groupStore.groups.length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
-							<p class="text-sm text-[var(--text-secondary)]">No groups yet</p>
-							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Create a group, discover existing ones, or join via an invite link.</p>
+							<p class="text-sm text-[var(--text-primary)]">No groups yet</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]">Create a group, discover existing ones, or join via an invite link.</p>
 						</div>
 					{/if}
 
@@ -3993,7 +3993,7 @@
 											}}
 										>
 											<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
-											<span class="truncate">{userStore.getDisplayName(uid)}</span>
+											<span class="truncate" title={userStore.getDisplayName(uid)}>{userStore.getDisplayName(uid)}</span>
 										</button>
 									{/each}
 								</div>
@@ -4003,13 +4003,13 @@
 					{#if !initialized}
 						<div class="space-y-2">
 							{#each [1, 2, 3] as _}
-								<div class="h-9 animate-pulse rounded-lg bg-white/5"></div>
+								<div class="h-9 animate-pulse rounded-lg bg-[var(--bg-tertiary)]"></div>
 							{/each}
 						</div>
 					{:else if channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id).length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
-							<p class="text-sm text-[var(--text-secondary)]">No standalone channels</p>
-							<p class="mt-1 text-xs text-[var(--text-secondary)]/70">Channels here are outside of groups. Try the Groups tab instead.</p>
+							<p class="text-sm text-[var(--text-primary)]">No standalone channels</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]">Channels here are outside of groups. Try the Groups tab instead.</p>
 						</div>
 					{/if}
 				{:else}
@@ -4023,7 +4023,7 @@
 							class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition {channelStore.activeChannelId === dm.channel.id ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 						>
 							<Avatar userId={dm.other_user.id} size="xs" showStatus />
-							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}">{getDmDisplayName(dm)}</span>
+							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}" title={getDmDisplayName(dm)}>{getDmDisplayName(dm)}</span>
 							{#if unreadCount > 0 && channelStore.activeChannelId !== dm.channel.id}
 								<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
 									{unreadCount > 99 ? '99+' : unreadCount}
@@ -4034,12 +4034,12 @@
 					{#if !initialized}
 						<div class="space-y-2">
 							{#each [1, 2, 3] as _}
-								<div class="h-9 animate-pulse rounded-lg bg-white/5"></div>
+								<div class="h-9 animate-pulse rounded-lg bg-[var(--bg-tertiary)]"></div>
 							{/each}
 						</div>
 					{:else if dmChannels.length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-6 text-center">
-							<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-10 w-10 text-[var(--text-secondary)]/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+							<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-10 w-10 text-[var(--text-secondary)]/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
 							</svg>
 							<p class="text-sm font-medium text-[var(--text-primary)]">No conversations yet</p>
@@ -4573,7 +4573,7 @@
 												<span class="text-xs font-semibold text-[var(--text-primary)]">{getDisplayNameForContext(pin.sender_id ?? '')}</span>
 												<span class="text-xs text-[var(--text-secondary)]">{formatTime(pin.created_at)}</span>
 											</div>
-											<p class="mt-0.5 text-sm text-[var(--text-secondary)] truncate">{pin._decryptedContent ?? '(encrypted message)'}</p>
+											<p class="mt-0.5 text-sm text-[var(--text-secondary)] truncate" title={pin._decryptedContent ?? ''}>{pin._decryptedContent ?? '(encrypted message)'}</p>
 										</div>
 										{#if myRole === 'owner' || myRole === 'admin'}
 											<button
@@ -4657,7 +4657,7 @@
 													class="group/opt relative flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition {myVote ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-white/10 hover:border-white/20 hover:bg-white/5'} disabled:cursor-default disabled:opacity-70"
 												>
 													<div class="absolute inset-0 rounded-md bg-[var(--accent)]/10 transition-all" style="width: {pct}%"></div>
-													<span class="relative flex-1 truncate text-[var(--text-primary)]">{option}</span>
+													<span class="relative flex-1 truncate text-[var(--text-primary)]" title={option}>{option}</span>
 													<span class="relative text-xs font-medium text-[var(--text-secondary)]">
 														{count} ({pct}%)
 													</span>
@@ -4733,9 +4733,9 @@
 					{#if initialized && messages.length === 0 && !loadingOlder}
 						<div class="flex h-full items-center justify-center">
 							<div class="text-center">
-								<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-12 w-12 text-[var(--text-secondary)] opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-								<p class="text-sm text-[var(--text-secondary)]">No messages yet</p>
-								<p class="mt-1 text-xs text-[var(--text-secondary)] opacity-60">Be the first to say something!</p>
+								<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-12 w-12 text-[var(--text-secondary)] opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+								<p class="text-sm text-[var(--text-primary)]">No messages yet</p>
+								<p class="mt-1 text-xs text-[var(--text-secondary)] opacity-70">Be the first to say something!</p>
 							</div>
 						</div>
 					{/if}
@@ -4914,7 +4914,7 @@
 													<path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
 												</svg>
 												<div class="min-w-0 flex-1">
-													<p class="truncate text-sm font-medium text-[var(--text-primary)]">{fileInfo.filename}</p>
+													<p class="truncate text-sm font-medium text-[var(--text-primary)]" title={fileInfo.filename}>{fileInfo.filename}</p>
 													<p class="text-xs text-[var(--text-secondary)]">{formatFileSize(fileInfo.size)}</p>
 												</div>
 												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
@@ -5327,7 +5327,7 @@
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 						<span class="hidden sm:inline text-xs text-[var(--text-secondary)]">Replying to</span>
 						<span class="text-xs font-medium text-[var(--text-primary)]">{userStore.getDisplayName(replyingTo.senderId)}</span>
-						<span class="flex-1 truncate text-xs text-[var(--text-secondary)]">{replyingTo.content.slice(0, 60)}</span>
+						<span class="flex-1 truncate text-xs text-[var(--text-secondary)]" title={replyingTo.content}>{replyingTo.content.slice(0, 60)}</span>
 						<button onclick={cancelReply} class="shrink-0 rounded p-0.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title="Cancel reply">
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 						</button>
@@ -5418,7 +5418,7 @@
 									</div>
 								{:else if gifResults.length === 0}
 									<div class="flex flex-col items-center justify-center py-8 text-[var(--text-secondary)]">
-										<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-8 w-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" /><text x="12" y="16" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-weight="bold">GIF</text></svg>
+										<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-8 w-8 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" /><text x="12" y="16" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-weight="bold">GIF</text></svg>
 										<p class="text-sm">{gifSearchQuery ? 'No GIFs found' : 'Search for a GIF'}</p>
 									</div>
 								{:else}
@@ -6204,9 +6204,9 @@
 								class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition {i === quickSwitcherIndex ? 'bg-[var(--accent)]/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
 							>
 								<span class="w-5 text-center {item.icon === '@' ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'}">{item.icon}</span>
-								<span class="flex-1 truncate">{item.name}</span>
+								<span class="flex-1 truncate" title={item.name}>{item.name}</span>
 								{#if item.groupName}
-									<span class="truncate text-xs text-[var(--text-secondary)]/60">{item.groupName}</span>
+									<span class="truncate text-xs text-[var(--text-secondary)]/60" title={item.groupName}>{item.groupName}</span>
 								{/if}
 								<span class="text-xs text-[var(--text-secondary)]/40">{item.type === 'dm' ? 'DM' : item.type === 'group-channel' ? 'Channel' : 'Channel'}</span>
 							</button>
