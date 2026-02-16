@@ -1,4 +1,6 @@
 import { api } from './client';
+import { apiBase } from '$lib/env';
+import { authStore } from '$lib/stores/auth.svelte';
 import type { Group } from './groups';
 
 export interface Community {
@@ -6,12 +8,15 @@ export interface Community {
 	name: string;
 	description: string | null;
 	icon_url: string | null;
+	banner_url: string | null;
 	owner_id: string;
 	created_at: string;
 	member_count: number;
 	who_can_create_groups: string;
 	who_can_create_invites: string;
 	discoverable: boolean;
+	community_theme: Record<string, string> | null;
+	welcome_message: string | null;
 }
 
 export interface CommunityMember {
@@ -72,6 +77,7 @@ export async function updateCommunity(
 		who_can_create_groups?: string;
 		who_can_create_invites?: string;
 		discoverable?: boolean;
+		welcome_message?: string | null;
 	}
 ): Promise<Community> {
 	const body: Record<string, string | boolean | null> = {};
@@ -81,7 +87,40 @@ export async function updateCommunity(
 	if (updates.who_can_create_groups !== undefined) body.who_can_create_groups = updates.who_can_create_groups;
 	if (updates.who_can_create_invites !== undefined) body.who_can_create_invites = updates.who_can_create_invites;
 	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
+	if (updates.welcome_message !== undefined) body.welcome_message = updates.welcome_message;
 	return api.patch<Community>(`/communities/${id}`, body);
+}
+
+export async function uploadCommunityIcon(id: string, file: File): Promise<Community> {
+	const formData = new FormData();
+	formData.append('icon', file);
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+	const response = await fetch(`${apiBase()}/communities/${id}/icon`, {
+		method: 'POST', headers, body: formData
+	});
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function uploadCommunityBanner(id: string, file: File): Promise<Community> {
+	const formData = new FormData();
+	formData.append('banner', file);
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+	const response = await fetch(`${apiBase()}/communities/${id}/banner`, {
+		method: 'POST', headers, body: formData
+	});
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+	return response.json();
 }
 
 export async function deleteCommunity(id: string): Promise<void> {

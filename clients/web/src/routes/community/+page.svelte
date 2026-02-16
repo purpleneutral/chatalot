@@ -19,6 +19,8 @@
 		createInvite,
 		deleteInvite,
 		listCommunities,
+		uploadCommunityIcon,
+		uploadCommunityBanner,
 		type Community,
 		type CommunityMember,
 		type CommunityInvite,
@@ -45,6 +47,15 @@
 	let newInviteMaxUses = $state('');
 	let newInviteExpiresHours = $state('');
 	let creatingInvite = $state(false);
+
+	// Icon/banner uploads
+	let iconInputEl: HTMLInputElement | undefined = $state();
+	let bannerInputEl: HTMLInputElement | undefined = $state();
+	let iconUploading = $state(false);
+	let bannerUploading = $state(false);
+
+	// Welcome message
+	let editWelcomeMessage = $state('');
 
 	// Policy state
 	let policyGroups = $state('admin');
@@ -85,6 +96,7 @@
 			policyGroups = c.who_can_create_groups ?? 'admin';
 			policyInvites = c.who_can_create_invites ?? 'admin';
 			communityDiscoverable = c.discoverable ?? true;
+			editWelcomeMessage = c.welcome_message ?? '';
 
 			// Find my role
 			const me = m.find((mem) => mem.user_id === authStore.user?.id);
@@ -271,6 +283,42 @@
 		}
 	}
 
+	async function handleIconUpload(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file || !community) return;
+		iconUploading = true;
+		try {
+			const updated = await uploadCommunityIcon(community.id, file);
+			community = updated;
+			communityStore.updateCommunity(community.id, { icon_url: updated.icon_url });
+			toastStore.success('Icon updated');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to upload icon');
+		} finally {
+			iconUploading = false;
+			if (iconInputEl) iconInputEl.value = '';
+		}
+	}
+
+	async function handleBannerUpload(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file || !community) return;
+		bannerUploading = true;
+		try {
+			const updated = await uploadCommunityBanner(community.id, file);
+			community = updated;
+			communityStore.updateCommunity(community.id, { banner_url: updated.banner_url });
+			toastStore.success('Banner updated');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to upload banner');
+		} finally {
+			bannerUploading = false;
+			if (bannerInputEl) bannerInputEl.value = '';
+		}
+	}
+
 	async function handleSavePolicies() {
 		if (!community) return;
 		savingPolicies = true;
@@ -413,6 +461,95 @@
 							</div>
 						{/if}
 					</div>
+
+					{#if canManage}
+						<!-- Icon & Banner -->
+						<div class="mt-6 grid grid-cols-2 gap-4">
+							<!-- Icon upload -->
+							<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+								<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Community Icon</h3>
+								<div class="group relative mx-auto h-20 w-20 overflow-hidden rounded-full border border-white/10">
+									{#if community.icon_url}
+										<img src={community.icon_url} alt="Community icon" class="h-full w-full object-cover" />
+									{:else}
+										<div class="flex h-full w-full items-center justify-center bg-[var(--bg-primary)] text-2xl font-bold text-[var(--text-secondary)]">
+											{community.name.charAt(0).toUpperCase()}
+										</div>
+									{/if}
+									<button
+										onclick={() => iconInputEl?.click()}
+										disabled={iconUploading}
+										class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-wait"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+										</svg>
+									</button>
+									<input bind:this={iconInputEl} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onchange={handleIconUpload} class="hidden" />
+								</div>
+								<p class="mt-2 text-center text-xs text-[var(--text-secondary)]">Max 2 MB</p>
+							</div>
+
+							<!-- Banner upload -->
+							<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+								<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Community Banner</h3>
+								<div class="group relative aspect-[3/1] w-full overflow-hidden rounded-lg border border-white/10">
+									{#if community.banner_url}
+										<img src={community.banner_url} alt="Community banner" class="h-full w-full object-cover" />
+									{:else}
+										<div class="flex h-full w-full items-center justify-center bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]">
+											<span class="text-xs text-white/50">No banner</span>
+										</div>
+									{/if}
+									<button
+										onclick={() => bannerInputEl?.click()}
+										disabled={bannerUploading}
+										class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-wait"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
+										</svg>
+									</button>
+									<input bind:this={bannerInputEl} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onchange={handleBannerUpload} class="hidden" />
+								</div>
+								<p class="mt-2 text-xs text-[var(--text-secondary)]">Max 5 MB</p>
+							</div>
+						</div>
+
+						<!-- Welcome Message -->
+						<div class="mt-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+							<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Welcome Message</h3>
+							<p class="mb-3 text-xs text-[var(--text-secondary)]">Shown to new members when they first join. Leave empty to disable.</p>
+							<textarea
+								bind:value={editWelcomeMessage}
+								rows="3"
+								maxlength="2000"
+								placeholder="Welcome to our community!"
+								class="w-full resize-none rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+							></textarea>
+							<button
+								onclick={async () => {
+									if (!community) return;
+									saving = true;
+									try {
+										const updated = await updateCommunity(community.id, {
+											welcome_message: editWelcomeMessage.trim() || null
+										});
+										community = updated;
+										toastStore.success('Welcome message updated');
+									} catch (err) {
+										toastStore.error(err instanceof Error ? err.message : 'Failed to update');
+									} finally {
+										saving = false;
+									}
+								}}
+								disabled={saving}
+								class="mt-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+							>
+								{saving ? 'Saving...' : 'Save Welcome Message'}
+							</button>
+						</div>
+					{/if}
 
 				{:else if activeTab === 'members'}
 					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Members ({members.length})</h2>

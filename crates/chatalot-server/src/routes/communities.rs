@@ -36,6 +36,7 @@ pub fn public_routes() -> Router<Arc<AppState>> {
             post(accept_community_invite),
         )
         .route("/emojis/{id}", get(serve_emoji))
+        .route("/community-assets/{filename}", get(serve_community_asset))
 }
 
 /// Community-scoped routes (behind community_gate middleware).
@@ -97,6 +98,9 @@ pub fn gated_routes() -> Router<Arc<AppState>> {
             "/communities/{cid}/channels/{chid}/warnings/{uid}",
             get(list_warnings),
         )
+        // Community assets
+        .route("/communities/{cid}/icon", post(upload_community_icon))
+        .route("/communities/{cid}/banner", post(upload_community_banner))
         // Custom emoji
         .route(
             "/communities/{cid}/emojis",
@@ -977,6 +981,207 @@ async fn list_warnings(
             })
             .collect(),
     ))
+}
+
+// ── Community Assets (Icon / Banner) ──
+
+const MAX_COMMUNITY_ICON_SIZE: usize = 2 * 1024 * 1024; // 2MB
+const MAX_COMMUNITY_BANNER_SIZE: usize = 5 * 1024 * 1024; // 5MB
+const ALLOWED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+async fn upload_community_icon(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<CommunityContext>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<CommunityResponse>, AppError> {
+    if !ctx.can_manage() {
+        return Err(AppError::Forbidden);
+    }
+
+    let (data, ct) = read_image_field(&mut multipart, "icon", MAX_COMMUNITY_ICON_SIZE).await?;
+    let ext = image_ext(&ct);
+
+    let asset_dir = std::path::Path::new(&state.config.file_storage_path).join("community_assets");
+    tokio::fs::create_dir_all(&asset_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
+
+    let filename = format!("{}_icon.{ext}", ctx.community_id);
+    let file_path = asset_dir.join(&filename);
+    write_file(&file_path, &data).await?;
+
+    let icon_url = format!("/api/community-assets/{filename}");
+    let community = community_repo::update_community(
+        &state.db,
+        ctx.community_id,
+        None, None,
+        Some(&icon_url),
+        None, None, None, None, None, None,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("community not found".into()))?;
+
+    let count = community_repo::get_community_member_count(&state.db, ctx.community_id).await?;
+    Ok(Json(community_to_response(community, count)))
+}
+
+async fn upload_community_banner(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<CommunityContext>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<CommunityResponse>, AppError> {
+    if !ctx.can_manage() {
+        return Err(AppError::Forbidden);
+    }
+
+    let (data, ct) = read_image_field(&mut multipart, "banner", MAX_COMMUNITY_BANNER_SIZE).await?;
+    let ext = image_ext(&ct);
+
+    let asset_dir = std::path::Path::new(&state.config.file_storage_path).join("community_assets");
+    tokio::fs::create_dir_all(&asset_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
+
+    let filename = format!("{}_banner.{ext}", ctx.community_id);
+    let file_path = asset_dir.join(&filename);
+    write_file(&file_path, &data).await?;
+
+    let banner_url = format!("/api/community-assets/{filename}");
+    let community = community_repo::update_community(
+        &state.db,
+        ctx.community_id,
+        None, None, None, None, None, None,
+        Some(&banner_url),
+        None, None,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("community not found".into()))?;
+
+    let count = community_repo::get_community_member_count(&state.db, ctx.community_id).await?;
+    Ok(Json(community_to_response(community, count)))
+}
+
+async fn serve_community_asset(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<([(header::HeaderName, String); 2], Body), AppError> {
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err(AppError::Validation("invalid filename".into()));
+    }
+
+    let path = std::path::Path::new(&state.config.file_storage_path)
+        .join("community_assets")
+        .join(&filename);
+
+    let file = tokio::fs::File::open(&path)
+        .await
+        .map_err(|_| AppError::NotFound("asset not found".into()))?;
+
+    let content_type = guess_content_type(&filename);
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok(([
+        (header::CONTENT_TYPE, content_type.to_string()),
+        (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
+    ], body))
+}
+
+fn community_to_response(c: chatalot_db::models::community::Community, member_count: i64) -> CommunityResponse {
+    CommunityResponse {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        icon_url: c.icon_url,
+        banner_url: c.banner_url,
+        owner_id: c.owner_id,
+        created_at: c.created_at.to_rfc3339(),
+        member_count,
+        who_can_create_groups: c.who_can_create_groups,
+        who_can_create_invites: c.who_can_create_invites,
+        discoverable: c.discoverable,
+        community_theme: c.community_theme,
+        welcome_message: c.welcome_message,
+    }
+}
+
+async fn read_image_field(
+    multipart: &mut axum::extract::Multipart,
+    field_name: &str,
+    max_size: usize,
+) -> Result<(Vec<u8>, String), AppError> {
+    let mut file_data: Option<Vec<u8>> = None;
+    let mut content_type: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::Validation(format!("multipart error: {e}")))?
+    {
+        if field.name() == Some(field_name) {
+            content_type = field.content_type().map(|s| s.to_string());
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
+            if bytes.len() > max_size {
+                return Err(AppError::Validation(format!(
+                    "file too large (max {} MB)",
+                    max_size / (1024 * 1024)
+                )));
+            }
+            file_data = Some(bytes.to_vec());
+        }
+    }
+
+    let data = file_data.ok_or_else(|| AppError::Validation(format!("no {field_name} field")))?;
+    let ct = content_type
+        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+
+    if !ALLOWED_IMAGE_TYPES.contains(&ct.as_str()) {
+        return Err(AppError::Validation(
+            "invalid image type (allowed: png, jpg, webp, gif)".into(),
+        ));
+    }
+
+    Ok((data, ct))
+}
+
+fn image_ext(content_type: &str) -> &'static str {
+    match content_type {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "bin",
+    }
+}
+
+async fn write_file(path: &std::path::Path, data: &[u8]) -> Result<(), AppError> {
+    let mut f = tokio::fs::File::create(path)
+        .await
+        .map_err(|e| AppError::Internal(format!("create file: {e}")))?;
+    f.write_all(data)
+        .await
+        .map_err(|e| AppError::Internal(format!("write file: {e}")))?;
+    f.flush()
+        .await
+        .map_err(|e| AppError::Internal(format!("flush file: {e}")))?;
+    Ok(())
+}
+
+fn guess_content_type(filename: &str) -> &'static str {
+    if filename.ends_with(".png") {
+        "image/png"
+    } else if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if filename.ends_with(".webp") {
+        "image/webp"
+    } else if filename.ends_with(".gif") {
+        "image/gif"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 // ── Custom Emoji ──
