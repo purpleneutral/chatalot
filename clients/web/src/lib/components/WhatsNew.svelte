@@ -16,6 +16,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.1',
+			date: '2026-02-16',
+			changes: [
+				'Mark All Read: button in sidebar + Shift+Esc shortcut to clear all unread badges at once',
+				'Confirmation dialogs for destructive actions: session revocation, voice kick now require confirmation',
+				'Loading states on session revoke and revoke-all buttons to prevent double-clicks',
+				'Improved error messages: rate limit feedback with retry timer, better API error parsing',
+				'Fixed broken toast notifications for WebSocket errors and timeouts',
+				'Fixed channel load race condition when switching channels quickly',
+				'Fixed 27 TypeScript type errors across the codebase',
+			]
+		},
+		{
 			version: '0.13.0',
 			date: '2026-02-16',
 			changes: [
