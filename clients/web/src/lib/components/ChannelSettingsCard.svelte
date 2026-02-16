@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { scale } from 'svelte/transition';
+	import { scale, slide } from 'svelte/transition';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { channelStore } from '$lib/stores/channels.svelte';
 	import { updateChannel as apiUpdateChannel, deleteChannel } from '$lib/api/groups';
+	import { createWebhook, listWebhooks, updateWebhook, deleteWebhook, type Webhook } from '$lib/api/webhooks';
+	import { getPublicUrl } from '$lib/api/auth';
 	import type { Channel } from '$lib/api/channels';
 
 	let {
@@ -31,6 +33,14 @@
 	let editTopic = $state(channel.topic ?? '');
 	let saving = $state(false);
 
+	// Webhook state
+	let showWebhooks = $state(false);
+	let webhooks = $state<Webhook[]>([]);
+	let loadingWebhooks = $state(false);
+	let newWebhookName = $state('');
+	let creatingWebhook = $state(false);
+	let copiedTokenId = $state<string | null>(null);
+
 	const slowModeOptions = [
 		{ label: 'Off', value: 0 },
 		{ label: '5s', value: 5 },
@@ -45,7 +55,7 @@
 	let cardStyle = $derived.by(() => {
 		const padding = 12;
 		const estimatedW = 300;
-		const estimatedH = 360;
+		const estimatedH = 500;
 		let x = anchorRect.x + padding;
 		let y = anchorRect.y;
 
@@ -170,6 +180,70 @@
 			toastStore.error(err?.message ?? 'Failed to delete');
 		}
 	}
+
+	// ── Webhook functions ──
+
+	async function toggleWebhooks() {
+		showWebhooks = !showWebhooks;
+		if (showWebhooks && webhooks.length === 0) {
+			loadingWebhooks = true;
+			try {
+				webhooks = await listWebhooks(channel.id);
+			} catch (err: any) {
+				toastStore.error(err?.message ?? 'Failed to load webhooks');
+			} finally {
+				loadingWebhooks = false;
+			}
+		}
+	}
+
+	async function handleCreateWebhook() {
+		const name = newWebhookName.trim();
+		if (!name) return;
+		creatingWebhook = true;
+		try {
+			const webhook = await createWebhook(channel.id, name);
+			webhooks = [...webhooks, webhook];
+			newWebhookName = '';
+			toastStore.success('Webhook created');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to create webhook');
+		} finally {
+			creatingWebhook = false;
+		}
+	}
+
+	async function handleToggleWebhook(webhook: Webhook) {
+		try {
+			const updated = await updateWebhook(webhook.id, { active: !webhook.active });
+			webhooks = webhooks.map(w => w.id === webhook.id ? updated : w);
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to update webhook');
+		}
+	}
+
+	async function handleDeleteWebhook(webhook: Webhook) {
+		if (!confirm(`Delete webhook "${webhook.name}"?`)) return;
+		try {
+			await deleteWebhook(webhook.id);
+			webhooks = webhooks.filter(w => w.id !== webhook.id);
+			toastStore.success('Webhook deleted');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to delete webhook');
+		}
+	}
+
+	function copyWebhookUrl(webhook: Webhook) {
+		if (!webhook.token) {
+			toastStore.error('Token only visible at creation');
+			return;
+		}
+		const base = getPublicUrl() || window.location.origin;
+		navigator.clipboard.writeText(`${base}/api/webhooks/execute/${webhook.token}`);
+		copiedTokenId = webhook.id;
+		setTimeout(() => { copiedTokenId = null; }, 2000);
+		toastStore.success('Webhook URL copied');
+	}
 </script>
 
 <!-- Backdrop -->
@@ -182,7 +256,7 @@
 	<!-- Card -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
-		class="fixed z-50 w-[300px] rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl"
+		class="fixed z-50 w-[300px] max-h-[80vh] overflow-y-auto rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl"
 		style={cardStyle}
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}
@@ -334,6 +408,80 @@
 						{/each}
 					</div>
 				</div>
+
+				<!-- Webhooks -->
+				<div class="mb-1 mt-1 border-t border-white/10"></div>
+				<button
+					onclick={toggleWebhooks}
+					class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+				>
+					<span class="flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+						Webhooks
+					</span>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform {showWebhooks ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l8 7-8 7z"/></svg>
+				</button>
+				{#if showWebhooks}
+					<div class="px-3 py-1.5 space-y-2" transition:slide={{ duration: 150 }}>
+						{#if loadingWebhooks}
+							<p class="text-xs text-[var(--text-secondary)]">Loading...</p>
+						{:else}
+							{#each webhooks as webhook (webhook.id)}
+								<div class="rounded-lg bg-white/5 px-2.5 py-2">
+									<div class="flex items-center justify-between">
+										<span class="text-xs font-medium text-[var(--text-primary)] truncate flex-1">{webhook.name}</span>
+										<div class="flex items-center gap-1 shrink-0">
+											<button
+												onclick={() => handleToggleWebhook(webhook)}
+												class="rounded px-1.5 py-0.5 text-[10px] transition {webhook.active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-[var(--text-secondary)]'}"
+												title={webhook.active ? 'Disable' : 'Enable'}
+											>
+												{webhook.active ? 'ON' : 'OFF'}
+											</button>
+											<button
+												onclick={() => handleDeleteWebhook(webhook)}
+												class="rounded p-0.5 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
+												title="Delete"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+											</button>
+										</div>
+									</div>
+									{#if webhook.token}
+										<button
+											onclick={() => copyWebhookUrl(webhook)}
+											class="mt-1 w-full rounded bg-white/5 px-2 py-1 text-left text-[10px] font-mono text-[var(--text-secondary)] transition hover:bg-white/10 truncate"
+											title="Copy webhook URL"
+										>
+											{copiedTokenId === webhook.id ? 'Copied!' : 'Click to copy URL'}
+										</button>
+									{/if}
+								</div>
+							{/each}
+							{#if webhooks.length === 0}
+								<p class="text-[10px] text-[var(--text-secondary)]">No webhooks yet. Create one to post messages from external services.</p>
+							{/if}
+							<!-- Create webhook -->
+							<div class="flex gap-1">
+								<input
+									type="text"
+									bind:value={newWebhookName}
+									placeholder="Webhook name..."
+									maxlength="64"
+									class="flex-1 rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									onkeydown={(e) => { if (e.key === 'Enter') handleCreateWebhook(); }}
+								/>
+								<button
+									onclick={handleCreateWebhook}
+									disabled={creatingWebhook || !newWebhookName.trim()}
+									class="shrink-0 rounded bg-[var(--accent)] px-2 py-1 text-xs text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+								>
+									{creatingWebhook ? '...' : 'Add'}
+								</button>
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<div class="mb-1 mt-1 border-t border-white/10"></div>
 			{/if}
