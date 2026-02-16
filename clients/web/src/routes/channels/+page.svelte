@@ -33,6 +33,7 @@
 	import { getPinnedMessages, pinMessage as apiPinMessage, unpinMessage as apiUnpinMessage, type PinnedMessage } from '$lib/api/channels';
 	import { searchGifs, getTrendingGifs, type GifResult } from '$lib/api/gifs';
 	import { addBookmark, removeBookmark as apiRemoveBookmark, listBookmarks } from '$lib/api/bookmarks';
+	import { scheduleMessage as apiScheduleMessage, listScheduledMessages, cancelScheduledMessage, type ScheduledMessage } from '$lib/api/scheduled';
 	import { createPoll as apiCreatePoll, listPolls, getPoll, votePoll, removeVote as apiRemoveVote, closePoll as apiClosePoll, type Poll } from '$lib/api/polls';
 	import { listUndismissed as listUndismissedAnnouncements, dismissAnnouncement, type Announcement } from '$lib/api/announcements';
 	import { listCommunityEmojis, type CustomEmoji } from '$lib/api/custom-emoji';
@@ -489,6 +490,13 @@
 	// Bookmarks panel state
 	let showBookmarksPanel = $state(false);
 
+	// Scheduled messages state
+	let showSchedulePicker = $state(false);
+	let scheduleDate = $state('');
+	let scheduleTime = $state('');
+	let scheduledMessages = $state<ScheduledMessage[]>([]);
+	let showScheduledPanel = $state(false);
+
 	// Chat collapse state (during voice calls)
 	let chatCollapsed = $state(false);
 
@@ -557,7 +565,7 @@
 	// Member panel functions
 	async function toggleMemberPanel() {
 		showMemberPanel = !showMemberPanel;
-		if (showMemberPanel) { sidebarOpen = false; showBookmarksPanel = false; } // Ensure mutual exclusivity
+		if (showMemberPanel) { sidebarOpen = false; showBookmarksPanel = false; showScheduledPanel = false; } // Ensure mutual exclusivity
 		if (showMemberPanel && channelStore.activeChannelId) {
 			membersLoading = true;
 			try {
@@ -585,6 +593,7 @@
 		showBookmarksPanel = !showBookmarksPanel;
 		if (showBookmarksPanel) {
 			showMemberPanel = false;
+			showScheduledPanel = false;
 			sidebarOpen = false;
 		}
 	}
@@ -595,6 +604,47 @@
 			bookmarkStore.removeBookmark(bookmarkId);
 			toastStore.success('Bookmark removed');
 		} catch { toastStore.error('Failed to remove bookmark'); }
+	}
+
+	async function handleScheduleMessage() {
+		const text = messageInput.trim();
+		if (!text || !channelStore.activeChannelId || !scheduleDate || !scheduleTime) return;
+		const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+		try {
+			const msg = await apiScheduleMessage(channelStore.activeChannelId, text, '0', scheduledFor);
+			scheduledMessages = [...scheduledMessages, msg];
+			messageInput = '';
+			showSchedulePicker = false;
+			scheduleDate = '';
+			scheduleTime = '';
+			toastStore.success('Message scheduled');
+		} catch (err: any) {
+			toastStore.error(err?.message || 'Failed to schedule message');
+		}
+	}
+
+	async function loadScheduledMessages() {
+		try {
+			scheduledMessages = await listScheduledMessages();
+		} catch { /* ignore */ }
+	}
+
+	function toggleScheduledPanel() {
+		showScheduledPanel = !showScheduledPanel;
+		if (showScheduledPanel) {
+			showMemberPanel = false;
+			showBookmarksPanel = false;
+			sidebarOpen = false;
+			loadScheduledMessages();
+		}
+	}
+
+	async function handleCancelScheduled(id: string) {
+		try {
+			await cancelScheduledMessage(id);
+			scheduledMessages = scheduledMessages.filter(m => m.id !== id);
+			toastStore.success('Scheduled message cancelled');
+		} catch { toastStore.error('Failed to cancel'); }
 	}
 
 	async function handleRoleChange(userId: string, newRole: string) {
@@ -867,6 +917,7 @@
 			// Load server-synced preferences + bookmarks
 			preferencesStore.loadFromServer();
 			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch((err) => console.warn('Failed to load bookmarks:', err));
+			listScheduledMessages().then(msgs => scheduledMessages = msgs).catch((err) => console.warn('Failed to load scheduled messages:', err));
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
@@ -2542,6 +2593,8 @@
 			if (showCreatePoll) { showCreatePoll = false; e.preventDefault(); return; }
 			if (showMemberPanel) { showMemberPanel = false; e.preventDefault(); return; }
 			if (showBookmarksPanel) { showBookmarksPanel = false; e.preventDefault(); return; }
+			if (showScheduledPanel) { showScheduledPanel = false; e.preventDefault(); return; }
+			if (showSchedulePicker) { showSchedulePicker = false; e.preventDefault(); return; }
 		}
 	}
 
@@ -4571,6 +4624,21 @@
 								<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
 							</svg>
 						</button>
+						<button
+							onclick={toggleScheduledPanel}
+							class="relative rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showScheduledPanel ? 'text-[var(--accent)]' : ''}"
+							title="Scheduled Messages"
+							aria-label="Scheduled Messages"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+							</svg>
+							{#if scheduledMessages.length > 0}
+								<span class="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-white">
+									{scheduledMessages.length}
+								</span>
+							{/if}
+						</button>
 						{#if activeChannel.channel_type !== 'dm'}
 							<button
 								onclick={toggleMemberPanel}
@@ -5622,6 +5690,40 @@
 							<span class="hidden sm:inline">Send</span>
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
 						</button>
+						<!-- Schedule message button -->
+						<div class="relative">
+							<button
+								type="button"
+								onclick={() => { showSchedulePicker = !showSchedulePicker; if (showSchedulePicker && !scheduleDate) { const now = new Date(); now.setHours(now.getHours() + 1, 0, 0, 0); scheduleDate = now.toISOString().slice(0, 10); scheduleTime = now.toTimeString().slice(0, 5); } }}
+								disabled={!messageInput.trim()}
+								class="hidden sm:block shrink-0 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-2 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-30 {showSchedulePicker ? 'border-[var(--accent)] text-[var(--accent)]' : ''}"
+								title="Schedule message"
+								aria-label="Schedule message"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+								</svg>
+							</button>
+							{#if showSchedulePicker}
+								<div class="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 shadow-2xl" transition:scale={{ start: 0.95, duration: 150 }}>
+									<h4 class="mb-3 text-sm font-semibold text-[var(--text-primary)]">Schedule Message</h4>
+									<div class="space-y-2">
+										<div>
+											<label for="schedule-date" class="mb-1 block text-xs text-[var(--text-secondary)]">Date</label>
+											<input id="schedule-date" type="date" bind:value={scheduleDate} min={new Date().toISOString().slice(0, 10)} class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-2.5 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+										</div>
+										<div>
+											<label for="schedule-time" class="mb-1 block text-xs text-[var(--text-secondary)]">Time</label>
+											<input id="schedule-time" type="time" bind:value={scheduleTime} class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-2.5 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+										</div>
+									</div>
+									<div class="mt-3 flex gap-2">
+										<button onclick={() => showSchedulePicker = false} class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/5">Cancel</button>
+										<button onclick={handleScheduleMessage} disabled={!scheduleDate || !scheduleTime} class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50">Schedule</button>
+									</div>
+								</div>
+							{/if}
+						</div>
 						{#if voiceStore.isInCall}
 							<button
 								type="button"
@@ -5863,6 +5965,68 @@
 										class="shrink-0 rounded p-1 text-[var(--text-secondary)] opacity-0 transition hover:text-[var(--danger)] group-hover:opacity-100"
 										title="Remove bookmark"
 										aria-label="Remove bookmark"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+									</button>
+								</div>
+							</div>
+						{/each}
+					{/if}
+				</div>
+			</aside>
+		{/if}
+
+		<!-- Scheduled messages panel (right sidebar) -->
+		{#if showScheduledPanel}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleScheduledPanel} onkeydown={(e) => { if (e.key === 'Escape') toggleScheduledPanel(); }} role="button" tabindex="-1" aria-label="Close scheduled panel" transition:fade={{ duration: 150 }}></div>
+			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
+				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
+					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+						Scheduled
+						<span class="ml-1 normal-case tracking-normal font-normal">— {scheduledMessages.length}</span>
+					</h3>
+					<button
+						onclick={toggleScheduledPanel}
+						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						title="Close"
+						aria-label="Close scheduled panel"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+					</button>
+				</div>
+				<div class="p-2">
+					{#if scheduledMessages.length === 0}
+						<div class="flex flex-col items-center justify-center py-8 text-center">
+							<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-8 w-8 text-[var(--text-secondary)]/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+							</svg>
+							<p class="text-sm text-[var(--text-secondary)]">No scheduled messages</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]/60">Use the clock icon next to Send</p>
+						</div>
+					{:else}
+						{#each scheduledMessages as msg (msg.id)}
+							{@const channel = channelStore.channels.find(c => c.id === msg.channel_id)}
+							<div class="group rounded-lg p-2.5 transition hover:bg-white/5">
+								<div class="flex items-start justify-between gap-1">
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center gap-1.5 mb-1">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+											</svg>
+											<p class="text-xs font-medium text-[var(--text-primary)]">
+												{new Date(msg.scheduled_for).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+											</p>
+										</div>
+										{#if channel}
+											<p class="text-[10px] text-[var(--text-secondary)]/60">#{channel.name ?? 'DM'}</p>
+										{/if}
+									</div>
+									<button
+										onclick={() => handleCancelScheduled(msg.id)}
+										class="shrink-0 rounded p-1 text-[var(--text-secondary)] opacity-0 transition hover:text-[var(--danger)] group-hover:opacity-100"
+										title="Cancel"
+										aria-label="Cancel scheduled message"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 									</button>
