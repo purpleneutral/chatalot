@@ -5289,7 +5289,7 @@
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 											{#if repliedMsg}
 												<span class="font-medium">{getDisplayNameForContext(repliedMsg.senderId)}</span>
-												<span class="truncate max-w-[200px] opacity-70">{isEncryptedMessage(repliedMsg.content) ? 'Encrypted message' : repliedMsg.content.slice(0, 60)}{!isEncryptedMessage(repliedMsg.content) && repliedMsg.content.length > 60 ? '...' : ''}</span>
+												<span class="truncate max-w-[120px] sm:max-w-[200px] opacity-70">{isEncryptedMessage(repliedMsg.content) ? 'Encrypted message' : repliedMsg.content.slice(0, 60)}{!isEncryptedMessage(repliedMsg.content) && repliedMsg.content.length > 60 ? '...' : ''}</span>
 											{:else}
 												<span class="italic opacity-50">Original message not loaded</span>
 											{/if}
@@ -5467,7 +5467,7 @@
 															<div class="mt-1 text-xs text-[var(--text-secondary)] line-clamp-3">{preview.description}</div>
 														{/if}
 														{#if preview.image}
-															<img src={preview.image} alt="" class="mt-2 max-h-40 rounded border border-white/10" loading="lazy" onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+															<img src={preview.image} alt="" class="mt-2 max-h-40 max-w-full rounded border border-white/10" loading="lazy" onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 														{/if}
 													</a>
 												{/if}
@@ -6244,7 +6244,7 @@
 				</div>
 			{/snippet}
 
-			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
+			<aside class="fixed inset-y-0 right-0 z-40 w-full md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
 				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
 					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Members
@@ -6296,7 +6296,7 @@
 		{#if showBookmarksPanel}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleBookmarksPanel} onkeydown={(e) => { if (e.key === 'Escape') toggleBookmarksPanel(); }} role="button" tabindex="-1" aria-label="Close bookmarks panel" transition:fade={{ duration: 150 }}></div>
-			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
+			<aside class="fixed inset-y-0 right-0 z-40 w-full md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
 				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
 					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Saved Items
@@ -6359,7 +6359,7 @@
 		{#if showScheduledPanel}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleScheduledPanel} onkeydown={(e) => { if (e.key === 'Escape') toggleScheduledPanel(); }} role="button" tabindex="-1" aria-label="Close scheduled panel" transition:fade={{ duration: 150 }}></div>
-			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
+			<aside class="fixed inset-y-0 right-0 z-40 w-full md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
 				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
 					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Scheduled
@@ -6421,7 +6421,7 @@
 		{#if showThreadPanel && activeThreadRoot}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={closeThread} onkeydown={(e) => { if (e.key === 'Escape') closeThread(); }} role="button" tabindex="-1" aria-label="Close thread panel" transition:fade={{ duration: 150 }}></div>
-			<aside class="fixed inset-y-0 right-0 z-40 w-[85vw] max-w-[360px] md:static md:z-auto md:w-[360px] md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] flex flex-col shadow-xl md:shadow-none" transition:fly={{ x: 360, duration: 200 }}>
+			<aside class="fixed inset-y-0 right-0 z-40 w-full md:static md:z-auto md:w-[360px] md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] flex flex-col shadow-xl md:shadow-none" transition:fly={{ x: 360, duration: 200 }}>
 				<!-- Header -->
 				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
 					<h3 class="text-sm font-semibold text-[var(--text-primary)]">Thread</h3>
@@ -7373,8 +7373,8 @@
 			/>
 
 			<!-- Bottom bar: filename + counter -->
-			<div class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-black/50 px-4 py-1.5 text-sm text-white/80">
-				<span>{lightboxImage.alt}</span>
+			<div class="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-black/50 px-4 py-1.5 text-sm text-white/80 max-w-[90vw]">
+				<span class="truncate">{lightboxImage.alt}</span>
 				{#if imgIdx >= 0 && channelImages.length > 1}
 					<span class="text-white/40">{imgIdx + 1} / {channelImages.length}</span>
 				{/if}
@@ -7504,8 +7504,8 @@
 
 	<!-- Edit History Modal -->
 	{#if showEditHistory}
-		<div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" transition:fade={{ duration: 150 }} onclick={() => showEditHistory = false} onkeydown={(e) => { if (e.key === 'Escape') showEditHistory = false; }} role="dialog" tabindex="-1">
-			<div class="w-full max-w-lg rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl border border-white/10" onclick={(e) => e.stopPropagation()}>
+		<div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onclick={() => showEditHistory = false} onkeydown={(e) => { if (e.key === 'Escape') showEditHistory = false; }} role="dialog" tabindex="-1">
+			<div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl border border-white/10" onclick={(e) => e.stopPropagation()}>
 				<div class="flex items-center justify-between mb-4">
 					<h3 class="text-lg font-semibold text-[var(--text-primary)]">Edit History</h3>
 					<button onclick={() => showEditHistory = false} class="rounded p-1 text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition">

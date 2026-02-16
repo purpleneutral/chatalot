@@ -154,8 +154,8 @@
 	let totalParticipants = $derived(1 + remoteEntries.length);
 	let gridCols = $derived(
 		totalParticipants <= 1 ? 'grid-cols-1' :
-		totalParticipants <= 4 ? 'grid-cols-2' :
-		'grid-cols-3'
+		totalParticipants <= 4 ? 'grid-cols-1 sm:grid-cols-2' :
+		'grid-cols-2 sm:grid-cols-3'
 	);
 
 	// All participant IDs (for focus mode avatar strip)
@@ -455,7 +455,7 @@
 
 		{:else}
 			<!-- ═══ STANDARD MODE: No screen share — normal participant grid ═══ -->
-			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: 400px;'}">
+			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: min(400px, 50vh);'}">
 				<!-- Local video/avatar -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
