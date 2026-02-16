@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.6',
+			date: '2026-02-16',
+			changes: [
+				'Security: custom emoji URLs now validated to prevent XSS via data URI schemes',
+				'Server hardening: invite code length limits, consistent error codes for expired invites, ban reason length cap',
+				'Memory optimization: member and typing data now properly cleaned up when leaving channels',
+				'UI: improved empty state contrast for groups, channels, DMs, and GIF picker',
+				'UX: hover tooltips on all truncated text (group names, DM names, file names, poll options)',
+				'UI consistency: skeleton loading backgrounds now use theme variables',
+			]
+		},
+		{
 			version: '0.13.5',
 			date: '2026-02-16',
 			changes: [
