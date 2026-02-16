@@ -21,7 +21,7 @@ use chatalot_common::api_types::{
     WarningResponse,
 };
 use chatalot_common::ws_messages::ServerMessage;
-use chatalot_db::repos::{community_repo, custom_emoji_repo, timeout_repo, warning_repo};
+use chatalot_db::repos::{community_repo, custom_emoji_repo, timeout_repo, user_repo, warning_repo};
 use rand::Rng as _;
 
 use crate::app_state::AppState;
@@ -636,6 +636,21 @@ async fn kick_member(
     }
 
     community_repo::leave_community(&state.db, ctx.community_id, path.uid).await?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "community_kick",
+        None,
+        None,
+        Some(serde_json::json!({
+            "community_id": ctx.community_id,
+            "target_user_id": path.uid,
+        })),
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -701,6 +716,7 @@ async fn ban_member(
 
 async fn unban_member(
     State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
     Extension(ctx): Extension<CommunityContext>,
     Path(path): Path<CommunityBanPath>,
 ) -> Result<(), AppError> {
@@ -713,6 +729,20 @@ async fn unban_member(
     if !removed {
         return Err(AppError::NotFound("ban not found".to_string()));
     }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "community_unban",
+        None,
+        None,
+        Some(serde_json::json!({
+            "community_id": ctx.community_id,
+            "target_user_id": path.uid,
+        })),
+    )
+    .await?;
 
     Ok(())
 }
@@ -932,6 +962,7 @@ async fn create_timeout(
 
 async fn remove_timeout(
     State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
     Extension(ctx): Extension<CommunityContext>,
     Path(path): Path<ChannelUserPath>,
 ) -> Result<(), AppError> {
@@ -942,6 +973,20 @@ async fn remove_timeout(
     if !timeout_repo::remove(&state.db, path.uid, path.chid).await? {
         return Err(AppError::NotFound("no active timeout found".into()));
     }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "timeout_removed",
+        None,
+        None,
+        Some(serde_json::json!({
+            "channel_id": path.chid,
+            "target_user_id": path.uid,
+        })),
+    )
+    .await?;
 
     Ok(())
 }

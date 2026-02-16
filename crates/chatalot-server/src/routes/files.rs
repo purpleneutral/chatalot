@@ -210,7 +210,7 @@ async fn download_file(
                 header::CONTENT_DISPOSITION,
                 format!(
                     "attachment; filename=\"{}\"",
-                    record.encrypted_name.replace('"', "'").replace('\n', "_").replace('\r', "_")
+                    record.encrypted_name.replace('"', "'").replace(['\n', '\r'], "_")
                 ),
             ),
         ],

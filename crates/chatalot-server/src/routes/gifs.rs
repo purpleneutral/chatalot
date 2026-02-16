@@ -42,8 +42,8 @@ async fn search_gifs(
         AppError::Validation("GIF search is not configured on this server".into())
     })?;
 
-    let q = query.q.unwrap_or_default();
-    if q.is_empty() {
+    let q = query.q.unwrap_or_default().trim().to_string();
+    if q.is_empty() || q.len() > 256 {
         return Ok(Json(GifSearchResponse {
             results: vec![],
             next: None,

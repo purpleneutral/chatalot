@@ -46,7 +46,12 @@ async fn get_link_preview(
 ) -> Result<Json<LinkPreviewResponse>, AppError> {
     let url = query.url.trim().to_string();
 
-    // Validate URL scheme
+    // Validate URL length and scheme
+    if url.is_empty() || url.len() > 2048 {
+        return Err(AppError::Validation(
+            "URL must be 1-2048 characters".into(),
+        ));
+    }
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(AppError::Validation(
             "Only http/https URLs are allowed".into(),

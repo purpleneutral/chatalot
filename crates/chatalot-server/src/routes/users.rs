@@ -61,9 +61,9 @@ async fn search_users(
     Extension(claims): Extension<AccessClaims>,
     Query(query): Query<UserSearchQuery>,
 ) -> Result<Json<Vec<UserPublic>>, AppError> {
-    if query.q.len() < 2 {
+    if query.q.len() < 2 || query.q.len() > 256 {
         return Err(AppError::Validation(
-            "search query must be at least 2 characters".to_string(),
+            "search query must be 2-256 characters".to_string(),
         ));
     }
 

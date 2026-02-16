@@ -92,6 +92,12 @@ async fn search_messages(
         return Err(AppError::Forbidden);
     }
 
+    if query.q.len() < 2 || query.q.len() > 256 {
+        return Err(AppError::Validation(
+            "search query must be 2-256 characters".to_string(),
+        ));
+    }
+
     let limit = query.limit.unwrap_or(20).min(50);
     let messages = message_repo::search_messages(&state.db, channel_id, &query.q, limit).await?;
 
@@ -137,9 +143,9 @@ async fn global_search_messages(
     Extension(claims): Extension<AccessClaims>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<Vec<MessageResponse>>, AppError> {
-    if query.q.len() < 2 {
+    if query.q.len() < 2 || query.q.len() > 256 {
         return Err(AppError::Validation(
-            "search query must be at least 2 characters".to_string(),
+            "search query must be 2-256 characters".to_string(),
         ));
     }
 

@@ -17,7 +17,7 @@ use chatalot_common::api_types::{
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::models::channel::ChannelType;
 use chatalot_db::models::group::Group;
-use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo, sender_key_repo};
+use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo, sender_key_repo, user_repo};
 use rand::Rng as _;
 use sqlx::PgPool;
 
@@ -497,6 +497,21 @@ async fn delete_group_handler(
     }
 
     group_repo::delete_group(&state.db, id).await?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "group_deleted",
+        None,
+        None,
+        Some(serde_json::json!({
+            "group_id": id,
+            "group_name": group.name,
+        })),
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -851,6 +866,21 @@ async fn delete_group_channel(
     }
 
     channel_repo::delete_channel(&state.db, path.channel_id).await?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "channel_deleted",
+        None,
+        None,
+        Some(serde_json::json!({
+            "channel_id": path.channel_id,
+            "group_id": path.group_id,
+        })),
+    )
+    .await?;
+
     Ok(())
 }
 
