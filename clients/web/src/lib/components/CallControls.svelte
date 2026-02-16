@@ -161,7 +161,7 @@
 				class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 				title="Join with video"
 			>
-				Video
+				{joining ? 'Joining...' : 'Video'}
 			</button>
 		{/if}
 	</div>
