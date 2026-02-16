@@ -16,6 +16,20 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.2',
+			date: '2026-02-16',
+			changes: [
+				'Accessibility: fixed 40 a11y warnings — proper keyboard navigation, focus states, aria labels',
+				'Code quality: replaced all empty error catches with console.warn for easier debugging',
+				'Removed all "as any" type assertions with proper TypeScript types',
+				'Reactivity fixes: blocked status and edit forms now sync correctly when props change',
+				'Formatting toolbar buttons now show focus indicators for keyboard users',
+				'Character counters on display name and custom status inputs',
+				'Escape key now closes channel/group creation forms',
+				'Server hardening: pagination bounds, header injection prevention',
+			]
+		},
+		{
 			version: '0.13.1',
 			date: '2026-02-16',
 			changes: [
