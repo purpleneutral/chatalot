@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.7',
+			date: '2026-02-16',
+			changes: [
+				'Error feedback: loading failures for messages, pins, and search now show error state with retry',
+				'Performance: batch SQL operations for channel member inserts, sender key cleanup, and hash blocking',
+				'WebSocket: idle broadcast channels cleaned up every 5 minutes to prevent memory growth',
+				'WebSocket: malformed messages now return an error instead of being silently ignored',
+				'Security: eliminated format!-based SQL construction in file listing',
+				'Resilience: broken community/group icon images gracefully hidden instead of showing broken image',
+			]
+		},
+		{
 			version: '0.13.6',
 			date: '2026-02-16',
 			changes: [
