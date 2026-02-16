@@ -396,7 +396,7 @@ pub async fn get_member_counts(
 
 /// List all groups (for discovery/browsing).
 pub async fn list_all_groups(pool: &PgPool) -> Result<Vec<Group>, sqlx::Error> {
-    sqlx::query_as::<_, Group>("SELECT * FROM groups ORDER BY name ASC")
+    sqlx::query_as::<_, Group>("SELECT * FROM groups ORDER BY name ASC LIMIT 200")
         .fetch_all(pool)
         .await
 }
@@ -413,7 +413,8 @@ pub async fn list_discoverable_groups(
          WHERE cm.user_id = $1
            AND ((g.visibility = 'public' AND g.discoverable = TRUE)
                 OR EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = g.id AND gm.user_id = $1))
-         ORDER BY g.name ASC"#,
+         ORDER BY g.name ASC
+         LIMIT 200"#,
     )
     .bind(user_id)
     .fetch_all(pool)

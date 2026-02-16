@@ -63,7 +63,9 @@ pub async fn dismiss(
 }
 
 pub async fn list_all(pool: &PgPool) -> Result<Vec<Announcement>, sqlx::Error> {
-    sqlx::query_as::<_, Announcement>("SELECT * FROM announcements ORDER BY created_at DESC")
-        .fetch_all(pool)
-        .await
+    sqlx::query_as::<_, Announcement>(
+        "SELECT * FROM announcements ORDER BY created_at DESC LIMIT 100",
+    )
+    .fetch_all(pool)
+    .await
 }
