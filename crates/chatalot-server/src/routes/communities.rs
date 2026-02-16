@@ -890,8 +890,7 @@ async fn create_timeout(
     }
 
     let expires_at = chrono::Utc::now()
-        + chrono::Duration::try_seconds(req.duration_seconds)
-            .unwrap_or(chrono::TimeDelta::hours(1));
+        + chrono::TimeDelta::seconds(req.duration_seconds);
 
     let reason = req
         .reason

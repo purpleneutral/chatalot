@@ -674,7 +674,7 @@ async fn list_all_files(
 ) -> Result<Json<AdminFilesResponse>, AppError> {
     require_admin(&claims)?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 10_000);
     let per_page = query.per_page.unwrap_or(50).min(100);
     let offset = (page - 1) * per_page;
     let sort = query.sort.as_deref().unwrap_or("date");
@@ -917,7 +917,7 @@ async fn list_blocked_hashes(
     require_admin(&claims)?;
 
     let limit = query.per_page.unwrap_or(50).min(100);
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 10_000);
     let offset = (page - 1) * limit;
 
     let hashes = blocked_hash_repo::list_blocked_hashes(&state.db, limit, offset).await?;
@@ -1019,7 +1019,7 @@ async fn query_audit_log(
 ) -> Result<Json<AuditLogResponse>, AppError> {
     require_admin(&claims)?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 10_000);
     let per_page = query.per_page.unwrap_or(50).min(100);
     let offset = (page - 1) * per_page;
 
@@ -1066,7 +1066,7 @@ async fn list_reports(
 ) -> Result<Json<ReportsResponse>, AppError> {
     require_admin(&claims)?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    let page = query.page.unwrap_or(1).clamp(1, 10_000);
     let per_page = query.per_page.unwrap_or(50).min(100);
     let offset = (page - 1) * per_page;
 
