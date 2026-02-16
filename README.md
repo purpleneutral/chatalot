@@ -33,7 +33,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 
 - **Communities, groups, and channels** — organize your server with roles, permissions, and invite links
 - **Personal groups** — moderators assign isolated spaces to members with full channel control; privacy and invite permissions managed by moderators
-- **Voice and video calls** — peer-to-peer WebRTC with video grid (up to 5 participants)
+- **Voice and video calls** — peer-to-peer WebRTC with video grid (up to 25 participants)
 - **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups), compiled to WASM and running client-side
 - **Rich messaging** — markdown, syntax-highlighted code blocks, inline media previews, GIF search, emoji autocomplete, reactions, replies, and forwarding
 - **Polls** — create polls with 2-10 options, multi-select, anonymous voting, optional expiry, and real-time vote broadcasting
@@ -233,7 +233,7 @@ Requires Rust 1.84+, Node.js 22+, and platform-specific dependencies (WebKitGTK 
 | Desktop Client | Tauri 2.0 |
 | E2E Encryption | X3DH + Double Ratchet, ChaCha20-Poly1305 (Rust → WASM) |
 | Auth | Argon2id passwords, Ed25519-signed JWTs, refresh token rotation |
-| Voice/Video | WebRTC mesh (up to 5 participants) |
+| Voice/Video | WebRTC mesh (up to 25 participants) |
 | Deployment | Docker Compose, Cloudflare Tunnel |
 
 ## Security

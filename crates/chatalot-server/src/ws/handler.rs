@@ -805,6 +805,22 @@ async fn handle_client_message(
                 }
             }
 
+            // Check participant cap (allow reconnection if already in the call)
+            if let Ok(Some(session)) =
+                voice_repo::get_active_session(&state.db, channel_id).await
+            && let Ok(participants) =
+                voice_repo::get_participants(&state.db, session.id).await
+            && participants.len() >= 25
+            && !participants.contains(&user_id)
+            {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "voice_full".to_string(),
+                    message: "voice channel is full (max 25 participants)"
+                        .to_string(),
+                });
+                return;
+            }
+
             match voice_repo::get_or_create_session(&state.db, channel_id, user_id).await {
                 Ok(session) => {
                     if let Err(e) = voice_repo::join_session(&state.db, session.id, user_id).await {

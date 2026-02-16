@@ -17,6 +17,14 @@ const ICE_SERVERS: RTCIceServer[] = [
 const SPEAKING_THRESHOLD = 15; // RMS level (0-255) above which user is "speaking"
 const SPEAKING_CHECK_INTERVAL = 100; // ms between audio level checks
 
+const VIDEO_QUALITY_TIERS = [
+	{ maxParticipants: 4,  width: 640, height: 480, frameRate: 30 },
+	{ maxParticipants: 8,  width: 480, height: 360, frameRate: 24 },
+	{ maxParticipants: 15, width: 320, height: 240, frameRate: 20 },
+	{ maxParticipants: 25, width: 240, height: 180, frameRate: 15 },
+];
+const MAX_PARTICIPANTS = 25;
+
 /// Manages WebRTC peer connections for voice/video calls.
 /// Uses full-mesh topology: each participant connects to every other participant.
 /// Uses "polite peer" pattern: the peer with the lower user ID is the polite peer
@@ -66,6 +74,12 @@ class WebRTCManager {
 	async joinCall(channelId: string, withVideo: boolean = false): Promise<void> {
 		if (voiceStore.isInCall) {
 			await this.leaveCall();
+		}
+
+		// Check participant count before joining
+		const currentParticipants = voiceStore.getChannelParticipants(channelId);
+		if (currentParticipants.length >= MAX_PARTICIPANTS) {
+			throw new Error(`Voice channel is full (max ${MAX_PARTICIPANTS} participants)`);
 		}
 
 		this.channelId = channelId;
@@ -492,6 +506,30 @@ class WebRTCManager {
 		this.systemAudioStream = null;
 	}
 
+	/// Get video constraints based on current participant count.
+	private getVideoConstraints(): { width: number; height: number; frameRate: number } {
+		const count = this.peers.size + 1; // +1 for self
+		const tier = VIDEO_QUALITY_TIERS.find(t => count <= t.maxParticipants)
+			?? VIDEO_QUALITY_TIERS[VIDEO_QUALITY_TIERS.length - 1];
+		return tier;
+	}
+
+	/// Adjust local video quality based on current participant count.
+	/// Called when participants join or leave to scale resolution/framerate.
+	private async adjustVideoQuality(): Promise<void> {
+		if (!voiceStore.activeCall?.videoEnabled) return;
+
+		const { width, height, frameRate } = this.getVideoConstraints();
+		const videoTrack = voiceStore.activeCall.localStream?.getVideoTracks()[0];
+		if (!videoTrack) return;
+
+		try {
+			await videoTrack.applyConstraints({ width, height, frameRate });
+		} catch (err) {
+			console.warn('Failed to adjust video quality:', err);
+		}
+	}
+
 	/// Renegotiate all peer connections (after adding/removing tracks).
 	private async renegotiateAll(): Promise<void> {
 		for (const [userId, pc] of this.peers) {
@@ -777,6 +815,9 @@ class WebRTCManager {
 					}
 				}
 			}
+
+			// Adjust video quality based on new participant count
+			await this.adjustVideoQuality();
 		}
 	}
 

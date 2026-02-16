@@ -155,7 +155,9 @@
 	let gridCols = $derived(
 		totalParticipants <= 1 ? 'grid-cols-1' :
 		totalParticipants <= 4 ? 'grid-cols-1 sm:grid-cols-2' :
-		'grid-cols-2 sm:grid-cols-3'
+		totalParticipants <= 9 ? 'grid-cols-2 sm:grid-cols-3' :
+		totalParticipants <= 16 ? 'grid-cols-3 sm:grid-cols-4' :
+		'grid-cols-4 sm:grid-cols-5'
 	);
 
 	// All participant IDs (for focus mode avatar strip)
@@ -460,7 +462,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-					style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : 'clamp(80px, 15vh, 120px)'}; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
+					style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : totalParticipants > 9 ? 'clamp(40px, 8vh, 80px)' : 'clamp(80px, 15vh, 120px)'}; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
 					oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
 				>
 					{#if hasVideo}
@@ -490,7 +492,7 @@
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-						style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : 'clamp(80px, 15vh, 120px)'};"
+						style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : totalParticipants > 9 ? 'clamp(40px, 8vh, 80px)' : 'clamp(80px, 15vh, 120px)'};"
 						oncontextmenu={(e) => openVolumeMenu(e, userId)}
 					>
 						{#if !voiceStore.hasRemoteVideo(userId)}
