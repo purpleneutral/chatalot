@@ -100,6 +100,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/invites/{code}/accept", post(accept_invite))
         .route("/groups/{id}/icon", post(upload_group_icon))
         .route("/groups/{id}/banner", post(upload_group_banner))
+        .route("/groups/{group_id}/channels/{channel_id}/voice-background", post(upload_channel_voice_background))
         .route("/group-assets/{filename}", get(serve_group_asset))
 }
 
@@ -1167,6 +1168,64 @@ async fn upload_group_banner(
 
     let count = group_repo::get_member_count(&state.db, id).await?;
     Ok(Json(group_to_response(group, count)))
+}
+
+const MAX_VOICE_BG_SIZE: usize = 2 * 1024 * 1024; // 2MB
+
+async fn upload_channel_voice_background(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(path): Path<GroupChannelPath>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<ChannelResponse>, AppError> {
+    let group = group_repo::get_group(&state.db, path.group_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let (data, ct) = read_image_field(&mut multipart, "background", MAX_VOICE_BG_SIZE).await?;
+    let ext = image_ext(&ct);
+
+    let asset_dir = std::path::Path::new(&state.config.file_storage_path).join("group_assets");
+    tokio::fs::create_dir_all(&asset_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
+
+    let filename = format!("{}_voicebg.{ext}", path.channel_id);
+    let file_path = asset_dir.join(&filename);
+    write_asset_file(&file_path, &data).await?;
+
+    let bg_url = format!("/api/group-assets/{filename}");
+    let channel = channel_repo::update_channel(
+        &state.db,
+        path.channel_id,
+        None, None, None, None, None, None, None,
+        Some(&bg_url),
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("channel not found".into()))?;
+
+    Ok(Json(ChannelResponse {
+        id: channel.id,
+        name: channel.name,
+        channel_type: format!("{:?}", channel.channel_type).to_lowercase(),
+        topic: channel.topic,
+        created_by: channel.created_by,
+        created_at: channel.created_at.to_rfc3339(),
+        group_id: channel.group_id,
+        read_only: channel.read_only,
+        slow_mode_seconds: channel.slow_mode_seconds,
+        discoverable: channel.discoverable,
+        archived: channel.archived,
+        voice_background: channel.voice_background,
+    }))
 }
 
 async fn serve_group_asset(

@@ -6,10 +6,11 @@
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import Avatar from '$lib/components/Avatar.svelte';
 
-	let { expanded = false, canKick = false, onKickFromVoice }: {
+	let { expanded = false, canKick = false, onKickFromVoice, channelVoiceBackground = null }: {
 		expanded?: boolean;
 		canKick?: boolean;
 		onKickFromVoice?: (userId: string) => void;
+		channelVoiceBackground?: string | null;
 	} = $props();
 
 	let localVideoEl: HTMLVideoElement | undefined = $state();
@@ -166,6 +167,11 @@
 	// Voice background for local tile
 	let localBgStyle = $derived(voiceBackgroundStyle(preferencesStore.preferences.voiceBackground));
 
+	// Channel ambiance background for the grid container
+	let channelAmbianceStyle = $derived(
+		channelVoiceBackground ? `background: url(${channelVoiceBackground}) center/cover no-repeat;` : ''
+	);
+
 	// Context menu state
 	let menuUserId = $state<string | null>(null);
 	let menuPos = $state({ x: 0, y: 0 });
@@ -191,7 +197,8 @@
 </script>
 
 {#if voiceStore.isInCall}
-	<div class="{expanded ? 'flex-1 min-h-0' : 'max-h-[500px]'} overflow-hidden border-b border-white/10 bg-[var(--bg-secondary)] {expanded ? 'flex flex-col' : ''}">
+	<div class="{expanded ? 'flex-1 min-h-0' : 'max-h-[500px]'} overflow-hidden border-b border-white/10 {expanded ? 'flex flex-col' : ''}"
+		style="{channelAmbianceStyle || 'background: var(--bg-secondary);'}">
 
 		{#if hasAnyScreenShare && !focusStream}
 			<!-- ═══ TILED MODE: Stream as master pane + participant tiles stacked on right ═══ -->

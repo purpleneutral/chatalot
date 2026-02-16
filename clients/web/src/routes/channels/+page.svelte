@@ -640,6 +640,15 @@
 	let canKickFromVoice = $derived(
 		voiceStore.activeCall?.channelId ? canKickInChannel(voiceStore.activeCall.channelId) : false
 	);
+	let voiceChannelBackground = $derived.by(() => {
+		const callChId = voiceStore.activeCall?.channelId;
+		if (!callChId) return null;
+		for (const channels of groupChannelsMap.values()) {
+			const ch = channels.find(c => c.id === callChId);
+			if (ch?.voice_background) return ch.voice_background;
+		}
+		return null;
+	});
 
 	let channelMembers = $derived(
 		channelStore.activeChannelId
@@ -4135,6 +4144,7 @@
 				<VideoGrid
 					expanded={chatCollapsed}
 					canKick={canKickFromVoice}
+					channelVoiceBackground={voiceChannelBackground}
 					onKickFromVoice={(userId) => {
 						const channelId = voiceStore.activeCall?.channelId;
 						if (channelId) handleVoiceKick(userId, channelId);

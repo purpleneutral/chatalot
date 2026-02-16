@@ -114,7 +114,7 @@ export async function createGroupChannel(
 export async function updateChannel(
 	groupId: string,
 	channelId: string,
-	updates: { name?: string; topic?: string; read_only?: boolean; slow_mode_seconds?: number; discoverable?: boolean; archived?: boolean }
+	updates: { name?: string; topic?: string; read_only?: boolean; slow_mode_seconds?: number; discoverable?: boolean; archived?: boolean; voice_background?: string | null }
 ): Promise<Channel> {
 	const body: Record<string, string | boolean | number | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
@@ -123,6 +123,7 @@ export async function updateChannel(
 	if (updates.slow_mode_seconds !== undefined) body.slow_mode_seconds = updates.slow_mode_seconds;
 	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
 	if (updates.archived !== undefined) body.archived = updates.archived;
+	if (updates.voice_background !== undefined) body.voice_background = updates.voice_background;
 	return api.patch<Channel>(`/groups/${groupId}/channels/${channelId}`, body);
 }
 
@@ -155,6 +156,24 @@ export async function uploadGroupBanner(id: string, file: File): Promise<Group> 
 	const token = authStore.accessToken;
 	if (token) headers['Authorization'] = `Bearer ${token}`;
 	const response = await fetch(`${apiBase()}/groups/${id}/banner`, {
+		method: 'POST', headers, body: formData
+	});
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+// ── Channel Voice Background ──
+
+export async function uploadChannelVoiceBackground(groupId: string, channelId: string, file: File): Promise<Channel> {
+	const formData = new FormData();
+	formData.append('background', file);
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+	const response = await fetch(`${apiBase()}/groups/${groupId}/channels/${channelId}/voice-background`, {
 		method: 'POST', headers, body: formData
 	});
 	if (!response.ok) {

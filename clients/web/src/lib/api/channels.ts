@@ -12,6 +12,7 @@ export interface Channel {
 	slow_mode_seconds: number;
 	discoverable: boolean;
 	archived: boolean;
+	voice_background: string | null;
 }
 
 export interface ReactionInfo {
