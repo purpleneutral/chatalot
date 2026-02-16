@@ -85,11 +85,11 @@ pub async fn get_or_create_dm(
 }
 
 /// List all DM channels for a user, with the other user's info.
+/// Uses batch queries instead of per-pair lookups to avoid N+1.
 pub async fn list_user_dms(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<(Channel, User)>, sqlx::Error> {
-    // Get all dm_pairs involving this user
     let pairs = sqlx::query_as::<_, DmPair>(
         "SELECT * FROM dm_pairs WHERE user_a = $1 OR user_b = $1 ORDER BY created_at DESC",
     )
@@ -97,22 +97,44 @@ pub async fn list_user_dms(
     .fetch_all(pool)
     .await?;
 
+    if pairs.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Collect all channel IDs and other user IDs
+    let channel_ids: Vec<Uuid> = pairs.iter().map(|p| p.channel_id).collect();
+    let other_user_ids: Vec<Uuid> = pairs
+        .iter()
+        .map(|p| if p.user_a == user_id { p.user_b } else { p.user_a })
+        .collect();
+
+    // Batch-fetch channels and users
+    let channels = sqlx::query_as::<_, Channel>(
+        "SELECT * FROM channels WHERE id = ANY($1)",
+    )
+    .bind(&channel_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let users = sqlx::query_as::<_, User>(
+        "SELECT * FROM users WHERE id = ANY($1)",
+    )
+    .bind(&other_user_ids)
+    .fetch_all(pool)
+    .await?;
+
+    // Index by ID for fast lookup
+    let channel_map: std::collections::HashMap<Uuid, Channel> =
+        channels.into_iter().map(|c| (c.id, c)).collect();
+    let user_map: std::collections::HashMap<Uuid, User> =
+        users.into_iter().map(|u| (u.id, u)).collect();
+
+    // Reassemble in original order
     let mut results = Vec::with_capacity(pairs.len());
-    for pair in pairs {
-        let other_user_id = if pair.user_a == user_id {
-            pair.user_b
-        } else {
-            pair.user_a
-        };
-        let channel = sqlx::query_as::<_, Channel>("SELECT * FROM channels WHERE id = $1")
-            .bind(pair.channel_id)
-            .fetch_one(pool)
-            .await?;
-        let other_user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-            .bind(other_user_id)
-            .fetch_one(pool)
-            .await?;
-        results.push((channel, other_user));
+    for (pair, other_id) in pairs.iter().zip(other_user_ids.iter()) {
+        if let (Some(channel), Some(user)) = (channel_map.get(&pair.channel_id), user_map.get(other_id)) {
+            results.push((channel.clone(), user.clone()));
+        }
     }
 
     Ok(results)
