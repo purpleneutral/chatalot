@@ -293,7 +293,7 @@
 	// Emoji autocomplete state
 	let showEmojiPopup = $state(false);
 	let emojiQuery = $state('');
-	let emojiResults = $state<{ name: string; emoji: string }[]>([]);
+	let emojiResults = $state<{ name: string; emoji: string; custom?: boolean; url?: string }[]>([]);
 	let emojiIndex = $state(0);
 
 	// Image lightbox state
@@ -2441,7 +2441,17 @@
 		const emojiMatch = before.match(/:(\w{2,})$/);
 		if (emojiMatch) {
 			emojiQuery = emojiMatch[1];
-			emojiResults = searchEmoji(emojiQuery, 8);
+			const standardResults = searchEmoji(emojiQuery, 6);
+			// Also search custom community emojis
+			const customResults: typeof emojiResults = [];
+			const q = emojiQuery.toLowerCase();
+			for (const [shortcode, emoji] of customEmojiMap) {
+				if (shortcode.toLowerCase().includes(q)) {
+					customResults.push({ name: shortcode, emoji: '', custom: true, url: emoji.url });
+					if (customResults.length >= 4) break;
+				}
+			}
+			emojiResults = [...customResults, ...standardResults].slice(0, 8);
 			showEmojiPopup = emojiResults.length > 0;
 			emojiIndex = 0;
 			if (showEmojiPopup) {
@@ -2474,13 +2484,14 @@
 		tick().then(() => messageInputEl?.focus());
 	}
 
-	function selectEmoji(emoji: string) {
+	function selectEmoji(emoji: string, isCustom = false) {
 		if (!messageInputEl) return;
 		const val = messageInputEl.value;
 		const pos = messageInputEl.selectionStart ?? val.length;
 		const before = val.slice(0, pos);
 		const after = val.slice(pos);
-		const replaced = before.replace(/:\w{2,}$/, emoji);
+		const insert = isCustom ? `:${emoji}: ` : emoji;
+		const replaced = before.replace(/:\w{2,}$/, insert);
 		messageInput = replaced + after;
 		showEmojiPopup = false;
 		tick().then(() => {
@@ -2505,7 +2516,8 @@
 			} else if (e.key === 'Tab' || e.key === 'Enter') {
 				if (emojiResults[emojiIndex]) {
 					e.preventDefault();
-					selectEmoji(emojiResults[emojiIndex].emoji);
+					const entry = emojiResults[emojiIndex];
+					selectEmoji(entry.custom ? entry.name : entry.emoji, entry.custom);
 					return;
 				}
 			} else if (e.key === 'Escape') {
@@ -5227,10 +5239,14 @@
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-10">
 							{#each emojiResults as entry, i (entry.name)}
 								<button
-									onclick={() => selectEmoji(entry.emoji)}
+									onclick={() => selectEmoji(entry.custom ? entry.name : entry.emoji, entry.custom)}
 									class="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition {i === emojiIndex ? 'bg-[var(--accent)]/20 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 								>
-									<span class="text-lg">{entry.emoji}</span>
+									{#if entry.custom && entry.url}
+										<img src={entry.url} alt={entry.name} class="h-5 w-5 object-contain" />
+									{:else}
+										<span class="text-lg">{entry.emoji}</span>
+									{/if}
 									<span class="font-medium">:{entry.name}:</span>
 								</button>
 							{/each}
