@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
+use axum::http::header;
 use axum::routing::{get, patch, post};
 use axum::{Extension, Json, Router};
 use sqlx::query_scalar;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use chatalot_common::api_types::{
@@ -95,6 +98,9 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/groups/{id}/invites/{invite_id}", axum::routing::delete(delete_invite))
         .route("/invites/{code}", get(get_invite_info))
         .route("/invites/{code}/accept", post(accept_invite))
+        .route("/groups/{id}/icon", post(upload_group_icon))
+        .route("/groups/{id}/banner", post(upload_group_banner))
+        .route("/group-assets/{filename}", get(serve_group_asset))
 }
 
 async fn create_group(
@@ -1064,4 +1070,225 @@ async fn accept_invite(
         group_id: group.id,
         group_name: group.name,
     }))
+}
+
+// ── Group Assets (Icon / Banner) ──
+
+const MAX_GROUP_ICON_SIZE: usize = 2 * 1024 * 1024; // 2MB
+const MAX_GROUP_BANNER_SIZE: usize = 5 * 1024 * 1024; // 5MB
+const ALLOWED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+async fn upload_group_icon(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<GroupResponse>, AppError> {
+    let current_group = group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &current_group, claims.sub, claims.is_owner)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let (data, ct) = read_image_field(&mut multipart, "icon", MAX_GROUP_ICON_SIZE).await?;
+    let ext = image_ext(&ct);
+
+    let asset_dir = std::path::Path::new(&state.config.file_storage_path).join("group_assets");
+    tokio::fs::create_dir_all(&asset_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
+
+    let filename = format!("{id}_icon.{ext}");
+    let file_path = asset_dir.join(&filename);
+    write_asset_file(&file_path, &data).await?;
+
+    let icon_url = format!("/api/group-assets/{filename}");
+    let group = group_repo::update_group(
+        &state.db,
+        id,
+        None, None, None, None, None,
+        Some(&icon_url),
+        None, None,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("group not found".into()))?;
+
+    let count = group_repo::get_member_count(&state.db, id).await?;
+    Ok(Json(group_to_response(group, count)))
+}
+
+async fn upload_group_banner(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(id): Path<Uuid>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<GroupResponse>, AppError> {
+    let current_group = group_repo::get_group(&state.db, id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+
+    let role = get_effective_group_role(&state.db, &current_group, claims.sub, claims.is_owner)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+
+    if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    let (data, ct) = read_image_field(&mut multipart, "banner", MAX_GROUP_BANNER_SIZE).await?;
+    let ext = image_ext(&ct);
+
+    let asset_dir = std::path::Path::new(&state.config.file_storage_path).join("group_assets");
+    tokio::fs::create_dir_all(&asset_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
+
+    let filename = format!("{id}_banner.{ext}");
+    let file_path = asset_dir.join(&filename);
+    write_asset_file(&file_path, &data).await?;
+
+    let banner_url = format!("/api/group-assets/{filename}");
+    let group = group_repo::update_group(
+        &state.db,
+        id,
+        None, None, None, None, None,
+        None,
+        Some(&banner_url),
+        None,
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("group not found".into()))?;
+
+    let count = group_repo::get_member_count(&state.db, id).await?;
+    Ok(Json(group_to_response(group, count)))
+}
+
+async fn serve_group_asset(
+    State(state): State<Arc<AppState>>,
+    Path(filename): Path<String>,
+) -> Result<([(header::HeaderName, String); 2], Body), AppError> {
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err(AppError::Validation("invalid filename".into()));
+    }
+
+    let path = std::path::Path::new(&state.config.file_storage_path)
+        .join("group_assets")
+        .join(&filename);
+
+    let file = tokio::fs::File::open(&path)
+        .await
+        .map_err(|_| AppError::NotFound("asset not found".into()))?;
+
+    let content_type = guess_content_type(&filename);
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok(([
+        (header::CONTENT_TYPE, content_type.to_string()),
+        (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
+    ], body))
+}
+
+fn group_to_response(g: Group, member_count: i64) -> GroupResponse {
+    GroupResponse {
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        icon_url: g.icon_url,
+        banner_url: g.banner_url,
+        accent_color: g.accent_color,
+        owner_id: g.owner_id,
+        community_id: g.community_id,
+        created_at: g.created_at.to_rfc3339(),
+        member_count,
+        visibility: g.visibility,
+        discoverable: g.discoverable,
+        assigned_member_id: g.assigned_member_id,
+        allow_invites: g.allow_invites,
+    }
+}
+
+async fn read_image_field(
+    multipart: &mut axum::extract::Multipart,
+    field_name: &str,
+    max_size: usize,
+) -> Result<(Vec<u8>, String), AppError> {
+    let mut file_data: Option<Vec<u8>> = None;
+    let mut content_type: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::Validation(format!("multipart error: {e}")))?
+    {
+        if field.name() == Some(field_name) {
+            content_type = field.content_type().map(|s| s.to_string());
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
+            if bytes.len() > max_size {
+                return Err(AppError::Validation(format!(
+                    "file too large (max {}MB)",
+                    max_size / (1024 * 1024)
+                )));
+            }
+            file_data = Some(bytes.to_vec());
+        }
+    }
+
+    let data = file_data.ok_or_else(|| AppError::Validation(format!("no {field_name} field")))?;
+    let ct = content_type
+        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+
+    if !ALLOWED_IMAGE_TYPES.contains(&ct.as_str()) {
+        return Err(AppError::Validation(
+            "invalid image type (allowed: png, jpeg, webp, gif)".into(),
+        ));
+    }
+
+    Ok((data, ct))
+}
+
+fn image_ext(content_type: &str) -> &'static str {
+    match content_type {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "bin",
+    }
+}
+
+async fn write_asset_file(path: &std::path::Path, data: &[u8]) -> Result<(), AppError> {
+    let mut f = tokio::fs::File::create(path)
+        .await
+        .map_err(|e| AppError::Internal(format!("create file: {e}")))?;
+    f.write_all(data)
+        .await
+        .map_err(|e| AppError::Internal(format!("write file: {e}")))?;
+    f.flush()
+        .await
+        .map_err(|e| AppError::Internal(format!("flush file: {e}")))?;
+    Ok(())
+}
+
+fn guess_content_type(filename: &str) -> &'static str {
+    if filename.ends_with(".png") {
+        "image/png"
+    } else if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if filename.ends_with(".webp") {
+        "image/webp"
+    } else if filename.ends_with(".gif") {
+        "image/gif"
+    } else {
+        "application/octet-stream"
+    }
 }

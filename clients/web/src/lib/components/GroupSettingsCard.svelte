@@ -3,7 +3,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { updateGroup as apiUpdateGroup, leaveGroup, deleteGroup, createInvite } from '$lib/api/groups';
+	import { updateGroup as apiUpdateGroup, leaveGroup, deleteGroup, createInvite, uploadGroupIcon, uploadGroupBanner } from '$lib/api/groups';
 	import type { Group } from '$lib/api/groups';
 
 	let {
@@ -42,6 +42,12 @@
 	let editingDesc = $state(false);
 	let editDesc = $state(group.description ?? '');
 	let saving = $state(false);
+	let iconInputEl = $state<HTMLInputElement | null>(null);
+	let bannerInputEl = $state<HTMLInputElement | null>(null);
+	let iconUploading = $state(false);
+	let bannerUploading = $state(false);
+	let editingAccent = $state(false);
+	let editAccentColor = $state(group.accent_color ?? '#5865f2');
 
 	// Position the card relative to the anchor, clamped to viewport
 	let cardStyle = $derived.by(() => {
@@ -153,6 +159,68 @@
 		toastStore.success('Group ID copied');
 	}
 
+	async function handleIconUpload(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		iconUploading = true;
+		try {
+			const updated = await uploadGroupIcon(group.id, file);
+			groupStore.updateGroup(group.id, updated);
+			group = updated;
+			toastStore.success('Group icon updated');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to upload icon');
+		} finally {
+			iconUploading = false;
+		}
+	}
+
+	async function handleBannerUpload(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		bannerUploading = true;
+		try {
+			const updated = await uploadGroupBanner(group.id, file);
+			groupStore.updateGroup(group.id, updated);
+			group = updated;
+			toastStore.success('Group banner updated');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to upload banner');
+		} finally {
+			bannerUploading = false;
+		}
+	}
+
+	async function saveAccentColor() {
+		saving = true;
+		try {
+			const updated = await apiUpdateGroup(group.id, { accent_color: editAccentColor });
+			groupStore.updateGroup(group.id, updated);
+			group = updated;
+			editingAccent = false;
+			toastStore.success('Accent color updated');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to update accent color');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function clearAccentColor() {
+		saving = true;
+		try {
+			const updated = await apiUpdateGroup(group.id, { accent_color: '' });
+			groupStore.updateGroup(group.id, updated);
+			group = updated;
+			editingAccent = false;
+			toastStore.success('Accent color cleared');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Failed to clear accent color');
+		} finally {
+			saving = false;
+		}
+	}
+
 	async function handleLeave() {
 		if (!confirm('Leave this group?')) return;
 		try {
@@ -195,14 +263,30 @@
 		transition:scale={{ start: 0.9, duration: 150 }}
 	>
 		<!-- Banner -->
-		<div class="relative h-14 rounded-t-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]">
-			<div class="absolute bottom-2 left-4">
-				<span class="text-lg font-bold text-white/90">#</span>
+		<div class="relative h-20 overflow-hidden rounded-t-xl" style={group.accent_color ? `background: linear-gradient(135deg, ${group.accent_color}, ${group.accent_color}88)` : ''}>
+			{#if group.banner_url}
+				<img src={group.banner_url} alt="" class="h-full w-full object-cover" />
+			{:else if !group.accent_color}
+				<div class="h-full w-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
+			{/if}
+			<!-- Group icon overlapping the banner -->
+			<div class="absolute -bottom-5 left-4">
+				{#if group.icon_url}
+					<img src={group.icon_url} alt="" class="h-10 w-10 rounded-full border-2 border-[var(--bg-secondary)] object-cover" />
+				{:else}
+					<div class="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[var(--bg-secondary)] bg-[var(--bg-tertiary)]">
+						<span class="text-sm font-bold text-[var(--text-secondary)]">#</span>
+					</div>
+				{/if}
 			</div>
 		</div>
 
+		<!-- Hidden file inputs -->
+		<input bind:this={iconInputEl} type="file" accept="image/*" class="hidden" onchange={handleIconUpload} />
+		<input bind:this={bannerInputEl} type="file" accept="image/*" class="hidden" onchange={handleBannerUpload} />
+
 		<!-- Content -->
-		<div class="px-4 pb-4 pt-3">
+		<div class="px-4 pb-4 pt-7">
 			<!-- Group Name -->
 			{#if editingName && isAdmin}
 				<div class="mb-2 flex gap-1">
@@ -273,6 +357,42 @@
 				>
 					+ Add description
 				</button>
+			{/if}
+
+			<!-- Customization (admin only) -->
+			{#if isAdmin}
+				<div class="mb-2 flex flex-wrap gap-1.5">
+					<button
+						onclick={() => iconInputEl?.click()}
+						disabled={iconUploading}
+						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+					>
+						{iconUploading ? 'Uploading...' : 'Change Icon'}
+					</button>
+					<button
+						onclick={() => bannerInputEl?.click()}
+						disabled={bannerUploading}
+						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+					>
+						{bannerUploading ? 'Uploading...' : 'Change Banner'}
+					</button>
+					<button
+						onclick={() => { editingAccent = !editingAccent; editAccentColor = group.accent_color ?? '#5865f2'; }}
+						class="rounded-lg bg-white/5 px-2 py-1 text-xs text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+					>
+						Accent Color
+					</button>
+				</div>
+				{#if editingAccent}
+					<div class="mb-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
+						<input type="color" bind:value={editAccentColor} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" />
+						<span class="flex-1 text-xs text-[var(--text-secondary)]">{editAccentColor}</span>
+						<button onclick={saveAccentColor} disabled={saving} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white">Save</button>
+						{#if group.accent_color}
+							<button onclick={clearAccentColor} disabled={saving} class="rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:text-[var(--danger)]">Clear</button>
+						{/if}
+					</div>
+				{/if}
 			{/if}
 
 			<div class="mb-2 border-t border-white/10"></div>

@@ -3303,12 +3303,14 @@
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 transition-transform {expandedGroupIds.has(group.id) ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="currentColor">
 										<path d="M8 5l8 7-8 7z" />
 									</svg>
-									{#if group.assigned_member_id}
+									{#if group.icon_url}
+										<img src={group.icon_url} alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" />
+									{:else if group.assigned_member_id}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 									{:else if group.visibility === 'private'}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 									{/if}
-									<span class="flex-1 truncate">{group.name}</span>
+									<span class="flex-1 truncate" style={group.accent_color ? `color: ${group.accent_color}` : ''}>{group.name}</span>
 									<span class="text-xs text-[var(--text-secondary)]">{group.member_count}</span>
 								</button>
 								<!-- Settings gear (hover) -->

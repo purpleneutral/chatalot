@@ -1,10 +1,15 @@
 import { api } from './client';
+import { apiBase } from '$lib/env';
+import { authStore } from '$lib/stores/auth.svelte';
 import type { Channel } from './channels';
 
 export interface Group {
 	id: string;
 	name: string;
 	description: string | null;
+	icon_url: string | null;
+	banner_url: string | null;
+	accent_color: string | null;
 	owner_id: string;
 	community_id: string;
 	created_at: string;
@@ -50,7 +55,16 @@ export async function createGroup(
 
 export async function updateGroup(
 	id: string,
-	updates: { name?: string; description?: string; visibility?: string; discoverable?: boolean; allow_invites?: boolean }
+	updates: {
+		name?: string;
+		description?: string;
+		visibility?: string;
+		discoverable?: boolean;
+		allow_invites?: boolean;
+		icon_url?: string;
+		banner_url?: string;
+		accent_color?: string;
+	}
 ): Promise<Group> {
 	const body: Record<string, string | boolean | null> = {};
 	if (updates.name !== undefined) body.name = updates.name;
@@ -58,6 +72,9 @@ export async function updateGroup(
 	if (updates.visibility !== undefined) body.visibility = updates.visibility;
 	if (updates.discoverable !== undefined) body.discoverable = updates.discoverable;
 	if (updates.allow_invites !== undefined) body.allow_invites = updates.allow_invites;
+	if (updates.icon_url !== undefined) body.icon_url = updates.icon_url;
+	if (updates.banner_url !== undefined) body.banner_url = updates.banner_url;
+	if (updates.accent_color !== undefined) body.accent_color = updates.accent_color;
 	return api.patch<Group>(`/groups/${id}`, body);
 }
 
@@ -111,6 +128,40 @@ export async function updateChannel(
 
 export async function deleteChannel(groupId: string, channelId: string): Promise<void> {
 	await api.delete(`/groups/${groupId}/channels/${channelId}`);
+}
+
+// ── Group Assets ──
+
+export async function uploadGroupIcon(id: string, file: File): Promise<Group> {
+	const formData = new FormData();
+	formData.append('icon', file);
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+	const response = await fetch(`${apiBase()}/groups/${id}/icon`, {
+		method: 'POST', headers, body: formData
+	});
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+	return response.json();
+}
+
+export async function uploadGroupBanner(id: string, file: File): Promise<Group> {
+	const formData = new FormData();
+	formData.append('banner', file);
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+	const response = await fetch(`${apiBase()}/groups/${id}/banner`, {
+		method: 'POST', headers, body: formData
+	});
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+	return response.json();
 }
 
 // ── Invites ──
