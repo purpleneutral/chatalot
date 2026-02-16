@@ -1,5 +1,6 @@
 pub mod account;
 pub mod admin;
+pub mod announcements;
 pub mod auth;
 pub mod bookmarks;
 pub mod channels;
@@ -78,6 +79,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(polls::routes())
         .merge(scheduled::routes())
         .merge(bookmarks::routes())
+        .merge(announcements::routes())
         .merge(communities::public_routes())
         .merge(community_gated_routes)
         .layer(axum::middleware::from_fn_with_state(

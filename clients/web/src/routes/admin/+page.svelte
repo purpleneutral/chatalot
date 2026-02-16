@@ -13,9 +13,10 @@
 		getAuditLog, type AuditLogEntry, type AuditLogResponse,
 		listReports, reviewReport, type Report, type ReportsResponse
 	} from '$lib/api/admin';
+	import { createAnnouncement, listAllAnnouncements, type Announcement } from '$lib/api/announcements';
 	import { onMount } from 'svelte';
 
-	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security';
+	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security' | 'announcements';
 	let activeTab = $state<Tab>('users');
 
 	// ── Users ──
@@ -56,6 +57,13 @@
 	let auditActionFilter = $state('');
 	let auditUserFilter = $state('');
 
+	// ── Announcements ──
+	let adminAnnouncements = $state<Announcement[]>([]);
+	let announcementsLoading = $state(false);
+	let newAnnouncementTitle = $state('');
+	let newAnnouncementBody = $state('');
+	let creatingAnnouncement = $state(false);
+
 	// ── Security (Blocked Hashes + Purge) ──
 	let blockedHashes = $state<BlockedHash[]>([]);
 	let hashesLoading = $state(false);
@@ -81,6 +89,7 @@
 		if (tab === 'reports' && !reportsResponse) loadReports();
 		if (tab === 'audit' && !auditResponse) loadAuditLog();
 		if (tab === 'security' && blockedHashes.length === 0) loadBlockedHashes();
+		if (tab === 'announcements' && adminAnnouncements.length === 0) loadAnnouncements();
 	}
 
 	// ── User handlers ──
@@ -380,13 +389,46 @@
 		return `${(bytes / 1073741824).toFixed(2)} GB`;
 	}
 
+	// ── Announcement handlers ──
+
+	async function loadAnnouncements() {
+		announcementsLoading = true;
+		try {
+			adminAnnouncements = await listAllAnnouncements();
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load announcements');
+		} finally {
+			announcementsLoading = false;
+		}
+	}
+
+	async function handleCreateAnnouncement() {
+		if (!newAnnouncementTitle.trim() || !newAnnouncementBody.trim()) {
+			toastStore.error('Title and body are required');
+			return;
+		}
+		creatingAnnouncement = true;
+		try {
+			const ann = await createAnnouncement(newAnnouncementTitle.trim(), newAnnouncementBody.trim());
+			adminAnnouncements = [ann, ...adminAnnouncements];
+			newAnnouncementTitle = '';
+			newAnnouncementBody = '';
+			toastStore.success('Announcement published');
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to create announcement');
+		} finally {
+			creatingAnnouncement = false;
+		}
+	}
+
 	const tabs: { id: Tab; label: string }[] = [
 		{ id: 'users', label: 'Users' },
 		{ id: 'invites', label: 'Invites' },
 		{ id: 'files', label: 'Files' },
 		{ id: 'reports', label: 'Reports' },
 		{ id: 'audit', label: 'Audit Log' },
-		{ id: 'security', label: 'Security' }
+		{ id: 'security', label: 'Security' },
+		{ id: 'announcements', label: 'Announcements' }
 	];
 </script>
 
@@ -943,6 +985,45 @@
 									{/each}
 								</tbody>
 							</table>
+						</div>
+					{/if}
+				</section>
+			{:else if activeTab === 'announcements'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<h2 class="mb-1 text-lg font-semibold">Server Announcements</h2>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">Publish announcements visible to all users as banners in the chat view. Users can dismiss them individually.</p>
+
+					<!-- Create form -->
+					<div class="mb-6 space-y-3 rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
+						<div>
+							<label for="ann-title" class="mb-1 block text-xs text-[var(--text-secondary)]">Title</label>
+							<input id="ann-title" type="text" bind:value={newAnnouncementTitle} placeholder="Announcement title..." maxlength="200" class="w-full rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+						</div>
+						<div>
+							<label for="ann-body" class="mb-1 block text-xs text-[var(--text-secondary)]">Body</label>
+							<textarea id="ann-body" bind:value={newAnnouncementBody} placeholder="Announcement details..." rows="3" maxlength="5000" class="w-full resize-y rounded border border-white/10 bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"></textarea>
+						</div>
+						<button onclick={handleCreateAnnouncement} disabled={creatingAnnouncement || !newAnnouncementTitle.trim() || !newAnnouncementBody.trim()} class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+							{creatingAnnouncement ? 'Publishing...' : 'Publish Announcement'}
+						</button>
+					</div>
+
+					<!-- Existing announcements -->
+					{#if announcementsLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading announcements...</p>
+					{:else if adminAnnouncements.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No announcements yet.</p>
+					{:else}
+						<div class="space-y-3">
+							{#each adminAnnouncements as ann (ann.id)}
+								<div class="rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
+									<div class="mb-1 flex items-baseline justify-between gap-2">
+										<h3 class="text-sm font-semibold text-[var(--text-primary)]">{ann.title}</h3>
+										<span class="shrink-0 text-xs text-[var(--text-secondary)]">{new Date(ann.created_at).toLocaleString()}</span>
+									</div>
+									<p class="text-sm text-[var(--text-secondary)]">{ann.body}</p>
+								</div>
+							{/each}
 						</div>
 					{/if}
 				</section>

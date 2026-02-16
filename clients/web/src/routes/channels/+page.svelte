@@ -30,6 +30,7 @@
 	import { searchGifs, getTrendingGifs, type GifResult } from '$lib/api/gifs';
 	import { addBookmark, removeBookmark as apiRemoveBookmark, listBookmarks } from '$lib/api/bookmarks';
 	import { createPoll as apiCreatePoll, listPolls, getPoll, votePoll, removeVote as apiRemoveVote, closePoll as apiClosePoll, type Poll } from '$lib/api/polls';
+	import { listUndismissed as listUndismissedAnnouncements, dismissAnnouncement, type Announcement } from '$lib/api/announcements';
 	import { bookmarkStore } from '$lib/stores/bookmarks.svelte';
 	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
@@ -206,6 +207,9 @@
 	// Welcome splash state
 	let showWelcomeSplash = $state(false);
 	let welcomeCommunity = $state<Community | null>(null);
+
+	// Announcements
+	let announcements = $state<Announcement[]>([]);
 
 	// Slow mode cooldown
 	let slowModeCooldown = $state(0);
@@ -895,6 +899,11 @@
 			}
 		}
 
+		// Load announcements
+		try {
+			announcements = await listUndismissedAnnouncements();
+		} catch {}
+
 		// Close context menu on click outside
 		document.addEventListener('click', closeContextMenu);
 
@@ -908,6 +917,9 @@
 		window.addEventListener('chatalot:poll-created', handlePollCreated as EventListener);
 		window.addEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
 		window.addEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
+
+		// Announcement events
+		window.addEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
 	});
 
 	onDestroy(() => {
@@ -925,6 +937,7 @@
 		window.removeEventListener('chatalot:poll-created', handlePollCreated as EventListener);
 		window.removeEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
 		window.removeEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
+		window.removeEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
 
 		// Clean up timers
 		if (typingTimeout) clearTimeout(typingTimeout);
@@ -972,6 +985,21 @@
 	function handlePollClosed(e: CustomEvent<{ pollId: string; channelId: string }>) {
 		if (e.detail.channelId !== channelStore.activeChannelId) return;
 		polls = polls.map(p => p.id === e.detail.pollId ? { ...p, closed: true } : p);
+	}
+
+	function handleAnnouncementEvent(e: CustomEvent<{ id: string; title: string; body: string; created_by: string; created_at: string }>) {
+		const ann = e.detail;
+		// Add to list if not already present
+		if (!announcements.find(a => a.id === ann.id)) {
+			announcements = [ann, ...announcements];
+		}
+	}
+
+	async function handleDismissAnnouncement(id: string) {
+		announcements = announcements.filter(a => a.id !== id);
+		try {
+			await dismissAnnouncement(id);
+		} catch {}
 	}
 
 	function handleSlowModeEvent(e: CustomEvent<{ seconds: number }>) {
@@ -4478,6 +4506,23 @@
 				/>
 
 				{#if !chatCollapsed}
+				<!-- Announcement banners -->
+				{#each announcements as ann (ann.id)}
+					<div class="flex items-start gap-3 border-b border-blue-500/20 bg-blue-500/10 px-4 py-2.5" transition:slide={{ duration: 150 }}>
+						<svg xmlns="http://www.w3.org/2000/svg" class="mt-0.5 h-4 w-4 shrink-0 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+						<div class="min-w-0 flex-1">
+							<p class="text-sm font-semibold text-[var(--text-primary)]">{ann.title}</p>
+							<p class="mt-0.5 text-xs text-[var(--text-secondary)]">{ann.body}</p>
+						</div>
+						<button
+							onclick={() => handleDismissAnnouncement(ann.id)}
+							class="shrink-0 rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+							title="Dismiss"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+						</button>
+					</div>
+				{/each}
 				<!-- Connection status banner -->
 				{#if connectionStatus === 'reconnecting'}
 					<div class="flex items-center justify-center gap-2 bg-amber-600/90 px-3 py-1.5 text-xs font-medium text-white">
@@ -4498,6 +4543,15 @@
 				<div bind:this={messageListEl} class="min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6 md:py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
 					{#if loadingOlder}
 						<Skeleton variant="message" count={3} />
+					{/if}
+					{#if initialized && messages.length === 0 && !loadingOlder}
+						<div class="flex h-full items-center justify-center">
+							<div class="text-center">
+								<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-12 w-12 text-[var(--text-secondary)] opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+								<p class="text-sm text-[var(--text-secondary)]">No messages yet</p>
+								<p class="mt-1 text-xs text-[var(--text-secondary)] opacity-60">Be the first to say something!</p>
+							</div>
+						</div>
 					{/if}
 					{#each messages as msg, idx (msg.id)}
 						{@const grouped = isGroupedMessage(messages, idx) && !shouldShowDateSeparator(messages, idx)}
