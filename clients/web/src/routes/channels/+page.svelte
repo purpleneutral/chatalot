@@ -5780,6 +5780,7 @@
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
 			role="dialog"
+			tabindex="-1"
 			aria-modal="true"
 			aria-label={confirmDialog.title}
 			transition:fade={{ duration: 150 }}
@@ -5828,6 +5829,7 @@
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
 			role="dialog"
+			tabindex="-1"
 			aria-modal="true"
 			aria-label="Report Message"
 			transition:fade={{ duration: 150 }}
@@ -5875,6 +5877,7 @@
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
 			role="dialog"
+			tabindex="-1"
 			aria-modal="true"
 			aria-label="Create Poll"
 			transition:fade={{ duration: 150 }}
@@ -5907,7 +5910,7 @@
 						/>
 					</div>
 					<div>
-						<label class="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Options (2-10)</label>
+						<span class="mb-1 block text-xs font-medium text-[var(--text-secondary)]">Options (2-10)</span>
 						<div class="space-y-1.5">
 							{#each newPollOptions as opt, idx}
 								<div class="flex items-center gap-1.5">
@@ -5921,6 +5924,7 @@
 									{#if newPollOptions.length > 2}
 										<button
 											type="button"
+											aria-label="Remove option {idx + 1}"
 											onclick={() => { newPollOptions = newPollOptions.filter((_, i) => i !== idx); }}
 											class="shrink-0 rounded p-1 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
 										>
@@ -5993,6 +5997,7 @@
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
 			role="dialog"
+			tabindex="-1"
 			aria-modal="true"
 			aria-label="Keyboard Shortcuts"
 			transition:fade={{ duration: 150 }}

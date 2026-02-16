@@ -591,6 +591,7 @@
 										</div>
 									{/if}
 									<button
+										aria-label="Upload community icon"
 										onclick={() => iconInputEl?.click()}
 										disabled={iconUploading}
 										class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-wait"
@@ -616,6 +617,7 @@
 										</div>
 									{/if}
 									<button
+										aria-label="Upload community banner"
 										onclick={() => bannerInputEl?.click()}
 										disabled={bannerUploading}
 										class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-wait"
@@ -830,6 +832,7 @@
 									<p class="mt-1 text-xs text-[var(--text-secondary)]">When disabled, your community name and description are hidden from invite previews. Members can still join via direct invite links.</p>
 								</div>
 								<button
+									aria-label="Toggle discoverability"
 									onclick={() => communityDiscoverable = !communityDiscoverable}
 									class="ml-4 flex h-6 w-11 shrink-0 items-center rounded-full transition-colors {communityDiscoverable ? 'bg-[var(--accent)]' : 'bg-white/20'}"
 								>
@@ -994,7 +997,7 @@
 											class="h-8 w-8 cursor-pointer rounded border border-white/10 bg-transparent"
 										/>
 										<div class="flex-1">
-											<label class="block text-xs font-medium text-[var(--text-primary)]">{label}</label>
+											<span class="block text-xs font-medium text-[var(--text-primary)]">{label}</span>
 											<div class="flex items-center gap-1">
 												<input
 													type="text"

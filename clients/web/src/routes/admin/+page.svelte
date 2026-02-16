@@ -669,13 +669,13 @@
 									{#each filesResponse.files as file}
 										<tr class="border-b border-white/5">
 											<td class="py-3 pr-3">
-												<code class="cursor-pointer rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs" title={file.id} onclick={() => copyText(file.id)}>{file.id.slice(0, 8)}</code>
+												<button class="cursor-pointer rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs hover:bg-white/10" title={file.id} onclick={() => copyText(file.id)}>{file.id.slice(0, 8)}</button>
 											</td>
 											<td class="py-3 pr-3 max-w-32 truncate text-xs text-[var(--text-secondary)]" title={file.encrypted_name}>{file.encrypted_name || '—'}</td>
 											<td class="py-3 pr-3 text-xs text-[var(--text-secondary)]">{file.content_type ?? 'unknown'}</td>
 											<td class="py-3 pr-3 text-xs">{formatBytes(file.size_bytes)}</td>
 											<td class="py-3 pr-3">
-												<code class="cursor-pointer font-mono text-xs text-[var(--text-secondary)]" title={file.uploader_id} onclick={() => copyText(file.uploader_id)}>{file.uploader_id.slice(0, 8)}</code>
+												<button class="cursor-pointer font-mono text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]" title={file.uploader_id} onclick={() => copyText(file.uploader_id)}>{file.uploader_id.slice(0, 8)}</button>
 											</td>
 											<td class="py-3 pr-3">
 												{#if file.quarantined_at}
@@ -750,8 +750,8 @@
 									</div>
 									<p class="mb-2 text-sm">{report.reason}</p>
 									<div class="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
-										<span>Target: <code class="cursor-pointer font-mono" onclick={() => copyText(report.target_id)}>{report.target_id.slice(0, 8)}</code></span>
-										<span>Reporter: <code class="cursor-pointer font-mono" onclick={() => copyText(report.reporter_id)}>{report.reporter_id.slice(0, 8)}</code></span>
+										<span>Target: <button class="cursor-pointer font-mono hover:text-[var(--text-primary)]" onclick={() => copyText(report.target_id)}>{report.target_id.slice(0, 8)}</button></span>
+										<span>Reporter: <button class="cursor-pointer font-mono hover:text-[var(--text-primary)]" onclick={() => copyText(report.reporter_id)}>{report.reporter_id.slice(0, 8)}</button></span>
 										{#if report.admin_notes}
 											<span>Notes: {report.admin_notes}</span>
 										{/if}
@@ -831,7 +831,7 @@
 											</td>
 											<td class="py-2 pr-3">
 												{#if entry.user_id}
-													<code class="cursor-pointer font-mono text-xs text-[var(--text-secondary)]" onclick={() => copyText(entry.user_id!)}>{entry.user_id.slice(0, 8)}</code>
+													<button class="cursor-pointer font-mono text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]" onclick={() => copyText(entry.user_id!)}>{entry.user_id.slice(0, 8)}</button>
 												{:else}
 													<span class="text-xs text-[var(--text-secondary)]">system</span>
 												{/if}
@@ -974,7 +974,7 @@
 									{#each blockedHashes as hash}
 										<tr class="border-b border-white/5">
 											<td class="py-2 pr-3">
-												<code class="cursor-pointer font-mono text-xs" title={hash.hash} onclick={() => copyText(hash.hash)}>{hash.hash.slice(0, 24)}...</code>
+												<button class="cursor-pointer font-mono text-xs hover:text-[var(--text-primary)]" title={hash.hash} onclick={() => copyText(hash.hash)}>{hash.hash.slice(0, 24)}...</button>
 											</td>
 											<td class="py-2 pr-3 text-xs text-[var(--text-secondary)]">{hash.reason ?? '-'}</td>
 											<td class="py-2 pr-3 text-xs text-[var(--text-secondary)]">{new Date(hash.created_at).toLocaleDateString()}</td>

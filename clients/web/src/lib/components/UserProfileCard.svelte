@@ -42,7 +42,8 @@
 	);
 	const role = $derived(channelMember?.role ?? 'member');
 	const isOwnProfile = $derived(userId === authStore.user?.id);
-	let isBlocked = $state(blockedIds.includes(userId));
+	let isBlocked = $state(false);
+	$effect(() => { isBlocked = blockedIds.includes(userId); });
 	let blockLoading = $state(false);
 	let showTimeoutPicker = $state(false);
 	let timeoutLoading = $state(false);

@@ -28,10 +28,12 @@
 	const isAdmin = $derived(myRole === 'owner' || myRole === 'admin');
 
 	let editingName = $state(false);
-	let editName = $state(channel.name ?? '');
+	let editName = $state('');
 	let editingTopic = $state(false);
-	let editTopic = $state(channel.topic ?? '');
+	let editTopic = $state('');
 	let saving = $state(false);
+	$effect(() => { editName = channel.name ?? ''; });
+	$effect(() => { editTopic = channel.topic ?? ''; });
 
 	// Webhook state
 	let showWebhooks = $state(false);
@@ -287,13 +289,12 @@
 					/>
 					<button onclick={saveName} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white" disabled={saving}>Save</button>
 				</div>
-			{:else}
-				<h3
-					class="mb-0.5 text-base font-bold text-[var(--text-primary)] {isAdmin ? 'cursor-pointer hover:underline' : ''}"
-					onclick={() => { if (isAdmin) { editingName = true; editName = channel.name ?? ''; } }}
-				>
+			{:else if isAdmin}
+				<button class="mb-0.5 text-left text-base font-bold text-[var(--text-primary)] cursor-pointer hover:underline" onclick={() => { editingName = true; editName = channel.name ?? ''; }}>
 					{channel.name ?? 'Unnamed'}
-				</h3>
+				</button>
+			{:else}
+				<h3 class="mb-0.5 text-base font-bold text-[var(--text-primary)]">{channel.name ?? 'Unnamed'}</h3>
 			{/if}
 
 			<p class="mb-2 text-xs text-[var(--text-secondary)]">
@@ -325,13 +326,12 @@
 						<button onclick={saveTopic} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white" disabled={saving}>Save</button>
 					</div>
 				</div>
-			{:else if channel.topic}
-				<p
-					class="mb-2 text-sm text-[var(--text-secondary)] {isAdmin ? 'cursor-pointer hover:underline' : ''}"
-					onclick={() => { if (isAdmin) { editingTopic = true; editTopic = channel.topic ?? ''; } }}
-				>
+			{:else if channel.topic && isAdmin}
+				<button class="mb-2 text-left text-sm text-[var(--text-secondary)] cursor-pointer hover:underline" onclick={() => { editingTopic = true; editTopic = channel.topic ?? ''; }}>
 					{channel.topic}
-				</p>
+				</button>
+			{:else if channel.topic}
+				<p class="mb-2 text-sm text-[var(--text-secondary)]">{channel.topic}</p>
 			{:else if isAdmin}
 				<button
 					onclick={() => { editingTopic = true; editTopic = ''; }}

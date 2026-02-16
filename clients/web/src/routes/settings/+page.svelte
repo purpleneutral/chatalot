@@ -1376,13 +1376,13 @@
 						{:else if voiceBgType === 'gradient'}
 							<div class="flex flex-col gap-3">
 								<div class="flex items-center gap-3">
-									<label class="text-xs text-[var(--text-secondary)]">From</label>
+									<span class="text-xs text-[var(--text-secondary)]">From</span>
 									<input type="color" bind:value={voiceBgGradFrom} onchange={applyVoiceBg} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" />
-									<label class="text-xs text-[var(--text-secondary)]">To</label>
+									<span class="text-xs text-[var(--text-secondary)]">To</span>
 									<input type="color" bind:value={voiceBgGradTo} onchange={applyVoiceBg} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" />
 								</div>
 								<div class="flex items-center gap-2">
-									<label class="text-xs text-[var(--text-secondary)]">Angle</label>
+									<span class="text-xs text-[var(--text-secondary)]">Angle</span>
 									<input type="range" min="0" max="360" bind:value={voiceBgGradAngle} oninput={applyVoiceBg}
 										class="h-1.5 w-32 cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]" />
 									<span class="text-xs text-[var(--text-secondary)]">{voiceBgGradAngle}°</span>

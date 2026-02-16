@@ -38,16 +38,19 @@
 	const canInvite = $derived(isAdmin && (!isPersonal || group.allow_invites || isCommunityModerator));
 
 	let editingName = $state(false);
-	let editName = $state(group.name);
+	let editName = $state('');
 	let editingDesc = $state(false);
-	let editDesc = $state(group.description ?? '');
+	let editDesc = $state('');
 	let saving = $state(false);
 	let iconInputEl = $state<HTMLInputElement | null>(null);
 	let bannerInputEl = $state<HTMLInputElement | null>(null);
 	let iconUploading = $state(false);
 	let bannerUploading = $state(false);
 	let editingAccent = $state(false);
-	let editAccentColor = $state(group.accent_color ?? '#5865f2');
+	let editAccentColor = $state('#5865f2');
+	$effect(() => { editName = group.name; });
+	$effect(() => { editDesc = group.description ?? ''; });
+	$effect(() => { editAccentColor = group.accent_color ?? '#5865f2'; });
 
 	// Position the card relative to the anchor, clamped to viewport
 	let cardStyle = $derived.by(() => {
@@ -297,13 +300,12 @@
 					/>
 					<button onclick={saveName} class="rounded bg-[var(--accent)] px-2 py-1 text-xs text-white" disabled={saving}>Save</button>
 				</div>
-			{:else}
-				<h3
-					class="mb-0.5 text-base font-bold text-[var(--text-primary)] {isAdmin ? 'cursor-pointer hover:underline' : ''}"
-					onclick={() => { if (isAdmin) { editingName = true; editName = group.name; } }}
-				>
+			{:else if isAdmin}
+				<button class="mb-0.5 text-left text-base font-bold text-[var(--text-primary)] cursor-pointer hover:underline" onclick={() => { editingName = true; editName = group.name; }}>
 					{group.name}
-				</h3>
+				</button>
+			{:else}
+				<h3 class="mb-0.5 text-base font-bold text-[var(--text-primary)]">{group.name}</h3>
 			{/if}
 
 			<!-- Meta line -->
@@ -343,13 +345,12 @@
 						<button onclick={saveDescription} class="rounded bg-[var(--accent)] px-2 py-0.5 text-xs text-white" disabled={saving}>Save</button>
 					</div>
 				</div>
-			{:else if group.description}
-				<p
-					class="mb-2 text-sm text-[var(--text-secondary)] {isAdmin ? 'cursor-pointer hover:underline' : ''}"
-					onclick={() => { if (isAdmin) { editingDesc = true; editDesc = group.description ?? ''; } }}
-				>
+			{:else if group.description && isAdmin}
+				<button class="mb-2 text-left text-sm text-[var(--text-secondary)] cursor-pointer hover:underline" onclick={() => { editingDesc = true; editDesc = group.description ?? ''; }}>
 					{group.description}
-				</p>
+				</button>
+			{:else if group.description}
+				<p class="mb-2 text-sm text-[var(--text-secondary)]">{group.description}</p>
 			{:else if isAdmin}
 				<button
 					onclick={() => { editingDesc = true; editDesc = ''; }}
