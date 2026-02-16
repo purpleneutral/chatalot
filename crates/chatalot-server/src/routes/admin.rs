@@ -410,6 +410,13 @@ async fn create_registration_invite(
         .map(char::from)
         .collect();
 
+    if let Some(h) = req.expires_in_hours
+        && !(1..=8760).contains(&h)
+    {
+        return Err(AppError::Validation(
+            "expires_in_hours must be between 1 and 8760".into(),
+        ));
+    }
     let expires_at = req.expires_in_hours.map(|h| {
         chrono::Utc::now()
             + chrono::Duration::try_hours(h).unwrap_or(chrono::TimeDelta::hours(24))

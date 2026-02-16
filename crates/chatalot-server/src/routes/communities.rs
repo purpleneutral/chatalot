@@ -815,6 +815,13 @@ async fn create_invite(
         return Err(AppError::Forbidden);
     }
 
+    if let Some(h) = req.expires_in_hours
+        && !(1..=8760).contains(&h)
+    {
+        return Err(AppError::Validation(
+            "expires_in_hours must be between 1 and 8760".into(),
+        ));
+    }
     let expires_at = req.expires_in_hours.map(|h| {
         chrono::Utc::now()
             + chrono::Duration::try_hours(h as i64)
