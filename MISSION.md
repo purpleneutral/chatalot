@@ -18,7 +18,7 @@ That means:
 
 - **No corporate overlord.** Nobody can buy Chatalot and gut it for parts. Nobody can pivot it into an ad platform. Nobody can shut it down because it's not profitable enough.
 - **No ties to governments or shady organizations.** This project is independent. It serves its users, not a political agenda.
-- **No subscription tiers.** The full feature set is available to everyone. Always has been, always will be.
+- **No paywalled features.** The full feature set is available to everyone. Optional subscriptions may come one day to keep the project sustainable, but free users will never be second-class citizens. You won't lose features, hit artificial limits, or see "upgrade to unlock" prompts. If you pay, it's because you want to support the project — not because you're forced to.
 - **No telemetry, no analytics, no tracking.** I don't know who you are, I don't know what you say, and I don't care. That's the whole point.
 
 ## A Long-Term Commitment
@@ -40,6 +40,30 @@ That's not a slogan — it's architecture. Chatalot is built so that I *can't* r
 - **Zero telemetry.** No analytics scripts, no usage tracking, no crash reporting, no phone-home behavior.
 
 I built Chatalot so that even the person running the server can't spy on you. That's the standard privacy should be held to.
+
+## Privacy Is Not a Shield for Harm
+
+Let me be direct: **Chatalot is a tool for privacy, not a tool for crime.** I built this software because I believe private conversations are a fundamental right. I do not build it to enable illegal activity, and I do not endorse it.
+
+Privacy and accountability are not opposites. You can believe that people deserve private conversations *and* believe that people should not use that privacy to harm others. I hold both of those beliefs.
+
+Every Chatalot instance is independently operated. The person who runs your server is responsible for their community and for complying with the laws of their jurisdiction. I provide the software — I do not operate your instance, I do not moderate your content, and I am not liable for how you use it. That responsibility belongs to you and your server's administrator.
+
+If you're looking for a platform designed to evade the law, look elsewhere. That's not what this is.
+
+## Sustainability & Community-Driven Development
+
+Building software takes time, and time costs money. I want to be honest about that.
+
+Chatalot is free and open-source. It will always be free and open-source. But keeping a project alive for years — maintaining infrastructure, reviewing PRs, fixing bugs, shipping features — requires sustainability. So here's my plan:
+
+**The community decides what gets built.** I'm working on a system where users across all Chatalot instances can vote on feature requests. Your voice shapes the roadmap, not just mine. The details are still forming, but the principle is set: the people who use Chatalot should have a real say in where it goes.
+
+**Optional support tiers** may come eventually — things like priority feature requests, cosmetic perks, or a way to put money behind the features you care about most. But the core commitment stands: every feature ships to everyone. No one gets locked out because they can't pay.
+
+**A community website is coming.** A central place to vote on features, report bugs, read announcements, and connect with other instance operators. Think of it as a town hall for the project, not a corporate portal.
+
+I'd rather build this slowly and sustainably than chase growth at the expense of the values that made it worth building in the first place.
 
 ## The World Needs Alternatives
 
