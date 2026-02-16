@@ -75,6 +75,21 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Spawn background task: broadcast channel cleanup (every 5 minutes)
+    {
+        let state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            loop {
+                interval.tick().await;
+                let removed = state.connections.cleanup_idle_channels();
+                if removed > 0 {
+                    tracing::debug!("Cleaned up {removed} idle broadcast channels");
+                }
+            }
+        });
+    }
+
     // Spawn background task: periodic data cleanup (every hour)
     {
         let db = state.db.clone();

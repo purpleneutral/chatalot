@@ -118,15 +118,24 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
                 }
                 tokens -= 1.0;
 
-                if let Ok(client_msg) = serde_json::from_str::<ClientMessage>(&text) {
-                    handle_client_message(
-                        client_msg,
-                        user_id,
-                        &state,
-                        &tx,
-                        &mut subscription_tasks,
-                    )
-                    .await;
+                match serde_json::from_str::<ClientMessage>(&text) {
+                    Ok(client_msg) => {
+                        handle_client_message(
+                            client_msg,
+                            user_id,
+                            &state,
+                            &tx,
+                            &mut subscription_tasks,
+                        )
+                        .await;
+                    }
+                    Err(e) => {
+                        tracing::warn!(%user_id, error = %e, "malformed WebSocket message");
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "invalid_message".to_string(),
+                            message: "malformed message".to_string(),
+                        });
+                    }
                 }
             }
             Message::Close(_) => break,

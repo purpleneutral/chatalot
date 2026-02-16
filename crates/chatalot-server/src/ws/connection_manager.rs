@@ -127,6 +127,20 @@ impl ConnectionManager {
         channels
     }
 
+    /// Remove broadcast channels with no active subscribers to reclaim memory.
+    pub fn cleanup_idle_channels(&self) -> usize {
+        let mut removed = 0;
+        self.channel_senders.retain(|_, sender| {
+            if sender.receiver_count() == 0 {
+                removed += 1;
+                false
+            } else {
+                true
+            }
+        });
+        removed
+    }
+
     /// Remove typing entries older than the timeout and return them.
     pub fn expire_typing(&self, timeout: std::time::Duration) -> Vec<(Uuid, Uuid)> {
         let now = tokio::time::Instant::now();
