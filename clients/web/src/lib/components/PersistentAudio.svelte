@@ -3,6 +3,10 @@
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 
+	interface AudioElementWithSinkId extends HTMLAudioElement {
+		setSinkId(sinkId: string): Promise<void>;
+	}
+
 	// Web Audio API gain nodes for per-user volume amplification (beyond 100%)
 	let audioCtx: AudioContext | null = null;
 	let userGains = new Map<string, { source: MediaStreamAudioSourceNode; gain: GainNode }>();
@@ -29,7 +33,7 @@
 		// Set output device if supported
 		const sinkId = audioDeviceStore.selectedOutputId;
 		if (sinkId && 'setSinkId' in node) {
-			(node as any).setSinkId(sinkId).catch(() => {});
+			(node as AudioElementWithSinkId).setSinkId(sinkId).catch(() => {});
 		}
 
 		return {
@@ -100,7 +104,7 @@
 		const sinkId = audioDeviceStore.selectedOutputId;
 		for (const [, el] of audioEls) {
 			if (el && 'setSinkId' in el) {
-				(el as any).setSinkId(sinkId).catch(() => {});
+				(el as AudioElementWithSinkId).setSinkId(sinkId).catch(() => {});
 			}
 		}
 	});

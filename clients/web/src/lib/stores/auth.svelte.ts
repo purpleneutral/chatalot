@@ -80,7 +80,7 @@ class AuthStore {
 		localStorage.removeItem(REFRESH_KEY);
 		localStorage.removeItem(USER_KEY);
 		presenceStore.reset();
-		wipeCrypto().catch(() => {});
+		wipeCrypto().catch((err) => console.warn('Failed to wipe crypto state:', err));
 	}
 }
 

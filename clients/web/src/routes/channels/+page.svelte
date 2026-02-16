@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message, type ReactionInfo } from '$lib/api/channels';
+	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type ChannelMember, type Message, type ReactionInfo } from '$lib/api/channels';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
 	import { searchUsers, listBlockedUsers, createReport, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
@@ -344,7 +344,7 @@
 
 	function quickSwitcherSelect(item: QuickSwitchItem) {
 		showQuickSwitcher = false;
-		channelStore.addChannel(channelStore.channels.find(c => c.id === item.id) ?? { id: item.id, name: item.name, channel_type: 'text', created_at: '' } as any);
+		channelStore.addChannel(channelStore.channels.find(c => c.id === item.id) ?? { id: item.id, name: item.name, channel_type: 'text', topic: null, created_by: null, created_at: '', group_id: null, read_only: false, slow_mode_seconds: 0, discoverable: false, archived: false, voice_background: null });
 		selectChannel(item.id);
 	}
 
@@ -762,7 +762,7 @@
 		}
 
 		// Fetch server config (caches public URL for invite links)
-		getServerConfig().catch(() => {});
+		getServerConfig().catch((err) => console.warn('Failed to load server config:', err));
 
 		// Refresh user data from server (keeps is_admin, avatar_url etc. current)
 		try {
@@ -804,7 +804,7 @@
 		// Load blocked user IDs
 		listBlockedUsers().then(blocks => {
 			blockedUserIds = blocks.map(b => b.blocked_id);
-		}).catch(() => {});
+		}).catch((err) => console.warn('Failed to load blocked users:', err));
 
 		// Listen for block/unblock events to refresh the list
 		window.addEventListener('chatalot:blocks-changed', handleBlocksChanged);
@@ -842,7 +842,7 @@
 
 			// Load server-synced preferences + bookmarks
 			preferencesStore.loadFromServer();
-			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch(() => {});
+			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch((err) => console.warn('Failed to load bookmarks:', err));
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
@@ -1114,7 +1114,7 @@
 					const active = channelStore.activeChannelId;
 					if (active && active === activeBeforeSync) messageStore.clearUnread(active);
 				}
-			}).catch(() => {});
+			}).catch((err) => console.warn('Failed to sync unread counts:', err));
 
 			// Reload messages for the active channel to catch anything missed
 			const activeId = channelStore.activeChannelId;
@@ -1133,7 +1133,7 @@
 						reactions: m.reactions ? new Map(m.reactions.map((r: ReactionInfo) => [r.emoji, new Set(r.user_ids)])) : undefined
 					}));
 					messageStore.setMessages(activeId, chatMsgs, FETCH_LIMIT);
-				}).catch(() => {});
+				}).catch((err) => console.warn('Failed to reload messages after reconnect:', err));
 			}
 		}
 	}
@@ -1250,7 +1250,7 @@
 					custom_status: null
 				})));
 			})
-			.catch(() => {});
+			.catch((err) => console.warn('Failed to load channel members:', err));
 
 		// Load message history if not already fetched from server
 		if (!messageStore.hasLoadedHistory(channelId)) {
@@ -2489,14 +2489,15 @@
 	}
 
 	// Special mention entries for autocomplete
-	const SPECIAL_MENTION_ENTRIES = [
+	type MentionEntry = ChannelMember & { description?: string };
+	const SPECIAL_MENTION_ENTRIES: MentionEntry[] = [
 		{ user_id: '__everyone__', username: 'everyone', display_name: 'everyone', avatar_url: null, role: 'special', joined_at: '', description: 'Notify all members' },
 		{ user_id: '__here__', username: 'here', display_name: 'here', avatar_url: null, role: 'special', joined_at: '', description: 'Notify online members' },
 		{ user_id: '__channel__', username: 'channel', display_name: 'channel', avatar_url: null, role: 'special', joined_at: '', description: 'Notify channel members' },
 	];
 
 	// Mention autocomplete
-	let mentionResults = $derived(() => {
+	let mentionResults = $derived((): MentionEntry[] => {
 		if (!showMentionPopup || !channelStore.activeChannelId) return [];
 		const members = memberStore.getMembers(channelStore.activeChannelId);
 		const q = mentionQuery.toLowerCase();
@@ -2507,7 +2508,7 @@
 			: SPECIAL_MENTION_ENTRIES;
 
 		// Filter real members
-		const people = q
+		const people: MentionEntry[] = q
 			? members.filter(m =>
 				m.username.toLowerCase().startsWith(q) ||
 				m.display_name.toLowerCase().startsWith(q)
@@ -5363,7 +5364,7 @@
 											<span class="text-xs font-bold text-yellow-400">@</span>
 										</div>
 										<span class="font-semibold text-yellow-400">@{member.username}</span>
-										<span class="text-xs opacity-50">{(member as any).description}</span>
+										<span class="text-xs opacity-50">{member.description}</span>
 									{:else}
 										<Avatar userId={member.user_id} size="xs" />
 										<span class="font-medium">{member.display_name}</span>
