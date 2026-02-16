@@ -5,6 +5,7 @@ export interface Toast {
 }
 
 let nextId = 0;
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
 class ToastStore {
 	toasts = $state<Toast[]>([]);
@@ -12,7 +13,7 @@ class ToastStore {
 	show(message: string, type: Toast['type'] = 'info', duration = 4000) {
 		const id = nextId++;
 		this.toasts = [...this.toasts, { id, message, type }];
-		setTimeout(() => this.dismiss(id), duration);
+		timers.set(id, setTimeout(() => this.dismiss(id), duration));
 	}
 
 	success(message: string) {
@@ -28,6 +29,11 @@ class ToastStore {
 	}
 
 	dismiss(id: number) {
+		const timer = timers.get(id);
+		if (timer) {
+			clearTimeout(timer);
+			timers.delete(id);
+		}
 		this.toasts = this.toasts.filter((t) => t.id !== id);
 	}
 }
