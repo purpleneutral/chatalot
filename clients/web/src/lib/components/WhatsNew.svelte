@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.13.3',
+			date: '2026-02-16',
+			changes: [
+				'Mobile responsive: settings, community, admin, login, and register pages now adapt to small screens',
+				'Mobile tab bars: horizontal scrollable tabs replace sidebars on mobile devices',
+				'WebSocket hardening: 1MB message size limit, subscription caps, better auth error messages',
+				'Server validation: ban reason, welcome message, invite expiration, accent color format checks',
+				'Modal safe areas: all dialogs now have proper padding on small screens',
+				'Context menu: max-width capped to viewport to prevent overflow',
+			]
+		},
+		{
 			version: '0.13.2',
 			date: '2026-02-16',
 			changes: [
