@@ -434,13 +434,13 @@
 
 {#if authStore.isAuthenticated && (authStore.user?.is_admin || authStore.user?.is_owner)}
 	<div class="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-		<div class="mx-auto max-w-5xl px-6 py-8">
+		<div class="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-8">
 			<!-- Header -->
-			<div class="mb-6 flex items-center justify-between">
+			<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<h1 class="text-2xl font-bold">Admin Panel</h1>
 				<div class="flex gap-2">
-					<button onclick={() => goto('/settings')} class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Settings</button>
-					<button onclick={() => goto('/channels')} class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Back to Chat</button>
+					<button onclick={() => goto('/settings')} class="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Settings</button>
+					<button onclick={() => goto('/channels')} class="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Back to Chat</button>
 				</div>
 			</div>
 

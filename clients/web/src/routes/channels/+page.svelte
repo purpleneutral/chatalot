@@ -4193,7 +4193,7 @@
 
 		<!-- Join Community modal (overlays the sidebar area) -->
 		{#if showJoinCommunity}
-			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" transition:fade={{ duration: 150 }}>
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" transition:fade={{ duration: 150 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 				<div role="dialog" tabindex="-1" class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					<div class="mb-4 flex items-center justify-between">
@@ -4224,7 +4224,7 @@
 
 		<!-- Create Community modal -->
 		{#if showCreateCommunity}
-			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" transition:fade={{ duration: 150 }}>
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" transition:fade={{ duration: 150 }}>
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 				<form
 					onsubmit={(e) => { e.preventDefault(); handleCreateCommunity(); }}
@@ -4270,7 +4270,7 @@
 
 		<!-- Welcome Splash modal -->
 		{#if showWelcomeSplash && welcomeCommunity}
-			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" transition:fade={{ duration: 200 }}>
+			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 200 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 				<div role="dialog" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					{#if welcomeCommunity.banner_url}
@@ -5159,7 +5159,7 @@
 						onkeydown={(e) => { if (e.key === 'Escape') contextMenuMessageId = null; }}
 					></div>
 					<div
-						class="fixed z-50 min-w-[180px] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
+						class="fixed z-50 min-w-[180px] max-w-[calc(100vw-16px)] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
 						style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px;"
 						transition:scale={{ start: 0.9, duration: 100 }}
 					>

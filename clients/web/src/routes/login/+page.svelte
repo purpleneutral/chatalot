@@ -38,8 +38,8 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center p-4">
-	<div class="w-full max-w-md rounded-2xl bg-[var(--bg-secondary)] p-8 shadow-2xl">
+<div class="flex min-h-screen items-center justify-center p-3 sm:p-4">
+	<div class="w-full max-w-md rounded-2xl bg-[var(--bg-secondary)] p-5 sm:p-8 shadow-2xl">
 		<h1 class="mb-2 text-center text-3xl font-bold text-[var(--text-primary)]">Chatalot</h1>
 		<p class="mb-8 text-center text-[var(--text-secondary)]">Welcome back</p>
 
