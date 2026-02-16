@@ -486,6 +486,9 @@
 	let showMemberPanel = $state(false);
 	let membersLoading = $state(false);
 
+	// Bookmarks panel state
+	let showBookmarksPanel = $state(false);
+
 	// Chat collapse state (during voice calls)
 	let chatCollapsed = $state(false);
 
@@ -554,7 +557,7 @@
 	// Member panel functions
 	async function toggleMemberPanel() {
 		showMemberPanel = !showMemberPanel;
-		if (showMemberPanel) sidebarOpen = false; // Ensure mutual exclusivity on mobile
+		if (showMemberPanel) { sidebarOpen = false; showBookmarksPanel = false; } // Ensure mutual exclusivity
 		if (showMemberPanel && channelStore.activeChannelId) {
 			membersLoading = true;
 			try {
@@ -576,6 +579,22 @@
 				membersLoading = false;
 			}
 		}
+	}
+
+	function toggleBookmarksPanel() {
+		showBookmarksPanel = !showBookmarksPanel;
+		if (showBookmarksPanel) {
+			showMemberPanel = false;
+			sidebarOpen = false;
+		}
+	}
+
+	async function removeBookmarkFromPanel(bookmarkId: string) {
+		try {
+			await apiRemoveBookmark(bookmarkId);
+			bookmarkStore.removeBookmark(bookmarkId);
+			toastStore.success('Bookmark removed');
+		} catch { toastStore.error('Failed to remove bookmark'); }
 	}
 
 	async function handleRoleChange(userId: string, newRole: string) {
@@ -2522,6 +2541,7 @@
 			if (showPollPanel) { showPollPanel = false; e.preventDefault(); return; }
 			if (showCreatePoll) { showCreatePoll = false; e.preventDefault(); return; }
 			if (showMemberPanel) { showMemberPanel = false; e.preventDefault(); return; }
+			if (showBookmarksPanel) { showBookmarksPanel = false; e.preventDefault(); return; }
 		}
 	}
 
@@ -4541,6 +4561,16 @@
 							</div>
 						{/if}
 						<CallControls channelId={activeChannel.id} channelType={activeChannel.channel_type} />
+						<button
+							onclick={toggleBookmarksPanel}
+							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showBookmarksPanel ? 'text-[var(--accent)]' : ''}"
+							title="Saved Items"
+							aria-label="Saved Items"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+							</svg>
+						</button>
 						{#if activeChannel.channel_type !== 'dm'}
 							<button
 								onclick={toggleMemberPanel}
@@ -5776,6 +5806,69 @@
 								{@render memberRow(member)}
 							{/each}
 						{/if}
+					{/if}
+				</div>
+			</aside>
+		{/if}
+
+		<!-- Bookmarks panel (right sidebar) -->
+		{#if showBookmarksPanel}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="fixed inset-0 z-30 bg-black/50 md:hidden" onclick={toggleBookmarksPanel} onkeydown={(e) => { if (e.key === 'Escape') toggleBookmarksPanel(); }} role="button" tabindex="-1" aria-label="Close bookmarks panel" transition:fade={{ duration: 150 }}></div>
+			<aside class="fixed inset-y-0 right-0 z-40 w-[80vw] max-w-[280px] md:static md:z-auto md:w-60 md:max-w-none flex-shrink-0 border-l border-white/10 bg-[var(--bg-secondary)] overflow-y-auto shadow-xl md:shadow-none">
+				<div class="flex items-center justify-between border-b border-white/10 px-4 py-2">
+					<h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+						Saved Items
+						<span class="ml-1 normal-case tracking-normal font-normal">— {bookmarkStore.bookmarks.length}</span>
+					</h3>
+					<button
+						onclick={toggleBookmarksPanel}
+						class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						title="Close"
+						aria-label="Close bookmarks panel"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+					</button>
+				</div>
+				<div class="p-2">
+					{#if bookmarkStore.bookmarks.length === 0}
+						<div class="flex flex-col items-center justify-center py-8 text-center">
+							<svg xmlns="http://www.w3.org/2000/svg" class="mb-2 h-8 w-8 text-[var(--text-secondary)]/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+							</svg>
+							<p class="text-sm text-[var(--text-secondary)]">No saved items yet</p>
+							<p class="mt-1 text-xs text-[var(--text-secondary)]/60">Right-click a message to bookmark it</p>
+						</div>
+					{:else}
+						{#each bookmarkStore.bookmarks.toReversed() as bookmark (bookmark.id)}
+							<div class="group rounded-lg p-2.5 transition hover:bg-white/5">
+								<div class="flex items-start justify-between gap-1">
+									<div class="min-w-0 flex-1">
+										<div class="flex items-center gap-1.5 mb-1">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+												<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+											</svg>
+											<p class="text-xs text-[var(--text-secondary)]">
+												{new Date(bookmark.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+											</p>
+										</div>
+										{#if bookmark.note}
+											<p class="text-xs text-[var(--text-primary)] leading-relaxed">{bookmark.note}</p>
+										{:else}
+											<p class="text-xs text-[var(--text-secondary)]/60 italic">Bookmarked message</p>
+										{/if}
+									</div>
+									<button
+										onclick={() => removeBookmarkFromPanel(bookmark.id)}
+										class="shrink-0 rounded p-1 text-[var(--text-secondary)] opacity-0 transition hover:text-[var(--danger)] group-hover:opacity-100"
+										title="Remove bookmark"
+										aria-label="Remove bookmark"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+									</button>
+								</div>
+							</div>
+						{/each}
 					{/if}
 				</div>
 			</aside>
