@@ -5,12 +5,12 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { soundStore } from '$lib/stores/sound.svelte';
 	import { notificationStore } from '$lib/stores/notification.svelte';
-	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, type AccentColor, type NoiseSuppression, type PresetTheme } from '$lib/stores/preferences.svelte';
+	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, VOICE_BG_PRESETS, voiceBackgroundStyle, type AccentColor, type NoiseSuppression, type PresetTheme, type VoiceBackgroundType } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { setupTotp, verifyTotp, disableTotp, type TotpSetup } from '$lib/api/totp';
-	import { changePassword, updateProfile, uploadAvatar, uploadBanner, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
+	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount, onDestroy } from 'svelte';
@@ -87,6 +87,47 @@
 	let testLevel = $state(0);
 	let testActive = $state(false);
 	let testRafId = 0;
+
+	// Voice background state
+	let voiceBgType = $state<VoiceBackgroundType>(preferencesStore.preferences.voiceBackground.type);
+	let voiceBgColor = $state(preferencesStore.preferences.voiceBackground.color ?? '#1a1a2e');
+	let voiceBgGradFrom = $state(preferencesStore.preferences.voiceBackground.gradientFrom ?? '#ff6b2b');
+	let voiceBgGradTo = $state(preferencesStore.preferences.voiceBackground.gradientTo ?? '#6c3483');
+	let voiceBgGradAngle = $state(preferencesStore.preferences.voiceBackground.gradientAngle ?? 135);
+	let voiceBgPresetId = $state(preferencesStore.preferences.voiceBackground.presetId ?? 'fireplace');
+	let voiceBgCustomUrl = $state(preferencesStore.preferences.voiceBackground.customUrl ?? '');
+	let voiceBgUploading = $state(false);
+	let voiceBgInputEl = $state<HTMLInputElement | null>(null);
+
+	function applyVoiceBg() {
+		const bg = {
+			type: voiceBgType,
+			color: voiceBgColor,
+			gradientFrom: voiceBgGradFrom,
+			gradientTo: voiceBgGradTo,
+			gradientAngle: voiceBgGradAngle,
+			presetId: voiceBgPresetId,
+			customUrl: voiceBgCustomUrl,
+		};
+		preferencesStore.set('voiceBackground', bg);
+	}
+
+	async function handleVoiceBgUpload(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		voiceBgUploading = true;
+		try {
+			const result = await uploadVoiceBackground(file);
+			voiceBgCustomUrl = result.url;
+			voiceBgType = 'custom';
+			applyVoiceBg();
+			toastStore.success('Background uploaded');
+		} catch (err: any) {
+			toastStore.error(err?.message ?? 'Upload failed');
+		} finally {
+			voiceBgUploading = false;
+		}
+	}
 
 	async function startMicTest() {
 		try {
@@ -1278,6 +1319,93 @@
 						<p class="mt-3 text-xs text-[var(--text-secondary)]">
 							You can always toggle between focused and tiled view using the button in the top-right corner of the video area.
 						</p>
+					</section>
+
+					<!-- ── Call Background ── -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Call Background</h3>
+						<p class="mb-4 text-sm text-[var(--text-secondary)]">
+							Set a background for your video tile when your camera is off.
+						</p>
+
+						<!-- Live preview -->
+						<div
+							class="mb-4 flex items-center justify-center overflow-hidden rounded-lg"
+							style="aspect-ratio: 16/9; max-width: 240px; {voiceBackgroundStyle(preferencesStore.preferences.voiceBackground) || 'background: var(--bg-tertiary);'}"
+						>
+							<div class="flex h-12 w-12 items-center justify-center rounded-full bg-black/30">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+							</div>
+						</div>
+
+						<!-- Type selector -->
+						<div class="mb-4 flex flex-wrap gap-2">
+							{#each [
+								{ id: 'none', label: 'None' },
+								{ id: 'solid', label: 'Solid' },
+								{ id: 'gradient', label: 'Gradient' },
+								{ id: 'preset', label: 'Preset' },
+								{ id: 'custom', label: 'Image' }
+							] as opt}
+								<button
+									onclick={() => { voiceBgType = opt.id as VoiceBackgroundType; applyVoiceBg(); }}
+									class="rounded-lg px-3 py-1.5 text-xs font-medium transition {voiceBgType === opt.id ? 'bg-[var(--accent)] text-white' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'}"
+								>
+									{opt.label}
+								</button>
+							{/each}
+						</div>
+
+						<!-- Per-type controls -->
+						{#if voiceBgType === 'solid'}
+							<div class="flex items-center gap-3">
+								<input type="color" bind:value={voiceBgColor} onchange={applyVoiceBg} class="h-8 w-8 cursor-pointer rounded border-0 bg-transparent" />
+								<span class="text-sm text-[var(--text-secondary)]">{voiceBgColor}</span>
+							</div>
+						{:else if voiceBgType === 'gradient'}
+							<div class="flex flex-col gap-3">
+								<div class="flex items-center gap-3">
+									<label class="text-xs text-[var(--text-secondary)]">From</label>
+									<input type="color" bind:value={voiceBgGradFrom} onchange={applyVoiceBg} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" />
+									<label class="text-xs text-[var(--text-secondary)]">To</label>
+									<input type="color" bind:value={voiceBgGradTo} onchange={applyVoiceBg} class="h-7 w-7 cursor-pointer rounded border-0 bg-transparent" />
+								</div>
+								<div class="flex items-center gap-2">
+									<label class="text-xs text-[var(--text-secondary)]">Angle</label>
+									<input type="range" min="0" max="360" bind:value={voiceBgGradAngle} oninput={applyVoiceBg}
+										class="h-1.5 w-32 cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]" />
+									<span class="text-xs text-[var(--text-secondary)]">{voiceBgGradAngle}°</span>
+								</div>
+							</div>
+						{:else if voiceBgType === 'preset'}
+							<div class="grid grid-cols-3 gap-2">
+								{#each Object.entries(VOICE_BG_PRESETS) as [id, preset]}
+									<button
+										onclick={() => { voiceBgPresetId = id; applyVoiceBg(); }}
+										class="overflow-hidden rounded-lg border-2 transition {voiceBgPresetId === id ? 'border-[var(--accent)]' : 'border-transparent hover:border-white/20'}"
+									>
+										<div class="flex items-center justify-center rounded" style="aspect-ratio: 16/9; background: {preset.css};">
+											<span class="rounded bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white">{preset.label}</span>
+										</div>
+									</button>
+								{/each}
+							</div>
+						{:else if voiceBgType === 'custom'}
+							<div class="flex items-center gap-3">
+								<input bind:this={voiceBgInputEl} type="file" accept="image/*" class="hidden" onchange={handleVoiceBgUpload} />
+								<button
+									onclick={() => voiceBgInputEl?.click()}
+									disabled={voiceBgUploading}
+									class="rounded-lg bg-white/5 px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:bg-white/10"
+								>
+									{voiceBgUploading ? 'Uploading...' : voiceBgCustomUrl ? 'Change Image' : 'Upload Image'}
+								</button>
+								{#if voiceBgCustomUrl}
+									<span class="text-xs text-[var(--text-secondary)]">Image set</span>
+								{/if}
+							</div>
+							<p class="mt-2 text-xs text-[var(--text-secondary)]">Max 2MB. PNG, JPEG, WebP, or GIF.</p>
+						{/if}
 					</section>
 
 				{:else if activeTab === 'security'}

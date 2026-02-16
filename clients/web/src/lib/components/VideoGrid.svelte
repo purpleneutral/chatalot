@@ -2,7 +2,7 @@
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { userStore } from '$lib/stores/users.svelte';
-	import { preferencesStore } from '$lib/stores/preferences.svelte';
+	import { preferencesStore, voiceBackgroundStyle } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import Avatar from '$lib/components/Avatar.svelte';
 
@@ -163,6 +163,9 @@
 		...remoteEntries.map(([id]) => id)
 	]);
 
+	// Voice background for local tile
+	let localBgStyle = $derived(voiceBackgroundStyle(preferencesStore.preferences.voiceBackground));
+
 	// Context menu state
 	let menuUserId = $state<string | null>(null);
 	let menuPos = $state({ x: 0, y: 0 });
@@ -258,8 +261,8 @@
 					<!-- Local tile -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
-						class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-						style="aspect-ratio: 16/9;"
+						class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+						style="aspect-ratio: 16/9; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
 						oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
 					>
 						{#if hasVideo}
@@ -447,8 +450,8 @@
 				<!-- Local video/avatar -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-					style="aspect-ratio: 16/9; min-height: {expanded ? '200px' : '120px'};"
+					class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+					style="aspect-ratio: 16/9; min-height: {expanded ? '200px' : '120px'}; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
 					oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
 				>
 					{#if hasVideo}

@@ -27,6 +27,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/account/profile", put(update_profile))
         .route("/account/avatar", post(upload_avatar))
         .route("/account/banner", post(upload_banner))
+        .route("/account/voice-background", post(upload_voice_background))
         .route("/account", delete(delete_account))
         .route("/account/logout-all", post(logout_all))
         .route("/account/sessions", get(list_sessions))
@@ -374,6 +375,76 @@ async fn upload_banner(
         is_owner: user.is_owner,
         created_at: Some(user.created_at.to_rfc3339()),
     }))
+}
+
+const MAX_VOICE_BG_SIZE: usize = 2 * 1024 * 1024; // 2MB
+
+async fn upload_voice_background(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut file_data: Option<Vec<u8>> = None;
+    let mut content_type: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| AppError::Validation(format!("multipart error: {e}")))?
+    {
+        if field.name() == Some("background") {
+            content_type = field.content_type().map(|s| s.to_string());
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
+            if bytes.len() > MAX_VOICE_BG_SIZE {
+                return Err(AppError::Validation("file too large (max 2 MB)".into()));
+            }
+            file_data = Some(bytes.to_vec());
+        }
+    }
+
+    let data = file_data.ok_or_else(|| AppError::Validation("no background field".into()))?;
+    let ct = content_type
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+
+    if !ALLOWED_TYPES.contains(&ct) {
+        return Err(AppError::Validation(
+            "invalid image type (allowed: png, jpg, webp, gif)".into(),
+        ));
+    }
+
+    let ext = match ct {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "bin",
+    };
+
+    let avatar_dir =
+        std::path::Path::new(&state.config.file_storage_path).join("avatars");
+    tokio::fs::create_dir_all(&avatar_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
+
+    let filename = format!("{}_voicebg.{ext}", claims.sub);
+    let file_path = avatar_dir.join(&filename);
+
+    let mut f = tokio::fs::File::create(&file_path)
+        .await
+        .map_err(|e| AppError::Internal(format!("create file: {e}")))?;
+    f.write_all(&data)
+        .await
+        .map_err(|e| AppError::Internal(format!("write file: {e}")))?;
+    f.flush()
+        .await
+        .map_err(|e| AppError::Internal(format!("flush file: {e}")))?;
+
+    let url = format!("/api/avatars/{filename}");
+    Ok(Json(serde_json::json!({ "url": url })))
 }
 
 async fn serve_avatar(

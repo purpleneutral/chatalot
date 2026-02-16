@@ -97,3 +97,27 @@ export async function uploadBanner(file: File): Promise<UserPublic> {
 
 	return response.json();
 }
+
+export async function uploadVoiceBackground(file: File): Promise<{ url: string }> {
+	const formData = new FormData();
+	formData.append('background', file);
+
+	const headers: Record<string, string> = {};
+	const token = authStore.accessToken;
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const response = await fetch(`${apiBase()}/account/voice-background`, {
+		method: 'POST',
+		headers,
+		body: formData
+	});
+
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		throw new Error(body?.error?.message || `Upload failed: ${response.status}`);
+	}
+
+	return response.json();
+}

@@ -17,6 +17,44 @@ export type SendBehavior = 'enter' | 'ctrl-enter';
 export type NoiseSuppression = 'off' | 'noise-gate' | 'standard' | 'maximum';
 export type ChatBubbleStyle = 'flat' | 'bubbles';
 export type PresetTheme = 'default' | 'monokai' | 'dracula' | 'nord' | 'solarized' | 'amoled' | 'catppuccin' | 'custom';
+export type VoiceBackgroundType = 'none' | 'solid' | 'gradient' | 'preset' | 'custom';
+
+export interface VoiceBackground {
+	type: VoiceBackgroundType;
+	color?: string;
+	gradientFrom?: string;
+	gradientTo?: string;
+	gradientAngle?: number;
+	presetId?: string;
+	customUrl?: string;
+}
+
+export const VOICE_BG_PRESETS: Record<string, { label: string; css: string }> = {
+	fireplace: {
+		label: 'Fireplace',
+		css: 'linear-gradient(135deg, #ff6b35 0%, #d62828 40%, #f77f00 60%, #d62828 100%)'
+	},
+	aurora: {
+		label: 'Aurora',
+		css: 'linear-gradient(135deg, #0d7377 0%, #14ffec 30%, #0d7377 60%, #32e0c4 100%)'
+	},
+	rain: {
+		label: 'Rain',
+		css: 'linear-gradient(180deg, #0c1445 0%, #1a237e 50%, #283593 100%)'
+	},
+	sunset: {
+		label: 'Sunset',
+		css: 'linear-gradient(135deg, #ff6b2b 0%, #ee5a24 30%, #9b59b6 70%, #6c3483 100%)'
+	},
+	space: {
+		label: 'Space',
+		css: 'radial-gradient(ellipse at 20% 50%, #1a1a2e 0%, #0a0a14 50%, #000 100%)'
+	},
+	cozy: {
+		label: 'Cozy',
+		css: 'linear-gradient(135deg, #8b6914 0%, #a0522d 40%, #6b4226 70%, #3e2723 100%)'
+	}
+};
 
 export interface CustomThemeColors {
 	bgPrimary: string;
@@ -51,6 +89,7 @@ export interface UserPreferences {
 	reduceMotion: boolean;
 	presetTheme: PresetTheme;
 	customThemeColors: CustomThemeColors;
+	voiceBackground: VoiceBackground;
 }
 
 const DEFAULT_CUSTOM_COLORS: CustomThemeColors = {
@@ -85,7 +124,8 @@ const DEFAULTS: UserPreferences = {
 	relativeTimestamps: false,
 	reduceMotion: false,
 	presetTheme: 'default',
-	customThemeColors: { ...DEFAULT_CUSTOM_COLORS }
+	customThemeColors: { ...DEFAULT_CUSTOM_COLORS },
+	voiceBackground: { type: 'none' }
 };
 
 export const PRESET_THEMES: Record<PresetTheme, { label: string; colors: { dark: CustomThemeColors; light: CustomThemeColors } }> = {
@@ -292,3 +332,23 @@ class PreferencesStore {
 }
 
 export const preferencesStore = new PreferencesStore();
+
+/** Compute inline CSS for a voice background config. Returns empty string for 'none'. */
+export function voiceBackgroundStyle(bg: VoiceBackground): string {
+	switch (bg.type) {
+		case 'solid':
+			return bg.color ? `background: ${bg.color};` : '';
+		case 'gradient':
+			return bg.gradientFrom && bg.gradientTo
+				? `background: linear-gradient(${bg.gradientAngle ?? 135}deg, ${bg.gradientFrom}, ${bg.gradientTo});`
+				: '';
+		case 'preset': {
+			const preset = bg.presetId ? VOICE_BG_PRESETS[bg.presetId] : null;
+			return preset ? `background: ${preset.css};` : '';
+		}
+		case 'custom':
+			return bg.customUrl ? `background: url(${bg.customUrl}) center/cover no-repeat;` : '';
+		default:
+			return '';
+	}
+}
