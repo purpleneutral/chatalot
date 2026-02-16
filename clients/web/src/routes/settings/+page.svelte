@@ -427,8 +427,8 @@
 
 {#if authStore.isAuthenticated}
 	<div class="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-		<!-- Sidebar navigation -->
-		<nav class="flex w-56 shrink-0 flex-col border-r border-white/10 bg-[var(--bg-secondary)] p-4">
+		<!-- Sidebar navigation (hidden on mobile) -->
+		<nav class="hidden md:flex w-56 shrink-0 flex-col border-r border-white/10 bg-[var(--bg-secondary)] p-4">
 			<div class="mb-6 flex items-center justify-between">
 				<h1 class="text-lg font-bold">Settings</h1>
 				<button
@@ -476,7 +476,32 @@
 
 		<!-- Content area -->
 		<div class="flex-1 overflow-y-auto">
-			<div class="mx-auto max-w-2xl px-8 py-8">
+			<!-- Mobile header + tab bar -->
+			<div class="sticky top-0 z-10 flex items-center gap-2 border-b border-white/10 bg-[var(--bg-secondary)] px-4 py-2 md:hidden">
+				<button
+					onclick={() => goto('/channels')}
+					class="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5"
+					title="Back to chat"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<polyline points="15 18 9 12 15 6" />
+					</svg>
+				</button>
+				<div class="flex flex-1 gap-1 overflow-x-auto">
+					{#each tabs as tab}
+						<button
+							onclick={() => (activeTab = tab.id)}
+							class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition
+								{activeTab === tab.id
+									? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+									: 'text-[var(--text-secondary)] hover:bg-white/5'}"
+						>
+							{tab.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+			<div class="mx-auto max-w-2xl px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
 
 				<!-- ══════════════════ PROFILE TAB ══════════════════ -->
 				{#if activeTab === 'profile'}
@@ -662,7 +687,7 @@
 					<!-- Preset Themes -->
 					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Color Palette</h3>
-						<div class="grid grid-cols-4 gap-2">
+						<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
 							{#each presetThemeList as themeId}
 								{@const t = PRESET_THEMES[themeId]}
 								<button
@@ -1391,7 +1416,7 @@
 								</div>
 							</div>
 						{:else if voiceBgType === 'preset'}
-							<div class="grid grid-cols-3 gap-2">
+							<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 								{#each Object.entries(VOICE_BG_PRESETS) as [id, preset]}
 									<button
 										onclick={() => { voiceBgPresetId = id; applyVoiceBg(); }}

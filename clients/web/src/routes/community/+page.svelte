@@ -500,9 +500,20 @@
 			<div class="h-8 w-8 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
 		</div>
 	{:else if community}
-		<div class="mx-auto flex w-full max-w-4xl flex-1 gap-6 p-6">
-			<!-- Sidebar tabs -->
-			<nav class="w-48 space-y-1">
+		<div class="mx-auto flex w-full max-w-4xl flex-1 flex-col md:flex-row gap-4 md:gap-6 p-4 md:p-6">
+			<!-- Mobile tab bar -->
+			<div class="flex gap-1 overflow-x-auto pb-1 md:hidden">
+				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme'], ['emoji', 'Emoji']] : [])] as [tab, label]}
+					<button
+						onclick={() => switchTab(tab as typeof activeTab)}
+						class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition {activeTab === tab ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
+					>
+						{label}
+					</button>
+				{/each}
+			</div>
+			<!-- Sidebar tabs (desktop only) -->
+			<nav class="hidden md:block w-48 shrink-0 space-y-1">
 				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme'], ['emoji', 'Emoji']] : [])] as [tab, label]}
 					<button
 						onclick={() => switchTab(tab as typeof activeTab)}
@@ -578,7 +589,7 @@
 
 					{#if canManage}
 						<!-- Icon & Banner -->
-						<div class="mt-6 grid grid-cols-2 gap-4">
+						<div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<!-- Icon upload -->
 							<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
 								<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Community Icon</h3>
@@ -979,7 +990,7 @@
 						<!-- Color Pickers -->
 						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
 							<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Colors</h3>
-							<div class="grid grid-cols-2 gap-4">
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 								{#each [
 									['Accent', themeAccent, (v: string) => themeAccent = v] as [string, string, (v: string) => string],
 									['Accent Hover', themeAccentHover, (v: string) => themeAccentHover = v] as [string, string, (v: string) => string],
