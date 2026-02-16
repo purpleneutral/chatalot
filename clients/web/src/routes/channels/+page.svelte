@@ -837,6 +837,7 @@
 
 			// Fetch unread counts
 			try {
+				const activeAtStart = channelStore.activeChannelId;
 				const res = await fetch('/api/channels/unread', {
 					headers: { 'Authorization': `Bearer ${authStore.accessToken}` }
 				});
@@ -845,7 +846,7 @@
 					messageStore.setUnreadCounts(counts);
 					// Re-clear the active channel since setUnreadCounts replaces the entire map
 					const active = channelStore.activeChannelId;
-					if (active) {
+					if (active && active === activeAtStart) {
 						messageStore.clearUnread(active);
 					}
 				}
@@ -921,6 +922,7 @@
 			}, 3000);
 
 			// Re-sync unread counts after reconnect
+			const activeBeforeSync = channelStore.activeChannelId;
 			fetch('/api/channels/unread', {
 				headers: { 'Authorization': `Bearer ${authStore.accessToken}` }
 			}).then(async res => {
@@ -928,7 +930,7 @@
 					const counts = await res.json();
 					messageStore.setUnreadCounts(counts);
 					const active = channelStore.activeChannelId;
-					if (active) messageStore.clearUnread(active);
+					if (active && active === activeBeforeSync) messageStore.clearUnread(active);
 				}
 			}).catch(() => {});
 

@@ -15,6 +15,7 @@ use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 use crate::permissions;
+use crate::routes::account::validate_avatar_url;
 
 /// Protected routes (require auth).
 pub fn routes() -> Router<Arc<AppState>> {
@@ -45,6 +46,10 @@ async fn create_webhook(
 
     if req.name.is_empty() || req.name.len() > 64 {
         return Err(AppError::Validation("webhook name must be 1-64 characters".into()));
+    }
+
+    if let Some(ref url) = req.avatar_url {
+        validate_avatar_url(url)?;
     }
 
     let id = Uuid::now_v7();
@@ -97,6 +102,10 @@ async fn update_webhook(
 
     if !permissions::can_manage_roles(&role) {
         return Err(AppError::Forbidden);
+    }
+
+    if let Some(Some(ref url)) = req.avatar_url {
+        validate_avatar_url(url)?;
     }
 
     let updated = webhook_repo::update(

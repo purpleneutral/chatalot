@@ -626,15 +626,28 @@ async fn handle_client_message(
                 let tx = tx.clone();
                 let uid = user_id;
                 subscription_tasks.push(tokio::spawn(async move {
-                    while let Ok(msg) = rx.recv().await {
-                        // Don't echo messages back to the sender
-                        if let ServerMessage::NewMessage { sender_id, .. } = &msg
-                            && *sender_id == uid
-                        {
-                            continue;
-                        }
-                        if tx.send(msg).is_err() {
-                            break;
+                    loop {
+                        match rx.recv().await {
+                            Ok(msg) => {
+                                // Don't echo messages back to the sender
+                                if let ServerMessage::NewMessage { sender_id, .. } = &msg
+                                    && *sender_id == uid
+                                {
+                                    continue;
+                                }
+                                if tx.send(msg).is_err() {
+                                    break;
+                                }
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                                tracing::warn!(%uid, %channel_id, skipped = n, "broadcast subscriber lagged");
+                                let _ = tx.send(ServerMessage::Error {
+                                    code: "out_of_sync".to_string(),
+                                    message: "connection lagged, please refresh".to_string(),
+                                });
+                                break;
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                         }
                     }
                 }));

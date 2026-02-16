@@ -149,6 +149,10 @@ async fn update_profile(
         ));
     }
 
+    if let Some(ref url) = req.avatar_url {
+        validate_avatar_url(url)?;
+    }
+
     let user = user_repo::update_profile(
         &state.db,
         claims.sub,
@@ -467,5 +471,26 @@ async fn dismiss_announcement(
     Path(announcement_id): Path<Uuid>,
 ) -> Result<(), AppError> {
     announcement_repo::dismiss(&state.db, claims.sub, announcement_id).await?;
+    Ok(())
+}
+
+/// Validate that an avatar URL is a safe HTTP(S) or internal API path.
+pub fn validate_avatar_url(url: &str) -> Result<(), AppError> {
+    if url.is_empty() {
+        return Ok(());
+    }
+    if url.len() > 2048 {
+        return Err(AppError::Validation(
+            "avatar URL must be at most 2048 characters".to_string(),
+        ));
+    }
+    if !url.starts_with("http://")
+        && !url.starts_with("https://")
+        && !url.starts_with("/api/")
+    {
+        return Err(AppError::Validation(
+            "avatar URL must be an HTTP(S) URL or /api/ path".to_string(),
+        ));
+    }
     Ok(())
 }
