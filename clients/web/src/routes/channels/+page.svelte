@@ -117,6 +117,7 @@
 	let showNewDm = $state(false);
 	let dmSearchQuery = $state('');
 	let dmSearchResults = $state<UserPublic[]>([]);
+	let dmSearchError = $state(false);
 	let dmSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	/** Look up the other user's ID for a given DM channel. */
@@ -292,6 +293,7 @@
 	let gifSearchQuery = $state('');
 	let gifResults = $state<GifResult[]>([]);
 	let gifLoading = $state(false);
+	let gifError = $state(false);
 	let gifSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Emoji autocomplete state
@@ -1627,8 +1629,11 @@
 					dmSearchResults = await searchUsers(dmSearchQuery);
 					// Filter out self
 					dmSearchResults = dmSearchResults.filter(u => u.id !== authStore.user?.id);
+					dmSearchError = false;
 				} catch (err) {
-					console.error('Search failed:', err);
+					console.warn('DM search failed:', err);
+					dmSearchResults = [];
+					dmSearchError = true;
 				}
 			} else {
 				dmSearchResults = [];
@@ -2400,8 +2405,10 @@
 		try {
 			const resp = await getTrendingGifs(20);
 			gifResults = resp.results;
+			gifError = false;
 		} catch {
 			gifResults = [];
+			gifError = true;
 		}
 		gifLoading = false;
 	}
@@ -2418,8 +2425,10 @@
 			try {
 				const resp = await searchGifs(query.trim(), 20);
 				gifResults = resp.results;
+				gifError = false;
 			} catch {
 				gifResults = [];
+				gifError = true;
 			}
 			gifLoading = false;
 		}, 300);
@@ -3587,7 +3596,9 @@
 							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 						</button>
 					</div>
-					{#if dmSearchResults.length > 0}
+					{#if dmSearchError}
+						<p class="mt-2 px-3 text-xs text-[var(--danger)]">Search failed. Try again.</p>
+					{:else if dmSearchResults.length > 0}
 						<div class="mt-2 space-y-1">
 							{#each dmSearchResults as user (user.id)}
 								<button
@@ -5450,6 +5461,11 @@
 								{#if gifLoading}
 									<div class="flex items-center justify-center py-8">
 										<div class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+									</div>
+								{:else if gifError}
+									<div class="flex flex-col items-center justify-center py-8 text-[var(--text-secondary)]">
+										<p class="text-sm text-[var(--danger)]">Failed to load GIFs</p>
+										<button onclick={() => { gifError = false; gifSearchQuery ? handleGifSearch(gifSearchQuery) : loadTrendingGifs(); }} class="mt-1 text-xs text-[var(--accent)] hover:underline">Retry</button>
 									</div>
 								{:else if gifResults.length === 0}
 									<div class="flex flex-col items-center justify-center py-8 text-[var(--text-secondary)]">
