@@ -3,6 +3,13 @@ use uuid::Uuid;
 
 use crate::models::message::Message;
 
+/// Escape ILIKE special characters to prevent wildcard injection.
+fn escape_ilike(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 /// Insert a new message (ciphertext — server cannot read it).
 pub async fn create_message(
     pool: &PgPool,
@@ -108,7 +115,7 @@ pub async fn search_messages_global(
     limit: i64,
 ) -> Result<Vec<Message>, sqlx::Error> {
     let limit = limit.min(50);
-    let pattern = format!("%{}%", query);
+    let pattern = format!("%{}%", escape_ilike(query));
     sqlx::query_as::<_, Message>(
         r#"
         SELECT m.* FROM messages m
@@ -137,7 +144,7 @@ pub async fn search_messages(
     limit: i64,
 ) -> Result<Vec<Message>, sqlx::Error> {
     let limit = limit.min(50);
-    let pattern = format!("%{}%", query);
+    let pattern = format!("%{}%", escape_ilike(query));
     sqlx::query_as::<_, Message>(
         r#"
         SELECT * FROM messages

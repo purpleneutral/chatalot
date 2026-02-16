@@ -259,6 +259,14 @@ async fn handle_client_message(
 
             if channel.channel_type != ChannelType::Dm {
 
+                if channel.archived {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "archived".to_string(),
+                        message: "this channel is archived".to_string(),
+                    });
+                    return;
+                }
+
                 if channel.read_only && !is_privileged {
                     let _ = tx.send(ServerMessage::Error {
                         code: "read_only".to_string(),

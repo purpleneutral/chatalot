@@ -46,6 +46,14 @@ async fn schedule_message(
         return Err(AppError::Validation("ciphertext and nonce are required".into()));
     }
 
+    // Enforce per-user limit
+    let existing = scheduled_message_repo::list_for_user(&state.db, claims.sub).await?;
+    if existing.len() >= 50 {
+        return Err(AppError::Validation(
+            "cannot have more than 50 scheduled messages".into(),
+        ));
+    }
+
     let id = Uuid::now_v7();
     let msg = scheduled_message_repo::create(
         &state.db,

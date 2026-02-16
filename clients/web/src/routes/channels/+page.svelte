@@ -1451,6 +1451,7 @@
 			dmSearchResults = [];
 		} catch (err) {
 			console.error('Failed to create DM:', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to start conversation');
 		}
 	}
 

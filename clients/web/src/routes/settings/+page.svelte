@@ -13,7 +13,7 @@
 	import { changePassword, updateProfile, uploadAvatar, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import Avatar from '$lib/components/Avatar.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	type Tab = 'profile' | 'appearance' | 'notifications' | 'chat' | 'voice' | 'security' | 'account';
 	let activeTab = $state<Tab>('profile');
@@ -145,6 +145,7 @@
 
 	// Enumerate devices on mount
 	onMount(() => { audioDeviceStore.enumerateDevices(); });
+	onDestroy(() => { stopMicTest(); });
 
 	const nsLevels: { id: NoiseSuppression; label: string; desc: string; cpu: string }[] = [
 		{ id: 'off', label: 'Off', desc: 'No noise processing', cpu: '' },
