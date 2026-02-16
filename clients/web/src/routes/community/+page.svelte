@@ -27,10 +27,11 @@
 		type CommunityBan
 	} from '$lib/api/communities';
 	import { getPublicUrl } from '$lib/api/auth';
+	import { listCommunityEmojis, uploadEmoji, deleteEmoji, type CustomEmoji } from '$lib/api/custom-emoji';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount } from 'svelte';
 
-	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans' | 'settings' | 'theme'>('overview');
+	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans' | 'settings' | 'theme' | 'emoji'>('overview');
 	let community = $state<Community | null>(null);
 	let members = $state<CommunityMember[]>([]);
 	let invites = $state<CommunityInvite[]>([]);
@@ -62,6 +63,13 @@
 	let policyInvites = $state('admin');
 	let communityDiscoverable = $state(true);
 	let savingPolicies = $state(false);
+
+	// Custom emoji state
+	let communityEmojis = $state<CustomEmoji[]>([]);
+	let emojisLoading = $state(false);
+	let newEmojiShortcode = $state('');
+	let emojiFileInputEl: HTMLInputElement | undefined = $state();
+	let uploadingEmoji = $state(false);
 
 	// Theme state
 	let themeAccent = $state('');
@@ -403,10 +411,55 @@
 		themeCustomCss = '';
 	}
 
+	async function loadEmojis() {
+		if (!community) return;
+		emojisLoading = true;
+		try {
+			communityEmojis = await listCommunityEmojis(community.id);
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load emojis');
+		} finally {
+			emojisLoading = false;
+		}
+	}
+
+	async function handleUploadEmoji() {
+		if (!community || !emojiFileInputEl?.files?.[0] || !newEmojiShortcode.trim()) return;
+		const file = emojiFileInputEl.files[0];
+		if (file.size > 256 * 1024) {
+			toastStore.error('Emoji must be under 256 KB');
+			return;
+		}
+		uploadingEmoji = true;
+		try {
+			const emoji = await uploadEmoji(community.id, newEmojiShortcode.trim(), file);
+			communityEmojis = [...communityEmojis, emoji];
+			newEmojiShortcode = '';
+			emojiFileInputEl.value = '';
+			toastStore.success(`Added :${emoji.shortcode}:`);
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to upload emoji');
+		} finally {
+			uploadingEmoji = false;
+		}
+	}
+
+	async function handleDeleteEmoji(emoji: CustomEmoji) {
+		if (!community) return;
+		try {
+			await deleteEmoji(community.id, emoji.id);
+			communityEmojis = communityEmojis.filter(e => e.id !== emoji.id);
+			toastStore.success(`Removed :${emoji.shortcode}:`);
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to delete emoji');
+		}
+	}
+
 	function switchTab(tab: typeof activeTab) {
 		activeTab = tab;
 		if (tab === 'invites' && invites.length === 0) loadInvites();
 		if (tab === 'bans' && bans.length === 0) loadBans();
+		if (tab === 'emoji' && communityEmojis.length === 0) loadEmojis();
 	}
 
 	function roleLabel(role: string): string {
@@ -450,7 +503,7 @@
 		<div class="mx-auto flex w-full max-w-4xl flex-1 gap-6 p-6">
 			<!-- Sidebar tabs -->
 			<nav class="w-48 space-y-1">
-				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme']] : [])] as [tab, label]}
+				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme'], ['emoji', 'Emoji']] : [])] as [tab, label]}
 					<button
 						onclick={() => switchTab(tab as typeof activeTab)}
 						class="w-full rounded-lg px-3 py-2 text-left text-sm transition {activeTab === tab ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
@@ -999,6 +1052,83 @@
 							</button>
 						</div>
 					</div>
+				{:else if activeTab === 'emoji'}
+					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Custom Emoji</h2>
+					<p class="mb-4 text-sm text-[var(--text-secondary)]">Upload custom emojis for this community. Members can use them with <code class="rounded bg-white/10 px-1">:shortcode:</code> syntax. Max 50 emojis, 256 KB each.</p>
+
+					<!-- Upload form -->
+					{#if canManage}
+						<div class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<h3 class="mb-3 text-sm font-semibold text-[var(--text-primary)]">Add Emoji</h3>
+							<div class="flex flex-wrap items-end gap-3">
+								<div>
+									<label for="emoji-shortcode" class="mb-1 block text-xs text-[var(--text-secondary)]">Shortcode</label>
+									<input
+										id="emoji-shortcode"
+										type="text"
+										bind:value={newEmojiShortcode}
+										placeholder="my_emoji"
+										maxlength="32"
+										pattern="[a-zA-Z0-9_]+"
+										class="w-48 rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									/>
+									<p class="mt-0.5 text-xs text-[var(--text-secondary)] opacity-60">2-32 chars, letters/numbers/underscores</p>
+								</div>
+								<div>
+									<label for="emoji-file" class="mb-1 block text-xs text-[var(--text-secondary)]">Image</label>
+									<input
+										id="emoji-file"
+										type="file"
+										bind:this={emojiFileInputEl}
+										accept="image/png,image/gif,image/webp"
+										class="text-sm text-[var(--text-secondary)] file:mr-2 file:rounded file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1 file:text-sm file:text-white file:cursor-pointer hover:file:bg-[var(--accent-hover)]"
+									/>
+								</div>
+								<button
+									onclick={handleUploadEmoji}
+									disabled={uploadingEmoji || !newEmojiShortcode.trim() || !emojiFileInputEl?.files?.length}
+									class="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									{uploadingEmoji ? 'Uploading...' : 'Upload'}
+								</button>
+							</div>
+						</div>
+					{/if}
+
+					<!-- Emoji grid -->
+					{#if emojisLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading emojis...</p>
+					{:else if communityEmojis.length === 0}
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-8 text-center">
+							<p class="text-sm text-[var(--text-secondary)]">No custom emojis yet</p>
+							{#if canManage}
+								<p class="mt-1 text-xs text-[var(--text-secondary)] opacity-60">Upload your first emoji above!</p>
+							{/if}
+						</div>
+					{:else}
+						<div class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
+							<p class="mb-3 text-xs text-[var(--text-secondary)]">{communityEmojis.length}/50 emojis</p>
+							<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+								{#each communityEmojis as emoji (emoji.id)}
+									<div class="group flex items-center gap-3 rounded-lg border border-white/5 bg-[var(--bg-primary)] px-3 py-2">
+										<img src={emoji.url} alt={emoji.shortcode} class="h-8 w-8 object-contain" loading="lazy" />
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-medium text-[var(--text-primary)]">:{emoji.shortcode}:</p>
+										</div>
+										{#if canManage}
+											<button
+												onclick={() => handleDeleteEmoji(emoji)}
+												class="hidden shrink-0 rounded p-1 text-[var(--text-secondary)] transition hover:bg-red-500/10 hover:text-red-400 group-hover:block"
+												title="Delete emoji"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+											</button>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>

@@ -31,6 +31,7 @@
 	import { addBookmark, removeBookmark as apiRemoveBookmark, listBookmarks } from '$lib/api/bookmarks';
 	import { createPoll as apiCreatePoll, listPolls, getPoll, votePoll, removeVote as apiRemoveVote, closePoll as apiClosePoll, type Poll } from '$lib/api/polls';
 	import { listUndismissed as listUndismissedAnnouncements, dismissAnnouncement, type Announcement } from '$lib/api/announcements';
+	import { listCommunityEmojis, type CustomEmoji } from '$lib/api/custom-emoji';
 	import { bookmarkStore } from '$lib/stores/bookmarks.svelte';
 	import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
@@ -210,6 +211,10 @@
 
 	// Announcements
 	let announcements = $state<Announcement[]>([]);
+
+	// Custom emoji map for current community
+	let customEmojiMap = $state<Map<string, CustomEmoji>>(new Map());
+	let loadedCommunityEmojiId = '';
 
 	// Slow mode cooldown
 	let slowModeCooldown = $state(0);
@@ -903,6 +908,11 @@
 		try {
 			announcements = await listUndismissedAnnouncements();
 		} catch {}
+
+		// Load custom emojis for active community
+		if (communityStore.activeCommunityId) {
+			loadCustomEmojis(communityStore.activeCommunityId);
+		}
 
 		// Close context menu on click outside
 		document.addEventListener('click', closeContextMenu);
@@ -2197,8 +2207,17 @@
 			return '<span class="italic opacity-50">Encrypted message (E2E decryption not available)</span>';
 		}
 
+		// Replace :custom_emoji: shortcodes with inline images
+		let processed = text.replace(/:(\w{2,32}):/g, (match, shortcode) => {
+			const emoji = customEmojiMap.get(shortcode);
+			if (emoji) {
+				return `<img src="${emoji.url}" alt=":${shortcode}:" title=":${shortcode}:" class="custom-emoji" />`;
+			}
+			return match;
+		});
+
 		// Replace @mentions before markdown parsing
-		let processed = text.replace(/@(\w+)/g, (match, username) => {
+		processed = processed.replace(/@(\w+)/g, (match, username) => {
 			// Special group mentions
 			if (SPECIAL_MENTIONS.includes(username)) {
 				return `<span class="mention mention-group">@${username}</span>`;
@@ -2230,7 +2249,7 @@
 		};
 
 		const html = marked.parse(processed, { renderer }) as string;
-		return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type'] });
+		return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button', 'img'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type', 'src', 'alt', 'title'] });
 	}
 
 	function startReply(msg: ChatMessage) {
@@ -2595,10 +2614,22 @@
 		return groups;
 	}
 
+	async function loadCustomEmojis(communityId: string) {
+		if (loadedCommunityEmojiId === communityId) return;
+		try {
+			const emojis = await listCommunityEmojis(communityId);
+			const map = new Map<string, CustomEmoji>();
+			for (const e of emojis) map.set(e.shortcode, e);
+			customEmojiMap = map;
+			loadedCommunityEmojiId = communityId;
+		} catch {}
+	}
+
 	async function switchCommunity(communityId: string) {
 		if (communityId === communityStore.activeCommunityId) return;
 		communityStore.setActive(communityId);
 		sidebarTab = 'groups';
+		loadCustomEmojis(communityId);
 
 		try {
 			const groups = await loadCommunityGroups(communityId);

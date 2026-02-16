@@ -200,6 +200,15 @@ body {
 	font-weight: 600;
 }
 
+/* Custom emoji inline images */
+.custom-emoji {
+	height: 1.5em;
+	width: auto;
+	vertical-align: middle;
+	display: inline;
+	object-fit: contain;
+}
+
 /* Link embed cards */
 .link-embed {
 	text-decoration: none !important;
