@@ -117,6 +117,15 @@ async fn update_webhook(
         return Err(AppError::Forbidden);
     }
 
+    if let Some(ref name) = req.name {
+        let trimmed = name.trim();
+        if trimmed.is_empty() || trimmed.len() > 64 {
+            return Err(AppError::Validation(
+                "webhook name must be 1-64 characters".into(),
+            ));
+        }
+    }
+
     if let Some(Some(ref url)) = req.avatar_url {
         validate_avatar_url(url)?;
     }
@@ -167,6 +176,14 @@ async fn execute_webhook(
     if req.content.is_empty() || req.content.len() > 4000 {
         return Err(AppError::Validation(
             "content must be 1-4000 characters".into(),
+        ));
+    }
+
+    if let Some(ref u) = req.username
+        && u.len() > 64
+    {
+        return Err(AppError::Validation(
+            "username must be at most 64 characters".into(),
         ));
     }
 

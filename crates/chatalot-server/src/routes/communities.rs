@@ -975,6 +975,14 @@ async fn create_timeout(
         ));
     }
 
+    if let Some(ref r) = req.reason
+        && r.len() > 500
+    {
+        return Err(AppError::Validation(
+            "timeout reason must be at most 500 characters".into(),
+        ));
+    }
+
     let expires_at = chrono::Utc::now()
         + chrono::TimeDelta::seconds(req.duration_seconds);
 

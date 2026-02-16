@@ -216,6 +216,14 @@ async fn suspend_user(
         ));
     }
 
+    if let Some(ref r) = req.reason
+        && r.len() > 500
+    {
+        return Err(AppError::Validation(
+            "reason must be at most 500 characters".to_string(),
+        ));
+    }
+
     user_repo::suspend_user(&state.db, user_id, req.reason.as_deref()).await?;
 
     // Revoke all their sessions
@@ -954,6 +962,14 @@ async fn add_blocked_hash(
     if req.hash.len() != 64 {
         return Err(AppError::Validation(
             "hash must be a 64-character hex SHA256".to_string(),
+        ));
+    }
+
+    if let Some(ref r) = req.reason
+        && r.len() > 500
+    {
+        return Err(AppError::Validation(
+            "reason must be at most 500 characters".to_string(),
         ));
     }
 
