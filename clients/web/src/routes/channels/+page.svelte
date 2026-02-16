@@ -1472,7 +1472,7 @@
 			// Remove the optimistic pending message
 			messageStore.removeMessage(channelStore.activeChannelId, tempId);
 			messageInput = text;
-			console.warn('Message not sent — connection lost');
+			toastStore.error('Message not sent — connection lost');
 			return;
 		}
 
@@ -1588,6 +1588,7 @@
 			showCreateChannel = false;
 		} catch (err) {
 			console.error('Failed to create channel:', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to create channel');
 		} finally {
 			creatingChannel = false;
 		}
@@ -1692,7 +1693,7 @@
 			});
 
 			if (!fileSent) {
-				console.warn('File message not sent — connection lost');
+				toastStore.error('File not sent — connection lost');
 				return;
 			}
 

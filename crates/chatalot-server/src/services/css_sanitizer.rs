@@ -173,4 +173,51 @@ mod tests {
         let result = sanitize_css(&big);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn blocks_moz_binding() {
+        let result = sanitize_css("-moz-binding: url(evil)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn blocks_expression() {
+        let result = sanitize_css("width: expression(alert(1))");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn blocks_pointer_events() {
+        let result = sanitize_css("pointer-events: none");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn allows_gradients() {
+        let result =
+            sanitize_css("background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)");
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("linear-gradient"));
+    }
+
+    #[test]
+    fn allows_rgba_colors() {
+        let result = sanitize_css("color: rgba(255, 255, 255, 0.8)");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn blocks_behavior() {
+        let result = sanitize_css("behavior: url(xss.htc)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn preserves_declaration_values() {
+        let result = sanitize_css("border-radius: 8px; opacity: 0.5");
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("border-radius: 8px"));
+        assert!(output.contains("opacity: 0.5"));
+    }
 }

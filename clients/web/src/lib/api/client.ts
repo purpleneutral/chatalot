@@ -80,9 +80,14 @@ class ApiClient {
 	}
 
 	private async parseError(response: Response): Promise<Error> {
+		if (response.status === 429) {
+			const retryAfter = response.headers.get('Retry-After');
+			const secs = retryAfter ? parseInt(retryAfter, 10) : 0;
+			return new Error(secs > 0 ? `Too many requests — try again in ${secs}s` : 'Too many requests — slow down');
+		}
 		try {
 			const body = await response.json();
-			return new Error(body.error?.message || `HTTP ${response.status}`);
+			return new Error(body.error?.message || body.message || `HTTP ${response.status}`);
 		} catch {
 			return new Error(`HTTP ${response.status}`);
 		}
