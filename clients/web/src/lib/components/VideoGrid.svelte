@@ -532,6 +532,7 @@
 							max="200"
 							value={preferencesStore.preferences.inputGain}
 							oninput={(e) => webrtcManager.setMicGain(parseInt(e.currentTarget.value))}
+							aria-label="Microphone volume"
 							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
 						/>
 						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
@@ -562,6 +563,7 @@
 							value={voiceStore.isScreenShareMuted(menuUserId) ? 0 : voiceStore.getScreenShareVolume(menuUserId)}
 							disabled={voiceStore.isScreenShareMuted(menuUserId)}
 							oninput={(e) => { if (menuUserId) voiceStore.setScreenShareVolume(menuUserId, parseInt(e.currentTarget.value)); }}
+							aria-label="Screen share volume"
 							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)] disabled:opacity-40"
 						/>
 						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">
@@ -611,6 +613,7 @@
 							max="500"
 							value={voiceStore.getUserVolume(menuUserId)}
 							oninput={(e) => { if (menuUserId) voiceStore.setUserVolume(menuUserId, parseInt(e.currentTarget.value)); }}
+							aria-label="User volume"
 							class="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--accent)]"
 						/>
 						<span class="w-10 text-right text-xs font-medium text-[var(--text-secondary)]">

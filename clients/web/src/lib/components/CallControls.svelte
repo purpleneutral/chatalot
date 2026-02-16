@@ -3,6 +3,7 @@
 	import { preferencesStore } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import { nextLevel, SUPPRESSION_LABELS } from '$lib/webrtc/noise-suppression';
 
 	interface Props {
@@ -12,6 +13,7 @@
 
 	let { channelId, channelType }: Props = $props();
 
+	let joining = $state(false);
 	let voiceParticipants = $derived(voiceStore.getChannelParticipants(channelId));
 	let isInThisCall = $derived(voiceStore.activeCall?.channelId === channelId);
 	let callActive = $derived(voiceParticipants.length > 0);
@@ -19,10 +21,19 @@
 	let nsActive = $derived(nsLevel !== 'off');
 
 	async function joinCall(withVideo: boolean) {
+		joining = true;
 		try {
 			await webrtcManager.joinCall(channelId, withVideo);
 		} catch (err) {
 			console.error('Failed to join call:', err);
+			const msg = err instanceof DOMException && err.name === 'NotAllowedError'
+				? 'Microphone access denied'
+				: err instanceof DOMException && err.name === 'NotFoundError'
+				? 'No microphone found'
+				: 'Failed to join call';
+			toastStore.error(msg);
+		} finally {
+			joining = false;
 		}
 	}
 
@@ -54,6 +65,7 @@
 					onclick={() => webrtcManager.toggleAudio()}
 					class="rounded-lg p-2 text-sm transition {voiceStore.activeCall?.audioEnabled ? 'bg-white/5 text-[var(--text-primary)]' : 'bg-red-500/20 text-red-400'}"
 					title={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}
+					aria-label={voiceStore.activeCall?.audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
 				>
 					{#if voiceStore.activeCall?.audioEnabled}
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -76,6 +88,7 @@
 					onclick={cycleNoiseSuppression}
 					class="relative hidden sm:block rounded-lg p-2 text-sm transition {nsActive ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
 					title="Noise suppression: {SUPPRESSION_LABELS[nsLevel]}"
+					aria-label="Noise suppression: {SUPPRESSION_LABELS[nsLevel]}"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -92,6 +105,7 @@
 					onclick={() => webrtcManager.toggleVideo()}
 					class="rounded-lg p-2 text-sm transition {voiceStore.activeCall?.videoEnabled ? 'bg-white/5 text-[var(--text-primary)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
 					title={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
+					aria-label={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
 				>
 					{#if voiceStore.activeCall?.videoEnabled}
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -110,6 +124,7 @@
 					onclick={() => webrtcManager.toggleScreenShare()}
 					class="hidden sm:block rounded-lg p-2 text-sm transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'bg-white/5 text-[var(--text-secondary)]'}"
 					title={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'}
+					aria-label={voiceStore.activeCall?.screenSharing ? 'Stop screen sharing' : 'Share screen'}
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" />
@@ -122,6 +137,7 @@
 					onclick={leaveCall}
 					class="rounded-lg bg-red-500 p-2 text-sm text-white transition hover:bg-red-600"
 					title="Leave call"
+					aria-label="Leave call"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
@@ -133,14 +149,16 @@
 			<!-- Join buttons -->
 			<button
 				onclick={() => joinCall(false)}
-				class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700"
+				disabled={joining}
+				class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
 				title="Join voice call"
 			>
-				Join Voice
+				{joining ? 'Joining...' : 'Join Voice'}
 			</button>
 			<button
 				onclick={() => joinCall(true)}
-				class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+				disabled={joining}
+				class="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
 				title="Join with video"
 			>
 				Video

@@ -195,6 +195,11 @@ async fn create_group(
         let member_ids =
             community_repo::list_community_member_user_ids(&state.db, req.community_id)
                 .await?;
+        if member_ids.len() > 5000 {
+            return Err(AppError::Validation(
+                "Community is too large for public group auto-join; create a private group and use invites".into(),
+            ));
+        }
         for uid in &member_ids {
             if *uid == claims.sub {
                 continue; // Creator already added as owner

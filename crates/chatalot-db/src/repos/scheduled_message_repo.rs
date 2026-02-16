@@ -34,7 +34,7 @@ pub async fn list_for_user(
     user_id: Uuid,
 ) -> Result<Vec<ScheduledMessage>, sqlx::Error> {
     sqlx::query_as::<_, ScheduledMessage>(
-        "SELECT * FROM scheduled_messages WHERE user_id = $1 ORDER BY scheduled_for ASC",
+        "SELECT * FROM scheduled_messages WHERE user_id = $1 ORDER BY scheduled_for ASC LIMIT 200",
     )
     .bind(user_id)
     .fetch_all(pool)
@@ -43,7 +43,7 @@ pub async fn list_for_user(
 
 pub async fn get_due_messages(pool: &PgPool) -> Result<Vec<ScheduledMessage>, sqlx::Error> {
     sqlx::query_as::<_, ScheduledMessage>(
-        "SELECT * FROM scheduled_messages WHERE scheduled_for <= NOW() ORDER BY scheduled_for ASC",
+        "SELECT * FROM scheduled_messages WHERE scheduled_for <= NOW() ORDER BY scheduled_for ASC LIMIT 500",
     )
     .fetch_all(pool)
     .await

@@ -65,7 +65,7 @@ pub async fn list_group_invites(
     group_id: Uuid,
 ) -> Result<Vec<GroupInvite>, sqlx::Error> {
     sqlx::query_as::<_, GroupInvite>(
-        "SELECT * FROM group_invites WHERE group_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM group_invites WHERE group_id = $1 ORDER BY created_at DESC LIMIT 100",
     )
     .bind(group_id)
     .fetch_all(pool)
