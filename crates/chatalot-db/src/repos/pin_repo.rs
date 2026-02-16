@@ -67,11 +67,10 @@ pub async fn count_pins(pool: &PgPool, channel_id: Uuid) -> Result<i64, sqlx::Er
 
 /// Check if a message is pinned.
 pub async fn is_pinned(pool: &PgPool, message_id: Uuid) -> Result<bool, sqlx::Error> {
-    let row: (bool,) = sqlx::query_as(
-        "SELECT EXISTS(SELECT 1 FROM pinned_messages WHERE message_id = $1)",
-    )
-    .bind(message_id)
-    .fetch_one(pool)
-    .await?;
+    let row: (bool,) =
+        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM pinned_messages WHERE message_id = $1)")
+            .bind(message_id)
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }

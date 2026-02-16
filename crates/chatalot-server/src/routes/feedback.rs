@@ -51,10 +51,7 @@ async fn submit_feedback(
                     .map_err(|e| AppError::Validation(format!("invalid category: {e}")))?;
             }
             "screenshot" => {
-                let filename = field
-                    .file_name()
-                    .unwrap_or("screenshot.png")
-                    .to_string();
+                let filename = field.file_name().unwrap_or("screenshot.png").to_string();
                 let data = field
                     .bytes()
                     .await
@@ -172,9 +169,8 @@ async fn submit_feedback(
 
         let form = reqwest::multipart::Form::new().part("attachment", part);
 
-        let attach_url = format!(
-            "{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues/{issue_idx}/assets"
-        );
+        let attach_url =
+            format!("{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues/{issue_idx}/assets");
 
         let attach_resp = client
             .post(&attach_url)

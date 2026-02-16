@@ -70,15 +70,10 @@ pub async fn delete(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn count_for_community(
-    pool: &PgPool,
-    community_id: Uuid,
-) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM custom_emojis WHERE community_id = $1",
-    )
-    .bind(community_id)
-    .fetch_one(pool)
-    .await?;
+pub async fn count_for_community(pool: &PgPool, community_id: Uuid) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM custom_emojis WHERE community_id = $1")
+        .bind(community_id)
+        .fetch_one(pool)
+        .await?;
     Ok(row.0)
 }

@@ -103,24 +103,18 @@ pub async fn get_votes_for_polls(
 }
 
 pub async fn close(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
-    let result =
-        sqlx::query("UPDATE polls SET closed = true WHERE id = $1 AND closed = false")
-            .bind(id)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query("UPDATE polls SET closed = true WHERE id = $1 AND closed = false")
+        .bind(id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn list_for_channel(
-    pool: &PgPool,
-    channel_id: Uuid,
-) -> Result<Vec<Poll>, sqlx::Error> {
-    sqlx::query_as::<_, Poll>(
-        "SELECT * FROM polls WHERE channel_id = $1 ORDER BY created_at DESC",
-    )
-    .bind(channel_id)
-    .fetch_all(pool)
-    .await
+pub async fn list_for_channel(pool: &PgPool, channel_id: Uuid) -> Result<Vec<Poll>, sqlx::Error> {
+    sqlx::query_as::<_, Poll>("SELECT * FROM polls WHERE channel_id = $1 ORDER BY created_at DESC")
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await
 }
 
 /// Remove all votes for a user in a poll (for switching single-select votes).
@@ -129,12 +123,10 @@ pub async fn remove_all_votes_for_user(
     poll_id: Uuid,
     user_id: Uuid,
 ) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2",
-    )
-    .bind(poll_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+    let result = sqlx::query("DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2")
+        .bind(poll_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected())
 }

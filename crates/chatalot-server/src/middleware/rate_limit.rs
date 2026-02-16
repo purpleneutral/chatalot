@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 pub struct RateLimiter {
     buckets: Mutex<HashMap<IpAddr, Bucket>>,
     max_tokens: u32,
-    refill_rate: f64,   // tokens per second
+    refill_rate: f64, // tokens per second
     last_eviction: Mutex<Instant>,
 }
 
@@ -44,9 +44,7 @@ impl RateLimiter {
         // Periodically evict stale buckets to prevent unbounded growth
         let mut last_eviction = self.last_eviction.lock().await;
         if now.duration_since(*last_eviction).as_secs() >= EVICTION_INTERVAL_SECS {
-            buckets.retain(|_, b| {
-                now.duration_since(b.last_refill).as_secs() < BUCKET_TTL_SECS
-            });
+            buckets.retain(|_, b| now.duration_since(b.last_refill).as_secs() < BUCKET_TTL_SECS);
             *last_eviction = now;
         }
         drop(last_eviction);
@@ -71,10 +69,7 @@ impl RateLimiter {
 }
 
 /// Rate limiting middleware.
-pub async fn rate_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn rate_limit_middleware(request: Request, next: Next) -> Response {
     // Extract client IP from X-Forwarded-For (Cloudflare) or connection info
     let ip = request
         .headers()
@@ -103,10 +98,7 @@ pub async fn rate_limit_middleware(
 }
 
 /// Stricter rate limiter for auth endpoints (login/register).
-pub async fn auth_rate_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn auth_rate_limit_middleware(request: Request, next: Next) -> Response {
     let ip = request
         .headers()
         .get("cf-connecting-ip")

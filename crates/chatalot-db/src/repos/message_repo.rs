@@ -46,10 +46,7 @@ pub async fn create_message(
 }
 
 /// Count messages in a channel (excluding deleted and quarantined).
-pub async fn count_messages(
-    pool: &PgPool,
-    channel_id: Uuid,
-) -> Result<i64, sqlx::Error> {
+pub async fn count_messages(pool: &PgPool, channel_id: Uuid) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM messages WHERE channel_id = $1 AND deleted_at IS NULL AND quarantined_at IS NULL",
     )
@@ -191,16 +188,12 @@ pub async fn delete_message(
 }
 
 /// Soft-delete a message as a moderator (no sender ownership check).
-pub async fn delete_message_as_mod(
-    pool: &PgPool,
-    message_id: Uuid,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "UPDATE messages SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(message_id)
-    .execute(pool)
-    .await?;
+pub async fn delete_message_as_mod(pool: &PgPool, message_id: Uuid) -> Result<bool, sqlx::Error> {
+    let result =
+        sqlx::query("UPDATE messages SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL")
+            .bind(message_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 
@@ -214,10 +207,7 @@ pub async fn hard_delete_message(pool: &PgPool, message_id: Uuid) -> Result<bool
 }
 
 /// Hard-delete ALL messages from a user across all channels.
-pub async fn hard_delete_user_messages(
-    pool: &PgPool,
-    sender_id: Uuid,
-) -> Result<u64, sqlx::Error> {
+pub async fn hard_delete_user_messages(pool: &PgPool, sender_id: Uuid) -> Result<u64, sqlx::Error> {
     let result = sqlx::query("DELETE FROM messages WHERE sender_id = $1")
         .bind(sender_id)
         .execute(pool)
@@ -277,11 +267,10 @@ pub async fn unquarantine_message(pool: &PgPool, message_id: Uuid) -> Result<boo
 
 /// Delete messages that have expired (TTL).
 pub async fn delete_expired_messages(pool: &PgPool) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at < NOW()",
-    )
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at < NOW()")
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected())
 }
 

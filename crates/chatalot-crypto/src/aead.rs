@@ -1,6 +1,6 @@
 use chacha20poly1305::{
-    aead::{Aead, KeyInit, OsRng},
     ChaCha20Poly1305, Nonce,
+    aead::{Aead, KeyInit, OsRng},
 };
 use rand::RngCore;
 use thiserror::Error;
@@ -33,14 +33,18 @@ pub fn generate_nonce() -> [u8; 12] {
 pub fn encrypt(key: &[u8; 32], nonce: &[u8; 12], plaintext: &[u8]) -> Result<Vec<u8>, AeadError> {
     let cipher = ChaCha20Poly1305::new(key.into());
     let nonce = Nonce::from_slice(nonce);
-    cipher.encrypt(nonce, plaintext).map_err(|_| AeadError::EncryptionFailed)
+    cipher
+        .encrypt(nonce, plaintext)
+        .map_err(|_| AeadError::EncryptionFailed)
 }
 
 /// Decrypt ciphertext with ChaCha20-Poly1305.
 pub fn decrypt(key: &[u8; 32], nonce: &[u8; 12], ciphertext: &[u8]) -> Result<Vec<u8>, AeadError> {
     let cipher = ChaCha20Poly1305::new(key.into());
     let nonce = Nonce::from_slice(nonce);
-    cipher.decrypt(nonce, ciphertext).map_err(|_| AeadError::DecryptionFailed)
+    cipher
+        .decrypt(nonce, ciphertext)
+        .map_err(|_| AeadError::DecryptionFailed)
 }
 
 #[cfg(test)]

@@ -21,10 +21,7 @@ pub struct CommunityContext {
 impl CommunityContext {
     /// Owner, admin, or instance admin.
     pub fn can_manage(&self) -> bool {
-        matches!(
-            self.role.as_str(),
-            "owner" | "admin" | "instance_admin"
-        )
+        matches!(self.role.as_str(), "owner" | "admin" | "instance_admin")
     }
 
     /// Owner, admin, moderator, or instance admin.

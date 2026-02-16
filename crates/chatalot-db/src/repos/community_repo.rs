@@ -2,9 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::community::{
-    Community, CommunityBanInfo, CommunityInvite, CommunityMemberInfo,
-};
+use crate::models::community::{Community, CommunityBanInfo, CommunityInvite, CommunityMemberInfo};
 use crate::models::user::User;
 
 // ── CRUD ──
@@ -438,12 +436,11 @@ pub async fn unban_from_community(
     community_id: Uuid,
     user_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let result =
-        sqlx::query("DELETE FROM community_bans WHERE community_id = $1 AND user_id = $2")
-            .bind(community_id)
-            .bind(user_id)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query("DELETE FROM community_bans WHERE community_id = $1 AND user_id = $2")
+        .bind(community_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 
@@ -523,12 +520,10 @@ pub async fn get_community_invite_by_code(
     pool: &PgPool,
     code: &str,
 ) -> Result<Option<CommunityInvite>, sqlx::Error> {
-    sqlx::query_as::<_, CommunityInvite>(
-        "SELECT * FROM community_invites WHERE code = $1",
-    )
-    .bind(code)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as::<_, CommunityInvite>("SELECT * FROM community_invites WHERE code = $1")
+        .bind(code)
+        .fetch_optional(pool)
+        .await
 }
 
 pub async fn delete_community_invite(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
@@ -581,10 +576,7 @@ pub async fn shares_community(
 }
 
 /// Get all distinct user IDs that share at least one community with the given user.
-pub async fn get_community_mates(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Vec<Uuid>, sqlx::Error> {
+pub async fn get_community_mates(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
     let rows: Vec<(Uuid,)> = sqlx::query_as(
         r#"SELECT DISTINCT cm2.user_id
            FROM community_members cm1

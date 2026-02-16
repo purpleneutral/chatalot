@@ -22,9 +22,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/auth/config", get(server_config))
 }
 
-async fn server_config(
-    State(state): State<Arc<AppState>>,
-) -> Json<ServerConfigResponse> {
+async fn server_config(State(state): State<Arc<AppState>>) -> Json<ServerConfigResponse> {
     Json(ServerConfigResponse {
         registration_mode: state.config.registration_mode.clone(),
         public_url: state.config.public_url.clone(),
@@ -115,8 +113,7 @@ async fn register(
         .map(parse_device_name);
     let ip = extract_client_ip(&headers);
 
-    let response =
-        auth_service::register(&state, req, device.as_deref(), ip.as_deref()).await?;
+    let response = auth_service::register(&state, req, device.as_deref(), ip.as_deref()).await?;
     Ok(Json(response))
 }
 
@@ -131,8 +128,7 @@ async fn login(
         .map(parse_device_name);
     let ip = extract_client_ip(&headers);
 
-    let response =
-        auth_service::login(&state, req, device.as_deref(), ip.as_deref()).await?;
+    let response = auth_service::login(&state, req, device.as_deref(), ip.as_deref()).await?;
     Ok(Json(response))
 }
 

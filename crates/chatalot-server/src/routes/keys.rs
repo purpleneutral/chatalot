@@ -68,10 +68,14 @@ async fn upload_signed_prekey(
     Json(req): Json<SignedPrekeyUpload>,
 ) -> Result<(), AppError> {
     if req.public_key.len() != 32 {
-        return Err(AppError::Validation("public key must be 32 bytes".to_string()));
+        return Err(AppError::Validation(
+            "public key must be 32 bytes".to_string(),
+        ));
     }
     if req.signature.len() != 64 {
-        return Err(AppError::Validation("signature must be 64 bytes".to_string()));
+        return Err(AppError::Validation(
+            "signature must be 64 bytes".to_string(),
+        ));
     }
 
     key_repo::upsert_signed_prekey(

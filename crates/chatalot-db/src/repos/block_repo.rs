@@ -25,12 +25,11 @@ pub async fn unblock_user(
     blocker_id: Uuid,
     blocked_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let result =
-        sqlx::query("DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2")
-            .bind(blocker_id)
-            .bind(blocked_id)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query("DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2")
+        .bind(blocker_id)
+        .bind(blocked_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 

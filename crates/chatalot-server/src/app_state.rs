@@ -26,8 +26,8 @@ impl AppState {
         let jwt_decoding_key = DecodingKey::from_ed_pem(public_pem.as_bytes())?;
 
         // Read client version from static/version.json (written by Vite build)
-        let static_dir = std::env::var("STATIC_FILES_PATH")
-            .unwrap_or_else(|_| "./static".to_string());
+        let static_dir =
+            std::env::var("STATIC_FILES_PATH").unwrap_or_else(|_| "./static".to_string());
         let client_version = std::fs::read_to_string(format!("{static_dir}/version.json"))
             .ok()
             .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())

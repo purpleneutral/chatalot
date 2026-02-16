@@ -5,7 +5,9 @@ use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
-use chatalot_common::api_types::{CreatePollRequest, PollOptionVotes, PollResponse, VotePollRequest};
+use chatalot_common::api_types::{
+    CreatePollRequest, PollOptionVotes, PollResponse, VotePollRequest,
+};
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{channel_repo, poll_repo};
 
@@ -34,7 +36,9 @@ async fn create_poll(
 
     let question = req.question.trim();
     if question.is_empty() || question.len() > 500 {
-        return Err(AppError::Validation("question must be 1-500 characters".into()));
+        return Err(AppError::Validation(
+            "question must be 1-500 characters".into(),
+        ));
     }
 
     if req.options.len() < 2 || req.options.len() > 10 {
@@ -44,14 +48,18 @@ async fn create_poll(
     let options: Vec<String> = req.options.iter().map(|o| o.trim().to_string()).collect();
     for opt in &options {
         if opt.is_empty() || opt.len() > 200 {
-            return Err(AppError::Validation("each option must be 1-200 characters".into()));
+            return Err(AppError::Validation(
+                "each option must be 1-200 characters".into(),
+            ));
         }
     }
 
     if let Some(m) = req.expires_in_minutes
         && !(1..=10080).contains(&m)
     {
-        return Err(AppError::Validation("expires_in_minutes must be 1-10080".into()));
+        return Err(AppError::Validation(
+            "expires_in_minutes must be 1-10080".into(),
+        ));
     }
 
     let id = Uuid::now_v7();
@@ -120,7 +128,8 @@ async fn list_polls(
     let all_votes = poll_repo::get_votes_for_polls(&state.db, &poll_ids).await?;
 
     // Group votes by poll_id
-    let mut votes_by_poll: std::collections::HashMap<Uuid, Vec<_>> = std::collections::HashMap::new();
+    let mut votes_by_poll: std::collections::HashMap<Uuid, Vec<_>> =
+        std::collections::HashMap::new();
     for vote in all_votes {
         votes_by_poll.entry(vote.poll_id).or_default().push(vote);
     }
@@ -128,7 +137,10 @@ async fn list_polls(
     let responses: Vec<_> = polls
         .iter()
         .map(|poll| {
-            let votes = votes_by_poll.get(&poll.id).map(|v| v.as_slice()).unwrap_or(&[]);
+            let votes = votes_by_poll
+                .get(&poll.id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
             poll_to_response(poll, votes)
         })
         .collect();
@@ -172,7 +184,11 @@ async fn vote_poll(
     let vote_id = Uuid::now_v7();
     poll_repo::vote(&state.db, vote_id, poll_id, claims.sub, req.option_index).await?;
 
-    let voter_id = if poll.anonymous { None } else { Some(claims.sub) };
+    let voter_id = if poll.anonymous {
+        None
+    } else {
+        Some(claims.sub)
+    };
     state.connections.broadcast_to_channel(
         poll.channel_id,
         ServerMessage::PollVoted {
@@ -240,8 +256,7 @@ fn poll_to_response(
     poll: &chatalot_db::models::poll::Poll,
     votes: &[chatalot_db::models::poll::PollVote],
 ) -> PollResponse {
-    let options: Vec<String> =
-        serde_json::from_value(poll.options.clone()).unwrap_or_default();
+    let options: Vec<String> = serde_json::from_value(poll.options.clone()).unwrap_or_default();
 
     // Aggregate votes per option
     let mut option_votes: Vec<PollOptionVotes> = options

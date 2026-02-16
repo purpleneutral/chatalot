@@ -10,13 +10,13 @@
 use std::collections::HashMap;
 
 use chacha20poly1305::{
-    aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
+    aead::{Aead, KeyInit},
 };
 use hkdf::Hkdf;
 use rand::rngs::OsRng;
-use sha2::Sha256;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use x25519_dalek::PublicKey as X25519Public;
 use zeroize::Zeroize;
 
@@ -137,8 +137,7 @@ impl RatchetSession {
         let dh_output = our_secret.diffie_hellman(their_ratchet_key);
 
         // Derive root key and initial sending chain key
-        let (root_key, chain_key) =
-            kdf_rk(shared_secret.as_bytes(), dh_output.as_bytes())?;
+        let (root_key, chain_key) = kdf_rk(shared_secret.as_bytes(), dh_output.as_bytes())?;
 
         Ok(Self {
             dh_sending_private: Some(our_secret.to_bytes()),
@@ -224,8 +223,7 @@ impl RatchetSession {
         }
 
         // Check if we need to perform a DH ratchet step
-        let their_key_changed = self.dh_receiving_key.as_ref()
-            != Some(&message.header.ratchet_key);
+        let their_key_changed = self.dh_receiving_key.as_ref() != Some(&message.header.ratchet_key);
 
         if their_key_changed {
             // Skip any remaining messages in the current receiving chain
@@ -265,8 +263,7 @@ impl RatchetSession {
         if let Some(our_private_bytes) = &self.dh_sending_private {
             let our_secret = x25519_dalek::StaticSecret::from(*our_private_bytes);
             let dh_output = our_secret.diffie_hellman(&their_public);
-            let (new_root, recv_chain) =
-                kdf_rk(&self.root_key, dh_output.as_bytes())?;
+            let (new_root, recv_chain) = kdf_rk(&self.root_key, dh_output.as_bytes())?;
             self.root_key = new_root;
             self.receiving_chain_key = Some(recv_chain);
         }
@@ -275,8 +272,7 @@ impl RatchetSession {
         let new_secret = x25519_dalek::StaticSecret::random_from_rng(OsRng);
         let new_public = X25519Public::from(&new_secret);
         let dh_output = new_secret.diffie_hellman(&their_public);
-        let (new_root, send_chain) =
-            kdf_rk(&self.root_key, dh_output.as_bytes())?;
+        let (new_root, send_chain) = kdf_rk(&self.root_key, dh_output.as_bytes())?;
 
         self.root_key = new_root;
         self.sending_chain_key = Some(send_chain);

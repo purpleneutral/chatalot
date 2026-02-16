@@ -49,9 +49,7 @@ pub async fn validate_and_consume(
     .await
 }
 
-pub async fn list_invites(
-    pool: &PgPool,
-) -> Result<Vec<RegistrationInvite>, sqlx::Error> {
+pub async fn list_invites(pool: &PgPool) -> Result<Vec<RegistrationInvite>, sqlx::Error> {
     sqlx::query_as::<_, RegistrationInvite>(
         "SELECT * FROM registration_invites ORDER BY created_at DESC",
     )
@@ -59,10 +57,7 @@ pub async fn list_invites(
     .await
 }
 
-pub async fn delete_invite(
-    pool: &PgPool,
-    id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn delete_invite(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM registration_invites WHERE id = $1")
         .bind(id)
         .execute(pool)

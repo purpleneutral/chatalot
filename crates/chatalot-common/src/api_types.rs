@@ -1031,4 +1031,3 @@ pub struct AnnouncementResponse {
     pub created_by: Uuid,
     pub created_at: String,
 }
-

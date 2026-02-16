@@ -66,13 +66,11 @@ pub async fn list_for_user(
 }
 
 pub async fn remove(pool: &PgPool, user_id: Uuid, channel_id: Uuid) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM user_timeouts WHERE user_id = $1 AND channel_id = $2",
-    )
-    .bind(user_id)
-    .bind(channel_id)
-    .execute(pool)
-    .await?;
+    let result = sqlx::query("DELETE FROM user_timeouts WHERE user_id = $1 AND channel_id = $2")
+        .bind(user_id)
+        .bind(channel_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 

@@ -52,26 +52,20 @@ pub async fn delete_distribution(
     channel_id: Uuid,
     user_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM sender_key_distributions WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("DELETE FROM sender_key_distributions WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(user_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 
 /// Delete ALL sender key distributions for a channel (full rotation).
-pub async fn delete_all_distributions(
-    pool: &PgPool,
-    channel_id: Uuid,
-) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM sender_key_distributions WHERE channel_id = $1",
-    )
-    .bind(channel_id)
-    .execute(pool)
-    .await?;
+pub async fn delete_all_distributions(pool: &PgPool, channel_id: Uuid) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM sender_key_distributions WHERE channel_id = $1")
+        .bind(channel_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected())
 }

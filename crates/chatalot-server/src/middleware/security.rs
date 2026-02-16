@@ -17,10 +17,7 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
         );
     } else if !path.starts_with("/api") {
         // HTML pages and other static assets: always revalidate
-        headers.insert(
-            "Cache-Control",
-            HeaderValue::from_static("no-cache"),
-        );
+        headers.insert("Cache-Control", HeaderValue::from_static("no-cache"));
     }
 
     headers.insert(

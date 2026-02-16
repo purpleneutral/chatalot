@@ -74,10 +74,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/admin/invites/{id}", delete(delete_registration_invite))
         // Purge endpoints
         .route("/admin/purge/message/{id}", post(purge_message))
-        .route(
-            "/admin/purge/user/{id}/messages",
-            post(purge_user_messages),
-        )
+        .route("/admin/purge/user/{id}/messages", post(purge_user_messages))
         .route("/admin/purge/channel/{id}", post(purge_channel))
         // File management
         .route("/admin/files", get(list_all_files))
@@ -86,10 +83,7 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/admin/files/{id}/unquarantine", post(unquarantine_file))
         .route("/admin/storage-stats", get(storage_stats))
         // Message quarantine
-        .route(
-            "/admin/messages/{id}/quarantine",
-            post(quarantine_message),
-        )
+        .route("/admin/messages/{id}/quarantine", post(quarantine_message))
         .route(
             "/admin/messages/{id}/unquarantine",
             post(unquarantine_message),
@@ -99,10 +93,7 @@ pub fn routes() -> Router<Arc<AppState>> {
             "/admin/blocked-hashes",
             get(list_blocked_hashes).post(add_blocked_hash),
         )
-        .route(
-            "/admin/blocked-hashes/{id}",
-            delete(remove_blocked_hash),
-        )
+        .route("/admin/blocked-hashes/{id}", delete(remove_blocked_hash))
         // Audit log
         .route("/admin/audit-log", get(query_audit_log))
         // Reports
@@ -411,8 +402,8 @@ async fn create_registration_invite(
     let id = Uuid::now_v7();
 
     // Generate random 12-char alphanumeric code
-    use rand::distributions::Alphanumeric;
     use rand::Rng;
+    use rand::distributions::Alphanumeric;
     let code: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
         .take(12)
@@ -689,8 +680,7 @@ async fn list_all_files(
     let sort = query.sort.as_deref().unwrap_or("date");
 
     let total = file_repo::count_files(&state.db, query.user_id).await?;
-    let files =
-        file_repo::list_all_files(&state.db, query.user_id, sort, per_page, offset).await?;
+    let files = file_repo::list_all_files(&state.db, query.user_id, sort, per_page, offset).await?;
 
     let entries = files
         .into_iter()
@@ -1033,12 +1023,8 @@ async fn query_audit_log(
     let per_page = query.per_page.unwrap_or(50).min(100);
     let offset = (page - 1) * per_page;
 
-    let total = audit_repo::count_audit_log(
-        &state.db,
-        query.action.as_deref(),
-        query.user_id,
-    )
-    .await?;
+    let total =
+        audit_repo::count_audit_log(&state.db, query.action.as_deref(), query.user_id).await?;
 
     let entries = audit_repo::query_audit_log(
         &state.db,
@@ -1189,13 +1175,15 @@ async fn create_announcement(
     let ann = announcement_repo::create(&state.db, id, &req.title, &req.body, claims.sub).await?;
 
     // Broadcast to all connected users
-    state.connections.broadcast_all(ServerMessage::Announcement {
-        id: ann.id,
-        title: ann.title.clone(),
-        body: ann.body.clone(),
-        created_by: ann.created_by,
-        created_at: ann.created_at.to_rfc3339(),
-    });
+    state
+        .connections
+        .broadcast_all(ServerMessage::Announcement {
+            id: ann.id,
+            title: ann.title.clone(),
+            body: ann.body.clone(),
+            created_by: ann.created_by,
+            created_at: ann.created_at.to_rfc3339(),
+        });
 
     Ok(Json(AnnouncementResponse {
         id: ann.id,

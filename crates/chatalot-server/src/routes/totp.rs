@@ -36,7 +36,8 @@ async fn setup_totp(
 
     // Generate a random TOTP secret
     let secret = Secret::generate_secret();
-    let secret_bytes = secret.to_bytes()
+    let secret_bytes = secret
+        .to_bytes()
         .map_err(|e| AppError::Internal(format!("secret bytes: {e}")))?;
 
     let totp = TOTP::new(
@@ -75,9 +76,9 @@ async fn verify_totp(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    let stored_secret = user
-        .totp_secret
-        .ok_or_else(|| AppError::Validation("no TOTP secret configured, call /totp/setup first".to_string()))?;
+    let stored_secret = user.totp_secret.ok_or_else(|| {
+        AppError::Validation("no TOTP secret configured, call /totp/setup first".to_string())
+    })?;
 
     let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key);
 
@@ -92,8 +93,10 @@ async fn verify_totp(
     )
     .map_err(|e| AppError::Internal(format!("totp init: {e}")))?;
 
-    if !totp.check_current(&req.code)
-        .map_err(|e| AppError::Internal(format!("totp check: {e}")))? {
+    if !totp
+        .check_current(&req.code)
+        .map_err(|e| AppError::Internal(format!("totp check: {e}")))?
+    {
         return Err(AppError::Validation("invalid TOTP code".to_string()));
     }
 
@@ -134,8 +137,10 @@ async fn disable_totp(
     )
     .map_err(|e| AppError::Internal(format!("totp init: {e}")))?;
 
-    if !totp.check_current(&req.code)
-        .map_err(|e| AppError::Internal(format!("totp check: {e}")))? {
+    if !totp
+        .check_current(&req.code)
+        .map_err(|e| AppError::Internal(format!("totp check: {e}")))?
+    {
         return Err(AppError::Validation("invalid TOTP code".to_string()));
     }
 
@@ -152,16 +157,8 @@ pub fn verify_totp_code(
 ) -> Result<bool, AppError> {
     let secret_bytes = decrypt_totp_secret(secret, encryption_key);
 
-    let totp = TOTP::new(
-        Algorithm::SHA1,
-        6,
-        1,
-        30,
-        secret_bytes,
-        None,
-        String::new(),
-    )
-    .map_err(|e| AppError::Internal(format!("totp init: {e}")))?;
+    let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, String::new())
+        .map_err(|e| AppError::Internal(format!("totp init: {e}")))?;
 
     totp.check_current(code)
         .map_err(|e| AppError::Internal(format!("totp check: {e}")))

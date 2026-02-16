@@ -1,8 +1,8 @@
 use std::sync::LazyLock;
 
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Algorithm, Argon2, Params, Version,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use chrono::Utc;
 use dashmap::DashMap;
@@ -170,7 +170,8 @@ fn validate_username(username: &str) -> Result<(), AppError> {
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
     {
         return Err(AppError::Validation(
-            "username may only contain letters, numbers, underscores, hyphens, and dots".to_string(),
+            "username may only contain letters, numbers, underscores, hyphens, and dots"
+                .to_string(),
         ));
     }
     if !username.starts_with(|c: char| c.is_ascii_alphanumeric()) {
@@ -355,8 +356,8 @@ pub async fn register(
     let (mut refresh_raw, refresh_hash) = generate_refresh_token();
 
     let refresh_id = Uuid::new_v4();
-    let expires_at = Utc::now()
-        + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
+    let expires_at =
+        Utc::now() + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
 
     user_repo::create_refresh_token(
         &state.db,
@@ -428,12 +429,14 @@ pub async fn login(
 
     // TOTP verification
     if user.totp_enabled {
-        let code = req.totp_code.as_deref().ok_or_else(|| {
-            AppError::Validation("2FA code required".to_string())
-        })?;
-        let totp_secret = user.totp_secret.as_ref().ok_or_else(|| {
-            AppError::Internal("totp_enabled but no secret".to_string())
-        })?;
+        let code = req
+            .totp_code
+            .as_deref()
+            .ok_or_else(|| AppError::Validation("2FA code required".to_string()))?;
+        let totp_secret = user
+            .totp_secret
+            .as_ref()
+            .ok_or_else(|| AppError::Internal("totp_enabled but no secret".to_string()))?;
         if !crate::routes::totp::verify_totp_code(
             totp_secret,
             code,
@@ -468,8 +471,8 @@ pub async fn login(
     let (mut refresh_raw, refresh_hash) = generate_refresh_token();
 
     let refresh_id = Uuid::new_v4();
-    let expires_at = Utc::now()
-        + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
+    let expires_at =
+        Utc::now() + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
 
     user_repo::create_refresh_token(
         &state.db,
@@ -512,8 +515,7 @@ pub async fn refresh_token(
     ip_address: Option<&str>,
 ) -> Result<TokenResponse, AppError> {
     // Decode the hex refresh token and hash it
-    let raw_token =
-        hex::decode(&req.refresh_token).map_err(|_| AppError::Unauthorized)?;
+    let raw_token = hex::decode(&req.refresh_token).map_err(|_| AppError::Unauthorized)?;
     let token_hash = Sha256::digest(&raw_token).to_vec();
 
     // Look up the refresh token
@@ -540,8 +542,8 @@ pub async fn refresh_token(
     let (mut refresh_raw, refresh_hash) = generate_refresh_token();
 
     let refresh_id = Uuid::new_v4();
-    let expires_at = Utc::now()
-        + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
+    let expires_at =
+        Utc::now() + chrono::Duration::try_seconds(REFRESH_TOKEN_LIFETIME_SECS).unwrap();
 
     user_repo::create_refresh_token(
         &state.db,

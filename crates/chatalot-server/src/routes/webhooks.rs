@@ -20,8 +20,14 @@ use crate::routes::account::validate_avatar_url;
 /// Protected routes (require auth).
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/channels/{id}/webhooks", post(create_webhook).get(list_webhooks))
-        .route("/webhooks/{id}", patch(update_webhook).delete(delete_webhook))
+        .route(
+            "/channels/{id}/webhooks",
+            post(create_webhook).get(list_webhooks),
+        )
+        .route(
+            "/webhooks/{id}",
+            patch(update_webhook).delete(delete_webhook),
+        )
 }
 
 /// Public route for executing webhooks (no auth — uses token).
@@ -45,7 +51,9 @@ async fn create_webhook(
     }
 
     if req.name.is_empty() || req.name.len() > 64 {
-        return Err(AppError::Validation("webhook name must be 1-64 characters".into()));
+        return Err(AppError::Validation(
+            "webhook name must be 1-64 characters".into(),
+        ));
     }
 
     if let Some(ref url) = req.avatar_url {
@@ -83,7 +91,12 @@ async fn list_webhooks(
     }
 
     let webhooks = webhook_repo::list_for_channel(&state.db, channel_id).await?;
-    Ok(Json(webhooks.iter().map(|w| webhook_to_response(w, false)).collect()))
+    Ok(Json(
+        webhooks
+            .iter()
+            .map(|w| webhook_to_response(w, false))
+            .collect(),
+    ))
 }
 
 async fn update_webhook(
@@ -152,7 +165,9 @@ async fn execute_webhook(
         .ok_or_else(|| AppError::NotFound("webhook not found or inactive".into()))?;
 
     if req.content.is_empty() || req.content.len() > 4000 {
-        return Err(AppError::Validation("content must be 1-4000 characters".into()));
+        return Err(AppError::Validation(
+            "content must be 1-4000 characters".into(),
+        ));
     }
 
     let message_id = Uuid::now_v7();
@@ -164,13 +179,9 @@ async fn execute_webhook(
     })
     .to_string();
 
-    let stored = message_repo::create_webhook_message(
-        &state.db,
-        message_id,
-        webhook.channel_id,
-        &plaintext,
-    )
-    .await?;
+    let stored =
+        message_repo::create_webhook_message(&state.db, message_id, webhook.channel_id, &plaintext)
+            .await?;
 
     // Broadcast to channel
     state.connections.broadcast_to_channel(
@@ -191,12 +202,19 @@ async fn execute_webhook(
     Ok(())
 }
 
-fn webhook_to_response(w: &chatalot_db::models::webhook::Webhook, include_token: bool) -> WebhookResponse {
+fn webhook_to_response(
+    w: &chatalot_db::models::webhook::Webhook,
+    include_token: bool,
+) -> WebhookResponse {
     WebhookResponse {
         id: w.id,
         channel_id: w.channel_id,
         name: w.name.clone(),
-        token: if include_token { Some(w.token.clone()) } else { None },
+        token: if include_token {
+            Some(w.token.clone())
+        } else {
+            None
+        },
         avatar_url: w.avatar_url.clone(),
         active: w.active,
         created_at: w.created_at.to_rfc3339(),

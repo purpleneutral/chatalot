@@ -58,11 +58,7 @@ pub async fn list_user_files(
 }
 
 /// Delete file metadata (the actual file must be removed separately).
-pub async fn delete_file(
-    pool: &PgPool,
-    id: Uuid,
-    uploader_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn delete_file(pool: &PgPool, id: Uuid, uploader_id: Uuid) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM files WHERE id = $1 AND uploader_id = $2")
         .bind(id)
         .bind(uploader_id)
@@ -157,12 +153,10 @@ pub async fn list_all_user_files(
     pool: &PgPool,
     uploader_id: Uuid,
 ) -> Result<Vec<FileRecord>, sqlx::Error> {
-    sqlx::query_as::<_, FileRecord>(
-        "SELECT * FROM files WHERE uploader_id = $1",
-    )
-    .bind(uploader_id)
-    .fetch_all(pool)
-    .await
+    sqlx::query_as::<_, FileRecord>("SELECT * FROM files WHERE uploader_id = $1")
+        .bind(uploader_id)
+        .fetch_all(pool)
+        .await
 }
 
 /// List all files in a channel (for purge operations).
@@ -170,19 +164,14 @@ pub async fn list_channel_files(
     pool: &PgPool,
     channel_id: Uuid,
 ) -> Result<Vec<FileRecord>, sqlx::Error> {
-    sqlx::query_as::<_, FileRecord>(
-        "SELECT * FROM files WHERE channel_id = $1",
-    )
-    .bind(channel_id)
-    .fetch_all(pool)
-    .await
+    sqlx::query_as::<_, FileRecord>("SELECT * FROM files WHERE channel_id = $1")
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await
 }
 
 /// Hard-delete all file records for a user.
-pub async fn delete_all_user_files(
-    pool: &PgPool,
-    uploader_id: Uuid,
-) -> Result<u64, sqlx::Error> {
+pub async fn delete_all_user_files(pool: &PgPool, uploader_id: Uuid) -> Result<u64, sqlx::Error> {
     let result = sqlx::query("DELETE FROM files WHERE uploader_id = $1")
         .bind(uploader_id)
         .execute(pool)
@@ -191,10 +180,7 @@ pub async fn delete_all_user_files(
 }
 
 /// Hard-delete all file records for a channel.
-pub async fn delete_channel_files(
-    pool: &PgPool,
-    channel_id: Uuid,
-) -> Result<u64, sqlx::Error> {
+pub async fn delete_channel_files(pool: &PgPool, channel_id: Uuid) -> Result<u64, sqlx::Error> {
     let result = sqlx::query("DELETE FROM files WHERE channel_id = $1")
         .bind(channel_id)
         .execute(pool)

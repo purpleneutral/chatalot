@@ -26,10 +26,7 @@ pub async fn create(
     .await
 }
 
-pub async fn list_for_user(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Vec<Bookmark>, sqlx::Error> {
+pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Bookmark>, sqlx::Error> {
     sqlx::query_as::<_, Bookmark>(
         "SELECT * FROM bookmarks WHERE user_id = $1 ORDER BY created_at DESC",
     )
@@ -39,20 +36,15 @@ pub async fn list_for_user(
 }
 
 pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
-    let result =
-        sqlx::query("DELETE FROM bookmarks WHERE id = $1 AND user_id = $2")
-            .bind(id)
-            .bind(user_id)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query("DELETE FROM bookmarks WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn exists(
-    pool: &PgPool,
-    user_id: Uuid,
-    message_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn exists(pool: &PgPool, user_id: Uuid, message_id: Uuid) -> Result<bool, sqlx::Error> {
     let row: (bool,) = sqlx::query_as(
         "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE user_id = $1 AND message_id = $2)",
     )

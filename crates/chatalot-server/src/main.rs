@@ -19,9 +19,10 @@ use crate::config::Config;
 async fn main() -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            "chatalot_server=debug,tower_http=debug".into()
-        }))
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "chatalot_server=debug,tower_http=debug".into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -44,7 +45,9 @@ async fn main() -> anyhow::Result<()> {
     if let Some(ref admin_username) = config.admin_username {
         match chatalot_db::repos::user_repo::ensure_admin(&state.db, admin_username).await {
             Ok(true) => tracing::info!("Granted admin to user '{admin_username}'"),
-            Ok(false) => tracing::debug!("User '{admin_username}' is already admin or does not exist"),
+            Ok(false) => {
+                tracing::debug!("User '{admin_username}' is already admin or does not exist")
+            }
             Err(e) => tracing::warn!("Failed to seed admin user '{admin_username}': {e}"),
         }
     }
@@ -56,7 +59,9 @@ async fn main() -> anyhow::Result<()> {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
             loop {
                 interval.tick().await;
-                let expired = state.connections.expire_typing(std::time::Duration::from_secs(10));
+                let expired = state
+                    .connections
+                    .expire_typing(std::time::Duration::from_secs(10));
                 for (channel_id, user_id) in expired {
                     state.connections.broadcast_to_channel(
                         channel_id,
@@ -80,13 +85,18 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 interval.tick().await;
                 // Delete refresh tokens expired more than 7 days ago
-                match sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL '7 days'")
-                    .execute(&db)
-                    .await
+                match sqlx::query(
+                    "DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL '7 days'",
+                )
+                .execute(&db)
+                .await
                 {
                     Ok(r) => {
                         if r.rows_affected() > 0 {
-                            tracing::info!("Cleaned up {} expired refresh tokens", r.rows_affected());
+                            tracing::info!(
+                                "Cleaned up {} expired refresh tokens",
+                                r.rows_affected()
+                            );
                         }
                     }
                     Err(e) => tracing::warn!("Failed to clean expired tokens: {e}"),
@@ -150,7 +160,9 @@ async fn main() -> anyhow::Result<()> {
                 interval.tick().await;
                 match chatalot_db::repos::message_repo::gc_soft_deleted(&db, 30).await {
                     Ok(0) => {}
-                    Ok(n) => tracing::info!("GC: hard-deleted {n} messages soft-deleted >30 days ago"),
+                    Ok(n) => {
+                        tracing::info!("GC: hard-deleted {n} messages soft-deleted >30 days ago")
+                    }
                     Err(e) => tracing::warn!("GC soft-delete cleanup failed: {e}"),
                 }
             }
@@ -170,8 +182,7 @@ async fn main() -> anyhow::Result<()> {
                 interval.tick().await;
 
                 // Get all known file paths from DB
-                let db_files = match chatalot_db::repos::file_repo::list_all_file_paths(&db).await
-                {
+                let db_files = match chatalot_db::repos::file_repo::list_all_file_paths(&db).await {
                     Ok(f) => f,
                     Err(e) => {
                         tracing::warn!("Orphan cleanup: failed to list DB files: {e}");
@@ -231,13 +242,22 @@ async fn main() -> anyhow::Result<()> {
                         for msg in messages {
                             // Verify user is still a member before delivering
                             match chatalot_db::repos::channel_repo::is_member(
-                                &state.db, msg.channel_id, msg.user_id,
-                            ).await {
+                                &state.db,
+                                msg.channel_id,
+                                msg.user_id,
+                            )
+                            .await
+                            {
                                 Ok(false) | Err(_) => {
-                                    tracing::info!("Dropping scheduled message {}: user no longer a member", msg.id);
-                                    let _ = chatalot_db::repos::scheduled_message_repo::delete_by_id(
-                                        &state.db, msg.id,
-                                    ).await;
+                                    tracing::info!(
+                                        "Dropping scheduled message {}: user no longer a member",
+                                        msg.id
+                                    );
+                                    let _ =
+                                        chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                            &state.db, msg.id,
+                                        )
+                                        .await;
                                     continue;
                                 }
                                 Ok(true) => {}
@@ -277,10 +297,11 @@ async fn main() -> anyhow::Result<()> {
                                         },
                                     );
                                     // Delete the scheduled message after delivery
-                                    let _ = chatalot_db::repos::scheduled_message_repo::delete_by_id(
-                                        &state.db, msg.id,
-                                    )
-                                    .await;
+                                    let _ =
+                                        chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                            &state.db, msg.id,
+                                        )
+                                        .await;
                                 }
                                 Err(e) => {
                                     tracing::warn!(

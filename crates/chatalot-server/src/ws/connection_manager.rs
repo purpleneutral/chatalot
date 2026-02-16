@@ -71,10 +71,7 @@ impl ConnectionManager {
     }
 
     /// Get or create a broadcast channel for a chat channel.
-    pub fn get_channel_sender(
-        &self,
-        channel_id: Uuid,
-    ) -> broadcast::Sender<ServerMessage> {
+    pub fn get_channel_sender(&self, channel_id: Uuid) -> broadcast::Sender<ServerMessage> {
         self.channel_senders
             .entry(channel_id)
             .or_insert_with(|| {
@@ -85,10 +82,7 @@ impl ConnectionManager {
     }
 
     /// Subscribe to a channel's broadcast.
-    pub fn subscribe_channel(
-        &self,
-        channel_id: Uuid,
-    ) -> broadcast::Receiver<ServerMessage> {
+    pub fn subscribe_channel(&self, channel_id: Uuid) -> broadcast::Receiver<ServerMessage> {
         self.get_channel_sender(channel_id).subscribe()
     }
 
@@ -110,7 +104,8 @@ impl ConnectionManager {
 
     /// Record that a user started typing in a channel.
     pub fn set_typing(&self, channel_id: Uuid, user_id: Uuid) {
-        self.typing_state.insert((channel_id, user_id), tokio::time::Instant::now());
+        self.typing_state
+            .insert((channel_id, user_id), tokio::time::Instant::now());
     }
 
     /// Clear typing state for a user in a channel.

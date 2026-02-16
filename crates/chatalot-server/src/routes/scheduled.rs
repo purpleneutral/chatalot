@@ -34,16 +34,22 @@ async fn schedule_message(
         .with_timezone(&chrono::Utc);
 
     if scheduled_for <= chrono::Utc::now() {
-        return Err(AppError::Validation("scheduled_for must be in the future".into()));
+        return Err(AppError::Validation(
+            "scheduled_for must be in the future".into(),
+        ));
     }
 
     // Limit to 30 days in the future
     if scheduled_for > chrono::Utc::now() + chrono::Duration::try_days(30).unwrap() {
-        return Err(AppError::Validation("cannot schedule more than 30 days ahead".into()));
+        return Err(AppError::Validation(
+            "cannot schedule more than 30 days ahead".into(),
+        ));
     }
 
     if req.ciphertext.is_empty() || req.nonce.is_empty() {
-        return Err(AppError::Validation("ciphertext and nonce are required".into()));
+        return Err(AppError::Validation(
+            "ciphertext and nonce are required".into(),
+        ));
     }
 
     // Enforce per-user limit

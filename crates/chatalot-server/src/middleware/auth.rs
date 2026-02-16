@@ -48,12 +48,9 @@ pub async fn auth_middleware(
     validation.validate_exp = true;
     validation.leeway = 60; // 60 seconds clock skew tolerance
 
-    let token_data = jsonwebtoken::decode::<AccessClaims>(
-        token,
-        &state.jwt_decoding_key,
-        &validation,
-    )
-    .map_err(|_| AppError::Unauthorized)?;
+    let token_data =
+        jsonwebtoken::decode::<AccessClaims>(token, &state.jwt_decoding_key, &validation)
+            .map_err(|_| AppError::Unauthorized)?;
 
     // Insert claims into request extensions for downstream handlers
     request.extensions_mut().insert(token_data.claims);

@@ -19,9 +19,12 @@ pub struct Fingerprint(pub String);
 impl std::fmt::Display for Fingerprint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Format as "AB12 CD34 EF56 ..." blocks
-        let chunks: Vec<&str> = self.0.as_bytes().chunks(4).map(|c| {
-            std::str::from_utf8(c).unwrap_or("????")
-        }).collect();
+        let chunks: Vec<&str> = self
+            .0
+            .as_bytes()
+            .chunks(4)
+            .map(|c| std::str::from_utf8(c).unwrap_or("????"))
+            .collect();
         write!(f, "{}", chunks.join(" "))
     }
 }

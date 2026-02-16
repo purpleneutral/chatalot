@@ -63,12 +63,11 @@ pub async fn fetch_key_bundle(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Option<KeyBundle>, sqlx::Error> {
-    let identity = sqlx::query_as::<_, IdentityKey>(
-        "SELECT * FROM identity_keys WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?;
+    let identity =
+        sqlx::query_as::<_, IdentityKey>("SELECT * FROM identity_keys WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
 
     let identity = match identity {
         Some(ik) => ik,
@@ -114,12 +113,11 @@ pub async fn fetch_key_bundle(
 
 /// Count remaining unused one-time prekeys for a user.
 pub async fn count_unused_prekeys(pool: &PgPool, user_id: Uuid) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM one_time_prekeys WHERE user_id = $1 AND NOT used",
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await?;
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM one_time_prekeys WHERE user_id = $1 AND NOT used")
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }
 

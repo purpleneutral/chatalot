@@ -196,7 +196,8 @@ pub fn respond(
     let shared_secret = kdf_derive(&kdf_input)?;
     kdf_input.zeroize();
 
-    let associated_data = compute_associated_data(their_identity_key, &our_identity_key.verifying_key());
+    let associated_data =
+        compute_associated_data(their_identity_key, &our_identity_key.verifying_key());
 
     Ok(X3dhResponderResult {
         shared_secret,
@@ -302,8 +303,7 @@ mod tests {
 
         // Tamper with the signature
         let bad_sig_bytes = [0u8; 64];
-        bob_bundle.signed_prekey_signature =
-            Signature::from_bytes(&bad_sig_bytes);
+        bob_bundle.signed_prekey_signature = Signature::from_bytes(&bad_sig_bytes);
 
         let result = initiate(&alice_identity, &bob_bundle);
         assert!(result.is_err());

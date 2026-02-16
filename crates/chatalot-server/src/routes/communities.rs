@@ -14,8 +14,8 @@ use chatalot_common::api_types::{
     CommunityInviteResponse, CommunityMemberResponse, CommunityResponse,
     CreateCommunityInviteRequest, CreateCommunityRequest, CreateTimeoutRequest,
     CreateWarningRequest, CustomEmojiResponse, PaginationQuery, SetCommunityRoleRequest,
-    SetNicknameRequest, TimeoutResponse, TransferCommunityOwnershipRequest,
-    UpdateCommunityRequest, WarningResponse,
+    SetNicknameRequest, TimeoutResponse, TransferCommunityOwnershipRequest, UpdateCommunityRequest,
+    WarningResponse,
 };
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{community_repo, custom_emoji_repo, timeout_repo, warning_repo};
@@ -30,7 +30,10 @@ use crate::services::css_sanitizer;
 /// Public routes (no community gate — user may not be member).
 pub fn public_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/communities", get(list_my_communities).post(create_community))
+        .route(
+            "/communities",
+            get(list_my_communities).post(create_community),
+        )
         .route("/community-invites/{code}", get(get_community_invite_info))
         .route(
             "/community-invites/{code}/accept",
@@ -45,7 +48,9 @@ pub fn gated_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route(
             "/communities/{cid}",
-            get(get_community).patch(update_community).delete(delete_community),
+            get(get_community)
+                .patch(update_community)
+                .delete(delete_community),
         )
         .route(
             "/communities/{cid}/transfer-ownership",
@@ -61,10 +66,7 @@ pub fn gated_routes() -> Router<Arc<AppState>> {
             "/communities/{cid}/members/{uid}/nickname",
             put(set_nickname),
         )
-        .route(
-            "/communities/{cid}/members/{uid}",
-            delete(kick_member),
-        )
+        .route("/communities/{cid}/members/{uid}", delete(kick_member))
         .route("/communities/{cid}/bans", get(list_bans))
         .route(
             "/communities/{cid}/bans/{uid}",
@@ -74,14 +76,8 @@ pub fn gated_routes() -> Router<Arc<AppState>> {
             "/communities/{cid}/invites",
             get(list_invites).post(create_invite),
         )
-        .route(
-            "/communities/{cid}/invites/{iid}",
-            delete(delete_invite),
-        )
-        .route(
-            "/communities/{cid}/groups",
-            get(list_community_groups),
-        )
+        .route("/communities/{cid}/invites/{iid}", delete(delete_invite))
+        .route("/communities/{cid}/groups", get(list_community_groups))
         // Timeout & warn
         .route(
             "/communities/{cid}/channels/{chid}/timeout",
@@ -107,10 +103,7 @@ pub fn gated_routes() -> Router<Arc<AppState>> {
             "/communities/{cid}/emojis",
             get(list_emojis).post(upload_emoji),
         )
-        .route(
-            "/communities/{cid}/emojis/{eid}",
-            delete(delete_emoji),
-        )
+        .route("/communities/{cid}/emojis/{eid}", delete(delete_emoji))
 }
 
 // ── Public Handlers ──
@@ -121,7 +114,8 @@ async fn create_community(
     Json(req): Json<CreateCommunityRequest>,
 ) -> Result<Json<CommunityResponse>, AppError> {
     // Check creation mode
-    if state.config.community_creation_mode == "admin_only" && !claims.is_admin && !claims.is_owner {
+    if state.config.community_creation_mode == "admin_only" && !claims.is_admin && !claims.is_owner
+    {
         return Err(AppError::Forbidden);
     }
 
@@ -142,15 +136,9 @@ async fn create_community(
     }
 
     let id = Uuid::now_v7();
-    let community = community_repo::create_community(
-        &state.db,
-        id,
-        name,
-        description,
-        None,
-        claims.sub,
-    )
-    .await?;
+    let community =
+        community_repo::create_community(&state.db, id, name, description, None, claims.sub)
+            .await?;
 
     Ok(Json(CommunityResponse {
         id: community.id,
@@ -263,9 +251,7 @@ async fn accept_community_invite(
     }
 
     // Check if banned
-    if community_repo::is_banned_from_community(&state.db, invite.community_id, claims.sub)
-        .await?
-    {
+    if community_repo::is_banned_from_community(&state.db, invite.community_id, claims.sub).await? {
         return Err(AppError::Forbidden);
     }
 
@@ -352,12 +338,16 @@ async fn update_community(
     if let Some(ref p) = req.who_can_create_groups
         && !valid_policies.contains(&p.as_str())
     {
-        return Err(AppError::Validation("who_can_create_groups must be 'everyone', 'moderator', or 'admin'".to_string()));
+        return Err(AppError::Validation(
+            "who_can_create_groups must be 'everyone', 'moderator', or 'admin'".to_string(),
+        ));
     }
     if let Some(ref p) = req.who_can_create_invites
         && !valid_policies.contains(&p.as_str())
     {
-        return Err(AppError::Validation("who_can_create_invites must be 'everyone', 'moderator', or 'admin'".to_string()));
+        return Err(AppError::Validation(
+            "who_can_create_invites must be 'everyone', 'moderator', or 'admin'".to_string(),
+        ));
     }
 
     // Validate community_theme if provided
@@ -365,15 +355,23 @@ async fn update_community(
         let raw = serde_json::to_string(theme)
             .map_err(|e| AppError::Validation(format!("invalid theme JSON: {e}")))?;
         if raw.len() > 8192 {
-            return Err(AppError::Validation("community_theme too large (max 8KB)".into()));
+            return Err(AppError::Validation(
+                "community_theme too large (max 8KB)".into(),
+            ));
         }
-        let obj = theme.as_object().ok_or_else(|| {
-            AppError::Validation("community_theme must be a JSON object".into())
-        })?;
+        let obj = theme
+            .as_object()
+            .ok_or_else(|| AppError::Validation("community_theme must be a JSON object".into()))?;
 
         const ALLOWED_THEME_KEYS: &[&str] = &[
-            "accent", "accentHover", "bgPrimary", "bgSecondary", "bgTertiary",
-            "textPrimary", "textSecondary", "customCss",
+            "accent",
+            "accentHover",
+            "bgPrimary",
+            "bgSecondary",
+            "bgTertiary",
+            "textPrimary",
+            "textSecondary",
+            "customCss",
         ];
         let color_re = regex::Regex::new(r"^#[0-9a-fA-F]{3,8}$").unwrap();
 
@@ -383,16 +381,16 @@ async fn update_community(
                 return Err(AppError::Validation(format!("unknown theme key: {key}")));
             }
             if key == "customCss" {
-                let css = value.as_str().ok_or_else(|| {
-                    AppError::Validation("customCss must be a string".into())
-                })?;
+                let css = value
+                    .as_str()
+                    .ok_or_else(|| AppError::Validation("customCss must be a string".into()))?;
                 let clean = css_sanitizer::sanitize_css(css)
                     .map_err(|e| AppError::Validation(format!("customCss: {e}")))?;
                 sanitized.insert(key.clone(), serde_json::Value::String(clean));
             } else {
-                let color = value.as_str().ok_or_else(|| {
-                    AppError::Validation(format!("{key} must be a string"))
-                })?;
+                let color = value
+                    .as_str()
+                    .ok_or_else(|| AppError::Validation(format!("{key} must be a string")))?;
                 if !color_re.is_match(color) {
                     return Err(AppError::Validation(format!(
                         "{key} must be a hex color (e.g. #ff0000)"
@@ -502,7 +500,8 @@ async fn list_members(
 ) -> Result<Json<Vec<CommunityMemberResponse>>, AppError> {
     let limit = pagination.limit.unwrap_or(200).clamp(1, 500);
     let offset = pagination.offset.unwrap_or(0).max(0);
-    let members = community_repo::list_community_members(&state.db, ctx.community_id, limit, offset).await?;
+    let members =
+        community_repo::list_community_members(&state.db, ctx.community_id, limit, offset).await?;
     Ok(Json(
         members
             .into_iter()
@@ -599,13 +598,7 @@ async fn set_nickname(
         ));
     }
 
-    community_repo::set_community_nickname(
-        &state.db,
-        ctx.community_id,
-        path.uid,
-        nickname,
-    )
-    .await?;
+    community_repo::set_community_nickname(&state.db, ctx.community_id, path.uid, nickname).await?;
 
     Ok(())
 }
@@ -678,9 +671,7 @@ async fn ban_member(
     }
 
     if path.uid == claims.sub {
-        return Err(AppError::Validation(
-            "you cannot ban yourself".to_string(),
-        ));
+        return Err(AppError::Validation("you cannot ban yourself".to_string()));
     }
 
     // Cannot ban the owner
@@ -701,14 +692,8 @@ async fn ban_member(
         .as_deref()
         .map(str::trim)
         .filter(|r| !r.is_empty());
-    community_repo::ban_from_community(
-        &state.db,
-        ctx.community_id,
-        path.uid,
-        claims.sub,
-        reason,
-    )
-    .await?;
+    community_repo::ban_from_community(&state.db, ctx.community_id, path.uid, claims.sub, reason)
+        .await?;
 
     Ok(())
 }
@@ -722,7 +707,8 @@ async fn unban_member(
         return Err(AppError::Forbidden);
     }
 
-    let removed = community_repo::unban_from_community(&state.db, ctx.community_id, path.uid).await?;
+    let removed =
+        community_repo::unban_from_community(&state.db, ctx.community_id, path.uid).await?;
     if !removed {
         return Err(AppError::NotFound("ban not found".to_string()));
     }
@@ -834,8 +820,12 @@ async fn list_community_groups(
     Extension(claims): Extension<AccessClaims>,
     Extension(ctx): Extension<CommunityContext>,
 ) -> Result<Json<Vec<chatalot_common::api_types::GroupResponse>>, AppError> {
-    let groups = chatalot_db::repos::group_repo::list_community_groups(&state.db, ctx.community_id, claims.sub)
-        .await?;
+    let groups = chatalot_db::repos::group_repo::list_community_groups(
+        &state.db,
+        ctx.community_id,
+        claims.sub,
+    )
+    .await?;
 
     let group_ids: Vec<Uuid> = groups.iter().map(|g| g.id).collect();
     let counts = chatalot_db::repos::group_repo::get_member_counts(&state.db, &group_ids).await?;
@@ -899,7 +889,8 @@ async fn create_timeout(
     }
 
     let expires_at = chrono::Utc::now()
-        + chrono::Duration::try_seconds(req.duration_seconds).unwrap_or(chrono::Duration::try_hours(1).unwrap());
+        + chrono::Duration::try_seconds(req.duration_seconds)
+            .unwrap_or(chrono::Duration::try_hours(1).unwrap());
 
     let reason = req
         .reason
@@ -969,7 +960,9 @@ async fn create_warning(
     }
 
     if req.reason.is_empty() || req.reason.len() > 1000 {
-        return Err(AppError::Validation("reason must be 1-1000 characters".into()));
+        return Err(AppError::Validation(
+            "reason must be 1-1000 characters".into(),
+        ));
     }
 
     let id = Uuid::now_v7();
@@ -1061,9 +1054,15 @@ async fn upload_community_icon(
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
-        None, None,
+        None,
+        None,
         Some(&icon_url),
-        None, None, None, None, None, None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("community not found".into()))?;
@@ -1097,9 +1096,15 @@ async fn upload_community_banner(
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
-        None, None, None, None, None, None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
         Some(&banner_url),
-        None, None,
+        None,
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("community not found".into()))?;
@@ -1128,13 +1133,19 @@ async fn serve_community_asset(
     let stream = tokio_util::io::ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
-    Ok(([
-        (header::CONTENT_TYPE, content_type.to_string()),
-        (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
-    ], body))
+    Ok((
+        [
+            (header::CONTENT_TYPE, content_type.to_string()),
+            (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
+        ],
+        body,
+    ))
 }
 
-fn community_to_response(c: chatalot_db::models::community::Community, member_count: i64) -> CommunityResponse {
+fn community_to_response(
+    c: chatalot_db::models::community::Community,
+    member_count: i64,
+) -> CommunityResponse {
     CommunityResponse {
         id: c.id,
         name: c.name,
@@ -1182,8 +1193,7 @@ async fn read_image_field(
     }
 
     let data = file_data.ok_or_else(|| AppError::Validation(format!("no {field_name} field")))?;
-    let ct = content_type
-        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+    let ct = content_type.ok_or_else(|| AppError::Validation("missing content type".into()))?;
 
     if !ALLOWED_IMAGE_TYPES.contains(&ct.as_str()) {
         return Err(AppError::Validation(
@@ -1277,9 +1287,9 @@ async fn upload_emoji(
 
     let count = custom_emoji_repo::count_for_community(&state.db, ctx.community_id).await?;
     if count >= MAX_EMOJIS_PER_COMMUNITY {
-        return Err(AppError::Validation(
-            format!("maximum {MAX_EMOJIS_PER_COMMUNITY} emojis per community"),
-        ));
+        return Err(AppError::Validation(format!(
+            "maximum {MAX_EMOJIS_PER_COMMUNITY} emojis per community"
+        )));
     }
 
     let mut file_data: Option<Vec<u8>> = None;
@@ -1330,10 +1340,7 @@ async fn upload_emoji(
     }
 
     // Validate shortcode: alphanumeric + underscores, 2-32 chars
-    if sc.len() < 2
-        || sc.len() > 32
-        || !sc.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
+    if sc.len() < 2 || sc.len() > 32 || !sc.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err(AppError::Validation(
             "shortcode must be 2-32 alphanumeric/underscore characters".into(),
         ));
@@ -1425,10 +1432,7 @@ async fn serve_emoji(
     Ok((
         [
             (header::CONTENT_TYPE, emoji.content_type),
-            (
-                header::CACHE_CONTROL,
-                "public, max-age=86400".to_string(),
-            ),
+            (header::CACHE_CONTROL, "public, max-age=86400".to_string()),
         ],
         body,
     ))

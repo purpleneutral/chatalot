@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
 use futures_util::StreamExt;
 
@@ -13,18 +13,12 @@ use crate::ws::handler;
 ///
 /// Authentication is done via the first message (ClientMessage::Authenticate)
 /// rather than via headers, since WebSocket headers are unreliable across browsers.
-pub async fn ws_upgrade(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> Response {
+pub async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> Response {
     ws.on_upgrade(move |socket| handle_ws_auth(socket, state))
 }
 
 /// First stage: wait for authentication message, then hand off to the main handler.
-async fn handle_ws_auth(
-    mut socket: WebSocket,
-    state: Arc<AppState>,
-) {
+async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
     // Wait for the first message which must be an Authenticate message
     let auth_timeout = tokio::time::Duration::from_secs(10);
 
@@ -36,10 +30,11 @@ async fn handle_ws_auth(
                     match validate_token(&state, &token) {
                         Some(claims) => {
                             // Send authenticated confirmation
-                            let confirm = chatalot_common::ws_messages::ServerMessage::Authenticated {
-                                user_id: claims.sub,
-                                server_version: state.client_version.clone(),
-                            };
+                            let confirm =
+                                chatalot_common::ws_messages::ServerMessage::Authenticated {
+                                    user_id: claims.sub,
+                                    server_version: state.client_version.clone(),
+                                };
                             if let Ok(json) = serde_json::to_string(&confirm) {
                                 let _ = socket.send(Message::Text(json.into())).await;
                             }

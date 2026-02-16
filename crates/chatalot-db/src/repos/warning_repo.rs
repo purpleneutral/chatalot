@@ -46,13 +46,12 @@ pub async fn count_for_user_in_channel(
     user_id: Uuid,
     channel_id: Uuid,
 ) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM warnings WHERE user_id = $1 AND channel_id = $2",
-    )
-    .bind(user_id)
-    .bind(channel_id)
-    .fetch_one(pool)
-    .await?;
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM warnings WHERE user_id = $1 AND channel_id = $2")
+            .bind(user_id)
+            .bind(channel_id)
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }
 

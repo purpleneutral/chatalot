@@ -17,13 +17,11 @@ pub async fn find_dm_channel(
         (user_b, user_a)
     };
 
-    sqlx::query_as::<_, DmPair>(
-        "SELECT * FROM dm_pairs WHERE user_a = $1 AND user_b = $2",
-    )
-    .bind(a)
-    .bind(b)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as::<_, DmPair>("SELECT * FROM dm_pairs WHERE user_a = $1 AND user_b = $2")
+        .bind(a)
+        .bind(b)
+        .fetch_optional(pool)
+        .await
 }
 
 /// Create a DM channel between two users, or return the existing one.
@@ -41,12 +39,10 @@ pub async fn get_or_create_dm(
 
     // Check if DM already exists
     if let Some(existing) = find_dm_channel(pool, a, b).await? {
-        let channel = sqlx::query_as::<_, Channel>(
-            "SELECT * FROM channels WHERE id = $1",
-        )
-        .bind(existing.channel_id)
-        .fetch_one(pool)
-        .await?;
+        let channel = sqlx::query_as::<_, Channel>("SELECT * FROM channels WHERE id = $1")
+            .bind(existing.channel_id)
+            .fetch_one(pool)
+            .await?;
         return Ok(channel);
     }
 
@@ -77,14 +73,12 @@ pub async fn get_or_create_dm(
     .await?;
 
     // Record the DM pair
-    sqlx::query(
-        "INSERT INTO dm_pairs (user_a, user_b, channel_id) VALUES ($1, $2, $3)",
-    )
-    .bind(a)
-    .bind(b)
-    .bind(channel_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("INSERT INTO dm_pairs (user_a, user_b, channel_id) VALUES ($1, $2, $3)")
+        .bind(a)
+        .bind(b)
+        .bind(channel_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(channel)
@@ -110,18 +104,14 @@ pub async fn list_user_dms(
         } else {
             pair.user_a
         };
-        let channel = sqlx::query_as::<_, Channel>(
-            "SELECT * FROM channels WHERE id = $1",
-        )
-        .bind(pair.channel_id)
-        .fetch_one(pool)
-        .await?;
-        let other_user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE id = $1",
-        )
-        .bind(other_user_id)
-        .fetch_one(pool)
-        .await?;
+        let channel = sqlx::query_as::<_, Channel>("SELECT * FROM channels WHERE id = $1")
+            .bind(pair.channel_id)
+            .fetch_one(pool)
+            .await?;
+        let other_user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+            .bind(other_user_id)
+            .fetch_one(pool)
+            .await?;
         results.push((channel, other_user));
     }
 

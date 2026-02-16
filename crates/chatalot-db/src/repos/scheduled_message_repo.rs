@@ -50,12 +50,11 @@ pub async fn get_due_messages(pool: &PgPool) -> Result<Vec<ScheduledMessage>, sq
 }
 
 pub async fn delete(pool: &PgPool, id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
-    let result =
-        sqlx::query("DELETE FROM scheduled_messages WHERE id = $1 AND user_id = $2")
-            .bind(id)
-            .bind(user_id)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query("DELETE FROM scheduled_messages WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 

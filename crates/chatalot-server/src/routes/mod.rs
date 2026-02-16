@@ -7,12 +7,12 @@ pub mod channels;
 pub mod communities;
 pub mod dms;
 pub mod feedback;
+pub mod files;
 pub mod gifs;
 pub mod groups;
-pub mod files;
 pub mod health;
-pub mod link_preview;
 pub mod keys;
+pub mod link_preview;
 pub mod messages;
 pub mod polls;
 pub mod scheduled;
@@ -23,13 +23,13 @@ pub mod webhooks;
 
 use std::sync::Arc;
 
+use axum::Router;
 use axum::http::header;
 use axum::routing::get;
-use axum::Router;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::app_state::AppState;
@@ -52,12 +52,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(webhooks::public_routes());
 
     // Community-gated routes (require auth + community membership)
-    let community_gated_routes = Router::new()
-        .merge(communities::gated_routes())
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            community_gate_middleware,
-        ));
+    let community_gated_routes = Router::new().merge(communities::gated_routes()).layer(
+        axum::middleware::from_fn_with_state(state.clone(), community_gate_middleware),
+    );
 
     // Protected routes (auth required)
     let protected_routes = Router::new()
@@ -92,16 +89,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     // Service worker must never be cached by browsers or CDNs
     let sw_service = ServeFile::new(format!("{static_dir}/sw.js"));
-    let sw_route = Router::new()
-        .route_service("/sw.js", sw_service)
-        .layer(SetResponseHeaderLayer::overriding(
+    let sw_route = Router::new().route_service("/sw.js", sw_service).layer(
+        SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             header::HeaderValue::from_static("no-store"),
-        ));
+        ),
+    );
 
     // Serve favicon.png at /favicon.ico to prevent Chrome's automatic 404
-    let favicon_route = Router::new()
-        .route_service("/favicon.ico", ServeFile::new(format!("{static_dir}/favicon.png")));
+    let favicon_route = Router::new().route_service(
+        "/favicon.ico",
+        ServeFile::new(format!("{static_dir}/favicon.png")),
+    );
 
     let spa_fallback = ServeDir::new(&static_dir)
         .not_found_service(ServeFile::new(format!("{static_dir}/index.html")));

@@ -6,16 +6,15 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{ChannelResponse, CreateDmRequest, DmChannelResponse, UserPublic};
-use chatalot_db::repos::{block_repo, community_repo, dm_repo};
 use chatalot_db::models::user::User;
+use chatalot_db::repos::{block_repo, community_repo, dm_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 
 pub fn routes() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/dms", get(list_dms).post(create_dm))
+    Router::new().route("/dms", get(list_dms).post(create_dm))
 }
 
 async fn create_dm(
@@ -34,7 +33,9 @@ async fn create_dm(
 
     // Check if either user has blocked the other
     if block_repo::is_blocked_either_way(&state.db, claims.sub, target.id).await? {
-        return Err(AppError::Validation("cannot create DM with this user".to_string()));
+        return Err(AppError::Validation(
+            "cannot create DM with this user".to_string(),
+        ));
     }
 
     // DMs require shared community membership (instance owner bypasses for moderation)
@@ -45,13 +46,7 @@ async fn create_dm(
     }
 
     let channel_id = Uuid::now_v7();
-    let channel = dm_repo::get_or_create_dm(
-        &state.db,
-        channel_id,
-        claims.sub,
-        target.id,
-    )
-    .await?;
+    let channel = dm_repo::get_or_create_dm(&state.db, channel_id, claims.sub, target.id).await?;
 
     // Don't notify the target user yet — they'll be notified when the
     // first message is actually sent (see ws/handler.rs).

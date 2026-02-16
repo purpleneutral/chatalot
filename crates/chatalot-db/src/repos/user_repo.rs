@@ -65,21 +65,19 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<User>, sqlx::E
 
 /// Check if a username is already taken.
 pub async fn username_exists(pool: &PgPool, username: &str) -> Result<bool, sqlx::Error> {
-    let row: (bool,) =
-        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)")
-            .bind(username)
-            .fetch_one(pool)
-            .await?;
+    let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)")
+        .bind(username)
+        .fetch_one(pool)
+        .await?;
     Ok(row.0)
 }
 
 /// Check if an email is already taken.
 pub async fn email_exists(pool: &PgPool, email: &str) -> Result<bool, sqlx::Error> {
-    let row: (bool,) =
-        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
-            .bind(email)
-            .fetch_one(pool)
-            .await?;
+    let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
+        .bind(email)
+        .fetch_one(pool)
+        .await?;
     Ok(row.0)
 }
 
@@ -200,7 +198,11 @@ pub async fn disable_totp(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Erro
 // ── Account Management ──
 
 /// Update a user's password hash.
-pub async fn update_password(pool: &PgPool, user_id: Uuid, new_hash: &str) -> Result<(), sqlx::Error> {
+pub async fn update_password(
+    pool: &PgPool,
+    user_id: Uuid,
+    new_hash: &str,
+) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
         .bind(new_hash)
         .bind(user_id)
@@ -346,12 +348,11 @@ pub async fn set_owner(pool: &PgPool, user_id: Uuid, is_owner: bool) -> Result<(
 
 /// Ensure a user is admin by username (for env-var seeding).
 pub async fn ensure_admin(pool: &PgPool, username: &str) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "UPDATE users SET is_admin = true WHERE username = $1 AND is_admin = false",
-    )
-    .bind(username)
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("UPDATE users SET is_admin = true WHERE username = $1 AND is_admin = false")
+            .bind(username)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 
@@ -404,13 +405,11 @@ pub async fn list_all_users(
         .fetch_all(pool)
         .await
     } else {
-        sqlx::query_as::<_, User>(
-            "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-        )
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
+        sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
     }
 }
 

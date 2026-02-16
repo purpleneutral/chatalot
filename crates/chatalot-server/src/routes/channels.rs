@@ -29,18 +29,9 @@ pub fn routes() -> Router<Arc<AppState>> {
             "/channels/{id}/members/{user_id}/role",
             patch(update_member_role),
         )
-        .route(
-            "/channels/{id}/members/{user_id}/kick",
-            post(kick_member),
-        )
-        .route(
-            "/channels/{id}/members/{user_id}/ban",
-            post(ban_member),
-        )
-        .route(
-            "/channels/{id}/members/{user_id}/unban",
-            post(unban_member),
-        )
+        .route("/channels/{id}/members/{user_id}/kick", post(kick_member))
+        .route("/channels/{id}/members/{user_id}/ban", post(ban_member))
+        .route("/channels/{id}/members/{user_id}/unban", post(unban_member))
         .route(
             "/channels/{id}/transfer-ownership",
             post(transfer_ownership),
@@ -170,7 +161,8 @@ async fn update_channel(
         topic,
         req.read_only,
         req.slow_mode_seconds,
-        req.message_ttl_seconds.map(|v| if v == 0 { None } else { Some(v) }),
+        req.message_ttl_seconds
+            .map(|v| if v == 0 { None } else { Some(v) }),
         req.discoverable,
         req.archived,
         req.voice_background.as_deref(),

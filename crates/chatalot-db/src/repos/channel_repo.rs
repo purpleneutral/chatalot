@@ -49,10 +49,7 @@ pub async fn create_channel(
 }
 
 /// List all channels a user is a member of.
-pub async fn list_user_channels(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Vec<Channel>, sqlx::Error> {
+pub async fn list_user_channels(pool: &PgPool, user_id: Uuid) -> Result<Vec<Channel>, sqlx::Error> {
     sqlx::query_as::<_, Channel>(
         r#"
         SELECT c.* FROM channels c
@@ -174,13 +171,12 @@ pub async fn get_member_role(
     channel_id: Uuid,
     user_id: Uuid,
 ) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT role FROM channel_members WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT role FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
     Ok(row.map(|r| r.0))
 }
 
@@ -191,14 +187,13 @@ pub async fn update_member_role(
     user_id: Uuid,
     new_role: &str,
 ) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "UPDATE channel_members SET role = $1 WHERE channel_id = $2 AND user_id = $3",
-    )
-    .bind(new_role)
-    .bind(channel_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("UPDATE channel_members SET role = $1 WHERE channel_id = $2 AND user_id = $3")
+            .bind(new_role)
+            .bind(channel_id)
+            .bind(user_id)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 
@@ -242,13 +237,11 @@ pub async fn unban_user(
     channel_id: Uuid,
     user_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM channel_bans WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+    let result = sqlx::query("DELETE FROM channel_bans WHERE channel_id = $1 AND user_id = $2")
+        .bind(channel_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 
@@ -313,22 +306,18 @@ pub async fn transfer_ownership(
     let mut tx = pool.begin().await?;
 
     // Demote old owner to admin
-    sqlx::query(
-        "UPDATE channel_members SET role = 'admin' WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(old_owner_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE channel_members SET role = 'admin' WHERE channel_id = $1 AND user_id = $2")
+        .bind(channel_id)
+        .bind(old_owner_id)
+        .execute(&mut *tx)
+        .await?;
 
     // Promote new owner
-    sqlx::query(
-        "UPDATE channel_members SET role = 'owner' WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(new_owner_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE channel_members SET role = 'owner' WHERE channel_id = $1 AND user_id = $2")
+        .bind(channel_id)
+        .bind(new_owner_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(())

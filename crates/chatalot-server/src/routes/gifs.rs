@@ -29,22 +29,32 @@ pub fn routes() -> Router<Arc<AppState>> {
 }
 
 fn get_giphy_key() -> Option<String> {
-    std::env::var("GIPHY_API_KEY").ok().filter(|k| !k.is_empty())
+    std::env::var("GIPHY_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
 }
 
 async fn search_gifs(
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<GifSearchQuery>,
 ) -> Result<Json<GifSearchResponse>, AppError> {
-    let api_key = get_giphy_key()
-        .ok_or_else(|| AppError::Validation("GIF search is not configured on this server".into()))?;
+    let api_key = get_giphy_key().ok_or_else(|| {
+        AppError::Validation("GIF search is not configured on this server".into())
+    })?;
 
     let q = query.q.unwrap_or_default();
     if q.is_empty() {
-        return Ok(Json(GifSearchResponse { results: vec![], next: None }));
+        return Ok(Json(GifSearchResponse {
+            results: vec![],
+            next: None,
+        }));
     }
     let limit = query.limit.unwrap_or(20).min(50);
-    let offset = query.pos.as_deref().and_then(|p| p.parse::<u32>().ok()).unwrap_or(0);
+    let offset = query
+        .pos
+        .as_deref()
+        .and_then(|p| p.parse::<u32>().ok())
+        .unwrap_or(0);
     let cache_key = format!("search:{}:{}:{}", q, limit, offset);
 
     if let Some(entry) = GIF_CACHE.get(&cache_key) {
@@ -75,11 +85,16 @@ async fn trending_gifs(
     Extension(_claims): Extension<AccessClaims>,
     Query(query): Query<GifSearchQuery>,
 ) -> Result<Json<GifSearchResponse>, AppError> {
-    let api_key = get_giphy_key()
-        .ok_or_else(|| AppError::Validation("GIF search is not configured on this server".into()))?;
+    let api_key = get_giphy_key().ok_or_else(|| {
+        AppError::Validation("GIF search is not configured on this server".into())
+    })?;
 
     let limit = query.limit.unwrap_or(20).min(50);
-    let offset = query.pos.as_deref().and_then(|p| p.parse::<u32>().ok()).unwrap_or(0);
+    let offset = query
+        .pos
+        .as_deref()
+        .and_then(|p| p.parse::<u32>().ok())
+        .unwrap_or(0);
     let cache_key = format!("trending:{}:{}", limit, offset);
 
     if let Some(entry) = GIF_CACHE.get(&cache_key) {
@@ -105,16 +120,24 @@ async fn trending_gifs(
     Ok(Json(response))
 }
 
-async fn fetch_giphy(base_url: &str, params: &[(&str, String)]) -> Result<GifSearchResponse, AppError> {
+async fn fetch_giphy(
+    base_url: &str,
+    params: &[(&str, String)],
+) -> Result<GifSearchResponse, AppError> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .map_err(|e| AppError::Internal(format!("HTTP client error: {e}")))?;
 
-    let resp = client.get(base_url).query(params).send().await.map_err(|e| {
-        tracing::warn!("GIPHY API request failed: {e}");
-        AppError::Internal("Failed to fetch GIFs".into())
-    })?;
+    let resp = client
+        .get(base_url)
+        .query(params)
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::warn!("GIPHY API request failed: {e}");
+            AppError::Internal("Failed to fetch GIFs".into())
+        })?;
 
     if !resp.status().is_success() {
         let status = resp.status();
@@ -122,9 +145,10 @@ async fn fetch_giphy(base_url: &str, params: &[(&str, String)]) -> Result<GifSea
         return Err(AppError::Internal(format!("GIPHY API error: {status}")));
     }
 
-    let body: serde_json::Value = resp.json().await.map_err(|e| {
-        AppError::Internal(format!("Failed to parse GIPHY response: {e}"))
-    })?;
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to parse GIPHY response: {e}")))?;
 
     let results = body["data"]
         .as_array()
@@ -139,7 +163,14 @@ async fn fetch_giphy(base_url: &str, params: &[(&str, String)]) -> Result<GifSea
             let preview_url = preview["url"].as_str().unwrap_or(&url).to_string();
             let width = original["width"].as_str()?.parse::<u32>().ok()?;
             let height = original["height"].as_str()?.parse::<u32>().ok()?;
-            Some(GifResult { id, title, preview_url, url, width, height })
+            Some(GifResult {
+                id,
+                title,
+                preview_url,
+                url,
+                width,
+                height,
+            })
         })
         .collect();
 

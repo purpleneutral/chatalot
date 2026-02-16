@@ -46,8 +46,7 @@ async fn get_messages(
 
     // Batch-fetch reactions for all messages
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
-    let reaction_rows =
-        reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
+    let reaction_rows = reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
     let mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>> =
         std::collections::HashMap::new();
     for r in reaction_rows {
@@ -94,12 +93,10 @@ async fn search_messages(
     }
 
     let limit = query.limit.unwrap_or(20).min(50);
-    let messages =
-        message_repo::search_messages(&state.db, channel_id, &query.q, limit).await?;
+    let messages = message_repo::search_messages(&state.db, channel_id, &query.q, limit).await?;
 
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
-    let reaction_rows =
-        reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
+    let reaction_rows = reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
     let mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>> =
         std::collections::HashMap::new();
     for r in reaction_rows {
@@ -151,8 +148,7 @@ async fn global_search_messages(
         message_repo::search_messages_global(&state.db, claims.sub, &query.q, limit).await?;
 
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
-    let reaction_rows =
-        reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
+    let reaction_rows = reaction_repo::get_reactions_for_messages(&state.db, &message_ids).await?;
     let mut reactions_map: std::collections::HashMap<Uuid, Vec<ReactionInfo>> =
         std::collections::HashMap::new();
     for r in reaction_rows {

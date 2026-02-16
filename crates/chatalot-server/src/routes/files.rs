@@ -265,7 +265,10 @@ async fn delete_own_file(
 
     // Delete from disk
     if let Err(e) = tokio::fs::remove_file(&record.storage_path).await {
-        tracing::warn!("Failed to delete file from disk {}: {e}", record.storage_path);
+        tracing::warn!(
+            "Failed to delete file from disk {}: {e}",
+            record.storage_path
+        );
     }
 
     // Delete from DB

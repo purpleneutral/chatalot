@@ -48,7 +48,10 @@ fn check_dangerous(data: &[u8]) -> Option<&'static str> {
     // Mach-O binary (macOS executables)
     if data.len() >= 4 {
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-        if matches!(magic, 0xFEEDFACE | 0xFEEDFACF | 0xCEFAEDFE | 0xCFFAEDFE | 0xCAFEBABE) {
+        if matches!(
+            magic,
+            0xFEEDFACE | 0xFEEDFACF | 0xCEFAEDFE | 0xCFFAEDFE | 0xCAFEBABE
+        ) {
             // 0xCAFEBABE is also Java class / Mach-O fat binary
             return Some("macOS/Java executable not allowed");
         }
@@ -61,7 +64,10 @@ fn check_dangerous(data: &[u8]) -> Option<&'static str> {
 
     // Windows batch files
     if data.len() >= 10 {
-        let lower: Vec<u8> = data[..10.min(data.len())].iter().map(|b| b.to_ascii_lowercase()).collect();
+        let lower: Vec<u8> = data[..10.min(data.len())]
+            .iter()
+            .map(|b| b.to_ascii_lowercase())
+            .collect();
         if lower.starts_with(b"@echo off") || lower.starts_with(b"@echo on") {
             return Some("batch script not allowed");
         }
@@ -90,7 +96,11 @@ fn check_whitelist(data: &[u8]) -> Option<&'static str> {
     }
 
     // Audio
-    if starts(data, b"ID3") || starts(data, b"\xFF\xFB") || starts(data, b"\xFF\xF3") || starts(data, b"\xFF\xF2") {
+    if starts(data, b"ID3")
+        || starts(data, b"\xFF\xFB")
+        || starts(data, b"\xFF\xF3")
+        || starts(data, b"\xFF\xF2")
+    {
         return Some("audio/mpeg");
     }
     if starts(data, b"OggS") {
@@ -257,7 +267,11 @@ mod tests {
     fn test_unknown_binary_rejected() {
         let data = [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01, 0x02, 0x03];
         assert!(validate_file_type(&data).is_err());
-        assert!(validate_file_type(&data).unwrap_err().contains("unrecognized"));
+        assert!(
+            validate_file_type(&data)
+                .unwrap_err()
+                .contains("unrecognized")
+        );
     }
 
     #[test]

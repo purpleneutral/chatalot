@@ -26,7 +26,9 @@ async fn add_bookmark(
     if let Some(ref note) = req.note
         && note.len() > 500
     {
-        return Err(AppError::Validation("note must be at most 500 characters".into()));
+        return Err(AppError::Validation(
+            "note must be at most 500 characters".into(),
+        ));
     }
 
     let id = Uuid::now_v7();

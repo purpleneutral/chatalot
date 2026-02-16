@@ -14,8 +14,8 @@ use chatalot_common::api_types::{
     CreateInviteRequest, GroupMemberResponse, GroupResponse, InviteInfoResponse, InviteResponse,
     PaginationQuery, TransferOwnershipRequest, UpdateChannelRequest, UpdateGroupRequest,
 };
-use chatalot_db::models::channel::ChannelType;
 use chatalot_common::ws_messages::ServerMessage;
+use chatalot_db::models::channel::ChannelType;
 use chatalot_db::models::group::Group;
 use chatalot_db::repos::{channel_repo, community_repo, group_repo, invite_repo, sender_key_repo};
 use rand::Rng as _;
@@ -66,8 +66,7 @@ async fn is_community_moderator(
     if is_instance_owner {
         return Ok(true);
     }
-    if let Some(role) =
-        community_repo::get_community_member_role(db, community_id, user_id).await?
+    if let Some(role) = community_repo::get_community_member_role(db, community_id, user_id).await?
     {
         return Ok(matches!(role.as_str(), "owner" | "admin" | "moderator"));
     }
@@ -78,7 +77,12 @@ pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/groups", get(list_groups).post(create_group))
         .route("/groups/discover", get(discover_groups))
-        .route("/groups/{id}", get(get_group).patch(update_group).delete(delete_group_handler))
+        .route(
+            "/groups/{id}",
+            get(get_group)
+                .patch(update_group)
+                .delete(delete_group_handler),
+        )
         .route(
             "/groups/{id}/transfer-ownership",
             post(transfer_group_ownership),
@@ -86,7 +90,10 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/groups/{id}/join", post(join_group))
         .route("/groups/{id}/leave", post(leave_group))
         .route("/groups/{id}/members", get(list_group_members))
-        .route("/groups/{id}/channels", get(list_group_channels).post(create_group_channel))
+        .route(
+            "/groups/{id}/channels",
+            get(list_group_channels).post(create_group_channel),
+        )
         .route(
             "/groups/{group_id}/channels/{channel_id}",
             patch(update_group_channel).delete(delete_group_channel),
@@ -95,12 +102,18 @@ pub fn routes() -> Router<Arc<AppState>> {
             "/groups/{id}/invites",
             get(list_invites).post(create_invite),
         )
-        .route("/groups/{id}/invites/{invite_id}", axum::routing::delete(delete_invite))
+        .route(
+            "/groups/{id}/invites/{invite_id}",
+            axum::routing::delete(delete_invite),
+        )
         .route("/invites/{code}", get(get_invite_info))
         .route("/invites/{code}/accept", post(accept_invite))
         .route("/groups/{id}/icon", post(upload_group_icon))
         .route("/groups/{id}/banner", post(upload_group_banner))
-        .route("/groups/{group_id}/channels/{channel_id}/voice-background", post(upload_channel_voice_background))
+        .route(
+            "/groups/{group_id}/channels/{channel_id}/voice-background",
+            post(upload_channel_voice_background),
+        )
         .route("/group-assets/{filename}", get(serve_group_asset))
 }
 
@@ -131,7 +144,11 @@ async fn create_group(
             .await?
             .ok_or(AppError::Forbidden)?;
 
-    let effective_role = if claims.is_owner { "instance_admin" } else { &community_role };
+    let effective_role = if claims.is_owner {
+        "instance_admin"
+    } else {
+        &community_role
+    };
 
     // Look up the community's policy for group creation
     let community = community_repo::get_community(&state.db, req.community_id)
@@ -145,8 +162,7 @@ async fn create_group(
     // Personal group: caller must be community moderator+, target must be a community member
     let is_personal = req.assigned_member_id.is_some();
     if let Some(target_id) = req.assigned_member_id {
-        if !is_community_moderator(&state.db, req.community_id, claims.sub, claims.is_owner)
-            .await?
+        if !is_community_moderator(&state.db, req.community_id, claims.sub, claims.is_owner).await?
         {
             return Err(AppError::Forbidden);
         }
@@ -171,11 +187,10 @@ async fn create_group(
     };
 
     // Enforce groups-per-community limit
-    let group_count: i64 =
-        query_scalar("SELECT COUNT(*) FROM groups WHERE community_id = $1")
-            .bind(req.community_id)
-            .fetch_one(&state.db)
-            .await?;
+    let group_count: i64 = query_scalar("SELECT COUNT(*) FROM groups WHERE community_id = $1")
+        .bind(req.community_id)
+        .fetch_one(&state.db)
+        .await?;
     if group_count >= 200 {
         return Err(AppError::Validation(
             "maximum of 200 groups per community".to_string(),
@@ -213,8 +228,7 @@ async fn create_group(
     let mut member_count: i64 = 1;
     if visibility == "public" && !is_personal {
         let member_ids =
-            community_repo::list_community_member_user_ids(&state.db, req.community_id)
-                .await?;
+            community_repo::list_community_member_user_ids(&state.db, req.community_id).await?;
         if member_ids.len() > 5000 {
             return Err(AppError::Validation(
                 "Community is too large for public group auto-join; create a private group and use invites".into(),
@@ -224,7 +238,10 @@ async fn create_group(
             if *uid == claims.sub {
                 continue; // Creator already added as owner
             }
-            if group_repo::join_group(&state.db, group_id, *uid).await.is_ok() {
+            if group_repo::join_group(&state.db, group_id, *uid)
+                .await
+                .is_ok()
+            {
                 member_count += 1;
             }
         }
@@ -401,9 +418,12 @@ async fn update_group(
 
     // Validate visibility if provided
     if let Some(ref vis) = req.visibility
-        && vis != "public" && vis != "private"
+        && vis != "public"
+        && vis != "private"
     {
-        return Err(AppError::Validation("visibility must be 'public' or 'private'".to_string()));
+        return Err(AppError::Validation(
+            "visibility must be 'public' or 'private'".to_string(),
+        ));
     }
 
     if let Some(d) = description
@@ -462,13 +482,8 @@ async fn delete_group_handler(
     // For regular groups: only the group owner can delete.
     if group.assigned_member_id.is_some() {
         if group.owner_id != claims.sub
-            && !is_community_moderator(
-                &state.db,
-                group.community_id,
-                claims.sub,
-                claims.is_owner,
-            )
-            .await?
+            && !is_community_moderator(&state.db, group.community_id, claims.sub, claims.is_owner)
+                .await?
         {
             return Err(AppError::Forbidden);
         }
@@ -689,11 +704,10 @@ async fn create_group_channel(
     }
 
     // Enforce channel-per-group limit
-    let channel_count: i64 =
-        query_scalar("SELECT COUNT(*) FROM channels WHERE group_id = $1")
-            .bind(group_id)
-            .fetch_one(&state.db)
-            .await?;
+    let channel_count: i64 = query_scalar("SELECT COUNT(*) FROM channels WHERE group_id = $1")
+        .bind(group_id)
+        .fetch_one(&state.db)
+        .await?;
     if channel_count >= 100 {
         return Err(AppError::Validation(
             "maximum of 100 channels per group".to_string(),
@@ -874,22 +888,17 @@ async fn create_invite(
     // Personal groups with allow_invites=false: only community moderator+ can create invites
     if group.assigned_member_id.is_some()
         && !group.allow_invites
-        && !is_community_moderator(
-            &state.db,
-            group.community_id,
-            claims.sub,
-            claims.is_owner,
-        )
-        .await?
+        && !is_community_moderator(&state.db, group.community_id, claims.sub, claims.is_owner)
+            .await?
     {
         return Err(AppError::Validation(
             "invites are disabled for this personal group".to_string(),
         ));
     }
 
-    let expires_at = req.expires_in_hours.map(|h| {
-        chrono::Utc::now() + chrono::Duration::hours(h as i64)
-    });
+    let expires_at = req
+        .expires_in_hours
+        .map(|h| chrono::Utc::now() + chrono::Duration::hours(h as i64));
 
     let invite_id = Uuid::now_v7();
     let code = generate_invite_code();
@@ -1058,7 +1067,9 @@ async fn accept_invite(
 
     // Check if already a member
     if group_repo::is_member(&state.db, invite.group_id, claims.sub).await? {
-        return Err(AppError::Conflict("already a member of this group".to_string()));
+        return Err(AppError::Conflict(
+            "already a member of this group".to_string(),
+        ));
     }
 
     // Join the group
@@ -1113,9 +1124,14 @@ async fn upload_group_icon(
     let group = group_repo::update_group(
         &state.db,
         id,
-        None, None, None, None, None,
+        None,
+        None,
+        None,
+        None,
+        None,
         Some(&icon_url),
-        None, None,
+        None,
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("group not found".into()))?;
@@ -1158,7 +1174,11 @@ async fn upload_group_banner(
     let group = group_repo::update_group(
         &state.db,
         id,
-        None, None, None, None, None,
+        None,
+        None,
+        None,
+        None,
+        None,
         None,
         Some(&banner_url),
         None,
@@ -1206,7 +1226,13 @@ async fn upload_channel_voice_background(
     let channel = channel_repo::update_channel(
         &state.db,
         path.channel_id,
-        None, None, None, None, None, None, None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
         Some(&bg_url),
     )
     .await?
@@ -1248,10 +1274,13 @@ async fn serve_group_asset(
     let stream = tokio_util::io::ReaderStream::new(file);
     let body = Body::from_stream(stream);
 
-    Ok(([
-        (header::CONTENT_TYPE, content_type.to_string()),
-        (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
-    ], body))
+    Ok((
+        [
+            (header::CONTENT_TYPE, content_type.to_string()),
+            (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
+        ],
+        body,
+    ))
 }
 
 fn group_to_response(g: Group, member_count: i64) -> GroupResponse {
@@ -1303,8 +1332,7 @@ async fn read_image_field(
     }
 
     let data = file_data.ok_or_else(|| AppError::Validation(format!("no {field_name} field")))?;
-    let ct = content_type
-        .ok_or_else(|| AppError::Validation("missing content type".into()))?;
+    let ct = content_type.ok_or_else(|| AppError::Validation("missing content type".into()))?;
 
     if !ALLOWED_IMAGE_TYPES.contains(&ct.as_str()) {
         return Err(AppError::Validation(

@@ -25,16 +25,12 @@ const MAX_CACHE_SIZE: usize = 1000;
 
 // Pre-compiled regexes for OG metadata parsing (avoids repeated compilation and unwrap panics)
 static META_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r#"<meta\s+[^>]*?(?:property|name)=["']([^"']+)["'][^>]*?content=["']([^"']*)["']"#,
-    )
-    .expect("META_RE is a valid regex")
+    Regex::new(r#"<meta\s+[^>]*?(?:property|name)=["']([^"']+)["'][^>]*?content=["']([^"']*)["']"#)
+        .expect("META_RE is a valid regex")
 });
 static META_RE2: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r#"<meta\s+[^>]*?content=["']([^"']*)["'][^>]*?(?:property|name)=["']([^"']+)["']"#,
-    )
-    .expect("META_RE2 is a valid regex")
+    Regex::new(r#"<meta\s+[^>]*?content=["']([^"']*)["'][^>]*?(?:property|name)=["']([^"']+)["']"#)
+        .expect("META_RE2 is a valid regex")
 });
 static TITLE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"<title[^>]*>([^<]+)</title>").expect("TITLE_RE is a valid regex")
@@ -52,7 +48,9 @@ async fn get_link_preview(
 
     // Validate URL scheme
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(AppError::Validation("Only http/https URLs are allowed".into()));
+        return Err(AppError::Validation(
+            "Only http/https URLs are allowed".into(),
+        ));
     }
 
     // SSRF protection: block private/internal IPs

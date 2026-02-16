@@ -32,22 +32,18 @@ pub async fn remove_reaction(
     user_id: Uuid,
     emoji: &str,
 ) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3",
-    )
-    .bind(message_id)
-    .bind(user_id)
-    .bind(emoji)
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("DELETE FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3")
+            .bind(message_id)
+            .bind(user_id)
+            .bind(emoji)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected() > 0)
 }
 
 /// Get all reactions for a message.
-pub async fn get_reactions(
-    pool: &PgPool,
-    message_id: Uuid,
-) -> Result<Vec<Reaction>, sqlx::Error> {
+pub async fn get_reactions(pool: &PgPool, message_id: Uuid) -> Result<Vec<Reaction>, sqlx::Error> {
     sqlx::query_as::<_, Reaction>(
         "SELECT * FROM reactions WHERE message_id = $1 ORDER BY created_at",
     )
@@ -83,16 +79,12 @@ pub async fn get_reaction_counts(
 }
 
 /// Count distinct emoji types on a message.
-pub async fn count_unique_reactions(
-    pool: &PgPool,
-    message_id: Uuid,
-) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(DISTINCT emoji) FROM reactions WHERE message_id = $1",
-    )
-    .bind(message_id)
-    .fetch_one(pool)
-    .await?;
+pub async fn count_unique_reactions(pool: &PgPool, message_id: Uuid) -> Result<i64, sqlx::Error> {
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(DISTINCT emoji) FROM reactions WHERE message_id = $1")
+            .bind(message_id)
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }
 

@@ -235,8 +235,7 @@ async fn upload_avatar(
     };
 
     // Store in avatars/ subdirectory
-    let avatar_dir =
-        std::path::Path::new(&state.config.file_storage_path).join("avatars");
+    let avatar_dir = std::path::Path::new(&state.config.file_storage_path).join("avatars");
     tokio::fs::create_dir_all(&avatar_dir)
         .await
         .map_err(|e| AppError::Internal(format!("create avatar dir: {e}")))?;
@@ -330,8 +329,7 @@ async fn upload_banner(
         _ => "bin",
     };
 
-    let avatar_dir =
-        std::path::Path::new(&state.config.file_storage_path).join("avatars");
+    let avatar_dir = std::path::Path::new(&state.config.file_storage_path).join("avatars");
     tokio::fs::create_dir_all(&avatar_dir)
         .await
         .map_err(|e| AppError::Internal(format!("create avatar dir: {e}")))?;
@@ -424,8 +422,7 @@ async fn upload_voice_background(
         _ => "bin",
     };
 
-    let avatar_dir =
-        std::path::Path::new(&state.config.file_storage_path).join("avatars");
+    let avatar_dir = std::path::Path::new(&state.config.file_storage_path).join("avatars");
     tokio::fs::create_dir_all(&avatar_dir)
         .await
         .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
@@ -482,10 +479,7 @@ async fn serve_avatar(
     Ok((
         [
             (header::CONTENT_TYPE, content_type.to_string()),
-            (
-                header::CACHE_CONTROL,
-                "public, max-age=3600".to_string(),
-            ),
+            (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
         ],
         body,
     ))
@@ -502,9 +496,7 @@ async fn delete_account(
 
     // Verify password
     if !auth_service::verify_password(&req.password, &user.password_hash)? {
-        return Err(AppError::Validation(
-            "password is incorrect".to_string(),
-        ));
+        return Err(AppError::Validation("password is incorrect".to_string()));
     }
 
     // Block if user owns any groups
@@ -594,9 +586,7 @@ async fn get_preferences(
     Extension(claims): Extension<AccessClaims>,
 ) -> Result<Json<PreferencesResponse>, AppError> {
     let prefs = preferences_repo::get_preferences(&state.db, claims.sub).await?;
-    Ok(Json(PreferencesResponse {
-        preferences: prefs,
-    }))
+    Ok(Json(PreferencesResponse { preferences: prefs }))
 }
 
 async fn update_preferences(
@@ -658,10 +648,7 @@ pub fn validate_avatar_url(url: &str) -> Result<(), AppError> {
             "avatar URL must be at most 2048 characters".to_string(),
         ));
     }
-    if !url.starts_with("http://")
-        && !url.starts_with("https://")
-        && !url.starts_with("/api/")
-    {
+    if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("/api/") {
         return Err(AppError::Validation(
             "avatar URL must be an HTTP(S) URL or /api/ path".to_string(),
         ));

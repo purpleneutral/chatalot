@@ -34,12 +34,10 @@ pub async fn get_invite_by_code(
     pool: &PgPool,
     code: &str,
 ) -> Result<Option<GroupInvite>, sqlx::Error> {
-    sqlx::query_as::<_, GroupInvite>(
-        "SELECT * FROM group_invites WHERE code = $1",
-    )
-    .bind(code)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as::<_, GroupInvite>("SELECT * FROM group_invites WHERE code = $1")
+        .bind(code)
+        .fetch_optional(pool)
+        .await
 }
 
 /// Atomically increment usage count, returning true if the invite was valid and used.

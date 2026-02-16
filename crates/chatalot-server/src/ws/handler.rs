@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use chatalot_common::ws_messages::{ClientMessage, MessageType, ServerMessage};
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{block_repo, channel_repo, community_repo, message_repo, reaction_repo, timeout_repo, unread_repo, user_repo, voice_repo};
+use chatalot_db::repos::{
+    block_repo, channel_repo, community_repo, message_repo, reaction_repo, timeout_repo,
+    unread_repo, user_repo, voice_repo,
+};
 
 use crate::permissions;
 
@@ -15,11 +18,7 @@ use crate::app_state::AppState;
 use crate::ws::connection_manager::SessionHandle;
 
 /// Handle an authenticated WebSocket connection.
-pub async fn handle_socket(
-    socket: WebSocket,
-    user_id: Uuid,
-    state: Arc<AppState>,
-) {
+pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState>) {
     let conn_mgr = &state.connections;
     let session_id = Uuid::new_v4();
     let (mut ws_sink, mut ws_stream) = socket.split();
@@ -154,7 +153,9 @@ pub async fn handle_socket(
                 );
 
                 // Get remaining participants and broadcast authoritative state
-                if let Ok(participants) = voice_repo::get_participants(&state.db, *voice_session_id).await {
+                if let Ok(participants) =
+                    voice_repo::get_participants(&state.db, *voice_session_id).await
+                {
                     conn_mgr.broadcast_to_channel(
                         *channel_id,
                         ServerMessage::VoiceStateUpdate {
@@ -258,7 +259,6 @@ async fn handle_client_message(
             };
 
             if channel.channel_type != ChannelType::Dm {
-
                 if channel.archived {
                     let _ = tx.send(ServerMessage::Error {
                         code: "archived".to_string(),
@@ -275,7 +275,8 @@ async fn handle_client_message(
                     return;
                 }
 
-                if channel.slow_mode_seconds > 0 && !is_privileged
+                if channel.slow_mode_seconds > 0
+                    && !is_privileged
                     && let Ok(Some(last_sent)) =
                         channel_repo::get_slowmode_last_sent(&state.db, channel_id, user_id).await
                 {
@@ -295,7 +296,9 @@ async fn handle_client_message(
                     && let Ok(Some(timeout)) =
                         timeout_repo::get_active_timeout(&state.db, user_id, channel_id).await
                 {
-                    let remaining = (timeout.expires_at - chrono::Utc::now()).num_seconds().max(0);
+                    let remaining = (timeout.expires_at - chrono::Utc::now())
+                        .num_seconds()
+                        .max(0);
                     let _ = tx.send(ServerMessage::Error {
                         code: "timed_out".to_string(),
                         message: format!("you are timed out for {remaining} more seconds"),
@@ -335,16 +338,13 @@ async fn handle_client_message(
                                 Ok(false) => {
                                     let _ = tx.send(ServerMessage::Error {
                                         code: "forbidden".to_string(),
-                                        message:
-                                            "you no longer share a community with this user"
-                                                .to_string(),
+                                        message: "you no longer share a community with this user"
+                                            .to_string(),
                                     });
                                     return;
                                 }
                                 Err(e) => {
-                                    tracing::error!(
-                                        "Failed to check shared community: {e}"
-                                    );
+                                    tracing::error!("Failed to check shared community: {e}");
                                 }
                                 _ => {}
                             }
@@ -384,9 +384,9 @@ async fn handle_client_message(
             let message_id = Uuid::now_v7();
 
             // Compute expires_at if channel has a TTL configured
-            let expires_at = channel.message_ttl_seconds.map(|ttl| {
-                chrono::Utc::now() + chrono::Duration::seconds(ttl as i64)
-            });
+            let expires_at = channel
+                .message_ttl_seconds
+                .map(|ttl| chrono::Utc::now() + chrono::Duration::seconds(ttl as i64));
 
             // Persist the ciphertext
             match message_repo::create_message(
@@ -430,8 +430,7 @@ async fn handle_client_message(
                     let is_dm = channel.channel_type == ChannelType::Dm;
 
                     if is_dm {
-                        if let Ok(members) =
-                            channel_repo::list_members(&state.db, channel_id).await
+                        if let Ok(members) = channel_repo::list_members(&state.db, channel_id).await
                         {
                             // If this is the first message, notify the other user
                             // about the DM channel so it appears in their sidebar.
@@ -459,9 +458,7 @@ async fn handle_client_message(
                                                 other_user_display_name: Some(
                                                     sender.display_name.clone(),
                                                 ),
-                                                other_user_avatar_url: sender
-                                                    .avatar_url
-                                                    .clone(),
+                                                other_user_avatar_url: sender.avatar_url.clone(),
                                             },
                                         );
                                     }
@@ -475,9 +472,9 @@ async fn handle_client_message(
 
                     // Update slow mode tracker after successful send (skip for exempt users)
                     if channel.slow_mode_seconds > 0 && !is_privileged {
-                        let _ = channel_repo::update_slowmode_last_sent(
-                            &state.db, channel_id, user_id,
-                        ).await;
+                        let _ =
+                            channel_repo::update_slowmode_last_sent(&state.db, channel_id, user_id)
+                                .await;
                     }
                 }
                 Err(e) => {
@@ -512,14 +509,10 @@ async fn handle_client_message(
                 message_repo::delete_message(&state.db, message_id, user_id).await
             } else {
                 // Not own message — check mod permissions
-                let role = channel_repo::get_member_role(
-                    &state.db,
-                    msg_record.channel_id,
-                    user_id,
-                )
-                .await
-                .ok()
-                .flatten();
+                let role = channel_repo::get_member_role(&state.db, msg_record.channel_id, user_id)
+                    .await
+                    .ok()
+                    .flatten();
                 match role {
                     Some(ref r) if permissions::can_delete_others_messages(r) => {
                         message_repo::delete_message_as_mod(&state.db, message_id).await
@@ -527,8 +520,7 @@ async fn handle_client_message(
                     _ => {
                         let _ = tx.send(ServerMessage::Error {
                             code: "forbidden".to_string(),
-                            message: "you don't have permission to delete this message"
-                                .to_string(),
+                            message: "you don't have permission to delete this message".to_string(),
                         });
                         return;
                     }
@@ -744,7 +736,9 @@ async fn handle_client_message(
                     }
 
                     // Get current participants and broadcast
-                    if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+                    if let Ok(participants) =
+                        voice_repo::get_participants(&state.db, session.id).await
+                    {
                         // Broadcast full participant list to everyone in the channel
                         // so all clients can establish missing peer connections
                         conn_mgr.broadcast_to_channel(
@@ -789,7 +783,8 @@ async fn handle_client_message(
                 );
 
                 // Get remaining participants and broadcast authoritative state
-                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await
+                {
                     conn_mgr.broadcast_to_channel(
                         channel_id,
                         ServerMessage::VoiceStateUpdate {
@@ -806,10 +801,14 @@ async fn handle_client_message(
             }
         }
 
-        ClientMessage::KickFromVoice { channel_id, user_id: target_user_id } => {
+        ClientMessage::KickFromVoice {
+            channel_id,
+            user_id: target_user_id,
+        } => {
             // Check permissions: actor must outrank target
             let actor_role = channel_repo::get_member_role(&state.db, channel_id, user_id).await;
-            let target_role = channel_repo::get_member_role(&state.db, channel_id, target_user_id).await;
+            let target_role =
+                channel_repo::get_member_role(&state.db, channel_id, target_user_id).await;
 
             let allowed = match (actor_role, target_role) {
                 (Ok(Some(a)), Ok(Some(t))) => permissions::can_moderate(&a, &t),
@@ -847,7 +846,8 @@ async fn handle_client_message(
                 );
 
                 // Broadcast updated participant list
-                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+                if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await
+                {
                     conn_mgr.broadcast_to_channel(
                         channel_id,
                         ServerMessage::VoiceStateUpdate {
@@ -927,14 +927,8 @@ async fn handle_client_message(
                 return;
             }
 
-            match message_repo::edit_message(
-                &state.db,
-                message_id,
-                user_id,
-                &ciphertext,
-                &nonce,
-            )
-            .await
+            match message_repo::edit_message(&state.db, message_id, user_id, &ciphertext, &nonce)
+                .await
             {
                 Ok(true) => {
                     conn_mgr.broadcast_to_channel(
@@ -1079,7 +1073,13 @@ async fn handle_client_message(
             channel_id,
             message_id,
         } => {
-            let _ = unread_repo::mark_read(&state.db, user_id, channel_id, message_id).await;
+            // Only allow marking read if the user is actually a member of the channel
+            if channel_repo::is_member(&state.db, channel_id, user_id)
+                .await
+                .unwrap_or(false)
+            {
+                let _ = unread_repo::mark_read(&state.db, user_id, channel_id, message_id).await;
+            }
         }
     }
 }

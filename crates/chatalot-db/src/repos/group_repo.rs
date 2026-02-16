@@ -55,10 +55,7 @@ pub async fn create_group(
 }
 
 /// List all groups a user is a member of.
-pub async fn list_user_groups(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Vec<Group>, sqlx::Error> {
+pub async fn list_user_groups(pool: &PgPool, user_id: Uuid) -> Result<Vec<Group>, sqlx::Error> {
     sqlx::query_as::<_, Group>(
         r#"
         SELECT g.* FROM groups g
@@ -132,11 +129,7 @@ pub async fn delete_group(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> 
 }
 
 /// Join a group — adds user as member and to all group channels.
-pub async fn join_group(
-    pool: &PgPool,
-    group_id: Uuid,
-    user_id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     sqlx::query(
@@ -171,11 +164,7 @@ pub async fn join_group(
 }
 
 /// Leave a group — removes from group and all its channels.
-pub async fn leave_group(
-    pool: &PgPool,
-    group_id: Uuid,
-    user_id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn leave_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     sqlx::query("DELETE FROM group_members WHERE group_id = $1 AND user_id = $2")
@@ -234,11 +223,10 @@ pub async fn list_group_members(
 
 /// Check if a user owns any groups (blocks account deletion).
 pub async fn user_owns_groups(pool: &PgPool, user_id: Uuid) -> Result<bool, sqlx::Error> {
-    let row: (bool,) =
-        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM groups WHERE owner_id = $1)")
-            .bind(user_id)
-            .fetch_one(pool)
-            .await?;
+    let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM groups WHERE owner_id = $1)")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await?;
     Ok(row.0)
 }
 
@@ -259,22 +247,18 @@ pub async fn transfer_ownership(
         .await?;
 
     // Demote old owner to admin
-    sqlx::query(
-        "UPDATE group_members SET role = 'admin' WHERE group_id = $1 AND user_id = $2",
-    )
-    .bind(group_id)
-    .bind(old_owner_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE group_members SET role = 'admin' WHERE group_id = $1 AND user_id = $2")
+        .bind(group_id)
+        .bind(old_owner_id)
+        .execute(&mut *tx)
+        .await?;
 
     // Promote new owner
-    sqlx::query(
-        "UPDATE group_members SET role = 'owner' WHERE group_id = $1 AND user_id = $2",
-    )
-    .bind(group_id)
-    .bind(new_owner_id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE group_members SET role = 'owner' WHERE group_id = $1 AND user_id = $2")
+        .bind(group_id)
+        .bind(new_owner_id)
+        .execute(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(())
@@ -286,22 +270,17 @@ pub async fn get_member_role(
     group_id: Uuid,
     user_id: Uuid,
 ) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2",
-    )
-    .bind(group_id)
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2")
+            .bind(group_id)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
     Ok(row.map(|r| r.0))
 }
 
 /// Check if a user is a member of a group.
-pub async fn is_member(
-    pool: &PgPool,
-    group_id: Uuid,
-    user_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_member(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
     let row: (bool,) = sqlx::query_as(
         "SELECT EXISTS(SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2)",
     )
@@ -348,16 +327,11 @@ pub async fn list_visible_group_channels(
 }
 
 /// Get the member count for a group.
-pub async fn get_member_count(
-    pool: &PgPool,
-    group_id: Uuid,
-) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM group_members WHERE group_id = $1",
-    )
-    .bind(group_id)
-    .fetch_one(pool)
-    .await?;
+pub async fn get_member_count(pool: &PgPool, group_id: Uuid) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM group_members WHERE group_id = $1")
+        .bind(group_id)
+        .fetch_one(pool)
+        .await?;
     Ok(row.0)
 }
 

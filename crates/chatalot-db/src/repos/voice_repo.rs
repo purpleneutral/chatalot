@@ -79,10 +79,7 @@ pub async fn leave_session(
 }
 
 /// Get current participants in a voice session.
-pub async fn get_participants(
-    pool: &PgPool,
-    session_id: Uuid,
-) -> Result<Vec<Uuid>, sqlx::Error> {
+pub async fn get_participants(pool: &PgPool, session_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
     let rows: Vec<(Uuid,)> = sqlx::query_as(
         "SELECT user_id FROM voice_session_participants WHERE session_id = $1 AND left_at IS NULL",
     )
