@@ -89,6 +89,7 @@ Forgot your password? Use your recovery code — generated at registration, no e
 
 - Docker and Docker Compose v2
 - OpenSSL (for generating keys on first run)
+- **ARM64 supported** — runs natively on Raspberry Pi 4/5, Apple Silicon, and other ARM64 devices
 
 ### 1. Clone and generate secrets
 
@@ -132,6 +133,21 @@ docker compose up -d
 | `closed` | Registration is completely disabled |
 
 Admins generate invite codes from the admin panel. Codes can have usage limits and expiration dates.
+
+### Pre-built Images (recommended for ARM/Raspberry Pi)
+
+Building from source on ARM devices takes 20+ minutes (Rust compilation). Pre-built multi-arch images are available on GHCR:
+
+```bash
+# Use the pre-built image instead of building locally
+# In docker-compose.override.yml:
+services:
+  chatalot:
+    image: ghcr.io/purpleneutral/chatalot:latest
+    build: !reset null
+```
+
+Then run `docker compose up -d` as normal. The correct architecture (amd64 or arm64) is selected automatically.
 
 ## Expose to the Internet
 
@@ -290,10 +306,12 @@ chatalot/
 ├── docs/                      # Detailed documentation
 ├── migrations/                # PostgreSQL migrations (34 files)
 ├── scripts/
+│   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
 │   ├── generate-secrets.sh    # Generate JWT keys + .env
 │   ├── generate-keys.sh       # Generate JWT keys only
 │   └── build-wasm.sh          # Build WASM crypto module for web client
+├── .github/workflows/         # CI: multi-arch Docker image builds (amd64 + arm64)
 ├── Dockerfile                 # Multi-stage build
 └── docker-compose.yml
 ```
