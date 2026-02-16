@@ -61,6 +61,25 @@ pub async fn delete_distribution(
     Ok(result.rows_affected() > 0)
 }
 
+/// Delete a user's sender key distributions across multiple channels at once.
+pub async fn delete_distributions_for_channels(
+    pool: &PgPool,
+    channel_ids: &[Uuid],
+    user_id: Uuid,
+) -> Result<u64, sqlx::Error> {
+    if channel_ids.is_empty() {
+        return Ok(0);
+    }
+    let result = sqlx::query(
+        "DELETE FROM sender_key_distributions WHERE channel_id = ANY($1) AND user_id = $2",
+    )
+    .bind(channel_ids)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Delete ALL sender key distributions for a channel (full rotation).
 pub async fn delete_all_distributions(pool: &PgPool, channel_id: Uuid) -> Result<u64, sqlx::Error> {
     let result = sqlx::query("DELETE FROM sender_key_distributions WHERE channel_id = $1")

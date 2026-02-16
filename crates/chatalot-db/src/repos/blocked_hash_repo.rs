@@ -37,6 +37,31 @@ pub async fn add_blocked_hash(
     .await
 }
 
+/// Add multiple hashes to the blocklist at once.
+pub async fn add_blocked_hashes(
+    pool: &PgPool,
+    hashes: &[String],
+    reason: Option<&str>,
+    blocked_by: Uuid,
+) -> Result<u64, sqlx::Error> {
+    if hashes.is_empty() {
+        return Ok(0);
+    }
+    let result = sqlx::query(
+        r#"
+        INSERT INTO blocked_hashes (id, hash, reason, blocked_by)
+        SELECT gen_random_uuid(), unnest($1::text[]), $2, $3
+        ON CONFLICT (hash) DO UPDATE SET reason = EXCLUDED.reason
+        "#,
+    )
+    .bind(hashes)
+    .bind(reason)
+    .bind(blocked_by)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Remove a hash from the blocklist.
 pub async fn remove_blocked_hash(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM blocked_hashes WHERE id = $1")

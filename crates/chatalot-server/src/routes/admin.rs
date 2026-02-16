@@ -503,25 +503,18 @@ async fn maybe_block_hashes(
     block: bool,
     blocked_by: Uuid,
 ) -> u64 {
-    if !block {
+    if !block || files.is_empty() {
         return 0;
     }
-    let mut count = 0u64;
-    for file in files {
-        if blocked_hash_repo::add_blocked_hash(
-            db,
-            Uuid::now_v7(),
-            &file.checksum,
-            Some("auto-blocked via admin purge"),
-            blocked_by,
-        )
-        .await
-        .is_ok()
-        {
-            count += 1;
-        }
-    }
-    count
+    let hashes: Vec<String> = files.iter().map(|f| f.checksum.clone()).collect();
+    blocked_hash_repo::add_blocked_hashes(
+        db,
+        &hashes,
+        Some("auto-blocked via admin purge"),
+        blocked_by,
+    )
+    .await
+    .unwrap_or(0)
 }
 
 /// Hard-delete a single message and its sender's files from disk.

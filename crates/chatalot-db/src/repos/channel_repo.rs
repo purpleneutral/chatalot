@@ -127,6 +127,29 @@ pub async fn join_channel(
     Ok(())
 }
 
+/// Add multiple users to a channel at once.
+pub async fn join_channel_batch(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_ids: &[Uuid],
+) -> Result<(), sqlx::Error> {
+    if user_ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO channel_members (channel_id, user_id, role)
+        SELECT $1, unnest($2::uuid[]), 'member'
+        ON CONFLICT (channel_id, user_id) DO NOTHING
+        "#,
+    )
+    .bind(channel_id)
+    .bind(user_ids)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Remove a user from a channel.
 pub async fn leave_channel(
     pool: &PgPool,

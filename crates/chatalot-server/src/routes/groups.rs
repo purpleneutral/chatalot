@@ -610,8 +610,11 @@ async fn leave_group(
 
     // Delete leaving user's sender keys and trigger rotation for all group channels
     let channels = group_repo::list_group_channels(&state.db, id).await?;
+    let channel_ids: Vec<Uuid> = channels.iter().map(|ch| ch.id).collect();
+    let _ =
+        sender_key_repo::delete_distributions_for_channels(&state.db, &channel_ids, claims.sub)
+            .await;
     for ch in &channels {
-        let _ = sender_key_repo::delete_distribution(&state.db, ch.id, claims.sub).await;
         state.connections.broadcast_to_channel(
             ch.id,
             ServerMessage::SenderKeyRotationRequired {
@@ -754,12 +757,12 @@ async fn create_group_channel(
 
     // Add all existing group members to the new channel
     let members = group_repo::list_group_members(&state.db, group_id, 10_000, 0).await?;
-    for m in members {
-        if m.user_id != claims.sub {
-            // Creator is already added by create_channel
-            let _ = channel_repo::join_channel(&state.db, channel_id, m.user_id).await;
-        }
-    }
+    let member_ids: Vec<Uuid> = members
+        .iter()
+        .filter(|m| m.user_id != claims.sub) // Creator is already added by create_channel
+        .map(|m| m.user_id)
+        .collect();
+    channel_repo::join_channel_batch(&state.db, channel_id, &member_ids).await?;
 
     Ok(Json(ChannelResponse {
         id: channel.id,
