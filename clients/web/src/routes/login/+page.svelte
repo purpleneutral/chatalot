@@ -88,18 +88,19 @@
 			{#if showTotp}
 				<div>
 					<label for="totp" class="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
-						2FA Code
+						2FA Code or Backup Code
 					</label>
 					<input
 						id="totp"
 						type="text"
 						bind:value={totpCode}
-						inputmode="numeric"
-						pattern="[0-9]{6}"
-						maxlength="6"
 						autocomplete="one-time-code"
+						placeholder="123456 or XXXX-XXXX"
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-center font-mono text-lg tracking-widest text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 					/>
+					<p class="mt-1 text-xs text-[var(--text-secondary)]/70">
+						Enter your 6-digit TOTP code, or a backup code if you lost your device.
+					</p>
 				</div>
 			{/if}
 
@@ -119,9 +120,14 @@
 			>
 				{showTotp ? 'Hide 2FA' : 'Have a 2FA code?'}
 			</button>
-			<a href="/register" class="text-[var(--accent)] transition hover:text-[var(--accent-hover)]">
-				Create account
-			</a>
+			<div class="flex gap-3">
+				<a href="/recover" class="text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]">
+					Forgot password?
+				</a>
+				<a href="/register" class="text-[var(--accent)] transition hover:text-[var(--accent-hover)]">
+					Create account
+				</a>
+			</div>
 		</div>
 	</div>
 </div>

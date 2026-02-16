@@ -24,6 +24,9 @@
 	let loading = $state(false);
 	let registrationMode = $state('open');
 	let configLoading = $state(true);
+	let recoveryCode = $state('');
+	let showRecoveryModal = $state(false);
+	let copiedRecovery = $state(false);
 
 	// Password strength checks
 	let pwHasLength = $derived(password.length >= 8);
@@ -76,7 +79,12 @@
 			});
 
 			authStore.setAuth(response.access_token, response.refresh_token, response.user);
-			goto('/channels');
+			if (response.recovery_code) {
+				recoveryCode = response.recovery_code;
+				showRecoveryModal = true;
+			} else {
+				goto('/channels');
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Registration failed';
 		} finally {
@@ -253,3 +261,44 @@
 		{/if}
 	</div>
 </div>
+
+{#if showRecoveryModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+		onkeydown={(e) => e.key === 'Escape' && goto('/channels')}
+	>
+		<div class="w-full max-w-md rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-2xl">
+			<h2 class="mb-2 text-xl font-bold text-[var(--text-primary)]">Save Your Recovery Code</h2>
+			<p class="mb-4 text-sm text-[var(--text-secondary)]">
+				This is the only way to recover your account if you forget your password.
+				Write it down or save it somewhere safe. It will not be shown again.
+			</p>
+
+			<div class="mb-4 rounded-lg bg-[var(--bg-primary)] p-4 text-center">
+				<code class="select-all font-mono text-lg font-bold tracking-wider text-[var(--accent)]">
+					{recoveryCode}
+				</code>
+			</div>
+
+			<div class="flex gap-3">
+				<button
+					onclick={() => {
+						navigator.clipboard.writeText(recoveryCode);
+						copiedRecovery = true;
+						setTimeout(() => (copiedRecovery = false), 2000);
+					}}
+					class="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:bg-white/5"
+				>
+					{copiedRecovery ? 'Copied!' : 'Copy Code'}
+				</button>
+				<button
+					onclick={() => goto('/channels')}
+					class="flex-1 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+				>
+					I've Saved My Code
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

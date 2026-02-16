@@ -4,6 +4,7 @@ export interface AuthResponse {
 	access_token: string;
 	refresh_token: string;
 	user: UserPublic;
+	recovery_code?: string;
 }
 
 export interface UserPublic {
@@ -71,4 +72,16 @@ export async function login(username: string, password: string, totpCode?: strin
 
 export async function refreshToken(token: string): Promise<{ access_token: string; refresh_token: string }> {
 	return api.post('/auth/refresh', { refresh_token: token });
+}
+
+export async function recoverAccount(
+	username: string,
+	recoveryCode: string,
+	newPassword: string
+): Promise<{ recovery_code: string }> {
+	return api.post('/auth/recover', {
+		username,
+		recovery_code: recoveryCode,
+		new_password: newPassword
+	});
 }

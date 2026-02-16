@@ -9,8 +9,8 @@
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
-	import { setupTotp, verifyTotp, disableTotp, type TotpSetup } from '$lib/api/totp';
-	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, type SessionInfo } from '$lib/api/account';
+	import { setupTotp, verifyTotp, disableTotp, regenerateBackupCodes, type TotpSetup } from '$lib/api/totp';
+	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, regenerateRecoveryCode, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount, onDestroy } from 'svelte';
@@ -28,6 +28,17 @@
 	let totpError = $state('');
 	let showTotpSetup = $state(false);
 	let showTotpDisable = $state(false);
+	let backupCodes = $state<string[]>([]);
+	let showBackupCodes = $state(false);
+	let backupCodeTotpInput = $state('');
+	let backupCodeError = $state('');
+
+	// Recovery code
+	let recoveryCode = $state('');
+	let showRecoveryCode = $state(false);
+	let recoveryLoading = $state(false);
+	let recoveryError = $state('');
+	let copiedRecovery = $state(false);
 
 	// Profile editing
 	let editDisplayName = $state(authStore.user?.display_name ?? '');
@@ -401,11 +412,15 @@
 		e.preventDefault();
 		totpError = '';
 		try {
-			await verifyTotp(totpCode);
+			const result = await verifyTotp(totpCode);
 			totpMessage = '2FA enabled successfully!';
 			showTotpSetup = false;
 			totpSetup = null;
 			totpCode = '';
+			if (result.backup_codes?.length) {
+				backupCodes = result.backup_codes;
+				showBackupCodes = true;
+			}
 		} catch (err) {
 			totpError = err instanceof Error ? err.message : 'Invalid code';
 		}
@@ -419,8 +434,37 @@
 			totpMessage = '2FA disabled.';
 			showTotpDisable = false;
 			disableCode = '';
+			backupCodes = [];
+			showBackupCodes = false;
 		} catch (err) {
 			totpError = err instanceof Error ? err.message : 'Invalid code';
+		}
+	}
+
+	async function handleRegenerateRecoveryCode() {
+		recoveryLoading = true;
+		recoveryError = '';
+		try {
+			const result = await regenerateRecoveryCode();
+			recoveryCode = result.recovery_code;
+			showRecoveryCode = true;
+		} catch (err) {
+			recoveryError = err instanceof Error ? err.message : 'Failed to regenerate recovery code';
+		} finally {
+			recoveryLoading = false;
+		}
+	}
+
+	async function handleRegenerateBackupCodes(e: SubmitEvent) {
+		e.preventDefault();
+		backupCodeError = '';
+		try {
+			const result = await regenerateBackupCodes(backupCodeTotpInput);
+			backupCodes = result.backup_codes;
+			showBackupCodes = true;
+			backupCodeTotpInput = '';
+		} catch (err) {
+			backupCodeError = err instanceof Error ? err.message : 'Invalid TOTP code';
 		}
 	}
 </script>
@@ -1542,6 +1586,122 @@
 							</div>
 						{/if}
 					</section>
+
+					<!-- Recovery Code -->
+					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Recovery Code</h3>
+						<p class="mb-4 text-sm text-[var(--text-secondary)]">
+							Your recovery code lets you reset your password if you forget it, without needing an admin. Generate a new one if you've lost it.
+						</p>
+
+						{#if recoveryError}
+							<div class="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+								{recoveryError}
+							</div>
+						{/if}
+
+						{#if showRecoveryCode}
+							<div class="mb-4 rounded-lg bg-[var(--bg-primary)] p-4">
+								<p class="mb-2 text-sm font-medium text-[var(--text-primary)]">Your New Recovery Code</p>
+								<p class="mb-3 text-xs text-[var(--text-secondary)]">
+									Save this code somewhere safe. It replaces your previous code and will not be shown again.
+								</p>
+								<div class="mb-3 rounded-lg bg-[var(--bg-tertiary,var(--bg-primary))] p-3 text-center">
+									<code class="select-all font-mono text-lg font-bold tracking-wider text-[var(--accent)]">
+										{recoveryCode}
+									</code>
+								</div>
+								<div class="flex gap-2">
+									<button
+										onclick={() => {
+											navigator.clipboard.writeText(recoveryCode);
+											copiedRecovery = true;
+											setTimeout(() => (copiedRecovery = false), 2000);
+										}}
+										class="flex-1 rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+									>
+										{copiedRecovery ? 'Copied!' : 'Copy Code'}
+									</button>
+									<button
+										onclick={() => { showRecoveryCode = false; recoveryCode = ''; }}
+										class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5"
+									>
+										Done
+									</button>
+								</div>
+							</div>
+						{:else}
+							<button
+								onclick={handleRegenerateRecoveryCode}
+								disabled={recoveryLoading}
+								class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50"
+							>
+								{recoveryLoading ? 'Generating...' : 'Generate New Recovery Code'}
+							</button>
+						{/if}
+					</section>
+
+					<!-- 2FA Backup Codes -->
+					{#if showBackupCodes && backupCodes.length > 0}
+						<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+							<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">2FA Backup Codes</h3>
+							<p class="mb-4 text-sm text-[var(--text-secondary)]">
+								Each code can only be used once. Save these in case you lose your authenticator device.
+							</p>
+							<div class="mb-4 grid grid-cols-2 gap-2">
+								{#each backupCodes as code}
+									<code class="select-all rounded bg-[var(--bg-primary)] px-3 py-2 text-center font-mono text-sm tracking-wider text-[var(--text-primary)]">
+										{code}
+									</code>
+								{/each}
+							</div>
+							<div class="flex gap-2">
+								<button
+									onclick={() => {
+										navigator.clipboard.writeText(backupCodes.join('\n'));
+										toastStore.success('Backup codes copied');
+									}}
+									class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+								>
+									Copy All
+								</button>
+								<button
+									onclick={() => { showBackupCodes = false; backupCodes = []; }}
+									class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5"
+								>
+									Done
+								</button>
+							</div>
+						</section>
+					{:else}
+						<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+							<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">2FA Backup Codes</h3>
+							<p class="mb-4 text-sm text-[var(--text-secondary)]">
+								Regenerate backup codes if you've used some or lost them. Requires a valid 2FA code.
+							</p>
+							{#if backupCodeError}
+								<div class="mb-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+									{backupCodeError}
+								</div>
+							{/if}
+							<form onsubmit={handleRegenerateBackupCodes} class="flex gap-2">
+								<input
+									type="text"
+									bind:value={backupCodeTotpInput}
+									placeholder="Enter 2FA code"
+									maxlength="6"
+									pattern="[0-9]{6}"
+									class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+								/>
+								<button
+									type="submit"
+									class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+								>
+									Regenerate
+								</button>
+							</form>
+						</section>
+					{/if}
 
 					<!-- Sessions -->
 					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">

@@ -59,3 +59,7 @@ export async function uploadBanner(file: File): Promise<UserPublic> {
 export async function uploadVoiceBackground(file: File): Promise<{ url: string }> {
 	return api.upload('/account/voice-background', 'background', file);
 }
+
+export async function regenerateRecoveryCode(): Promise<{ recovery_code: string }> {
+	return api.post('/account/regenerate-recovery-code', {});
+}
