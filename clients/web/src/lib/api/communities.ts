@@ -241,6 +241,37 @@ export async function removeTimeout(
 	await api.delete(`/communities/${communityId}/channels/${channelId}/timeout/${userId}`);
 }
 
+// ── Warnings ──
+
+export interface Warning {
+	id: string;
+	user_id: string;
+	channel_id: string;
+	issued_by: string;
+	reason: string;
+	created_at: string;
+}
+
+export async function createWarning(
+	communityId: string,
+	channelId: string,
+	userId: string,
+	reason: string
+): Promise<{ warning: Warning; warning_count: number }> {
+	return api.post(`/communities/${communityId}/channels/${channelId}/warnings`, {
+		user_id: userId,
+		reason
+	});
+}
+
+export async function listWarnings(
+	communityId: string,
+	channelId: string,
+	userId: string
+): Promise<Warning[]> {
+	return api.get<Warning[]>(`/communities/${communityId}/channels/${channelId}/warnings/${userId}`);
+}
+
 // ── Groups within community ──
 
 export async function listCommunityGroups(id: string): Promise<Group[]> {

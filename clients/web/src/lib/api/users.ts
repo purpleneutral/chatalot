@@ -39,3 +39,9 @@ export async function unblockUser(userId: string): Promise<void> {
 export async function listBlockedUsers(): Promise<BlockedUser[]> {
 	return api.get<BlockedUser[]>('/users/blocked');
 }
+
+// ── Reports ──
+
+export async function createReport(reportType: string, targetId: string, reason: string): Promise<void> {
+	await api.post('/reports', { report_type: reportType, target_id: targetId, reason });
+}

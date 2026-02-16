@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message, type ReactionInfo } from '$lib/api/channels';
 	import { listDms, createDm, type DmChannel } from '$lib/api/dms';
-	import { searchUsers, listBlockedUsers, type UserPublic } from '$lib/api/users';
+	import { searchUsers, listBlockedUsers, createReport, type UserPublic } from '$lib/api/users';
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
 	import { fetchLinkPreview } from '$lib/api/link-preview';
 	import { getServerConfig, getPublicUrl } from '$lib/api/auth';
@@ -215,6 +215,11 @@
 	// Custom emoji map for current community
 	let customEmojiMap = $state<Map<string, CustomEmoji>>(new Map());
 	let loadedCommunityEmojiId = '';
+
+	// Report modal state
+	let reportingMessageId = $state<string | null>(null);
+	let reportReason = $state('');
+	let submittingReport = $state(false);
 
 	// Slow mode cooldown
 	let slowModeCooldown = $state(0);
@@ -2623,6 +2628,21 @@
 			customEmojiMap = map;
 			loadedCommunityEmojiId = communityId;
 		} catch {}
+	}
+
+	async function handleSubmitReport() {
+		if (!reportingMessageId || !reportReason.trim()) return;
+		submittingReport = true;
+		try {
+			await createReport('message', reportingMessageId, reportReason.trim());
+			toastStore.success('Report submitted — admins will review it.');
+			reportingMessageId = null;
+			reportReason = '';
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to submit report');
+		} finally {
+			submittingReport = false;
+		}
 	}
 
 	async function switchCommunity(communityId: string) {
@@ -5104,6 +5124,16 @@
 									Delete (mod)
 								</button>
 							{/if}
+							{#if ctxMsg.senderId !== authStore.user?.id}
+								<div class="my-1 border-t border-white/10"></div>
+								<button
+									onclick={() => { reportingMessageId = ctxMsg.id; contextMenuMessageId = null; }}
+									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-orange-400 hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></svg>
+									Report
+								</button>
+							{/if}
 						{/if}
 					</div>
 				{/if}
@@ -5658,6 +5688,53 @@
 						class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}"
 					>
 						{confirmDialog.confirmLabel ?? 'Confirm'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Report Message Modal -->
+	{#if reportingMessageId}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Report Message"
+			transition:fade={{ duration: 150 }}
+			onclick={() => { reportingMessageId = null; reportReason = ''; }}
+			onkeydown={(e) => { if (e.key === 'Escape') { reportingMessageId = null; reportReason = ''; } }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-5 shadow-2xl"
+				transition:scale={{ start: 0.95, duration: 200 }}
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
+				<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">Report Message</h3>
+				<p class="mb-3 text-sm text-[var(--text-secondary)]">Why are you reporting this message? Admins will review your report.</p>
+				<textarea
+					bind:value={reportReason}
+					placeholder="Describe the issue..."
+					rows="3"
+					maxlength="1000"
+					class="mb-4 w-full resize-none rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+				></textarea>
+				<div class="flex justify-end gap-2">
+					<button
+						onclick={() => { reportingMessageId = null; reportReason = ''; }}
+						class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={handleSubmitReport}
+						disabled={submittingReport || !reportReason.trim()}
+						class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						{submittingReport ? 'Submitting...' : 'Submit Report'}
 					</button>
 				</div>
 			</div>
