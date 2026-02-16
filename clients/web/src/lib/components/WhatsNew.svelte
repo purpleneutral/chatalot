@@ -16,6 +16,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.14.1',
+			date: '2026-02-16',
+			changes: [
+				'Account recovery: self-service password reset using recovery codes (no admin needed)',
+				'Recovery codes shown at registration — save them to recover your account if you forget your password',
+				'2FA backup codes: 8 single-use codes generated when enabling TOTP, usable as login fallback',
+				'Regenerate recovery codes and backup codes from Settings > Security',
+				'Privacy policy and terms of service pages with customizable defaults',
+				'New /recover page for password reset using recovery code',
+				'"Forgot password?" link on login page',
+			]
+		},
+		{
 			version: '0.14.0',
 			date: '2026-02-16',
 			changes: [
