@@ -84,30 +84,37 @@ pub async fn list_all_files(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<FileRecord>, sqlx::Error> {
-    let order = if sort_by == "size" {
-        "size_bytes DESC"
-    } else {
-        "created_at DESC"
-    };
+    let by_size = sort_by == "size";
 
     if let Some(uid) = user_id {
-        let q = format!(
-            "SELECT * FROM files WHERE uploader_id = $1 ORDER BY {} LIMIT $2 OFFSET $3",
-            order
-        );
-        sqlx::query_as::<_, FileRecord>(&q)
-            .bind(uid)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(pool)
-            .await
+        if by_size {
+            sqlx::query_as::<_, FileRecord>(
+                "SELECT * FROM files WHERE uploader_id = $1 ORDER BY size_bytes DESC LIMIT $2 OFFSET $3",
+            )
+        } else {
+            sqlx::query_as::<_, FileRecord>(
+                "SELECT * FROM files WHERE uploader_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            )
+        }
+        .bind(uid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
     } else {
-        let q = format!("SELECT * FROM files ORDER BY {} LIMIT $1 OFFSET $2", order);
-        sqlx::query_as::<_, FileRecord>(&q)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(pool)
-            .await
+        if by_size {
+            sqlx::query_as::<_, FileRecord>(
+                "SELECT * FROM files ORDER BY size_bytes DESC LIMIT $1 OFFSET $2",
+            )
+        } else {
+            sqlx::query_as::<_, FileRecord>(
+                "SELECT * FROM files ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            )
+        }
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
     }
 }
 
