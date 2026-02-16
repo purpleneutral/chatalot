@@ -978,13 +978,13 @@
 							<h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Colors</h3>
 							<div class="grid grid-cols-2 gap-4">
 								{#each [
-									['Accent', themeAccent, (v: string) => themeAccent = v],
-									['Accent Hover', themeAccentHover, (v: string) => themeAccentHover = v],
-									['Background Primary', themeBgPrimary, (v: string) => themeBgPrimary = v],
-									['Background Secondary', themeBgSecondary, (v: string) => themeBgSecondary = v],
-									['Background Tertiary', themeBgTertiary, (v: string) => themeBgTertiary = v],
-									['Text Primary', themeTextPrimary, (v: string) => themeTextPrimary = v],
-									['Text Secondary', themeTextSecondary, (v: string) => themeTextSecondary = v],
+									['Accent', themeAccent, (v: string) => themeAccent = v] as [string, string, (v: string) => string],
+									['Accent Hover', themeAccentHover, (v: string) => themeAccentHover = v] as [string, string, (v: string) => string],
+									['Background Primary', themeBgPrimary, (v: string) => themeBgPrimary = v] as [string, string, (v: string) => string],
+									['Background Secondary', themeBgSecondary, (v: string) => themeBgSecondary = v] as [string, string, (v: string) => string],
+									['Background Tertiary', themeBgTertiary, (v: string) => themeBgTertiary = v] as [string, string, (v: string) => string],
+									['Text Primary', themeTextPrimary, (v: string) => themeTextPrimary = v] as [string, string, (v: string) => string],
+									['Text Secondary', themeTextSecondary, (v: string) => themeTextSecondary = v] as [string, string, (v: string) => string],
 								] as [label, value, setter]}
 									<div class="flex items-center gap-3">
 										<input

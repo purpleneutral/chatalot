@@ -1,3 +1,7 @@
+<script lang="ts" module>
+	declare const __APP_VERSION__: string;
+</script>
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { listChannels, createChannel, getMessages, searchMessages, searchMessagesGlobal, getChannelMembers, updateMemberRole, kickMember, banMember, type Channel, type Message, type ReactionInfo } from '$lib/api/channels';
@@ -85,7 +89,6 @@
 	hljs.registerLanguage('md', markdown);
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { communityStore } from '$lib/stores/communities.svelte';
-	declare const __APP_VERSION__: string;
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
 	import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
@@ -312,12 +315,12 @@
 		// Group channels
 		for (const group of groupStore.groups) {
 			for (const ch of (groupChannelsMap.get(group.id) ?? [])) {
-				items.push({ id: ch.id, name: ch.name, type: 'group-channel', groupName: group.name, icon: ch.channel_type === 'voice' ? '🔊' : '#' });
+				items.push({ id: ch.id, name: ch.name ?? '', type: 'group-channel', groupName: group.name, icon: ch.channel_type === 'voice' ? '🔊' : '#' });
 			}
 		}
 		// Standalone channels
 		for (const ch of channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id)) {
-			items.push({ id: ch.id, name: ch.name, type: 'channel', icon: ch.channel_type === 'voice' ? '🔊' : '#' });
+			items.push({ id: ch.id, name: ch.name ?? '', type: 'channel', icon: ch.channel_type === 'voice' ? '🔊' : '#' });
 		}
 		// DMs
 		for (const dm of dmChannels) {
@@ -388,15 +391,16 @@
 			if (!msg.content) continue;
 			// Match image URLs from file messages and inline images
 			const imgRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
-			let m;
+			let m: RegExpExecArray | null;
 			while ((m = imgRegex.exec(msg.content)) !== null) {
 				imgs.push({ src: m[1], alt: 'Image' });
 			}
 			// Also check for direct image blob URLs in content
 			const srcRegex = /src="([^"]+\.(png|jpg|jpeg|gif|webp|svg)[^"]*)"/gi;
 			while ((m = srcRegex.exec(msg.content)) !== null) {
-				if (!imgs.some(i => i.src === m[1])) {
-					imgs.push({ src: m[1], alt: 'Image' });
+				const url = m[1];
+				if (!imgs.some(i => i.src === url)) {
+					imgs.push({ src: url, alt: 'Image' });
 				}
 			}
 		}
@@ -998,7 +1002,7 @@
 		idleTimer = setTimeout(() => {
 			// Only auto-idle if user's chosen status is "online"
 			const savedStatus = localStorage.getItem('chatalot:status') ?? 'online';
-			if (savedStatus === 'online' && wsClient.isConnected()) {
+			if (savedStatus === 'online' && wsClient.isConnected) {
 				isAutoIdle = true;
 				wsClient.send({ type: 'update_presence', status: 'idle' });
 				if (authStore.user) presenceStore.setStatus(authStore.user.id, 'idle');
@@ -3272,11 +3276,11 @@
 		if (count > prevMessageCount && prevMessageCount > 0) {
 			// New message arrived — only scroll if user is near the bottom
 			if (isNearBottom()) {
-				tick().then(scrollToBottom);
+				tick().then(() => scrollToBottom());
 			}
 		} else if (count > 0 && prevMessageCount === 0) {
 			// Initial load — scroll to bottom
-			tick().then(scrollToBottom);
+			tick().then(() => scrollToBottom());
 		}
 		prevMessageCount = count;
 	});
@@ -3658,7 +3662,7 @@
 						const q = sidebarFilter.toLowerCase();
 						if (g.name.toLowerCase().includes(q)) return true;
 						const chs = groupChannelsMap.get(g.id) ?? [];
-						return chs.some(c => c.name.toLowerCase().includes(q));
+						return chs.some(c => c.name?.toLowerCase().includes(q));
 					}) as group (group.id)}
 						<!-- Group header -->
 						<div class="group/grp relative">
@@ -3717,7 +3721,7 @@
 						{#if expandedGroupIds.has(group.id)}
 							<!-- Group channels -->
 							<div class="ml-2 border-l border-white/5 pl-2">
-								{#each (groupChannelsMap.get(group.id) ?? []).filter(c => !sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase()) || group.name.toLowerCase().includes(sidebarFilter.toLowerCase())) as channel (channel.id)}
+								{#each (groupChannelsMap.get(group.id) ?? []).filter(c => !sidebarFilter || (c.name ?? '').toLowerCase().includes(sidebarFilter.toLowerCase()) || group.name.toLowerCase().includes(sidebarFilter.toLowerCase())) as channel (channel.id)}
 									{@const unreadCount = messageStore.getUnreadCount(channel.id)}
 									<div class="group/ch flex items-center">
 										{#if renamingChannelId === channel.id}
@@ -3745,7 +3749,7 @@
 											<button
 												onclick={() => selectChannel(channel.id)}
 												oncontextmenu={(e) => openChannelSettings(channel, group.id, e)}
-												ondblclick={() => { if (group.owner_id === authStore.user?.id) { renamingChannelId = channel.id; renameChannelInput = channel.name; } }}
+												ondblclick={() => { if (group.owner_id === authStore.user?.id) { renamingChannelId = channel.id; renameChannelInput = channel.name ?? ''; } }}
 												class="flex flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition {channelStore.activeChannelId === channel.id ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 											>
 												{#if channel.channel_type === 'voice'}
@@ -3755,7 +3759,7 @@
 												{/if}
 												<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''} {channel.archived ? 'opacity-50 italic' : ''}">{channel.name}</span>
 												{#if channel.archived}
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="Archived"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+													<span title="Archived"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>
 												{:else if channel.read_only}
 													<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 												{/if}
@@ -3934,7 +3938,7 @@
 					<h2 class="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
 						Channels
 					</h2>
-					{#each channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id && (!sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))) as channel (channel.id)}
+					{#each channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id && (!sidebarFilter || (c.name ?? '').toLowerCase().includes(sidebarFilter.toLowerCase()))) as channel (channel.id)}
 						{@const unreadCount = messageStore.getUnreadCount(channel.id)}
 						<button
 							onclick={() => selectChannel(channel.id)}
@@ -3947,7 +3951,7 @@
 							{/if}
 							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''} {channel.archived ? 'opacity-50 italic' : ''}">{channel.name}</span>
 							{#if channel.archived}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="Archived"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+								<span title="Archived"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>
 							{/if}
 							{#if unreadCount > 0 && channelStore.activeChannelId !== channel.id}
 								<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
@@ -4809,7 +4813,7 @@
 											<span class="text-xs text-[var(--text-secondary)] cursor-default" title="Edited {formatFullTimestamp(msg.editedAt)}">(edited)</span>
 										{/if}
 										{#if channelStore.activeChannelId && messageStore.isPinned(channelStore.activeChannelId, msg.id)}
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor" title="Pinned"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
+											<span title="Pinned"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-yellow-400" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg></span>
 										{/if}
 									</div>
 								{/if}
@@ -5458,7 +5462,7 @@
 						<input
 							bind:this={fileInputEl}
 							type="file"
-							onchange={handleFileUpload}
+							onchange={() => handleFileUpload()}
 							class="hidden"
 						/>
 						<textarea

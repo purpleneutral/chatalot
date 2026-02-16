@@ -1,7 +1,9 @@
+<script lang="ts" module>
+	declare const __APP_VERSION__: string;
+</script>
+
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
-
-	declare const __APP_VERSION__: string;
 
 	const APP_VERSION = __APP_VERSION__;
 	const STORAGE_KEY = 'chatalot-last-seen-version';

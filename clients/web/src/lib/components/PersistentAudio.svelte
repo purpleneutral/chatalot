@@ -76,8 +76,8 @@
 		for (const [userId, stream] of voiceStore.remoteStreams) {
 			const el = audioEls.get(userId);
 			const existing = userGains.get(userId);
-			// Reconnect if stream changed or no gain node yet
-			if (el && (!existing || el.srcObject !== userGains.get(userId)?.gain)) {
+			// Reconnect if no gain node yet (stream changed or first time)
+			if (el && !existing) {
 				setupGainNode(userId, stream, el);
 			}
 		}

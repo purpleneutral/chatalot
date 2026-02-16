@@ -250,7 +250,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 			userStore.setUser({
 				id: msg.other_user_id,
 				username: msg.other_user_username,
-				display_name: msg.other_user_display_name,
+				display_name: msg.other_user_display_name ?? msg.other_user_username,
 				avatar_url: msg.other_user_avatar_url,
 				banner_url: null,
 				status: 'online',

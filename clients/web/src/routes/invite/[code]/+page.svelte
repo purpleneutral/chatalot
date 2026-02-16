@@ -16,9 +16,10 @@
 	let joining = $state(false);
 	let error = $state('');
 
-	let code = $derived($page.params.code);
+	let code = $derived($page.params.code ?? '');
 
 	onMount(async () => {
+		if (!code) { error = 'No invite code provided.'; loading = false; return; }
 		// Try community invite first (more common entry point), then group invite
 		try {
 			const info = await communityApi.getInviteInfo(code);
