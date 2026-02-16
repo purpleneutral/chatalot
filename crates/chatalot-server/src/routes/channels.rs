@@ -176,6 +176,17 @@ async fn update_channel(
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
 
+    // Broadcast channel settings change to all connected users
+    state.connections.broadcast_all(ServerMessage::ChannelUpdated {
+        channel_id: channel.id,
+        name: channel.name.clone(),
+        topic: channel.topic.clone(),
+        read_only: channel.read_only,
+        slow_mode_seconds: channel.slow_mode_seconds,
+        archived: channel.archived,
+        voice_background: channel.voice_background.clone(),
+    });
+
     Ok(Json(channel_to_response(&channel)))
 }
 

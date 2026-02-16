@@ -13,6 +13,7 @@ use chatalot_common::api_types::{
     PreferencesResponse, SessionResponse, UpdatePreferencesRequest, UpdateProfileRequest,
     UserPublic,
 };
+use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{announcement_repo, group_repo, preferences_repo, user_repo};
 
 use crate::app_state::AppState;
@@ -172,6 +173,15 @@ async fn update_profile(
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
 
+    // Broadcast profile change to all connected users
+    state.connections.broadcast_all(ServerMessage::UserProfileUpdated {
+        user_id: user.id,
+        display_name: user.display_name.clone(),
+        avatar_url: user.avatar_url.clone(),
+        banner_url: user.banner_url.clone(),
+        custom_status: user.custom_status.clone(),
+    });
+
     Ok(Json(UserPublic {
         id: user.id,
         username: user.username,
@@ -268,6 +278,15 @@ async fn upload_avatar(
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".into()))?;
 
+    // Broadcast avatar change to all connected users
+    state.connections.broadcast_all(ServerMessage::UserProfileUpdated {
+        user_id: user.id,
+        display_name: user.display_name.clone(),
+        avatar_url: user.avatar_url.clone(),
+        banner_url: user.banner_url.clone(),
+        custom_status: user.custom_status.clone(),
+    });
+
     Ok(Json(UserPublic {
         id: user.id,
         username: user.username,
@@ -360,6 +379,15 @@ async fn upload_banner(
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".into()))?;
+
+    // Broadcast banner change to all connected users
+    state.connections.broadcast_all(ServerMessage::UserProfileUpdated {
+        user_id: user.id,
+        display_name: user.display_name.clone(),
+        avatar_url: user.avatar_url.clone(),
+        banner_url: user.banner_url.clone(),
+        custom_status: user.custom_status.clone(),
+    });
 
     Ok(Json(UserPublic {
         id: user.id,

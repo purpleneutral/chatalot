@@ -53,6 +53,9 @@ export type ServerMessage =
 	| { type: 'poll_voted'; poll_id: string; channel_id: string; option_index: number; voter_id: string | null }
 	| { type: 'poll_closed'; poll_id: string; channel_id: string }
 	| { type: 'user_warned'; channel_id: string; user_id: string; reason: string; warning_count: number }
+	| { type: 'user_profile_updated'; user_id: string; display_name: string; avatar_url: string | null; banner_url: string | null; custom_status: string | null }
+	| { type: 'channel_updated'; channel_id: string; name: string | null; topic: string | null; read_only: boolean; slow_mode_seconds: number; archived: boolean; voice_background: string | null }
+	| { type: 'group_updated'; group_id: string; name: string; description: string | null; icon_url: string | null; banner_url: string | null; accent_color: string | null; visibility: string }
 	| { type: 'announcement'; id: string; title: string; body: string; created_by: string; created_at: string }
 	| { type: 'error'; code: string; message: string }
 	| { type: 'pong'; timestamp: number }

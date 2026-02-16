@@ -287,6 +287,35 @@ pub enum ServerMessage {
         warning_count: i64,
     },
 
+    // User profile changes
+    UserProfileUpdated {
+        user_id: Uuid,
+        display_name: String,
+        avatar_url: Option<String>,
+        banner_url: Option<String>,
+        custom_status: Option<String>,
+    },
+
+    // Channel/group settings changes
+    ChannelUpdated {
+        channel_id: Uuid,
+        name: Option<String>,
+        topic: Option<String>,
+        read_only: bool,
+        slow_mode_seconds: i32,
+        archived: bool,
+        voice_background: Option<String>,
+    },
+    GroupUpdated {
+        group_id: Uuid,
+        name: String,
+        description: Option<String>,
+        icon_url: Option<String>,
+        banner_url: Option<String>,
+        accent_color: Option<String>,
+        visibility: String,
+    },
+
     // Announcements
     Announcement {
         id: Uuid,

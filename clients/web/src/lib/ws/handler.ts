@@ -331,6 +331,66 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		// Channel/group settings changes
+		case 'channel_updated': {
+			const ch = channelStore.channels.find(c => c.id === msg.channel_id);
+			if (ch) {
+				channelStore.updateChannel({
+					...ch,
+					name: msg.name,
+					topic: msg.topic,
+					read_only: msg.read_only,
+					slow_mode_seconds: msg.slow_mode_seconds,
+					archived: msg.archived,
+					voice_background: msg.voice_background,
+				});
+			}
+			break;
+		}
+
+		case 'group_updated': {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:group-updated', {
+					detail: {
+						group_id: msg.group_id,
+						name: msg.name,
+						description: msg.description,
+						icon_url: msg.icon_url,
+						banner_url: msg.banner_url,
+						accent_color: msg.accent_color,
+						visibility: msg.visibility,
+					}
+				})
+			);
+			break;
+		}
+
+		// User profile changes
+		case 'user_profile_updated': {
+			// Update user cache so display names / avatars refresh everywhere
+			const existing = userStore.getUser(msg.user_id);
+			if (existing) {
+				userStore.setUser({
+					...existing,
+					display_name: msg.display_name,
+					avatar_url: msg.avatar_url,
+					banner_url: msg.banner_url,
+					custom_status: msg.custom_status,
+				});
+			}
+			// If this is the current user (e.g. profile updated from another session),
+			// keep authStore in sync
+			if (msg.user_id === authStore.user?.id) {
+				authStore.updateUser({
+					display_name: msg.display_name,
+					avatar_url: msg.avatar_url,
+					banner_url: msg.banner_url,
+					custom_status: msg.custom_status,
+				});
+			}
+			break;
+		}
+
 		// Announcements
 		case 'announcement': {
 			toastStore.info(`Announcement: ${msg.title}`);

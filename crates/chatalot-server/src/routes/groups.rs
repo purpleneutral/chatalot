@@ -457,6 +457,17 @@ async fn update_group(
 
     let count = group_repo::get_member_count(&state.db, id).await?;
 
+    // Broadcast group settings change to all connected users
+    state.connections.broadcast_all(ServerMessage::GroupUpdated {
+        group_id: group.id,
+        name: group.name.clone(),
+        description: group.description.clone(),
+        icon_url: group.icon_url.clone(),
+        banner_url: group.banner_url.clone(),
+        accent_color: group.accent_color.clone(),
+        visibility: group.visibility.clone(),
+    });
+
     Ok(Json(GroupResponse {
         id: group.id,
         name: group.name,
