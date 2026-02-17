@@ -25,6 +25,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-}
       COMMUNITY_CREATION_MODE: ${COMMUNITY_CREATION_MODE:-admin_only}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
+      ICE_SERVERS: ${ICE_SERVERS:-}
     volumes:
       - file_storage:/app/data/files
     secrets:
@@ -67,6 +68,27 @@ services:
       - chatalot
     profiles:
       - production  # Only starts with: docker compose --profile production up
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: chatalot-turn
+    restart: unless-stopped
+    network_mode: host
+    command: >
+      -n
+      --listening-port=3478
+      --fingerprint
+      --lt-cred-mech
+      --user=${TURN_USER:-chatalot}:${TURN_PASSWORD:-}
+      --realm=chatalot
+      --no-tls
+      --no-dtls
+      --min-port=49152
+      --max-port=49200
+      --log-file=stdout
+      --no-cli
+    profiles:
+      - turn  # docker compose --profile turn up -d
 
   cloudflared-quick:
     image: cloudflare/cloudflared:latest
