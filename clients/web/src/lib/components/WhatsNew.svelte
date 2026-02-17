@@ -27,6 +27,7 @@
 				'Fix: link preview cache now limited to 200 entries (prevents unbounded memory growth)',
 				'Fix: channel switch no longer incorrectly auto-scrolls to bottom (respects saved scroll position)',
 				'Fix: profile success messages now auto-dismiss after 4 seconds',
+				'Fix: poll vote removals now broadcast to other users in real-time',
 			]
 		},
 		{

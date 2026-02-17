@@ -230,6 +230,18 @@ async fn remove_vote(
     }
 
     poll_repo::remove_vote(&state.db, poll_id, claims.sub, idx).await?;
+
+    let voter_id = if poll.anonymous { None } else { Some(claims.sub) };
+    state.connections.broadcast_to_channel(
+        poll.channel_id,
+        ServerMessage::PollVoteRemoved {
+            poll_id,
+            channel_id: poll.channel_id,
+            option_index: idx,
+            voter_id,
+        },
+    );
+
     Ok(())
 }
 

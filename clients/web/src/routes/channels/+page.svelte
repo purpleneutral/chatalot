@@ -1234,6 +1234,7 @@
 		// Poll events
 		window.addEventListener('chatalot:poll-created', handlePollCreated as EventListener);
 		window.addEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
+		window.addEventListener('chatalot:poll-vote-removed', handlePollVoteRemoved as EventListener);
 		window.addEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
 
 		// Announcement events
@@ -1269,6 +1270,7 @@
 		window.removeEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
 		window.removeEventListener('chatalot:poll-created', handlePollCreated as EventListener);
 		window.removeEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
+		window.removeEventListener('chatalot:poll-vote-removed', handlePollVoteRemoved as EventListener);
 		window.removeEventListener('chatalot:poll-closed', handlePollClosed as EventListener);
 		window.removeEventListener('chatalot:announcement', handleAnnouncementEvent as EventListener);
 		window.removeEventListener('chatalot:thread-reply', handleThreadReply as EventListener);
@@ -1362,6 +1364,23 @@
 				if (i === optionIndex) {
 					const newVoterIds = voterId && !p.anonymous ? [...v.voter_ids, voterId] : v.voter_ids;
 					return { ...v, count: v.count + 1, voter_ids: newVoterIds };
+				}
+				return v;
+			}) };
+		});
+	}
+
+	function handlePollVoteRemoved(e: CustomEvent<{ pollId: string; channelId: string; optionIndex: number; voterId: string | null }>) {
+		if (e.detail.channelId !== channelStore.activeChannelId) return;
+		const { pollId, optionIndex, voterId } = e.detail;
+		// Skip if this is our own unvote (already optimistically updated)
+		if (voterId === authStore.user?.id) return;
+		polls = polls.map(p => {
+			if (p.id !== pollId) return p;
+			return { ...p, votes: p.votes.map((v, i) => {
+				if (i === optionIndex) {
+					const newVoterIds = voterId ? v.voter_ids.filter(id => id !== voterId) : v.voter_ids;
+					return { ...v, count: Math.max(0, v.count - 1), voter_ids: newVoterIds };
 				}
 				return v;
 			}) };

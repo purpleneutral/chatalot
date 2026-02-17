@@ -437,6 +437,15 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		case 'poll_vote_removed': {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:poll-vote-removed', {
+					detail: { pollId: msg.poll_id, channelId: msg.channel_id, optionIndex: msg.option_index, voterId: msg.voter_id }
+				})
+			);
+			break;
+		}
+
 		case 'poll_closed': {
 			window.dispatchEvent(
 				new CustomEvent('chatalot:poll-closed', {

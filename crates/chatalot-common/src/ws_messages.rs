@@ -282,6 +282,12 @@ pub enum ServerMessage {
         option_index: i32,
         voter_id: Option<Uuid>,
     },
+    PollVoteRemoved {
+        poll_id: Uuid,
+        channel_id: Uuid,
+        option_index: i32,
+        voter_id: Option<Uuid>,
+    },
     PollClosed {
         poll_id: Uuid,
         channel_id: Uuid,
