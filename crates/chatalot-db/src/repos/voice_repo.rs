@@ -147,7 +147,7 @@ pub async fn are_in_same_session(
     user_a: Uuid,
     user_b: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let row: Option<(i64,)> = sqlx::query_as(
+    let row: Option<(i32,)> = sqlx::query_as(
         r#"
         SELECT 1 FROM voice_session_participants a
         JOIN voice_session_participants b ON a.session_id = b.session_id
