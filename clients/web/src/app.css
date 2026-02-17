@@ -374,14 +374,9 @@ body {
 
 /* ── Touch device support ── */
 @media (hover: none) {
-	/* Show action buttons that are normally hover-only on touch devices */
-	.group-hover\/grp\:flex,
-	.group-hover\/ch\:block {
-		display: flex !important;
-	}
-	/* Make hover-revealed message actions always visible */
-	.group:hover .group-hover\:flex {
-		display: flex;
+	/* Show code copy button on touch devices (no hover available) */
+	.code-copy-btn {
+		opacity: 0.7;
 	}
 }
 
@@ -400,22 +395,6 @@ body {
 @keyframes message-highlight-light {
 	0% { background-color: rgba(199, 93, 53, 0.12); }
 	100% { background-color: transparent; }
-}
-
-/* ── Message hover action bar ── */
-.msg-actions {
-	opacity: 0;
-	pointer-events: none;
-	transition: opacity 0.1s ease;
-}
-.chat-message-row:hover .msg-actions {
-	opacity: 1;
-	pointer-events: auto;
-}
-@media (hover: none) {
-	.msg-actions {
-		display: none !important;
-	}
 }
 
 /* ── Focus styles ── */

@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.36',
+			date: '2026-02-17',
+			changes: [
+				'Performance: add database index for unread count queries (read_cursors user lookup)',
+				'Performance: add safety LIMIT to community mates and invite list queries',
+				'Fix: code block copy button now visible on touch devices (was hover-only)',
+				'Cleanup: remove dead CSS rules for unused .msg-actions class',
+			]
+		},
+		{
 			version: '0.18.35',
 			date: '2026-02-17',
 			changes: [

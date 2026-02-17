@@ -592,7 +592,8 @@ pub async fn get_community_mates(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uui
         r#"SELECT DISTINCT cm2.user_id
            FROM community_members cm1
            INNER JOIN community_members cm2 ON cm1.community_id = cm2.community_id
-           WHERE cm1.user_id = $1 AND cm2.user_id != $1"#,
+           WHERE cm1.user_id = $1 AND cm2.user_id != $1
+           LIMIT 5000"#,
     )
     .bind(user_id)
     .fetch_all(pool)
