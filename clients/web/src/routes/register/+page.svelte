@@ -339,9 +339,10 @@
 			<div class="flex gap-3">
 				<button
 					onclick={() => {
-						navigator.clipboard.writeText(recoveryCode);
-						copiedRecovery = true;
-						setTimeout(() => (copiedRecovery = false), 2000);
+						navigator.clipboard.writeText(recoveryCode).then(() => {
+							copiedRecovery = true;
+							setTimeout(() => (copiedRecovery = false), 2000);
+						}).catch(() => { /* clipboard may be unavailable */ });
 					}}
 					class="flex-1 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:bg-white/5"
 				>

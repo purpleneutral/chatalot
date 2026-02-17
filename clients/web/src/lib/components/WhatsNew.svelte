@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.16',
+			date: '2026-02-17',
+			changes: [
+				'Fix: notification sounds no longer play when you are actively viewing the channel',
+				'Fix: clipboard copy on register/recover pages now handles errors gracefully',
+				'Fix: removed redundant notification condition (DM notification logic simplified)',
+			]
+		},
+		{
 			version: '0.18.15',
 			date: '2026-02-17',
 			changes: [

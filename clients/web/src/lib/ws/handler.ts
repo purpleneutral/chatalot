@@ -121,10 +121,9 @@ export async function handleServerMessage(msg: ServerMessage) {
 				const level = isDm ? 'all' : notificationStore.getChannelLevel(msg.channel_id);
 
 				const shouldNotify = level === 'all'
-					|| (level === 'mentions' && mentions.isMentioned)
-					|| isDm;
+					|| (level === 'mentions' && mentions.isMentioned);
 
-				if (shouldNotify) {
+				if (shouldNotify && !isViewingChannel) {
 					// Play appropriate sound
 					if (isDm) {
 						soundStore.playDmNotification();
@@ -134,15 +133,13 @@ export async function handleServerMessage(msg: ServerMessage) {
 						soundStore.playChannelNotification();
 					}
 
-					// Desktop notification (only when not viewing this channel)
-					if (!isViewingChannel) {
-						const preview = content.length > 100 ? content.slice(0, 100) + '...' : content;
-						notificationStore.showDesktopNotification({
-							title: isDm ? senderName : `${senderName} in #${channelName}`,
-							body: preview,
-							channelId: msg.channel_id
-						});
-					}
+					// Desktop notification
+					const preview = content.length > 100 ? content.slice(0, 100) + '...' : content;
+					notificationStore.showDesktopNotification({
+						title: isDm ? senderName : `${senderName} in #${channelName}`,
+						body: preview,
+						channelId: msg.channel_id
+					});
 				}
 			}
 			break;

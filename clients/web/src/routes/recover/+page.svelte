@@ -76,9 +76,10 @@
 					</div>
 					<button
 						onclick={() => {
-							navigator.clipboard.writeText(newRecoveryCode);
-							copiedRecovery = true;
-							setTimeout(() => (copiedRecovery = false), 2000);
+							navigator.clipboard.writeText(newRecoveryCode).then(() => {
+								copiedRecovery = true;
+								setTimeout(() => (copiedRecovery = false), 2000);
+							}).catch(() => { /* clipboard may be unavailable */ });
 						}}
 						class="w-full rounded-xl border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 					>
