@@ -338,6 +338,14 @@ class PreferencesStore {
 		if (this.syncTimer) clearTimeout(this.syncTimer);
 		this.syncTimer = setTimeout(() => this.syncToServer(), 2000);
 	}
+
+	/** Cancel pending sync timer (call on logout). */
+	cancelPendingSync() {
+		if (this.syncTimer) {
+			clearTimeout(this.syncTimer);
+			this.syncTimer = null;
+		}
+	}
 }
 
 export const preferencesStore = new PreferencesStore();

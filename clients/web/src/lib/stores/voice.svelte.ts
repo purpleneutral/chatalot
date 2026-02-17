@@ -68,6 +68,14 @@ class VoiceStore {
 		this.localAudioLevel = 0;
 	}
 
+	/** Full reset for logout — clears call + all cached state. */
+	reset() {
+		this.clearCall();
+		this.channelVoiceParticipants = new Map();
+		this.userVolumes = new Map();
+		this.screenShareVolumes = new Map();
+	}
+
 	setAudioEnabled(enabled: boolean) {
 		if (!this.activeCall) return;
 		this.activeCall = { ...this.activeCall, audioEnabled: enabled };

@@ -17,6 +17,7 @@
 	let password = $state('');
 	let totpCode = $state('');
 	let showTotp = $state(false);
+	let showPassword = $state(false);
 	let error = $state('');
 	let loading = $state(false);
 
@@ -51,7 +52,7 @@
 		{/if}
 
 		{#if error}
-			<div class="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-[var(--danger)]">
+			<div class="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-[var(--danger)]" role="alert">
 				{error}
 			</div>
 		{/if}
@@ -66,8 +67,9 @@
 					type="text"
 					bind:value={username}
 					required
+					autofocus
 					autocomplete="username"
-					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
 				/>
 			</div>
 
@@ -75,14 +77,28 @@
 				<label for="password" class="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
 					Password
 				</label>
-				<input
-					id="password"
-					type="password"
-					bind:value={password}
-					required
-					autocomplete="current-password"
-					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
-				/>
+				<div class="relative">
+					<input
+						id="password"
+						type={showPassword ? 'text' : 'password'}
+						bind:value={password}
+						required
+						autocomplete="current-password"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 pr-10 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
+					/>
+					<button
+						type="button"
+						onclick={() => showPassword = !showPassword}
+						class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+						aria-label={showPassword ? 'Hide password' : 'Show password'}
+					>
+						{#if showPassword}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+						{:else}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+						{/if}
+					</button>
+				</div>
 			</div>
 
 			{#if showTotp}
@@ -94,9 +110,11 @@
 						id="totp"
 						type="text"
 						bind:value={totpCode}
+						required
+						autofocus
 						autocomplete="one-time-code"
 						placeholder="123456 or XXXX-XXXX"
-						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-center font-mono text-lg tracking-widest text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-center font-mono text-lg tracking-widest text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
 					/>
 					<p class="mt-1 text-xs text-[var(--text-secondary)]/70">
 						Enter your 6-digit TOTP code, or a backup code if you lost your device.
@@ -109,7 +127,14 @@
 				disabled={loading}
 				class="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 			>
-				{loading ? 'Signing in...' : 'Sign In'}
+				{#if loading}
+					<span class="inline-flex items-center gap-2">
+						<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"/></svg>
+						Signing in...
+					</span>
+				{:else}
+					Sign In
+				{/if}
 			</button>
 		</form>
 

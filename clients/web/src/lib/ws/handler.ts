@@ -28,6 +28,14 @@ function debouncedMarkRead(channelId: string, messageId: string) {
 	}, 1000);
 }
 
+/** Cancel pending mark-read timer (call on logout). */
+export function clearMarkReadTimer() {
+	if (markReadTimer) {
+		clearTimeout(markReadTimer);
+		markReadTimer = null;
+	}
+}
+
 /** Fetch and cache user info if not already in the store. */
 async function ensureUser(userId: string) {
 	if (userStore.getUser(userId)) return;

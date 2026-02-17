@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.5',
+			date: '2026-02-17',
+			changes: [
+				'Login: password visibility toggle, autofocus, loading spinner, focus rings',
+				'Fix: logout now fully cleans up WebSocket, voice, preferences timers, and mark-read state',
+				'Settings: all 14 toggle switches now have keyboard focus indicators',
+				'Login: TOTP field is now required when 2FA section is open',
+			]
+		},
+		{
 			version: '0.18.4',
 			date: '2026-02-17',
 			changes: [

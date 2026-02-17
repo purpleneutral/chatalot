@@ -1,7 +1,10 @@
 import type { UserPublic } from '$lib/api/auth';
 import { wipeCrypto } from '$lib/crypto';
+import { preferencesStore } from '$lib/stores/preferences.svelte';
 import { presenceStore } from '$lib/stores/presence.svelte';
+import { voiceStore } from '$lib/stores/voice.svelte';
 import { wsClient } from '$lib/ws/connection';
+import { clearMarkReadTimer } from '$lib/ws/handler';
 
 const TOKEN_KEY = 'chatalot_access_token';
 const REFRESH_KEY = 'chatalot_refresh_token';
@@ -81,6 +84,9 @@ class AuthStore {
 		localStorage.removeItem(REFRESH_KEY);
 		localStorage.removeItem(USER_KEY);
 		wsClient.disconnect();
+		clearMarkReadTimer();
+		preferencesStore.cancelPendingSync();
+		voiceStore.reset();
 		presenceStore.reset();
 		wipeCrypto().catch((err) => console.warn('Failed to wipe crypto state:', err));
 	}

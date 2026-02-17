@@ -982,7 +982,7 @@
 							</div>
 							<button
 								onclick={() => preferencesStore.set('relativeTimestamps', !preferencesStore.preferences.relativeTimestamps)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 								aria-label="Toggle relative timestamps"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.relativeTimestamps ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1021,7 +1021,7 @@
 							</div>
 							<button
 								onclick={() => preferencesStore.set('reduceMotion', !preferencesStore.preferences.reduceMotion)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 								aria-label="Toggle reduce motion"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.reduceMotion ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1036,7 +1036,7 @@
 							</div>
 							<button
 								onclick={() => preferencesStore.set('animatedAccent', !preferencesStore.preferences.animatedAccent)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 								aria-label="Toggle animated accent"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.animatedAccent ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1064,7 +1064,7 @@
 									>Test</button>
 									<button
 										onclick={() => { soundStore.preferences.dmMessage = !soundStore.preferences.dmMessage; soundStore.save(); }}
-										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 										aria-label="Toggle DM sound"
 									>
 										<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {soundStore.preferences.dmMessage ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1084,7 +1084,7 @@
 									>Test</button>
 									<button
 										onclick={() => { soundStore.preferences.channelMessage = !soundStore.preferences.channelMessage; soundStore.save(); }}
-										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 										aria-label="Toggle channel sound"
 									>
 										<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {soundStore.preferences.channelMessage ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1104,7 +1104,7 @@
 									>Test</button>
 									<button
 										onclick={() => { soundStore.preferences.mentionMessage = !soundStore.preferences.mentionMessage; soundStore.save(); }}
-										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 										aria-label="Toggle mention sound"
 									>
 										<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {soundStore.preferences.mentionMessage ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1124,7 +1124,7 @@
 									>Test</button>
 									<button
 										onclick={() => { soundStore.preferences.voiceJoin = !soundStore.preferences.voiceJoin; soundStore.preferences.voiceLeave = !soundStore.preferences.voiceLeave; soundStore.save(); }}
-										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 										aria-label="Toggle voice sounds"
 									>
 										<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {soundStore.preferences.voiceJoin ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1174,7 +1174,7 @@
 													await notificationStore.requestPermission();
 												}
 											}}
-											class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+											class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 											aria-label="Toggle desktop notifications"
 										>
 											<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {notificationStore.preferences.desktopEnabled ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1241,7 +1241,7 @@
 							</div>
 							<button
 								onclick={() => preferencesStore.set('showFormattingToolbar', !preferencesStore.preferences.showFormattingToolbar)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 								aria-label="Toggle formatting toolbar"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.showFormattingToolbar ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1260,7 +1260,7 @@
 							</div>
 							<button
 								onclick={() => preferencesStore.set('showLinkPreviews', !preferencesStore.preferences.showLinkPreviews)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 								aria-label="Toggle link previews"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.showLinkPreviews ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1273,7 +1273,7 @@
 							</div>
 							<button
 								onclick={() => preferencesStore.set('sendReadReceipts', !preferencesStore.preferences.sendReadReceipts)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 								aria-label="Toggle read receipts"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.sendReadReceipts ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
@@ -1441,7 +1441,7 @@
 							</div>
 							<button aria-label="Toggle echo cancellation"
 								onclick={() => preferencesStore.set('echoCancellation', !preferencesStore.preferences.echoCancellation)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.echoCancellation ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
 							</button>
@@ -1454,7 +1454,7 @@
 							</div>
 							<button aria-label="Toggle auto gain control"
 								onclick={() => preferencesStore.set('autoGainControl', !preferencesStore.preferences.autoGainControl)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.autoGainControl ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
 							</button>
@@ -1535,7 +1535,7 @@
 							</div>
 							<button aria-label="Toggle auto-focus streams"
 								onclick={() => preferencesStore.set('autoHideParticipantsOnStream', !preferencesStore.preferences.autoHideParticipantsOnStream)}
-								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition"
+								class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)]"
 							>
 								<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {preferencesStore.preferences.autoHideParticipantsOnStream ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
 							</button>
