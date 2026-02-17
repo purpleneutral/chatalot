@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.41',
+			date: '2026-02-17',
+			changes: [
+				'Security: voice join participant cap now enforced atomically (prevents race condition exceeding 25-user limit)',
+				'Security: blocked hash validation now requires valid hex characters (not just 64-char length)',
+				'Fix: file upload name field now limited to 512 bytes (prevents oversized metadata)',
+				'Fix: auth store localStorage calls wrapped in try/catch (prevents crash in private browsing or full storage)',
+				'Fix: API client JSON.parse wrapped in try/catch (prevents crash on malformed server response)',
+			]
+		},
+		{
 			version: '0.18.40',
 			date: '2026-02-17',
 			changes: [

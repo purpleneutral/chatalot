@@ -64,7 +64,7 @@ class ApiClient {
 				}
 				const retryText = await retryResponse.text();
 				if (!retryText) return undefined as T;
-				return JSON.parse(retryText);
+				try { return JSON.parse(retryText); } catch { return retryText as T; }
 			}
 			// Refresh failed, logout
 			authStore.logout();
@@ -78,7 +78,7 @@ class ApiClient {
 		// Handle empty responses (204 or empty body) for void endpoints
 		const text = await response.text();
 		if (!text) return undefined as T;
-		return JSON.parse(text);
+		try { return JSON.parse(text); } catch { return text as T; }
 	}
 
 	private async parseError(response: Response): Promise<Error> {

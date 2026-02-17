@@ -916,13 +916,23 @@ async fn handle_client_message(
 
             match voice_repo::get_or_create_session(&state.db, channel_id, user_id).await {
                 Ok(session) => {
-                    if let Err(e) = voice_repo::join_session(&state.db, session.id, user_id).await {
-                        tracing::error!("Failed to join voice session: {e}");
-                        let _ = tx.send(ServerMessage::Error {
-                            code: "voice_error".to_string(),
-                            message: "failed to join voice channel".to_string(),
-                        });
-                        return;
+                    match voice_repo::join_session(&state.db, session.id, user_id).await {
+                        Ok(false) => {
+                            let _ = tx.send(ServerMessage::Error {
+                                code: "voice_full".to_string(),
+                                message: "voice channel is full (max 25 participants)".to_string(),
+                            });
+                            return;
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to join voice session: {e}");
+                            let _ = tx.send(ServerMessage::Error {
+                                code: "voice_error".to_string(),
+                                message: "failed to join voice channel".to_string(),
+                            });
+                            return;
+                        }
+                        Ok(true) => {}
                     }
 
                     // Get current participants and broadcast

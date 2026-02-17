@@ -52,23 +52,35 @@ pub async fn get_active_session(
 }
 
 /// Add a participant to a voice session.
+/// Returns `false` if the session already has 25 active participants (cap enforced atomically).
 pub async fn join_session(
     pool: &PgPool,
     session_id: Uuid,
     user_id: Uuid,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
         r#"
         INSERT INTO voice_session_participants (session_id, user_id)
         VALUES ($1, $2)
         ON CONFLICT (session_id, user_id) DO UPDATE SET left_at = NULL, joined_at = NOW()
+        WHERE (
+            -- Allow rejoin (already a participant) OR enforce cap
+            EXISTS (
+                SELECT 1 FROM voice_session_participants
+                WHERE session_id = $1 AND user_id = $2 AND left_at IS NULL
+            )
+            OR (
+                SELECT COUNT(*) FROM voice_session_participants
+                WHERE session_id = $1 AND left_at IS NULL
+            ) < 25
+        )
         "#,
     )
     .bind(session_id)
     .bind(user_id)
     .execute(pool)
     .await?;
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
 
 /// Remove a participant from a voice session.

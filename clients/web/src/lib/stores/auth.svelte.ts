@@ -31,15 +31,18 @@ class AuthStore {
 
 	constructor() {
 		if (typeof window !== 'undefined') {
-			this.accessToken = localStorage.getItem(TOKEN_KEY);
-			this.refreshToken = localStorage.getItem(REFRESH_KEY);
-			const userJson = localStorage.getItem(USER_KEY);
-			if (userJson) {
-				try {
+			try {
+				this.accessToken = localStorage.getItem(TOKEN_KEY);
+				this.refreshToken = localStorage.getItem(REFRESH_KEY);
+				const userJson = localStorage.getItem(USER_KEY);
+				if (userJson) {
 					this.user = JSON.parse(userJson);
-				} catch {
-					this.user = null;
 				}
+			} catch {
+				// localStorage may throw in private browsing or when storage is disabled
+				this.accessToken = null;
+				this.refreshToken = null;
+				this.user = null;
 			}
 
 			// Detect cross-tab logout/login via storage events
@@ -67,22 +70,26 @@ class AuthStore {
 		this.accessToken = accessToken;
 		this.refreshToken = refreshToken;
 		this.user = user;
-		localStorage.setItem(TOKEN_KEY, accessToken);
-		localStorage.setItem(REFRESH_KEY, refreshToken);
-		localStorage.setItem(USER_KEY, JSON.stringify(user));
+		try {
+			localStorage.setItem(TOKEN_KEY, accessToken);
+			localStorage.setItem(REFRESH_KEY, refreshToken);
+			localStorage.setItem(USER_KEY, JSON.stringify(user));
+		} catch { /* storage full or disabled */ }
 	}
 
 	setTokens(accessToken: string, refreshToken: string) {
 		this.accessToken = accessToken;
 		this.refreshToken = refreshToken;
-		localStorage.setItem(TOKEN_KEY, accessToken);
-		localStorage.setItem(REFRESH_KEY, refreshToken);
+		try {
+			localStorage.setItem(TOKEN_KEY, accessToken);
+			localStorage.setItem(REFRESH_KEY, refreshToken);
+		} catch { /* storage full or disabled */ }
 	}
 
 	updateUser(updates: Partial<UserPublic>) {
 		if (this.user) {
 			this.user = { ...this.user, ...updates };
-			localStorage.setItem(USER_KEY, JSON.stringify(this.user));
+			try { localStorage.setItem(USER_KEY, JSON.stringify(this.user)); } catch { /* */ }
 		}
 	}
 
@@ -90,9 +97,11 @@ class AuthStore {
 		this.accessToken = null;
 		this.refreshToken = null;
 		this.user = null;
-		localStorage.removeItem(TOKEN_KEY);
-		localStorage.removeItem(REFRESH_KEY);
-		localStorage.removeItem(USER_KEY);
+		try {
+			localStorage.removeItem(TOKEN_KEY);
+			localStorage.removeItem(REFRESH_KEY);
+			localStorage.removeItem(USER_KEY);
+		} catch { /* */ }
 		wsClient.disconnect();
 		clearMarkReadTimer();
 		preferencesStore.cancelPendingSync();

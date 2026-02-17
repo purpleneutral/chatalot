@@ -982,7 +982,7 @@ async fn add_blocked_hash(
 ) -> Result<Json<BlockedHashResponse>, AppError> {
     require_admin(&claims)?;
 
-    if req.hash.len() != 64 {
+    if req.hash.len() != 64 || !req.hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(AppError::Validation(
             "hash must be a 64-character hex SHA256".to_string(),
         ));

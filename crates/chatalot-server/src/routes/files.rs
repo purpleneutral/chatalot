@@ -67,6 +67,9 @@ async fn upload_file(
                     .text()
                     .await
                     .map_err(|e| AppError::Validation(format!("read name: {e}")))?;
+                if encrypted_name.len() > 512 {
+                    return Err(AppError::Validation("file name too long (max 512 bytes)".to_string()));
+                }
             }
             "channel_id" => {
                 let text = field
