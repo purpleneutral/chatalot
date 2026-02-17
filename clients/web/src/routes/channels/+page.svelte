@@ -1583,6 +1583,11 @@
 		sidebarOpen = false;
 		showNavDropdown = false;
 		memberFilter = '';
+		editingMessageId = null;
+		editInput = '';
+		showEditHistory = false;
+		showGifPicker = false;
+		replyingTo = null;
 		polls = [];
 		if (showPollPanel) loadPolls();
 		localStorage.setItem('chatalot:activeChannel', channelId);
@@ -2694,7 +2699,7 @@
 		gifSearchQuery = query;
 		if (gifSearchDebounceTimer) clearTimeout(gifSearchDebounceTimer);
 		if (!query.trim()) {
-			loadTrendingGifs();
+			loadTrendingGifs().catch(() => {});
 			return;
 		}
 		gifSearchDebounceTimer = setTimeout(async () => {
@@ -2775,7 +2780,15 @@
 			if (img.dataset.gifSrc) continue;
 			const still = gifToStill(img.src);
 			if (still) {
-				img.dataset.gifSrc = img.src;
+				const originalSrc = img.src;
+				img.dataset.gifSrc = originalSrc;
+				// If the still URL fails (404), restore the animated version
+				const prevOnerror = img.onerror;
+				img.onerror = () => {
+					img.onerror = prevOnerror;
+					img.src = originalSrc;
+					delete img.dataset.gifSrc;
+				};
 				img.src = still;
 			}
 		}

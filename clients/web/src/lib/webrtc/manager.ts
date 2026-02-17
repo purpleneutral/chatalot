@@ -746,21 +746,10 @@ class WebRTCManager {
 		this.stopRemoteAudio(userId);
 
 		const audioTracks = stream.getAudioTracks();
-		console.info(`[VOICE] playRemoteAudio ${userId.slice(0,8)}: ${audioTracks.length} audio tracks, states=[${audioTracks.map(t => `${t.readyState},muted=${t.muted},enabled=${t.enabled}`).join('; ')}]`);
 
 		if (audioTracks.length === 0) {
 			console.warn(`[VOICE] No audio tracks in remote stream for ${userId.slice(0,8)}`);
 			return;
-		}
-
-		// Monitor track mute/unmute state changes (muted=true initially means data isn't flowing yet)
-		for (const track of audioTracks) {
-			track.onunmute = () => {
-				console.info(`[VOICE] Audio track UNMUTED for ${userId.slice(0,8)} readyState=${track.readyState}`);
-			};
-			track.onmute = () => {
-				console.info(`[VOICE] Audio track MUTED for ${userId.slice(0,8)} readyState=${track.readyState}`);
-			};
 		}
 
 		// Create audio element IN the DOM — some browsers won't route WebRTC
@@ -780,9 +769,7 @@ class WebRTCManager {
 				.catch((err: unknown) => console.warn(`[VOICE] setSinkId failed for ${userId.slice(0,8)}:`, err));
 		}
 
-		audio.play().then(() => {
-			console.info(`[VOICE] Audio element playing for ${userId.slice(0,8)}, paused=${audio.paused}, volume=${audio.volume}, readyState=${audio.readyState}, networkState=${audio.networkState}`);
-		}).catch(err => {
+		audio.play().then(() => {}).catch(err => {
 			console.warn(`[VOICE] Failed to play remote audio for ${userId.slice(0,8)}:`, err);
 		});
 		this.remoteAudioElements.set(userId, audio);
@@ -985,16 +972,13 @@ class WebRTCManager {
 				if (existingPc) {
 					const state = existingPc.connectionState ?? existingPc.iceConnectionState;
 					if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-						console.info(`[VOICE] Cleaning up stale peer ${userId.slice(0,8)} (state: ${state})`);
 						this.onUserLeft(userId);
 					} else {
-						console.info(`[VOICE] Peer ${userId.slice(0,8)} exists, state=${state}, skipping`);
 						continue; // healthy connection, skip
 					}
 				}
 
 				const amImpolite = !this.isPolite(userId);
-				console.info(`[VOICE] New peer ${userId.slice(0,8)}: I am ${amImpolite ? 'IMPOLITE (will offer)' : 'POLITE (waiting for offer)'}`);
 
 				// Only the impolite peer (higher ID) creates offers
 				if (amImpolite) {
@@ -1018,7 +1002,6 @@ class WebRTCManager {
 			return;
 		}
 
-		console.info(`[VOICE] createAndSendOffer(${userId.slice(0,8)}) retry=${isRetry}`);
 		const pc = this.createPeerConnection(userId);
 
 		// Add our local tracks
@@ -1103,8 +1086,6 @@ class WebRTCManager {
 			const [stream] = event.streams;
 			if (!stream) return;
 
-			console.info(`[VOICE] ontrack from=${userId.slice(0,8)} kind=${event.track.kind} readyState=${event.track.readyState} muted=${event.track.muted} enabled=${event.track.enabled} streamTracks=${stream.getTracks().map(t => `${t.kind}:${t.readyState}:muted=${t.muted}`).join(',')}`);
-
 			const knownMainId = this.mainStreamIds.get(userId);
 
 			if (!knownMainId) {
@@ -1166,7 +1147,6 @@ class WebRTCManager {
 
 		// Connection state monitoring
 		pc.onconnectionstatechange = () => {
-			console.info(`[VOICE] connectionState ${userId.slice(0,8)}: ${pc.connectionState}`);
 			if (pc.connectionState === 'failed') {
 				console.warn(`Peer connection to ${userId} failed, cleaning up`);
 				this.clearDisconnectTimeout(userId);
@@ -1185,10 +1165,6 @@ class WebRTCManager {
 			} else if (pc.connectionState === 'connected') {
 				this.clearDisconnectTimeout(userId);
 			}
-		};
-
-		pc.oniceconnectionstatechange = () => {
-			console.info(`[VOICE] iceConnectionState ${userId.slice(0,8)}: ${pc.iceConnectionState}`);
 		};
 
 		return pc;

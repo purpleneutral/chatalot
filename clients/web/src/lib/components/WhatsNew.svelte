@@ -16,11 +16,20 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.3',
+			date: '2026-02-17',
+			changes: [
+				'GIFs freeze when window loses focus, resume on return',
+				'Fix: edit/reply state properly reset when switching channels',
+				'Reduced voice call console noise (removed 11 diagnostic logs)',
+			]
+		},
+		{
 			version: '0.18.2',
 			date: '2026-02-16',
 			changes: [
 				'GIF picker: auto-sends when clicked instead of pasting URL into input',
-				'GIF picker: compact width, right-aligned near GIF button',
+				'GIF picker: compact width, left-aligned near GIF button',
 			]
 		},
 		{
