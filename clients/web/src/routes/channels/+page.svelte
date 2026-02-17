@@ -4767,7 +4767,7 @@
 					</button>
 					<div class="my-1 h-px bg-white/10"></div>
 					<button
-						onclick={() => { webrtcManager.leaveCall(); authStore.logout(); wsClient.disconnect(); goto('/login'); }}
+						onclick={() => { webrtcManager.leaveCall(); authStore.logout(); goto('/login'); }}
 						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--danger)] transition hover:bg-white/5"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
@@ -7216,7 +7216,7 @@
 						</button>
 						<button
 							onclick={handleCreatePoll}
-							disabled={creatingPoll || !newPollQuestion.trim() || newPollOptions.filter(o => o.trim()).length < 2}
+							disabled={creatingPoll || !newPollQuestion.trim() || newPollOptions.map(o => o.trim()).filter(o => o).length < 2}
 							class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{creatingPoll ? 'Creating...' : 'Create Poll'}
@@ -7441,6 +7441,8 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+			role="dialog"
+			aria-label="Image lightbox"
 			onclick={closeLightbox}
 			onkeydown={(e) => { if (e.key === 'Escape') closeLightbox(); }}
 			transition:fade={{ duration: 150 }}
