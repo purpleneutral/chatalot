@@ -2755,24 +2755,28 @@
 	}
 
 	// ── GIF freeze on window blur ──
-	let windowActive = $state(document.hasFocus());
+	// GIPHY serves still frames at the same URL with _s suffix (e.g. giphy_s.gif)
+	function gifToStill(src: string): string | null {
+		if (src.includes('giphy.com') && src.includes('/giphy.gif')) {
+			return src.replace('/giphy.gif', '/giphy_s.gif');
+		}
+		// fixed_width_small animated URLs like /200w.gif → /200w_s.gif
+		const m = src.match(/\/(\d+w?)\.gif/);
+		if (m && src.includes('giphy.com')) {
+			return src.replace(`/${m[1]}.gif`, `/${m[1]}_s.gif`);
+		}
+		return null;
+	}
 
 	function freezeGifs() {
 		if (!messageListEl) return;
 		const imgs = messageListEl.querySelectorAll<HTMLImageElement>('img[src*=".gif"]');
 		for (const img of imgs) {
-			if (img.dataset.gifSrc || !img.naturalWidth) continue;
-			try {
-				const canvas = document.createElement('canvas');
-				canvas.width = img.naturalWidth;
-				canvas.height = img.naturalHeight;
-				const ctx = canvas.getContext('2d');
-				if (!ctx) continue;
-				ctx.drawImage(img, 0, 0);
+			if (img.dataset.gifSrc) continue;
+			const still = gifToStill(img.src);
+			if (still) {
 				img.dataset.gifSrc = img.src;
-				img.src = canvas.toDataURL();
-			} catch {
-				// CORS or other issue — leave it animating
+				img.src = still;
 			}
 		}
 	}
@@ -2787,12 +2791,10 @@
 	}
 
 	function handleWindowFocus() {
-		windowActive = true;
 		unfreezeGifs();
 	}
 
 	function handleWindowBlurGifs() {
-		windowActive = false;
 		freezeGifs();
 	}
 
@@ -6617,7 +6619,7 @@
 									<div class="mt-2 flex flex-col gap-2">
 										{#each imageUrls as imgUrl}
 											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-											<img src={imgUrl} alt="Linked content" crossorigin="anonymous" class="max-h-60 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+											<img src={imgUrl} alt="Linked content" class="max-h-60 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 										{/each}
 									</div>
 								{/if}
@@ -6755,7 +6757,7 @@
 												<div class="mt-2 flex flex-col gap-2">
 													{#each imageUrls as imgUrl}
 														<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-														<img src={imgUrl} alt="Linked content" crossorigin="anonymous" class="max-h-48 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+														<img src={imgUrl} alt="Linked content" class="max-h-48 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 													{/each}
 												</div>
 											{/if}
