@@ -13,7 +13,7 @@ const QUEUEABLE_TYPES = new Set([
 	'typing', 'stop_typing'
 ]);
 
-const HEARTBEAT_INTERVAL_MS = 30_000;
+const HEARTBEAT_INTERVAL_MS = 15_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const MAX_OFFLINE_QUEUE_SIZE = 50;
 

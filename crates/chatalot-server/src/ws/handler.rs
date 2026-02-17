@@ -62,10 +62,10 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
         }
     });
 
-    // Heartbeat: server sends ping every 30 seconds
+    // Heartbeat: server sends ping every 15 seconds (keeps proxies/tunnels alive)
     let heartbeat_tx = tx.clone();
     let heartbeat_task = tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
         loop {
             interval.tick().await;
             let timestamp = chrono::Utc::now().timestamp();
@@ -169,43 +169,58 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
         );
     }
 
-    // Clean up voice sessions — remove user from any active calls
-    match voice_repo::leave_all_sessions(&state.db, user_id).await {
-        Ok(left_sessions) => {
-            for (voice_session_id, channel_id) in &left_sessions {
-                // Broadcast that this user left voice
-                conn_mgr.broadcast_to_channel(
-                    *channel_id,
-                    ServerMessage::UserLeftVoice {
-                        channel_id: *channel_id,
-                        user_id,
-                    },
-                );
+    // Clean up voice sessions — delay cleanup to allow quick reconnects (e.g. tunnel flaps).
+    // If user reconnects within the grace period, the cleanup is skipped because
+    // is_online() returns true. The client auto-rejoins voice on reconnect.
+    {
+        let state = Arc::clone(&state);
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
-                // Get remaining participants and broadcast authoritative state
-                if let Ok(participants) =
-                    voice_repo::get_participants(&state.db, *voice_session_id).await
-                {
-                    conn_mgr.broadcast_to_channel(
-                        *channel_id,
-                        ServerMessage::VoiceStateUpdate {
-                            channel_id: *channel_id,
-                            participants: participants.clone(),
-                        },
-                    );
+            // If user reconnected in the meantime, skip voice cleanup
+            if state.connections.is_online(&user_id) {
+                tracing::debug!(%user_id, "Skipping voice cleanup — user reconnected");
+                return;
+            }
 
-                    if participants.is_empty() {
-                        let _ = voice_repo::end_session(&state.db, *voice_session_id).await;
+            match voice_repo::leave_all_sessions(&state.db, user_id).await {
+                Ok(left_sessions) => {
+                    for (voice_session_id, channel_id) in &left_sessions {
+                        state.connections.broadcast_to_channel(
+                            *channel_id,
+                            ServerMessage::UserLeftVoice {
+                                channel_id: *channel_id,
+                                user_id,
+                            },
+                        );
+
+                        if let Ok(participants) =
+                            voice_repo::get_participants(&state.db, *voice_session_id).await
+                        {
+                            state.connections.broadcast_to_channel(
+                                *channel_id,
+                                ServerMessage::VoiceStateUpdate {
+                                    channel_id: *channel_id,
+                                    participants: participants.clone(),
+                                },
+                            );
+
+                            if participants.is_empty() {
+                                let _ =
+                                    voice_repo::end_session(&state.db, *voice_session_id).await;
+                            }
+                        }
                     }
                 }
+                Err(e) => {
+                    tracing::warn!(%user_id, "Failed to clean up voice sessions: {e}");
+                }
             }
-        }
-        Err(e) => {
-            tracing::warn!(%user_id, "Failed to clean up voice sessions on disconnect: {e}");
-        }
+        });
     }
 
-    // If no more sessions for this user, broadcast offline
+    // If no more sessions for this user, broadcast offline (checked after grace period
+    // by the voice cleanup task above — also check immediately for non-voice users)
     if !conn_mgr.is_online(&user_id) {
         broadcast_presence(&state.db, conn_mgr, user_id, "offline").await;
     }
