@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.32',
+			date: '2026-02-17',
+			changes: [
+				'Fix: rate limit responses now include standard Retry-After header',
+			]
+		},
+		{
 			version: '0.18.31',
 			date: '2026-02-17',
 			changes: [

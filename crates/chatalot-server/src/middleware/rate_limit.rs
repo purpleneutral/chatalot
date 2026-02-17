@@ -3,7 +3,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
 
 use axum::extract::{ConnectInfo, Request};
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
@@ -124,7 +124,8 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Response {
                 "message": "too many requests, please slow down"
             }
         });
-        (StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response()
+        (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, "1")], axum::Json(body))
+            .into_response()
     }
 }
 
@@ -145,6 +146,7 @@ pub async fn auth_rate_limit_middleware(request: Request, next: Next) -> Respons
                 "message": "too many authentication attempts"
             }
         });
-        (StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response()
+        (StatusCode::TOO_MANY_REQUESTS, [(header::RETRY_AFTER, "5")], axum::Json(body))
+            .into_response()
     }
 }
