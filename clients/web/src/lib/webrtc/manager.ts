@@ -96,26 +96,31 @@ class WebRTCManager {
 	}
 
 	/// Rejoin voice channel after WebSocket reconnection.
-	/// Cleans up dead peer connections and re-sends join_voice to trigger
-	/// a fresh VoiceStateUpdate from the server, re-establishing the mesh.
+	/// Only cleans up dead/failed peer connections — healthy WebRTC connections
+	/// survive WebSocket reconnects since they use independent transport.
 	rejoinAfterReconnect(): void {
 		if (!voiceStore.isInCall || !this.channelId) return;
 
-		console.info('WebSocket reconnected while in voice call — rejoining to re-establish peers');
-
-		// Clean up all dead peer connections (local stream stays intact)
+		// Only close failed/closed connections; keep healthy ones alive
+		let cleaned = 0;
 		for (const [userId, pc] of this.peers) {
-			pc.close();
-			this.stopMonitoringStream(userId);
-			voiceStore.removeRemoteStream(userId);
-			voiceStore.removeRemoteScreenStream(userId);
-			this.stopRemoteAudio(userId);
+			const state = pc.connectionState ?? pc.iceConnectionState;
+			if (state === 'failed' || state === 'closed') {
+				pc.close();
+				this.stopMonitoringStream(userId);
+				voiceStore.removeRemoteStream(userId);
+				voiceStore.removeRemoteScreenStream(userId);
+				this.stopRemoteAudio(userId);
+				this.peers.delete(userId);
+				this.pendingCandidates.delete(userId);
+				this.mainStreamIds.delete(userId);
+				cleaned++;
+			}
 		}
-		this.peers.clear();
-		this.pendingCandidates.clear();
-		this.mainStreamIds.clear();
 		this.clearAllDisconnectTimeouts();
 		this.clearAllAnswerTimeouts();
+
+		console.info(`WebSocket reconnected in voice call — rejoining (${this.peers.size} healthy peers kept, ${cleaned} cleaned)`);
 
 		// Re-send join_voice — server upserts (idempotent) and broadcasts VoiceStateUpdate
 		wsClient.send({ type: 'join_voice', channel_id: this.channelId });
