@@ -436,6 +436,34 @@
 	let newPollExpiry = $state<number | null>(null);
 	let creatingPoll = $state(false);
 
+	// Anonymous poll vote tracking (localStorage-backed, since server strips voter_ids)
+	let anonVotes = $state<Record<string, number[]>>({});
+
+	function loadAnonVotes() {
+		try {
+			const stored = localStorage.getItem('chatalot_anon_votes');
+			if (stored) anonVotes = JSON.parse(stored);
+		} catch { /* ignore corrupt data */ }
+	}
+
+	function saveAnonVote(pollId: string, optionIndex: number, multiSelect: boolean) {
+		const current = anonVotes[pollId] ?? [];
+		anonVotes = {
+			...anonVotes,
+			[pollId]: multiSelect ? [...current, optionIndex] : [optionIndex]
+		};
+		localStorage.setItem('chatalot_anon_votes', JSON.stringify(anonVotes));
+	}
+
+	function removeAnonVote(pollId: string, optionIndex: number) {
+		const current = anonVotes[pollId] ?? [];
+		anonVotes = {
+			...anonVotes,
+			[pollId]: current.filter(i => i !== optionIndex)
+		};
+		localStorage.setItem('chatalot_anon_votes', JSON.stringify(anonVotes));
+	}
+
 	// Scroll-to-bottom button
 	let showScrollBottom = $state(false);
 
@@ -1149,6 +1177,7 @@
 	onMount(async () => {
 		// Register emoji-picker web component (client-side only)
 		import('emoji-picker-element');
+		loadAnonVotes();
 
 		if (!authStore.isAuthenticated) {
 			goto('/login');
@@ -2606,11 +2635,14 @@
 
 		// Check if already voted for this option
 		const optVotes = poll.votes[optionIndex];
-		const alreadyVoted = poll.anonymous ? false : optVotes?.voter_ids.includes(userId);
+		const alreadyVoted = poll.anonymous
+			? (anonVotes[pollId] ?? []).includes(optionIndex)
+			: optVotes?.voter_ids.includes(userId);
 
 		try {
 			if (alreadyVoted) {
 				await apiRemoveVote(pollId, optionIndex);
+				if (poll.anonymous) removeAnonVote(pollId, optionIndex);
 				// Optimistic update
 				polls = polls.map(p => {
 					if (p.id !== pollId) return p;
@@ -2618,6 +2650,7 @@
 				});
 			} else {
 				await votePoll(pollId, optionIndex);
+				if (poll.anonymous) saveAnonVote(pollId, optionIndex, poll.multi_select);
 				// For single-select, remove previous votes first (optimistic)
 				polls = polls.map(p => {
 					if (p.id !== pollId) return p;
@@ -5474,7 +5507,7 @@
 												{@const optVote = poll.votes[idx]}
 												{@const count = optVote?.count ?? 0}
 												{@const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0}
-												{@const myVote = optVote?.voter_ids.includes(myUserId)}
+												{@const myVote = poll.anonymous ? (anonVotes[poll.id] ?? []).includes(idx) : optVote?.voter_ids.includes(myUserId)}
 												<button
 													onclick={() => handleVotePoll(poll.id, idx)}
 													disabled={isClosed}

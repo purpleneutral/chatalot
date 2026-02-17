@@ -15,6 +15,7 @@
 	let loading = $state(true);
 	let joining = $state(false);
 	let error = $state('');
+	let joinError = $state('');
 
 	let code = $derived($page.params.code ?? '');
 
@@ -52,6 +53,7 @@
 		}
 
 		joining = true;
+		joinError = '';
 		try {
 			if (invite?.type === 'community') {
 				const result = await communityApi.acceptInvite(code);
@@ -62,7 +64,7 @@
 			}
 			goto('/channels');
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to join';
+			joinError = err instanceof Error ? err.message : 'Failed to join';
 		} finally {
 			joining = false;
 		}
@@ -113,6 +115,12 @@
 						{invite.memberCount === 1 ? 'member' : 'members'}
 					</p>
 				</div>
+
+				{#if joinError}
+					<div class="w-full rounded-lg bg-red-500/10 p-3 text-center text-sm text-[var(--danger)]" role="alert">
+						{joinError}
+					</div>
+				{/if}
 
 				<button
 					onclick={handleJoin}

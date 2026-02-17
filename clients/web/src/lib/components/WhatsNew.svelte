@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.22',
+			date: '2026-02-17',
+			changes: [
+				'Fix: anonymous poll votes now show visual feedback (checkmark and highlight) using local tracking',
+				'Fix: invite page now shows join errors inline instead of replacing the invite preview',
+			]
+		},
+		{
 			version: '0.18.21',
 			date: '2026-02-17',
 			changes: [
