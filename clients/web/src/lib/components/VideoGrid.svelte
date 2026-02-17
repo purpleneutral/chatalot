@@ -169,10 +169,13 @@
 	// Voice background for local tile
 	let localBgStyle = $derived(voiceBackgroundStyle(preferencesStore.preferences.voiceBackground));
 
-	// Channel ambiance background for the grid container
-	let channelAmbianceStyle = $derived(
-		channelVoiceBackground ? `background: url(${channelVoiceBackground}) center/cover no-repeat;` : ''
-	);
+	// Channel ambiance background for the grid container (sanitized to prevent CSS injection)
+	let channelAmbianceStyle = $derived.by(() => {
+		if (!channelVoiceBackground) return '';
+		// Block characters that can break out of url("...") or inject CSS
+		if (/[;'"\\(){}]/.test(channelVoiceBackground)) return '';
+		return `background: url("${channelVoiceBackground}") center/cover no-repeat;`;
+	});
 
 	// Context menu state
 	let menuUserId = $state<string | null>(null);

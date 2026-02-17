@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.29',
+			date: '2026-02-17',
+			changes: [
+				'Security: fix CSS injection in voice background URLs (channel and custom backgrounds now sanitized)',
+				'Fix: WebSocket channel subscriptions now deduplicated — prevents task/memory accumulation on reconnect',
+				'Fix: Unsubscribe now supports selective channel unsubscription instead of all-or-nothing',
+			]
+		},
+		{
 			version: '0.18.28',
 			date: '2026-02-17',
 			changes: [

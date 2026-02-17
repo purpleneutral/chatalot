@@ -350,21 +350,42 @@ class PreferencesStore {
 
 export const preferencesStore = new PreferencesStore();
 
+/** Sanitize a string for safe use inside a CSS url() value. */
+function safeCssUrl(url: string): string | null {
+	// Block characters that can break out of url("...") or inject CSS
+	if (/[;'"\\(){}]/.test(url)) return null;
+	return url;
+}
+
+/** Sanitize a CSS color value (hex, rgb, hsl, named color). */
+function safeCssColor(val: string): string | null {
+	// Allow hex, rgb(), hsl(), oklch(), named colors — block injection chars
+	if (/[;'"\\(){}]/.test(val.replace(/\([^)]*\)/g, ''))) return null;
+	return val;
+}
+
 /** Compute inline CSS for a voice background config. Returns empty string for 'none'. */
 export function voiceBackgroundStyle(bg: VoiceBackground): string {
 	switch (bg.type) {
-		case 'solid':
-			return bg.color ? `background: ${bg.color};` : '';
-		case 'gradient':
-			return bg.gradientFrom && bg.gradientTo
-				? `background: linear-gradient(${bg.gradientAngle ?? 135}deg, ${bg.gradientFrom}, ${bg.gradientTo});`
+		case 'solid': {
+			const c = bg.color ? safeCssColor(bg.color) : null;
+			return c ? `background: ${c};` : '';
+		}
+		case 'gradient': {
+			const from = bg.gradientFrom ? safeCssColor(bg.gradientFrom) : null;
+			const to = bg.gradientTo ? safeCssColor(bg.gradientTo) : null;
+			return from && to
+				? `background: linear-gradient(${bg.gradientAngle ?? 135}deg, ${from}, ${to});`
 				: '';
+		}
 		case 'preset': {
 			const preset = bg.presetId ? VOICE_BG_PRESETS[bg.presetId] : null;
 			return preset ? `background: ${preset.css};` : '';
 		}
-		case 'custom':
-			return bg.customUrl ? `background: url(${bg.customUrl}) center/cover no-repeat;` : '';
+		case 'custom': {
+			const url = bg.customUrl ? safeCssUrl(bg.customUrl) : null;
+			return url ? `background: url("${url}") center/cover no-repeat;` : '';
+		}
 		default:
 			return '';
 	}

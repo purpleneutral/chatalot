@@ -78,8 +78,10 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
         }
     });
 
-    // Track spawned subscription tasks so we can abort them on disconnect
-    let mut subscription_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    // Track spawned subscription tasks per channel so we can abort them on disconnect.
+    // Using a HashMap prevents duplicate subscriptions to the same channel.
+    let mut subscription_tasks: std::collections::HashMap<uuid::Uuid, tokio::task::JoinHandle<()>> =
+        std::collections::HashMap::new();
 
     // Per-connection reaction cooldown tracker
     let mut last_reaction_time = tokio::time::Instant::now() - tokio::time::Duration::from_secs(1);
@@ -153,7 +155,7 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     heartbeat_task.abort();
 
     // Abort all channel subscription tasks
-    for task in &subscription_tasks {
+    for task in subscription_tasks.values() {
         task.abort();
     }
 
@@ -238,7 +240,7 @@ async fn handle_client_message(
     user_id: Uuid,
     state: &AppState,
     tx: &mpsc::UnboundedSender<ServerMessage>,
-    subscription_tasks: &mut Vec<tokio::task::JoinHandle<()>>,
+    subscription_tasks: &mut std::collections::HashMap<uuid::Uuid, tokio::task::JoinHandle<()>>,
     last_reaction_time: &mut tokio::time::Instant,
 ) {
     let conn_mgr = &state.connections;
@@ -724,6 +726,11 @@ async fn handle_client_message(
                 return;
             }
             for channel_id in channel_ids {
+                // Skip if already subscribed to this channel
+                if subscription_tasks.contains_key(&channel_id) {
+                    continue;
+                }
+
                 let is_member = channel_repo::is_member(&state.db, channel_id, user_id)
                     .await
                     .unwrap_or(false);
@@ -747,7 +754,7 @@ async fn handle_client_message(
                 let mut rx = conn_mgr.subscribe_channel(channel_id);
                 let tx = tx.clone();
                 let uid = user_id;
-                subscription_tasks.push(tokio::spawn(async move {
+                subscription_tasks.insert(channel_id, tokio::spawn(async move {
                     loop {
                         match rx.recv().await {
                             Ok(msg) => {
@@ -1062,11 +1069,19 @@ async fn handle_client_message(
 
         // Auth message not expected over an already-authenticated connection
         ClientMessage::Authenticate { .. } => {}
-        ClientMessage::Unsubscribe { .. } => {
-            // Abort all channel subscription tasks and clear the list.
-            // Clients re-subscribe when navigating to a new channel set.
-            for task in subscription_tasks.drain(..) {
-                task.abort();
+        ClientMessage::Unsubscribe { channel_ids } => {
+            if channel_ids.is_empty() {
+                // Empty list = unsubscribe from all channels
+                for (_, task) in subscription_tasks.drain() {
+                    task.abort();
+                }
+            } else {
+                // Selective unsubscribe: only remove specified channels
+                for channel_id in channel_ids {
+                    if let Some(task) = subscription_tasks.remove(&channel_id) {
+                        task.abort();
+                    }
+                }
             }
         }
         ClientMessage::EditMessage {
