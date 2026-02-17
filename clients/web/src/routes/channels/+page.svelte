@@ -129,6 +129,37 @@
 		return dm?.other_user.id ?? null;
 	}
 
+	/** Encrypt text for a channel (DM or group), with plaintext fallback on error. */
+	async function encryptContent(channelId: string, text: string): Promise<{ ciphertext: number[]; nonce: number[] }> {
+		const channel = channelStore.channels.find(c => c.id === channelId);
+		const isDm = channel?.channel_type === 'dm';
+
+		if (isDm) {
+			const peerUserId = getPeerUserIdForDm(channelId);
+			if (peerUserId) {
+				try {
+					await initCrypto();
+					return await getSessionManager().encryptForPeer(peerUserId, text);
+				} catch (err) {
+					console.error('Encryption failed, sending plaintext:', err);
+				}
+			}
+		} else {
+			try {
+				await initCrypto();
+				return await getSessionManager().encryptForGroup(channelId, text);
+			} catch (err) {
+				console.error('Group encryption failed, sending plaintext:', err);
+			}
+		}
+
+		// Fallback: plaintext
+		return {
+			ciphertext: Array.from(new TextEncoder().encode(text)),
+			nonce: Array.from(crypto.getRandomValues(new Uint8Array(12))),
+		};
+	}
+
 	// File upload state
 	let fileInputEl: HTMLInputElement | undefined = $state();
 	let uploading = $state(false);
@@ -723,18 +754,24 @@
 
 		try {
 			const msgs = await getThreadMessages(channelId, rootId);
-			threadMessages = msgs.map(m => ({
+			threadMessages = await Promise.all(msgs.map(async (m) => ({
 				id: m.id,
 				channelId: m.channel_id,
 				senderId: m.sender_id ?? '',
-				content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+				content: await decryptMessage(
+					m.channel_id,
+					m.sender_id ?? '',
+					m.ciphertext,
+					m.id,
+					m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelId) : undefined,
+				),
 				messageType: m.message_type,
 				replyToId: m.reply_to_id ?? null,
 				editedAt: m.edited_at ?? null,
 				createdAt: m.created_at,
 				threadId: m.thread_id ?? null,
 				reactions: m.reactions ? new Map(m.reactions.map(r => [r.emoji, new Set(r.user_ids)])) : undefined,
-			}));
+			})));
 		} catch {
 			toastStore.error('Failed to load thread');
 		} finally {
@@ -756,12 +793,12 @@
 		const text = threadMessageInput.trim();
 		if (!text || !channelStore.activeChannelId || !activeThreadRootId) return;
 
-		const bytes = new TextEncoder().encode(text);
+		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
 		wsClient.send({
 			type: 'send_message',
 			channel_id: channelStore.activeChannelId,
-			ciphertext: Array.from(bytes),
-			nonce: Array.from(new Uint8Array(12)),
+			ciphertext,
+			nonce,
 			message_type: 'text',
 			reply_to: null,
 			sender_key_id: null,
@@ -1736,45 +1773,8 @@
 		// Process slash commands
 		text = processSlashCommands(text);
 
-		// Encrypt DMs with E2E Double Ratchet; group channels use plain UTF-8
-		const channel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
-		const isDm = channel?.channel_type === 'dm';
-		let ciphertext: number[];
-		let nonce: number[];
-
-		if (isDm) {
-			const peerUserId = getPeerUserIdForDm(channelStore.activeChannelId);
-			if (peerUserId) {
-				try {
-					await initCrypto();
-					const encrypted = await getSessionManager().encryptForPeer(peerUserId, text);
-					ciphertext = encrypted.ciphertext;
-					nonce = encrypted.nonce;
-				} catch (err) {
-					console.error('Encryption failed, sending plaintext:', err);
-					const encoder = new TextEncoder();
-					ciphertext = Array.from(encoder.encode(text));
-					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-				}
-			} else {
-				const encoder = new TextEncoder();
-				ciphertext = Array.from(encoder.encode(text));
-				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-			}
-		} else {
-			// Group channel: Sender Key encryption
-			try {
-				await initCrypto();
-				const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId!, text);
-				ciphertext = encrypted.ciphertext;
-				nonce = encrypted.nonce;
-			} catch (err) {
-				console.error('Group encryption failed, sending plaintext:', err);
-				const encoder = new TextEncoder();
-				ciphertext = Array.from(encoder.encode(text));
-				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-			}
-		}
+		// Encrypt for DM (Double Ratchet) or group (Sender Keys)
+		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
 
 		// Optimistic add
 		const tempId = `temp-${Date.now()}`;
@@ -1991,38 +1991,7 @@
 				size: result.size_bytes
 			});
 
-			let ciphertext: number[];
-			let nonce: number[];
-			const fileChannel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
-			const isFileDm = fileChannel?.channel_type === 'dm';
-
-			if (isFileDm) {
-				const peerUserId = getPeerUserIdForDm(channelStore.activeChannelId);
-				if (peerUserId) {
-					try {
-						await initCrypto();
-						const encrypted = await getSessionManager().encryptForPeer(peerUserId, fileMsg);
-						ciphertext = encrypted.ciphertext;
-						nonce = encrypted.nonce;
-					} catch {
-						ciphertext = Array.from(new TextEncoder().encode(fileMsg));
-						nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-					}
-				} else {
-					ciphertext = Array.from(new TextEncoder().encode(fileMsg));
-					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-				}
-			} else {
-				try {
-					await initCrypto();
-					const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId!, fileMsg);
-					ciphertext = encrypted.ciphertext;
-					nonce = encrypted.nonce;
-				} catch {
-					ciphertext = Array.from(new TextEncoder().encode(fileMsg));
-					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-				}
-			}
+			const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId!, fileMsg);
 
 			const fileSent = wsClient.send({
 				type: 'send_message',
@@ -2125,42 +2094,7 @@
 		const text = editInput.trim();
 		if (!text) return;
 
-		const channel = channelStore.channels.find(c => c.id === channelStore.activeChannelId);
-		const isDm = channel?.channel_type === 'dm';
-		let ciphertext: number[];
-		let nonce: number[];
-
-		if (isDm) {
-			const peerUserId = getPeerUserIdForDm(channelStore.activeChannelId);
-			if (peerUserId) {
-				try {
-					await initCrypto();
-					const encrypted = await getSessionManager().encryptForPeer(peerUserId, text);
-					ciphertext = encrypted.ciphertext;
-					nonce = encrypted.nonce;
-				} catch {
-					const encoder = new TextEncoder();
-					ciphertext = Array.from(encoder.encode(text));
-					nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-				}
-			} else {
-				const encoder = new TextEncoder();
-				ciphertext = Array.from(encoder.encode(text));
-				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-			}
-		} else {
-			// Group channel: use Sender Key encryption
-			try {
-				await initCrypto();
-				const encrypted = await getSessionManager().encryptForGroup(channelStore.activeChannelId!, text);
-				ciphertext = encrypted.ciphertext;
-				nonce = encrypted.nonce;
-			} catch {
-				const encoder = new TextEncoder();
-				ciphertext = Array.from(encoder.encode(text));
-				nonce = Array.from(crypto.getRandomValues(new Uint8Array(12)));
-			}
-		}
+		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId!, text);
 
 		const sent = wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
 		if (!sent) {
@@ -2626,7 +2560,7 @@
 		if (!text.startsWith('{"v":')) return false;
 		try {
 			const parsed = JSON.parse(text);
-			return parsed.v === 1 && parsed.message?.ciphertext;
+			return parsed.v === 1 && (parsed.message?.ciphertext || parsed.ciphertext);
 		} catch {
 			return false;
 		}
@@ -5286,41 +5220,6 @@
 							role="article"
 							aria-label="Message from {getDisplayNameForContext(msg.senderId)}"
 						>
-							<!-- Hover action bar -->
-							{#if !msg.pending}
-								<div class="msg-actions absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-xl bg-[var(--bg-secondary)] px-1 py-0.5 shadow-md">
-									<button
-										onclick={() => toggleReaction(msg.id, '👍')}
-										title="React with 👍"
-										aria-label="React with thumbs up"
-										class="rounded p-1 text-sm transition hover:bg-white/10"
-									>👍</button>
-									<button
-										onclick={() => startReply(msg)}
-										title="Reply"
-										aria-label="Reply"
-										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
-									</button>
-									<button
-										onclick={() => openThread(msg.threadId ?? msg.id)}
-										title="Reply in Thread"
-										aria-label="Reply in Thread"
-										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-									</button>
-									<button
-										onclick={(e) => showContextMenu(e, msg.id)}
-										title="More actions"
-										aria-label="More actions"
-										class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-									</button>
-								</div>
-							{/if}
 							{#if preferencesStore.preferences.messageDensity !== 'compact'}
 								{#if grouped}
 									<!-- Hover timestamp in gutter for grouped messages -->
@@ -5599,7 +5498,7 @@
 
 							<!-- Action buttons (visible on hover) -->
 							{#if !msg.pending}
-								<div class="absolute right-2 top-0 hidden gap-0.5 rounded border border-white/10 bg-[var(--bg-secondary)] shadow-lg group-hover:flex">
+								<div class="absolute -top-3 right-2 z-10 hidden items-center gap-0.5 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg group-hover:flex">
 									<button
 										onclick={(e) => { e.stopPropagation(); reactionPickerMessageId = reactionPickerMessageId === msg.id ? null : msg.id; }}
 										class="p-1.5 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"

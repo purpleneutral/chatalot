@@ -266,12 +266,14 @@ export class SessionManager {
 				new TextEncoder().encode(userId),
 			) as { state_json: string; distribution_json: string };
 
-			stateJson = result.state_json;
-			await this.storage.setSenderKeyState(channelId, stateJson);
-
-			// Upload distribution to server (broadcasts to other members via WS)
+			// Upload distribution to server FIRST (broadcasts to other members via WS)
+			// Only persist state after successful upload so we don't encrypt with
+			// a key that was never distributed to other members.
 			const distribution = JSON.parse(result.distribution_json);
 			await uploadSenderKey(channelId, distribution.chain_id, distribution);
+
+			stateJson = result.state_json;
+			await this.storage.setSenderKeyState(channelId, stateJson);
 		}
 
 		const encResult = crypto.sender_key_encrypt(

@@ -315,8 +315,8 @@ pub async fn register(
     device_name: Option<&str>,
     ip_address: Option<&str>,
 ) -> Result<AuthResponse, AppError> {
-    // Check registration mode
-    match state.config.registration_mode.as_str() {
+    // Check registration mode (but don't consume invite yet)
+    let invite_code = match state.config.registration_mode.as_str() {
         "closed" => {
             return Err(AppError::Validation(
                 "registration is currently disabled".to_string(),
@@ -331,17 +331,12 @@ pub async fn register(
                     "an invite code is required to register".to_string(),
                 ));
             }
-            let consumed = registration_invite_repo::validate_and_consume(&state.db, code).await?;
-            if consumed.is_none() {
-                return Err(AppError::Validation(
-                    "invalid, expired, or fully used invite code".to_string(),
-                ));
-            }
+            Some(code.to_string())
         }
-        _ => {} // "open" or anything else — allow registration
-    }
+        _ => None, // "open" or anything else — allow registration
+    };
 
-    // Validate input
+    // Validate input BEFORE consuming the invite code
     validate_username(&req.username)?;
     validate_email(&req.email)?;
 
@@ -362,12 +357,22 @@ pub async fn register(
         ));
     }
 
-    // Check uniqueness
+    // Check uniqueness BEFORE consuming the invite code
     if user_repo::username_exists(&state.db, &req.username).await? {
         return Err(AppError::Conflict("username already taken".to_string()));
     }
     if user_repo::email_exists(&state.db, &req.email).await? {
         return Err(AppError::Conflict("email already registered".to_string()));
+    }
+
+    // Now consume the invite code (all validation passed)
+    if let Some(code) = &invite_code {
+        let consumed = registration_invite_repo::validate_and_consume(&state.db, code).await?;
+        if consumed.is_none() {
+            return Err(AppError::Validation(
+                "invalid, expired, or fully used invite code".to_string(),
+            ));
+        }
     }
 
     // Hash password
