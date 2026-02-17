@@ -211,9 +211,9 @@ pub async fn search_users(
     limit: i64,
 ) -> Result<Vec<User>, sqlx::Error> {
     sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE username ILIKE $1 ORDER BY username ASC LIMIT $2",
+        "SELECT * FROM users WHERE (username ILIKE $1 OR display_name ILIKE $1) ORDER BY username ASC LIMIT $2",
     )
-    .bind(format!("{query}%"))
+    .bind(format!("%{query}%"))
     .bind(limit)
     .fetch_all(pool)
     .await

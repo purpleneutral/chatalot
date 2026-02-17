@@ -120,6 +120,8 @@
 	let dmSearchQuery = $state('');
 	let dmSearchResults = $state<UserPublic[]>([]);
 	let dmSearchError = $state(false);
+	let dmSearchLoading = $state(false);
+	let dmSearchDone = $state(false);
 	let dmSearchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	/** Look up the other user's ID for a given DM channel. */
@@ -1942,20 +1944,25 @@
 	// DM search with debounce
 	function handleDmSearch() {
 		if (dmSearchTimeout) clearTimeout(dmSearchTimeout);
+		dmSearchDone = false;
+		if (dmSearchQuery.length < 2) {
+			dmSearchResults = [];
+			dmSearchLoading = false;
+			return;
+		}
+		dmSearchLoading = true;
 		dmSearchTimeout = setTimeout(async () => {
-			if (dmSearchQuery.length >= 2) {
-				try {
-					dmSearchResults = await searchUsers(dmSearchQuery);
-					// Filter out self
-					dmSearchResults = dmSearchResults.filter(u => u.id !== authStore.user?.id);
-					dmSearchError = false;
-				} catch (err) {
-					toastStore.error('User search failed');
-					dmSearchResults = [];
-					dmSearchError = true;
-				}
-			} else {
+			try {
+				dmSearchResults = await searchUsers(dmSearchQuery);
+				dmSearchResults = dmSearchResults.filter(u => u.id !== authStore.user?.id);
+				dmSearchError = false;
+			} catch (err) {
+				toastStore.error('User search failed');
 				dmSearchResults = [];
+				dmSearchError = true;
+			} finally {
+				dmSearchLoading = false;
+				dmSearchDone = true;
 			}
 		}, 300);
 	}
@@ -1977,6 +1984,7 @@
 			showNewDm = false;
 			dmSearchQuery = '';
 			dmSearchResults = [];
+			dmSearchDone = false;
 		} catch (err) {
 			console.error('Failed to create DM:', err);
 			toastStore.error(err instanceof Error ? err.message : 'Failed to start conversation');
@@ -4085,7 +4093,7 @@
 							class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 						/>
 						<button
-							onclick={() => { showNewDm = false; dmSearchQuery = ''; dmSearchResults = []; }}
+							onclick={() => { showNewDm = false; dmSearchQuery = ''; dmSearchResults = []; dmSearchDone = false; }}
 							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 							title="Cancel"
 							aria-label="Cancel"
@@ -4095,6 +4103,11 @@
 					</div>
 					{#if dmSearchError}
 						<p class="mt-2 px-3 text-xs text-[var(--danger)]">Search failed. Try again.</p>
+					{:else if dmSearchLoading}
+						<div class="mt-3 flex items-center justify-center gap-2 text-xs text-[var(--text-secondary)]">
+							<div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+							Searching...
+						</div>
 					{:else if dmSearchResults.length > 0}
 						<div class="mt-2 space-y-1">
 							{#each dmSearchResults as user (user.id)}
@@ -4108,6 +4121,10 @@
 								</button>
 							{/each}
 						</div>
+					{:else if dmSearchDone && dmSearchQuery.length >= 2}
+						<p class="mt-2 px-3 text-xs text-[var(--text-secondary)]">No users found</p>
+					{:else if dmSearchQuery.length > 0 && dmSearchQuery.length < 2}
+						<p class="mt-2 px-3 text-xs text-[var(--text-secondary)]">Type at least 2 characters</p>
 					{/if}
 				</div>
 			{/if}
@@ -6002,18 +6019,20 @@
 										<p class="text-sm">{gifSearchQuery ? 'No GIFs found' : 'Search for a GIF'}</p>
 									</div>
 								{:else}
-									<div class="grid grid-cols-2 gap-1.5">
+									<div style="columns: 2; column-gap: 0.375rem;">
 										{#each gifResults as gif (gif.id)}
 											<button
 												type="button"
 												onclick={() => selectGif(gif)}
-												class="group/gif relative overflow-hidden rounded-lg transition hover:ring-2 hover:ring-[var(--accent)]"
+												class="group/gif mb-1.5 block w-full overflow-hidden rounded-lg bg-black/20 transition hover:ring-2 hover:ring-[var(--accent)]"
+												style="break-inside: avoid;"
 												title={gif.title}
 											>
 												<img
 													src={gif.preview_url}
 													alt={gif.title}
-													class="h-24 w-full object-cover"
+													class="w-full rounded-lg"
+													style="aspect-ratio: {gif.width}/{gif.height};"
 													loading="lazy"
 												/>
 											</button>
