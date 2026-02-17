@@ -585,7 +585,9 @@
 													<div>
 														<div class="font-medium">
 															{user.display_name}
-															{#if user.is_admin}
+															{#if user.is_owner}
+																<span class="ml-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-400">owner</span>
+															{:else if user.is_admin}
 																<span class="ml-1 rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-xs text-[var(--accent)]">admin</span>
 															{/if}
 														</div>

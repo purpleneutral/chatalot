@@ -44,6 +44,7 @@ fn user_to_admin_response(user: &chatalot_db::models::user::User) -> AdminUserRe
         email: user.email.clone(),
         avatar_url: user.avatar_url.clone(),
         is_admin: user.is_admin,
+        is_owner: user.is_owner,
         suspended_at: user.suspended_at.map(|t| t.to_rfc3339()),
         suspended_reason: user.suspended_reason.clone(),
         created_at: user.created_at.to_rfc3339(),
@@ -294,6 +295,13 @@ async fn delete_user(
     let target = user_repo::find_by_id(&state.db, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    // Cannot delete the instance owner
+    if target.is_owner {
+        return Err(AppError::Validation(
+            "cannot delete the instance owner".to_string(),
+        ));
+    }
 
     // Cannot delete another admin
     if target.is_admin {

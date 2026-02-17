@@ -492,6 +492,7 @@ pub struct AdminUserResponse {
     pub email: String,
     pub avatar_url: Option<String>,
     pub is_admin: bool,
+    pub is_owner: bool,
     pub suspended_at: Option<String>,
     pub suspended_reason: Option<String>,
     pub created_at: String,

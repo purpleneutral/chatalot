@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     TransferOwnershipRequest, UpdateChannelRequest, UpdateRoleRequest,
 };
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, community_repo, group_repo, sender_key_repo, unread_repo};
+use chatalot_db::repos::{channel_repo, community_repo, group_repo, sender_key_repo, unread_repo, voice_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -337,6 +337,30 @@ async fn kick_member(
         },
     );
 
+    // Clean up voice session if the kicked user was in a call
+    if let Ok(Some(session)) = voice_repo::get_active_session(&state.db, channel_id).await {
+        let _ = voice_repo::leave_session(&state.db, session.id, target_user_id).await;
+        state.connections.broadcast_to_channel(
+            channel_id,
+            ServerMessage::UserLeftVoice {
+                channel_id,
+                user_id: target_user_id,
+            },
+        );
+        if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+            state.connections.broadcast_to_channel(
+                channel_id,
+                ServerMessage::VoiceStateUpdate {
+                    channel_id,
+                    participants: participants.clone(),
+                },
+            );
+            if participants.is_empty() {
+                let _ = voice_repo::end_session(&state.db, session.id).await;
+            }
+        }
+    }
+
     // Delete kicked user's sender key and trigger rotation for remaining members
     let _ = sender_key_repo::delete_distribution(&state.db, channel_id, target_user_id).await;
     state.connections.broadcast_to_channel(
@@ -393,6 +417,30 @@ async fn ban_member(
             banned_by: claims.sub,
         },
     );
+
+    // Clean up voice session if the banned user was in a call
+    if let Ok(Some(session)) = voice_repo::get_active_session(&state.db, channel_id).await {
+        let _ = voice_repo::leave_session(&state.db, session.id, target_user_id).await;
+        state.connections.broadcast_to_channel(
+            channel_id,
+            ServerMessage::UserLeftVoice {
+                channel_id,
+                user_id: target_user_id,
+            },
+        );
+        if let Ok(participants) = voice_repo::get_participants(&state.db, session.id).await {
+            state.connections.broadcast_to_channel(
+                channel_id,
+                ServerMessage::VoiceStateUpdate {
+                    channel_id,
+                    participants: participants.clone(),
+                },
+            );
+            if participants.is_empty() {
+                let _ = voice_repo::end_session(&state.db, session.id).await;
+            }
+        }
+    }
 
     // Delete banned user's sender key and trigger rotation for remaining members
     let _ = sender_key_repo::delete_distribution(&state.db, channel_id, target_user_id).await;

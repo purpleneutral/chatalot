@@ -957,6 +957,11 @@
 		const text = threadMessageInput.trim();
 		if (!text || !channelStore.activeChannelId || !activeThreadRootId) return;
 
+		if (slowModeCooldown > 0) {
+			toastStore.error(`Slow mode active — wait ${slowModeCooldown}s`);
+			return;
+		}
+
 		const channelId = channelStore.activeChannelId;
 		const threadId = activeThreadRootId;
 		const { ciphertext, nonce } = await encryptContent(channelId, text);
@@ -1917,6 +1922,11 @@
 		e.preventDefault();
 		let text = messageInput.trim();
 		if (!text || !channelStore.activeChannelId) return;
+
+		if (slowModeCooldown > 0) {
+			toastStore.error(`Slow mode active — wait ${slowModeCooldown}s`);
+			return;
+		}
 
 		// Process slash commands
 		text = processSlashCommands(text);

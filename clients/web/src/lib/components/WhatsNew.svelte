@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.24',
+			date: '2026-02-17',
+			changes: [
+				'Security: kicked/banned users are now immediately removed from active voice calls',
+				'Security: admin panel now exposes is_owner field; instance owner cannot be deleted',
+				'Fix: slow mode now blocks sending on the client with a toast (instead of silent server rejection)',
+				'Admin panel now shows "owner" badge to distinguish instance owner from admins',
+			]
+		},
+		{
 			version: '0.18.23',
 			date: '2026-02-17',
 			changes: [
