@@ -16,6 +16,20 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.12',
+			date: '2026-02-17',
+			changes: [
+				'Fix: reconnect message reload now properly decrypts messages (was showing raw bytes)',
+				'Fix: global search now correctly decrypts DM messages from non-active channels',
+				'Fix: message delete now checks connection status (no more phantom deletions when offline)',
+				'Fix: file size display now supports GB for large files',
+				'Fix: download links now show "Download unavailable" on error instead of silently failing',
+				'Fix: link preview cache now limited to 200 entries (prevents unbounded memory growth)',
+				'Fix: channel switch no longer incorrectly auto-scrolls to bottom (respects saved scroll position)',
+				'Fix: profile success messages now auto-dismiss after 4 seconds',
+			]
+		},
+		{
 			version: '0.18.11',
 			date: '2026-02-17',
 			changes: [

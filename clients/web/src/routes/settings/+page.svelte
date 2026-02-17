@@ -49,6 +49,13 @@
 	let profileSaving = $state(false);
 	let profileMessage = $state('');
 	let profileError = $state('');
+	let profileMsgTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function setProfileMessage(msg: string) {
+		profileMessage = msg;
+		if (profileMsgTimer) clearTimeout(profileMsgTimer);
+		profileMsgTimer = setTimeout(() => { profileMessage = ''; }, 4000);
+	}
 
 	// Avatar upload
 	let avatarInputEl: HTMLInputElement | undefined = $state();
@@ -298,7 +305,7 @@
 		try {
 			const updated = await uploadAvatar(file);
 			authStore.updateUser(updated);
-			profileMessage = 'Avatar updated.';
+			setProfileMessage('Avatar updated.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to upload avatar';
 		} finally {
@@ -313,7 +320,7 @@
 		try {
 			const updated = await updateProfile({ avatar_url: null });
 			authStore.updateUser(updated);
-			profileMessage = 'Avatar removed.';
+			setProfileMessage('Avatar removed.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to remove avatar';
 		} finally {
@@ -331,7 +338,7 @@
 		try {
 			const updated = await uploadBanner(file);
 			authStore.updateUser(updated);
-			profileMessage = 'Banner updated.';
+			setProfileMessage('Banner updated.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to upload banner';
 		} finally {
@@ -346,7 +353,7 @@
 		try {
 			const updated = await updateProfile({ banner_url: null });
 			authStore.updateUser(updated);
-			profileMessage = 'Banner removed.';
+			setProfileMessage('Banner removed.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to remove banner';
 		} finally {
@@ -366,7 +373,7 @@
 				pronouns: editPronouns || null
 			});
 			authStore.updateUser(updated);
-			profileMessage = 'Profile updated.';
+			setProfileMessage('Profile updated.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to update profile';
 		} finally {

@@ -1502,15 +1502,21 @@
 			if (activeId) {
 				// Clear stale pending messages whose confirmations were lost during disconnect
 				messageStore.clearPending(activeId);
-				getMessages(activeId, undefined, FETCH_LIMIT).then(rawMessages => {
+				getMessages(activeId, undefined, FETCH_LIMIT).then(async rawMessages => {
 					// Guard: channel may have changed during the fetch
 					if (channelStore.activeChannelId !== activeId) return;
 					const reversed = rawMessages.reverse();
-					const chatMsgs: ChatMessage[] = reversed.map(m => ({
+					const chatMsgs: ChatMessage[] = await Promise.all(reversed.map(async m => ({
 						id: m.id,
 						channelId: m.channel_id,
 						senderId: m.sender_id,
-						content: new TextDecoder().decode(new Uint8Array(m.ciphertext)),
+						content: await decryptMessage(
+							m.channel_id,
+							m.sender_id,
+							m.ciphertext,
+							m.id,
+							m.sender_id === authStore.user?.id ? getPeerUserIdForDm(activeId) : undefined,
+						),
 						messageType: m.message_type,
 						replyToId: m.reply_to_id,
 						editedAt: m.edited_at,
@@ -1519,7 +1525,7 @@
 						threadReplyCount: m.thread_reply_count ?? undefined,
 						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
 						reactions: m.reactions ? new Map(m.reactions.map((r: ReactionInfo) => [r.emoji, new Set(r.user_ids)])) : undefined
-					}));
+					})));
 					messageStore.setMessages(activeId, chatMsgs, FETCH_LIMIT);
 				}).catch((err) => console.warn('Failed to reload messages after reconnect:', err));
 			}
@@ -1602,6 +1608,9 @@
 		// Reset slow mode cooldown on channel switch
 		slowModeCooldown = 0;
 		if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
+
+		// Reset message count tracker to prevent scroll-to-bottom on channel switch
+		prevMessageCount = 0;
 
 		// Save draft of current channel before switching
 		if (channelStore.activeChannelId) {
@@ -2153,8 +2162,12 @@
 			confirmLabel: 'Delete',
 			danger: true,
 			onConfirm: () => {
-				wsClient.send({ type: 'delete_message', message_id: messageId });
-				messageStore.deleteMessage(messageId);
+				const sent = wsClient.send({ type: 'delete_message', message_id: messageId });
+				if (sent) {
+					messageStore.deleteMessage(messageId);
+				} else {
+					toastStore.error('Failed to delete — connection lost');
+				}
 			}
 		});
 		contextMenuMessageId = null;
@@ -2630,7 +2643,8 @@
 	function formatFileSize(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+		return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 	}
 
 	// Configure marked for chat
@@ -3692,7 +3706,7 @@
 						m.sender_id,
 						m.ciphertext,
 						m.id,
-						m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelStore.activeChannelId) : undefined,
+						m.sender_id === authStore.user?.id ? getPeerUserIdForDm(m.channel_id) : undefined,
 					),
 					messageType: m.message_type,
 					replyToId: m.reply_to_id,
@@ -5598,6 +5612,8 @@
 												<span class="shrink-0">({formatFileSize(fileInfo.size)})</span>
 												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 													<a href={blobUrl} download={fileInfo.filename} class="text-[var(--accent)] hover:underline">Download</a>
+												{:catch}
+													<span class="text-xs text-[var(--text-secondary)]">Download unavailable</span>
 												{/await}
 											</div>
 										</div>
@@ -5620,6 +5636,8 @@
 												<span class="shrink-0">({formatFileSize(fileInfo.size)})</span>
 												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 													<a href={blobUrl} download={fileInfo.filename} class="text-[var(--accent)] hover:underline">Download</a>
+												{:catch}
+													<span class="text-xs text-[var(--text-secondary)]">Download unavailable</span>
 												{/await}
 											</div>
 										</div>
@@ -5635,6 +5653,8 @@
 												</div>
 												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 													<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
+												{:catch}
+													<span class="shrink-0 text-xs text-[var(--text-secondary)]">Download unavailable</span>
 												{/await}
 											</div>
 											{#await getAuthenticatedBlobUrl(fileInfo.file_id)}
@@ -5655,6 +5675,8 @@
 											<span class="shrink-0 text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
 											{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 												<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
+											{:catch}
+												<span class="shrink-0 text-xs text-[var(--text-secondary)]">Download unavailable</span>
 											{/await}
 										</div>
 									{:else}
@@ -6754,6 +6776,8 @@
 										<span class="shrink-0 text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
 										{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 											<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
+										{:catch}
+											<span class="shrink-0 text-xs text-[var(--text-secondary)]">Download unavailable</span>
 										{/await}
 									</div>
 								{/if}
@@ -6892,6 +6916,8 @@
 													<span class="shrink-0 text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
 													{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 														<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
+													{:catch}
+														<span class="shrink-0 text-xs text-[var(--text-secondary)]">Download unavailable</span>
 													{/await}
 												</div>
 											{/if}

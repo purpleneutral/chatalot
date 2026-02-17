@@ -9,6 +9,7 @@ export interface LinkPreview {
 	site_name: string | null;
 }
 
+const MAX_PREVIEW_CACHE = 200;
 const previewCache = new Map<string, Promise<LinkPreview | null>>();
 
 export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
@@ -16,6 +17,13 @@ export function fetchLinkPreview(url: string): Promise<LinkPreview | null> {
 	if (cached) return cached;
 
 	const promise = doFetch(url);
+
+	// Evict oldest entry if cache is full
+	if (previewCache.size >= MAX_PREVIEW_CACHE) {
+		const oldest = previewCache.keys().next().value!;
+		previewCache.delete(oldest);
+	}
+
 	previewCache.set(url, promise);
 	return promise;
 }
