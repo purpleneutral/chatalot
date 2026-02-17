@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.38',
+			date: '2026-02-17',
+			changes: [
+				'Fix: file uploads clean up orphaned disk files if database insert fails',
+			]
+		},
+		{
 			version: '0.18.37',
 			date: '2026-02-17',
 			changes: [

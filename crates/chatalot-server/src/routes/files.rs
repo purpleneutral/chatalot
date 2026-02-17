@@ -146,8 +146,8 @@ async fn upload_file(
         .await
         .map_err(|e| AppError::Internal(format!("flush file: {e}")))?;
 
-    // Record metadata in DB
-    let record = file_repo::create_file(
+    // Record metadata in DB (clean up orphaned file on failure)
+    let record = match file_repo::create_file(
         &state.db,
         file_id,
         claims.sub,
@@ -158,7 +158,14 @@ async fn upload_file(
         &checksum,
         channel_id,
     )
-    .await?;
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            let _ = tokio::fs::remove_file(&file_path).await;
+            return Err(e.into());
+        }
+    };
 
     // Track quota usage
     user_repo::increment_upload_bytes(&state.db, claims.sub, size_bytes).await?;
