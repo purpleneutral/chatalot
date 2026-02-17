@@ -1,16 +1,18 @@
+export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'invisible' | 'offline';
+
 class PresenceStore {
 	// userId -> status
-	private statuses = $state<Map<string, string>>(new Map());
+	private statuses = $state<Map<string, PresenceStatus>>(new Map());
 	// channelId -> Set of user IDs currently typing
 	private typingUsers = $state<Map<string, Set<string>>>(new Map());
 	// Track typing timeouts to cancel them (key: "channelId:userId")
 	private typingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
-	getStatus(userId: string): string {
+	getStatus(userId: string): PresenceStatus {
 		return this.statuses.get(userId) ?? 'offline';
 	}
 
-	setStatus(userId: string, status: string) {
+	setStatus(userId: string, status: PresenceStatus) {
 		const next = new Map(this.statuses);
 		next.set(userId, status);
 		this.statuses = next;

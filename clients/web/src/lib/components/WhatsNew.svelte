@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.15',
+			date: '2026-02-17',
+			changes: [
+				'Fix: keybind recorder no longer leaks event listeners on rapid re-clicks',
+				'Fix: clipboard copy for recovery & backup codes now shows error on failure instead of silently failing',
+				'Fix: settings confirm dialog now closes when switching tabs (no more stale dialogs)',
+				'Fix: settings page now properly cleans up timers and listeners on unmount',
+				'QoL: presence status now uses strict type checking (online/idle/dnd/invisible/offline)',
+			]
+		},
+		{
 			version: '0.18.14',
 			date: '2026-02-17',
 			changes: [

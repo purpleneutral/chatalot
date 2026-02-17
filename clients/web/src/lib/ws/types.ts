@@ -28,7 +28,7 @@ export type ServerMessage =
 	| { type: 'message_sent'; id: string; channel_id: string; created_at: string; thread_id?: string | null }
 	| { type: 'message_edited'; message_id: string; channel_id: string; sender_id: string; ciphertext: number[]; nonce: number[]; edited_at: string }
 	| { type: 'message_deleted'; message_id: string }
-	| { type: 'presence_update'; user_id: string; status: string }
+	| { type: 'presence_update'; user_id: string; status: 'online' | 'idle' | 'dnd' | 'invisible' | 'offline' }
 	| { type: 'user_typing'; channel_id: string; user_id: string }
 	| { type: 'user_stopped_typing'; channel_id: string; user_id: string }
 	| { type: 'rtc_offer'; from_user_id: string; session_id: string; sdp: string }

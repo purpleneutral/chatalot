@@ -129,22 +129,32 @@
 		return key;
 	}
 
+	let activeKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+	let activeClickHandler: (() => void) | null = null;
+
+	function cancelRecordingKey() {
+		if (activeKeyHandler) window.removeEventListener('keydown', activeKeyHandler, true);
+		if (activeClickHandler) window.removeEventListener('click', activeClickHandler, true);
+		activeKeyHandler = null;
+		activeClickHandler = null;
+		recordingKeybind = null;
+	}
+
 	function startRecordingKey(target: 'ptt' | 'toggle') {
+		cancelRecordingKey();
 		recordingKeybind = target;
 		const handler = (e: KeyboardEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
 			if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
 			preferencesStore.set(target === 'ptt' ? 'pttKey' : 'toggleMuteKey', e.key);
-			recordingKeybind = null;
-			window.removeEventListener('keydown', handler, true);
-			window.removeEventListener('click', clickHandler, true);
+			cancelRecordingKey();
 		};
 		const clickHandler = () => {
-			recordingKeybind = null;
-			window.removeEventListener('keydown', handler, true);
-			window.removeEventListener('click', clickHandler, true);
+			cancelRecordingKey();
 		};
+		activeKeyHandler = handler;
+		activeClickHandler = clickHandler;
 		window.addEventListener('keydown', handler, true);
 		// Cancel if user clicks away (delay to avoid catching the triggering click)
 		setTimeout(() => window.addEventListener('click', clickHandler, true), 0);
@@ -245,15 +255,20 @@
 		testLevel = 0;
 	}
 
-	// Clean up mic test when leaving voice tab or unmounting
+	// Clean up mic test and stale dialogs when switching tabs or unmounting
 	$effect(() => {
 		if (activeTab !== 'voice') stopMicTest();
+		settingsConfirmDialog = null;
 		return () => stopMicTest();
 	});
 
 	// Enumerate devices on mount
 	onMount(() => { audioDeviceStore.enumerateDevices(); });
-	onDestroy(() => { stopMicTest(); });
+	onDestroy(() => {
+		stopMicTest();
+		cancelRecordingKey();
+		if (profileMsgTimer) clearTimeout(profileMsgTimer);
+	});
 
 	const nsLevels: { id: NoiseSuppression; label: string; desc: string; cpu: string }[] = [
 		{ id: 'off', label: 'Off', desc: 'No noise processing', cpu: '' },
@@ -1771,9 +1786,10 @@
 								<div class="flex gap-2">
 									<button
 										onclick={() => {
-											navigator.clipboard.writeText(recoveryCode);
-											copiedRecovery = true;
-											setTimeout(() => (copiedRecovery = false), 2000);
+											navigator.clipboard.writeText(recoveryCode).then(() => {
+												copiedRecovery = true;
+												setTimeout(() => (copiedRecovery = false), 2000);
+											}).catch(() => toastStore.error('Failed to copy to clipboard'));
 										}}
 										class="flex-1 rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 									>
@@ -1815,8 +1831,10 @@
 							<div class="flex gap-2">
 								<button
 									onclick={() => {
-										navigator.clipboard.writeText(backupCodes.join('\n'));
-										toastStore.success('Backup codes copied');
+										navigator.clipboard.writeText(backupCodes.join('\n')).then(
+										() => toastStore.success('Backup codes copied'),
+										() => toastStore.error('Failed to copy to clipboard'),
+									);
 									}}
 									class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 								>
