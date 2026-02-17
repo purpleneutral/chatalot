@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.34',
+			date: '2026-02-17',
+			changes: [
+				'Fix: old mic tracks now properly stopped when switching audio devices or noise suppression (prevents resource leak)',
+				'Fix: video tracks stopped after renegotiation instead of before (matches screen share pattern, prevents stale tracks on peers)',
+				'Fix: system audio stream now cleaned up when leaving a call while screen sharing',
+			]
+		},
+		{
 			version: '0.18.33',
 			date: '2026-02-17',
 			changes: [

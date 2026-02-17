@@ -271,6 +271,10 @@ class WebRTCManager {
 		this.rawStream?.getTracks().forEach(t => t.stop());
 		this.rawStream = null;
 
+		// Stop system audio stream (captured for screen share)
+		this.systemAudioStream?.getTracks().forEach(t => t.stop());
+		this.systemAudioStream = null;
+
 		// Tell server we're leaving
 		wsClient.send({ type: 'leave_voice', channel_id: this.channelId });
 
@@ -339,6 +343,9 @@ class WebRTCManager {
 				}
 			}
 		}
+
+		// Stop the old processed track to release AudioContext resources
+		if (prevMicTrack) prevMicTrack.stop();
 
 		// Re-monitor with existing stream
 		const myId = authStore.user?.id;
@@ -414,6 +421,9 @@ class WebRTCManager {
 			}
 		}
 
+		// Stop the old processed track to release AudioContext resources
+		if (prevMicTrack) prevMicTrack.stop();
+
 		const myId = authStore.user?.id;
 		if (myId && localStream) this.monitorStream(myId, localStream);
 	}
@@ -425,21 +435,23 @@ class WebRTCManager {
 		if (!stream) return;
 
 		if (voiceStore.activeCall.videoEnabled) {
-			// Turn off video — remove tracks from peers, then stop
+			// Turn off video — remove tracks from peers, renegotiate, THEN stop
+			const videoTracks = stream.getVideoTracks();
 			for (const pc of this.peers.values()) {
 				for (const sender of pc.getSenders()) {
 					if (sender.track && sender.track.kind === 'video'
-						&& stream.getVideoTracks().includes(sender.track)) {
+						&& videoTracks.includes(sender.track)) {
 						pc.removeTrack(sender);
 					}
 				}
 			}
-			stream.getVideoTracks().forEach(t => {
-				t.stop();
+			for (const t of videoTracks) {
 				stream.removeTrack(t);
-			});
+			}
 			voiceStore.setVideoEnabled(false);
 			await this.renegotiateAll();
+			// Stop tracks after renegotiation so the removal is properly signaled
+			videoTracks.forEach(t => t.stop());
 		} else {
 			// Turn on video
 			let videoStream: MediaStream | null = null;
