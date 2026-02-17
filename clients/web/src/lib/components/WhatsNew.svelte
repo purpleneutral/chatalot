@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.20',
+			date: '2026-02-17',
+			changes: [
+				'Fix: notification sounds on mobile now play reliably (AudioContext resume properly awaited)',
+				'Fix: quick switcher keyboard selection no longer gets stuck when search results change',
+			]
+		},
+		{
 			version: '0.18.19',
 			date: '2026-02-17',
 			changes: [

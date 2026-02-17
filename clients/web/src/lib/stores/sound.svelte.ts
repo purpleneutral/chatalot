@@ -42,10 +42,10 @@ class SoundStore {
 		return this.context;
 	}
 
-	private playTone(frequency: number, duration: number, type: OscillatorType = 'sine') {
+	private async playTone(frequency: number, duration: number, type: OscillatorType = 'sine') {
 		try {
 			const ctx = this.getContext();
-			if (ctx.state === 'suspended') ctx.resume();
+			if (ctx.state === 'suspended') await ctx.resume();
 			const osc = ctx.createOscillator();
 			const gain = ctx.createGain();
 			osc.type = type;

@@ -7632,6 +7632,7 @@
 					<input
 						bind:this={quickSwitcherInputEl}
 						bind:value={quickSwitcherQuery}
+						oninput={() => { quickSwitcherIndex = 0; }}
 						onkeydown={handleQuickSwitcherKeydown}
 						placeholder="Jump to a channel or DM..."
 						autofocus
