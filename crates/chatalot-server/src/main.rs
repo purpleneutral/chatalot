@@ -278,15 +278,64 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(true) => {}
                             }
 
+                            // Check channel restrictions (archived, read-only, timeout)
+                            let skip = 'check: {
+                                let channel = match chatalot_db::repos::channel_repo::get_channel(
+                                    &state.db,
+                                    msg.channel_id,
+                                )
+                                .await
+                                {
+                                    Ok(Some(ch)) => ch,
+                                    _ => break 'check true,
+                                };
+                                if channel.archived || channel.read_only {
+                                    break 'check true;
+                                }
+                                if let Ok(Some(_)) =
+                                    chatalot_db::repos::timeout_repo::get_active_timeout(
+                                        &state.db,
+                                        msg.user_id,
+                                        msg.channel_id,
+                                    )
+                                    .await
+                                {
+                                    break 'check true;
+                                }
+                                false
+                            };
+                            if skip {
+                                tracing::info!(
+                                    "Dropping scheduled message {}: channel restricted or user timed out",
+                                    msg.id
+                                );
+                                let _ =
+                                    chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                        &state.db, msg.id,
+                                    )
+                                    .await;
+                                continue;
+                            }
+
                             // Deliver the message as if the user sent it now
                             let message_id = uuid::Uuid::now_v7();
+
+                            // Decode ciphertext/nonce: new format is JSON byte arrays,
+                            // fallback to raw UTF-8 bytes for legacy plaintext messages
+                            let ciphertext_bytes: Vec<u8> =
+                                serde_json::from_str(&msg.ciphertext)
+                                    .unwrap_or_else(|_| msg.ciphertext.as_bytes().to_vec());
+                            let nonce_bytes: Vec<u8> =
+                                serde_json::from_str(&msg.nonce)
+                                    .unwrap_or_else(|_| msg.nonce.as_bytes().to_vec());
+
                             match chatalot_db::repos::message_repo::create_message(
                                 &state.db,
                                 message_id,
                                 msg.channel_id,
                                 msg.user_id,
-                                msg.ciphertext.as_bytes(),
-                                msg.nonce.as_bytes(),
+                                &ciphertext_bytes,
+                                &nonce_bytes,
                                 "text",
                                 None,
                                 None,
@@ -303,8 +352,8 @@ async fn main() -> anyhow::Result<()> {
                                             id: message_id,
                                             channel_id: msg.channel_id,
                                             sender_id: msg.user_id,
-                                            ciphertext: msg.ciphertext.into_bytes(),
-                                            nonce: msg.nonce.into_bytes(),
+                                            ciphertext: ciphertext_bytes,
+                                            nonce: nonce_bytes,
                                             message_type:
                                                 chatalot_common::ws_messages::MessageType::Text,
                                             reply_to: None,
@@ -382,6 +431,19 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Populate the in-memory suspended users set
+    match chatalot_db::repos::user_repo::get_suspended_user_ids(&state.db).await {
+        Ok(ids) => {
+            for id in &ids {
+                state.suspended_users.insert(*id);
+            }
+            if !ids.is_empty() {
+                tracing::info!("Loaded {} suspended user(s) into memory", ids.len());
+            }
+        }
+        Err(e) => tracing::warn!("Failed to load suspended users: {e}"),
+    }
+
     // Build the router
     let app = routes::build_router(state.clone());
 
@@ -389,9 +451,12 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;
     tracing::info!("Listening on {}", config.listen_addr);
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     tracing::info!("Server shut down gracefully");
     Ok(())

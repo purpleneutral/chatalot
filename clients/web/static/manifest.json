@@ -1,11 +1,11 @@
 {
 	"name": "Chatalot",
 	"short_name": "Chatalot",
-	"description": "Self-hosted encrypted chat",
+	"description": "Self-hosted encrypted chat platform with end-to-end security",
 	"start_url": "/",
 	"display": "standalone",
-	"background_color": "#1a1a2e",
-	"theme_color": "#6366f1",
+	"background_color": "#1a1816",
+	"theme_color": "#e07a4f",
 	"icons": [
 		{
 			"src": "/icon-192.png",

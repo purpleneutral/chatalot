@@ -84,6 +84,20 @@ async fn get_link_preview(
         AppError::Validation("Could not fetch URL".into())
     })?;
 
+    // SSRF protection: validate resolved IP after DNS resolution (prevents DNS rebinding)
+    if let Some(remote_addr) = response.remote_addr()
+        && is_private_ip(remote_addr.ip())
+    {
+        return Err(AppError::Validation("Cannot preview internal URLs".into()));
+    }
+
+    // SSRF protection: validate final URL after redirects
+    if let Some(host) = response.url().host_str()
+        && is_private_host(host)
+    {
+        return Err(AppError::Validation("Cannot preview internal URLs".into()));
+    }
+
     // Only process HTML responses
     let content_type = response
         .headers()
@@ -232,22 +246,24 @@ pub fn cleanup_preview_cache() -> usize {
     count
 }
 
+fn is_private_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.octets()[0] == 0
+        }
+        std::net::IpAddr::V6(v6) => v6.is_loopback(),
+    }
+}
+
 fn is_private_host(host: &str) -> bool {
-    if host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "0.0.0.0" {
+    if host == "localhost" || host == "0.0.0.0" {
         return true;
     }
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        match ip {
-            std::net::IpAddr::V4(v4) => {
-                return v4.is_private()
-                    || v4.is_loopback()
-                    || v4.is_link_local()
-                    || v4.octets()[0] == 0;
-            }
-            std::net::IpAddr::V6(v6) => {
-                return v6.is_loopback();
-            }
-        }
+        return is_private_ip(ip);
     }
     if host.ends_with(".local") || host.ends_with(".internal") {
         return true;

@@ -36,6 +36,11 @@ class BookmarkStore {
 	getByMessageId(messageId: string): Bookmark | undefined {
 		return this.bookmarks.find(b => b.message_id === messageId);
 	}
+
+	clear() {
+		this.bookmarks = [];
+		this.bookmarkedMessageIds = new Set();
+	}
 }
 
 export const bookmarkStore = new BookmarkStore();

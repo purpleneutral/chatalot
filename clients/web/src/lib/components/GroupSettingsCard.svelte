@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { scale } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { groupStore } from '$lib/stores/groups.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
@@ -29,6 +29,8 @@
 	} = $props();
 
 	const isAdmin = $derived(myRole === 'owner' || myRole === 'admin');
+
+	let confirmDialog = $state<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
 	const isOwner = $derived(myRole === 'owner');
 	const isPersonal = $derived(!!group.assigned_member_id);
 	const isAssignedMember = $derived(group.assigned_member_id === authStore.user?.id);
@@ -228,28 +230,42 @@
 		}
 	}
 
-	async function handleLeave() {
-		if (!confirm('Leave this group?')) return;
-		try {
-			await leaveGroup(group.id);
-			toastStore.success('Left group');
-			onleft?.();
-			onclose();
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Failed to leave');
-		}
+	function handleLeave() {
+		confirmDialog = {
+			title: 'Leave group?',
+			message: `Leave "${group.name}"? You can rejoin later if the group is still available.`,
+			confirmLabel: 'Leave',
+			danger: true,
+			async onConfirm() {
+				try {
+					await leaveGroup(group.id);
+					toastStore.success('Left group');
+					onleft?.();
+					onclose();
+				} catch (err: any) {
+					toastStore.error(err?.message ?? 'Failed to leave');
+				}
+			}
+		};
 	}
 
-	async function handleDelete() {
-		if (!confirm(`Delete "${group.name}"? This cannot be undone.`)) return;
-		try {
-			await deleteGroup(group.id);
-			toastStore.success('Group deleted');
-			ondeleted?.();
-			onclose();
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Failed to delete');
-		}
+	function handleDelete() {
+		confirmDialog = {
+			title: `Delete "${group.name}"?`,
+			message: 'This will permanently delete this group and all its channels. This cannot be undone.',
+			confirmLabel: 'Delete',
+			danger: true,
+			async onConfirm() {
+				try {
+					await deleteGroup(group.id);
+					toastStore.success('Group deleted');
+					ondeleted?.();
+					onclose();
+				} catch (err: any) {
+					toastStore.error(err?.message ?? 'Failed to delete');
+				}
+			}
+		};
 	}
 </script>
 
@@ -272,14 +288,14 @@
 		<!-- Banner -->
 		<div class="relative h-20 overflow-hidden rounded-t-xl" style={group.accent_color ? `background: linear-gradient(135deg, ${group.accent_color}, ${group.accent_color}88)` : ''}>
 			{#if group.banner_url}
-				<img src={group.banner_url} alt="" class="h-full w-full object-cover" />
+				<img src={group.banner_url} alt="Group banner" class="h-full w-full object-cover" />
 			{:else if !group.accent_color}
 				<div class="h-full w-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
 			{/if}
 			<!-- Group icon overlapping the banner -->
 			<div class="absolute -bottom-5 left-4">
 				{#if group.icon_url}
-					<img src={group.icon_url} alt="" class="h-10 w-10 rounded-full border-2 border-[var(--bg-secondary)] object-cover" />
+					<img src={group.icon_url} alt="Group icon" class="h-10 w-10 rounded-full border-2 border-[var(--bg-secondary)] object-cover" />
 				{:else}
 					<div class="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[var(--bg-secondary)] bg-[var(--bg-tertiary)]">
 						<span class="text-sm font-bold text-[var(--text-secondary)]">#</span>
@@ -496,3 +512,18 @@
 		</div>
 	</div>
 </div>
+
+{#if confirmDialog}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="dialog" tabindex="-1" aria-modal="true" aria-label={confirmDialog.title} transition:fade={{ duration: 150 }} onclick={() => confirmDialog = null} onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-5 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }} onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+			<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">{confirmDialog.title}</h3>
+			<p class="mb-4 text-sm text-[var(--text-secondary)]">{confirmDialog.message}</p>
+			<div class="flex justify-end gap-2">
+				<button onclick={() => confirmDialog = null} class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Cancel</button>
+				<button onclick={() => { confirmDialog?.onConfirm(); confirmDialog = null; }} class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}">{confirmDialog.confirmLabel}</button>
+			</div>
+		</div>
+	</div>
+{/if}

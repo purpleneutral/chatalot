@@ -75,7 +75,7 @@
 		<p class="mb-8 text-center text-[var(--text-secondary)]">Connect to a server</p>
 
 		{#if error}
-			<div class="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-[var(--danger)]">
+			<div class="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-[var(--danger)]" role="alert">
 				{error}
 			</div>
 		{/if}
@@ -93,7 +93,7 @@
 					required
 					placeholder="https://chat.example.com"
 					autofocus
-					class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
 				/>
 				<p class="mt-1 text-xs text-[var(--text-secondary)]">
 					Enter the URL of the Chatalot server you want to connect to.
@@ -103,7 +103,7 @@
 			<button
 				type="submit"
 				disabled={loading}
-				class="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+				class="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{loading ? 'Connecting...' : 'Connect'}
 			</button>

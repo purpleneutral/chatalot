@@ -162,13 +162,16 @@ class ApiClient {
 
 	/** Upload a file via multipart/form-data. */
 	async upload<T>(path: string, fieldName: string, file: File, extraFields?: Record<string, string>): Promise<T> {
-		const formData = new FormData();
-		if (extraFields) {
-			for (const [key, value] of Object.entries(extraFields)) {
-				formData.append(key, value);
+		const buildFormData = () => {
+			const fd = new FormData();
+			if (extraFields) {
+				for (const [key, value] of Object.entries(extraFields)) {
+					fd.append(key, value);
+				}
 			}
-		}
-		formData.append(fieldName, file);
+			fd.append(fieldName, file);
+			return fd;
+		};
 
 		const headers: Record<string, string> = {};
 		const token = authStore.accessToken;
@@ -178,7 +181,7 @@ class ApiClient {
 		const response = await this.fetchWithRetry(`${base}${path}`, {
 			method: 'POST',
 			headers,
-			body: formData,
+			body: buildFormData(),
 		});
 
 		if (response.status === 401 && token) {
@@ -188,7 +191,7 @@ class ApiClient {
 				const retryResponse = await this.fetchWithRetry(`${base}${path}`, {
 					method: 'POST',
 					headers,
-					body: formData,
+					body: buildFormData(),
 				});
 				if (!retryResponse.ok) throw await this.parseError(retryResponse);
 				return retryResponse.json();

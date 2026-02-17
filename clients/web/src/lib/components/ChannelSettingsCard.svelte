@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { scale, slide } from 'svelte/transition';
+	import { fade, scale, slide } from 'svelte/transition';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { channelStore } from '$lib/stores/channels.svelte';
 	import { updateChannel as apiUpdateChannel, deleteChannel } from '$lib/api/groups';
@@ -26,6 +26,9 @@
 	} = $props();
 
 	const isAdmin = $derived(myRole === 'owner' || myRole === 'admin');
+
+	// Confirm dialog state
+	let confirmDialog = $state<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
 
 	let editingName = $state(false);
 	let editName = $state('');
@@ -175,16 +178,23 @@
 		}
 	}
 
-	async function handleDelete() {
-		if (!confirm(`Delete "#${channel.name}"? This cannot be undone.`)) return;
-		try {
-			await deleteChannel(groupId, channel.id);
-			toastStore.success('Channel deleted');
-			ondeleted?.();
-			onclose();
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Failed to delete');
-		}
+	function handleDelete() {
+		confirmDialog = {
+			title: `Delete #${channel.name}?`,
+			message: 'This will permanently delete this channel and all its messages. This cannot be undone.',
+			confirmLabel: 'Delete',
+			danger: true,
+			async onConfirm() {
+				try {
+					await deleteChannel(groupId, channel.id);
+					toastStore.success('Channel deleted');
+					ondeleted?.();
+					onclose();
+				} catch (err: any) {
+					toastStore.error(err?.message ?? 'Failed to delete');
+				}
+			}
+		};
 	}
 
 	// ── Webhook functions ──
@@ -228,15 +238,22 @@
 		}
 	}
 
-	async function handleDeleteWebhook(webhook: Webhook) {
-		if (!confirm(`Delete webhook "${webhook.name}"?`)) return;
-		try {
-			await deleteWebhook(webhook.id);
-			webhooks = webhooks.filter(w => w.id !== webhook.id);
-			toastStore.success('Webhook deleted');
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Failed to delete webhook');
-		}
+	function handleDeleteWebhook(webhook: Webhook) {
+		confirmDialog = {
+			title: 'Delete webhook?',
+			message: `Delete webhook "${webhook.name}"? Any integrations using it will stop working.`,
+			confirmLabel: 'Delete',
+			danger: true,
+			async onConfirm() {
+				try {
+					await deleteWebhook(webhook.id);
+					webhooks = webhooks.filter(w => w.id !== webhook.id);
+					toastStore.success('Webhook deleted');
+				} catch (err: any) {
+					toastStore.error(err?.message ?? 'Failed to delete webhook');
+				}
+			}
+		};
 	}
 
 	async function copyWebhookUrl(webhook: Webhook) {
@@ -517,3 +534,24 @@
 		</div>
 	</div>
 </div>
+
+{#if confirmDialog}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+		role="dialog" tabindex="-1" aria-modal="true" aria-label={confirmDialog.title}
+		transition:fade={{ duration: 150 }}
+		onclick={() => confirmDialog = null}
+		onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}
+	>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-5 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }} onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+			<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">{confirmDialog.title}</h3>
+			<p class="mb-4 text-sm text-[var(--text-secondary)]">{confirmDialog.message}</p>
+			<div class="flex justify-end gap-2">
+				<button onclick={() => confirmDialog = null} class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Cancel</button>
+				<button onclick={() => { confirmDialog?.onConfirm(); confirmDialog = null; }} class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}">{confirmDialog.confirmLabel}</button>
+			</div>
+		</div>
+	</div>
+{/if}

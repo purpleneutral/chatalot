@@ -22,6 +22,8 @@ export interface UnreadCount {
 	count: number;
 }
 
+const MAX_MESSAGES_PER_CHANNEL = 500;
+
 class MessageStore {
 	// channelId -> messages (sorted by time ascending)
 	private messagesByChannel = $state<Map<string, ChatMessage[]>>(new Map());
@@ -86,8 +88,15 @@ class MessageStore {
 		const existing = this.messagesByChannel.get(channelId) ?? [];
 		// Don't add duplicates
 		if (existing.some(m => m.id === message.id)) return;
+		let updated = [...existing, message];
+		// Trim oldest messages if cache exceeds limit
+		if (updated.length > MAX_MESSAGES_PER_CHANNEL) {
+			updated = updated.slice(updated.length - MAX_MESSAGES_PER_CHANNEL);
+			// Allow scroll-up to re-fetch trimmed messages
+			this.noMoreMessages.delete(channelId);
+		}
 		const next = new Map(this.messagesByChannel);
-		next.set(channelId, [...existing, message]);
+		next.set(channelId, updated);
 		this.messagesByChannel = next;
 	}
 
@@ -120,6 +129,15 @@ class MessageStore {
 				break;
 			}
 		}
+		this.messagesByChannel = next;
+	}
+
+	// Remove stale pending messages from a channel (call after reconnect re-fetch)
+	clearPending(channelId: string) {
+		const messages = this.messagesByChannel.get(channelId);
+		if (!messages?.some(m => m.pending)) return;
+		const next = new Map(this.messagesByChannel);
+		next.set(channelId, messages.filter(m => !m.pending));
 		this.messagesByChannel = next;
 	}
 
@@ -303,6 +321,16 @@ class MessageStore {
 		set.delete(messageId);
 		next.set(channelId, set);
 		this.pinnedIds = next;
+	}
+
+	/** Clear all state (call on logout). */
+	clear() {
+		this.messagesByChannel = new Map();
+		this.loadingChannels = new Set();
+		this.fetchedChannels.clear();
+		this.unreadCounts = new Map();
+		this.noMoreMessages.clear();
+		this.pinnedIds = new Map();
 	}
 }
 

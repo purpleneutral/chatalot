@@ -1,11 +1,13 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{ConnectInfo, State};
 use axum::http::HeaderMap;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 
 use chatalot_common::api_types::{
     AuthResponse, LoginRequest, RecoverAccountRequest, RecoverAccountResponse, RefreshRequest,
@@ -86,32 +88,55 @@ fn parse_device_name(ua: &str) -> String {
     }
 }
 
-/// Extract client IP from headers, checking reverse proxy headers first.
-pub(crate) fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
-    // X-Forwarded-For (first entry is the client)
-    if let Some(xff) = headers.get("x-forwarded-for")
-        && let Ok(val) = xff.to_str()
-        && let Some(first) = val.split(',').next()
-    {
-        let ip = first.trim();
-        if !ip.is_empty() {
-            return Some(ip.to_string());
+/// Extract client IP, trusting proxy headers only from trusted connections.
+pub(crate) fn extract_client_ip(
+    headers: &HeaderMap,
+    conn_ip: Option<SocketAddr>,
+) -> Option<String> {
+    let peer_ip = conn_ip.map(|c| c.ip());
+
+    // Only trust proxy headers when the connection comes from a trusted proxy
+    let trust_headers = peer_ip.is_some_and(|ip| {
+        use std::net::IpAddr;
+        match ip {
+            IpAddr::V4(v4) => {
+                v4.is_loopback()
+                    || v4.octets()[..2] == [172, 17]
+                    || v4.octets()[..2] == [172, 18]
+                    || v4.octets()[..3] == [172, 19, 0]
+            }
+            IpAddr::V6(v6) => v6.is_loopback(),
+        }
+    });
+
+    if trust_headers {
+        // X-Forwarded-For (first entry is the client)
+        if let Some(xff) = headers.get("x-forwarded-for")
+            && let Ok(val) = xff.to_str()
+            && let Some(first) = val.split(',').next()
+        {
+            let ip = first.trim();
+            if !ip.is_empty() {
+                return Some(ip.to_string());
+            }
+        }
+        // X-Real-IP
+        if let Some(xri) = headers.get("x-real-ip")
+            && let Ok(val) = xri.to_str()
+        {
+            let ip = val.trim();
+            if !ip.is_empty() {
+                return Some(ip.to_string());
+            }
         }
     }
-    // X-Real-IP
-    if let Some(xri) = headers.get("x-real-ip")
-        && let Ok(val) = xri.to_str()
-    {
-        let ip = val.trim();
-        if !ip.is_empty() {
-            return Some(ip.to_string());
-        }
-    }
-    None
+
+    peer_ip.map(|ip| ip.to_string())
 }
 
 async fn register(
     State(state): State<Arc<AppState>>,
+    conn_info: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
@@ -120,7 +145,7 @@ async fn register(
         .and_then(|v| v.to_str().ok())
         .filter(|ua| ua.len() <= 512)
         .map(parse_device_name);
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, Some(conn_info.0));
 
     let response = auth_service::register(&state, req, device.as_deref(), ip.as_deref()).await?;
     Ok(Json(response))
@@ -128,6 +153,7 @@ async fn register(
 
 async fn login(
     State(state): State<Arc<AppState>>,
+    conn_info: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
@@ -136,7 +162,7 @@ async fn login(
         .and_then(|v| v.to_str().ok())
         .filter(|ua| ua.len() <= 512)
         .map(parse_device_name);
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, Some(conn_info.0));
 
     let response = auth_service::login(&state, req, device.as_deref(), ip.as_deref()).await?;
     Ok(Json(response))
@@ -144,6 +170,7 @@ async fn login(
 
 async fn refresh(
     State(state): State<Arc<AppState>>,
+    conn_info: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<RefreshRequest>,
 ) -> Result<Json<TokenResponse>, AppError> {
@@ -152,7 +179,7 @@ async fn refresh(
         .and_then(|v| v.to_str().ok())
         .filter(|ua| ua.len() <= 512)
         .map(parse_device_name);
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, Some(conn_info.0));
 
     let response =
         auth_service::refresh_token(&state, req, device.as_deref(), ip.as_deref()).await?;
@@ -162,16 +189,17 @@ async fn refresh(
 /// Recover account using a recovery code (self-service password reset).
 async fn recover_account(
     State(state): State<Arc<AppState>>,
+    conn_info: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<RecoverAccountRequest>,
 ) -> Result<Json<RecoverAccountResponse>, AppError> {
     // Validate input lengths
-    if req.username.len() > 32 || req.recovery_code.len() > 25 {
+    if req.username.len() > 32 || req.recovery_code.len() != 19 {
         return Err(AppError::Validation("invalid request".to_string()));
     }
 
     // Check account lockout (reuse login lockout to prevent brute-force)
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, Some(conn_info.0));
     let lockout_key = format!("recover:{}", req.username);
     if let Some(remaining) = auth_service::check_lockout_by_key(&lockout_key) {
         return Err(AppError::Validation(format!(
@@ -191,9 +219,9 @@ async fn recover_account(
         }
     };
 
-    // Verify recovery code (constant-time via hash comparison)
+    // Verify recovery code (constant-time comparison to prevent timing attacks)
     let provided_hash = hex::encode(Sha256::digest(req.recovery_code.as_bytes()));
-    if provided_hash != recovery_hash {
+    if provided_hash.as_bytes().ct_eq(recovery_hash.as_bytes()).unwrap_u8() != 1 {
         auth_service::record_failed_attempt(&lockout_key);
         return Err(AppError::Validation(
             "invalid username or recovery code".to_string(),

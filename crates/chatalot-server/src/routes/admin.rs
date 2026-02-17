@@ -1,6 +1,7 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::HeaderMap;
 use axum::routing::{delete, get, post, put};
 use axum::{Extension, Json, Router};
@@ -226,6 +227,7 @@ async fn suspend_user(
     }
 
     user_repo::suspend_user(&state.db, user_id, req.reason.as_deref()).await?;
+    state.suspended_users.insert(user_id);
 
     // Revoke all their sessions
     user_repo::revoke_all_refresh_tokens(&state.db, user_id).await?;
@@ -258,6 +260,7 @@ async fn unsuspend_user(
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
 
     user_repo::unsuspend_user(&state.db, user_id).await?;
+    state.suspended_users.remove(&user_id);
 
     user_repo::insert_audit_log(
         &state.db,
@@ -325,7 +328,10 @@ async fn set_admin(
     Path(user_id): Path<Uuid>,
     Json(req): Json<SetAdminRequest>,
 ) -> Result<(), AppError> {
-    require_admin(&claims)?;
+    // Only the instance owner can promote/demote admins
+    if !claims.is_owner {
+        return Err(AppError::Forbidden);
+    }
 
     // Cannot change your own admin status
     if user_id == claims.sub {
@@ -364,6 +370,7 @@ async fn set_admin(
 async fn reset_password(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
+    conn_info: ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(user_id): Path<Uuid>,
     Json(req): Json<ResetPasswordRequest>,
@@ -386,7 +393,7 @@ async fn reset_password(
     user_repo::update_password(&state.db, user_id, &new_hash).await?;
     user_repo::revoke_all_refresh_tokens(&state.db, user_id).await?;
 
-    let ip = super::auth::extract_client_ip(&headers);
+    let ip = super::auth::extract_client_ip(&headers, Some(conn_info.0));
     let ua = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())

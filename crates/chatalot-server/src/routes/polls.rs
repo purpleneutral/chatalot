@@ -215,6 +215,12 @@ async fn remove_vote(
         return Err(AppError::Validation("poll is closed".into()));
     }
 
+    if let Some(expires_at) = poll.expires_at
+        && expires_at < chrono::Utc::now()
+    {
+        return Err(AppError::Validation("poll has expired".into()));
+    }
+
     poll_repo::remove_vote(&state.db, poll_id, claims.sub, idx).await?;
     Ok(())
 }

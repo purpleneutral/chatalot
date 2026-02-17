@@ -1084,6 +1084,20 @@ async fn handle_client_message(
                 return;
             }
 
+            // Check for active timeout (timed-out users cannot edit)
+            if let Ok(Some(timeout)) =
+                timeout_repo::get_active_timeout(&state.db, user_id, msg_record.channel_id).await
+            {
+                let remaining = (timeout.expires_at - chrono::Utc::now())
+                    .num_seconds()
+                    .max(0);
+                let _ = tx.send(ServerMessage::Error {
+                    code: "timed_out".to_string(),
+                    message: format!("you are timed out for {remaining} more seconds"),
+                });
+                return;
+            }
+
             // Enforce 15-minute edit window
             const EDIT_WINDOW_SECONDS: i64 = 900;
             let age = (chrono::Utc::now() - msg_record.created_at).num_seconds();
@@ -1237,6 +1251,18 @@ async fn handle_client_message(
                     return;
                 }
             };
+
+            // Verify channel membership
+            if !channel_repo::is_member(&state.db, msg_record.channel_id, user_id)
+                .await
+                .unwrap_or(false)
+            {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "forbidden".to_string(),
+                    message: "not a member of this channel".to_string(),
+                });
+                return;
+            }
 
             match reaction_repo::remove_reaction(&state.db, message_id, user_id, &emoji).await {
                 Ok(true) => {

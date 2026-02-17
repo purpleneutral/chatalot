@@ -4,22 +4,31 @@ use uuid::Uuid;
 use crate::models::voice::VoiceSession;
 
 /// Get or create an active voice session for a channel.
+/// Uses a CTE to atomically check-then-insert, avoiding TOCTOU races
+/// where two concurrent callers could create duplicate sessions.
 pub async fn get_or_create_session(
     pool: &PgPool,
     channel_id: Uuid,
     started_by: Uuid,
 ) -> Result<VoiceSession, sqlx::Error> {
-    // Check for existing active session
-    if let Some(session) = get_active_session(pool, channel_id).await? {
-        return Ok(session);
-    }
-
     let id = Uuid::now_v7();
     sqlx::query_as::<_, VoiceSession>(
         r#"
-        INSERT INTO voice_sessions (id, channel_id, started_by)
-        VALUES ($1, $2, $3)
-        RETURNING *
+        WITH existing AS (
+            SELECT * FROM voice_sessions
+            WHERE channel_id = $2 AND ended_at IS NULL
+            ORDER BY started_at DESC
+            LIMIT 1
+        ), inserted AS (
+            INSERT INTO voice_sessions (id, channel_id, started_by)
+            SELECT $1, $2, $3
+            WHERE NOT EXISTS (SELECT 1 FROM existing)
+            RETURNING *
+        )
+        SELECT * FROM existing
+        UNION ALL
+        SELECT * FROM inserted
+        LIMIT 1
         "#,
     )
     .bind(id)

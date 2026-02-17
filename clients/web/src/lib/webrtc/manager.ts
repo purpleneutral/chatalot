@@ -444,8 +444,9 @@ class WebRTCManager {
 			await this.renegotiateAll();
 		} else {
 			// Turn on video
+			let videoStream: MediaStream | null = null;
 			try {
-				const videoStream = await navigator.mediaDevices.getUserMedia({
+				videoStream = await navigator.mediaDevices.getUserMedia({
 					video: { width: 640, height: 480 }
 				});
 				const videoTrack = videoStream.getVideoTracks()[0];
@@ -459,6 +460,8 @@ class WebRTCManager {
 				await this.renegotiateAll();
 			} catch (err) {
 				console.error('Failed to enable video:', err);
+				// Clean up any acquired tracks to release camera hardware
+				videoStream?.getTracks().forEach(t => t.stop());
 			}
 		}
 	}

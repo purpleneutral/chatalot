@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { fade, scale } from 'svelte/transition';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
@@ -78,6 +79,9 @@
 	let sessionsError = $state('');
 	let revokingSessionId = $state<string | null>(null);
 	let revokingAll = $state(false);
+
+	// Confirm dialog
+	let settingsConfirmDialog = $state<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
 
 	// Delete account
 	let showDeleteConfirm = $state(false);
@@ -177,6 +181,7 @@
 			toastStore.error(err?.message ?? 'Upload failed');
 		} finally {
 			voiceBgUploading = false;
+			if (voiceBgInputEl) voiceBgInputEl.value = '';
 		}
 	}
 
@@ -407,19 +412,26 @@
 		}
 	}
 
-	async function handleLogoutAll() {
+	function handleLogoutAll() {
 		if (revokingAll) return;
-		if (!confirm('Revoke all sessions? You will be logged out everywhere.')) return;
-		revokingAll = true;
-		try {
-			await logoutAll();
-			authStore.logout();
-			goto('/login');
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to logout');
-		} finally {
-			revokingAll = false;
-		}
+		settingsConfirmDialog = {
+			title: 'Revoke all sessions?',
+			message: 'This will log you out from all devices and browsers, including this one.',
+			confirmLabel: 'Revoke All',
+			danger: true,
+			async onConfirm() {
+				revokingAll = true;
+				try {
+					await logoutAll();
+					authStore.logout();
+					goto('/login');
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to logout');
+				} finally {
+					revokingAll = false;
+				}
+			}
+		};
 	}
 
 	async function handleDeleteAccount(e: SubmitEvent) {
@@ -1941,6 +1953,7 @@
 									type="password"
 									bind:value={currentPassword}
 									required
+									autocomplete="current-password"
 									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 							</div>
@@ -1951,6 +1964,7 @@
 									type="password"
 									bind:value={newPassword}
 									required
+									autocomplete="new-password"
 									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								{#if newPassword.length > 0}
@@ -1970,6 +1984,7 @@
 									type="password"
 									bind:value={confirmPassword}
 									required
+									autocomplete="new-password"
 									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 							</div>
@@ -2025,7 +2040,8 @@
 										bind:value={deletePassword}
 										placeholder="Confirm your password"
 										required
-										class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-red-500/50"
+										autocomplete="current-password"
+										class="flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-red-500/50"
 									/>
 									<button
 										type="submit"
@@ -2049,4 +2065,19 @@
 			</div>
 		</div>
 	</div>
+
+	{#if settingsConfirmDialog}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" tabindex="-1" aria-modal="true" aria-label={settingsConfirmDialog.title} transition:fade={{ duration: 150 }} onclick={() => settingsConfirmDialog = null} onkeydown={(e) => { if (e.key === 'Escape') settingsConfirmDialog = null; }}>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-5 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }} onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">{settingsConfirmDialog.title}</h3>
+				<p class="mb-4 text-sm text-[var(--text-secondary)]">{settingsConfirmDialog.message}</p>
+				<div class="flex justify-end gap-2">
+					<button onclick={() => settingsConfirmDialog = null} class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Cancel</button>
+					<button onclick={() => { settingsConfirmDialog?.onConfirm(); settingsConfirmDialog = null; }} class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {settingsConfirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}">{settingsConfirmDialog.confirmLabel}</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 {/if}

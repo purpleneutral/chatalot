@@ -51,13 +51,20 @@ async function ensureUser(userId: string) {
 export async function handleServerMessage(msg: ServerMessage) {
 	switch (msg.type) {
 		case 'new_message': {
-			const content = await decryptMessage(
-				msg.channel_id,
-				msg.sender_id,
-				msg.ciphertext,
-				msg.id,
-			);
-			ensureUser(msg.sender_id);
+			let content: string;
+			try {
+				content = await decryptMessage(
+					msg.channel_id,
+					msg.sender_id,
+					msg.ciphertext,
+					msg.id,
+				);
+			} catch (err) {
+				console.error('[WS] Failed to decrypt new_message:', err);
+				content = '[Failed to decrypt]';
+			}
+			// Fetch user info (don't block message addition)
+			const userReady = ensureUser(msg.sender_id);
 
 			const chatMsg: ChatMessage = {
 				id: msg.id,
@@ -97,8 +104,9 @@ export async function handleServerMessage(msg: ServerMessage) {
 				debouncedMarkRead(msg.channel_id, msg.id);
 			}
 
-			// Notifications (skip own messages)
+			// Notifications (skip own messages) — await user info for proper display name
 			if (msg.sender_id !== authStore.user?.id) {
+				await userReady;
 				const channel = channelStore.channels.find(c => c.id === msg.channel_id);
 				const isDm = channel?.channel_type === 'dm';
 				const senderName = userStore.getDisplayName(msg.sender_id);
@@ -160,12 +168,28 @@ export async function handleServerMessage(msg: ServerMessage) {
 		}
 
 		case 'message_edited': {
-			const editedContent = await decryptMessage(
-				msg.channel_id,
-				msg.sender_id,
-				msg.ciphertext,
-				msg.message_id,
-			);
+			let editedContent: string;
+			try {
+				// For own DM edits, the session is keyed by the peer (not self)
+				let peerOverride: string | undefined;
+				if (msg.sender_id === authStore.user?.id) {
+					const ch = channelStore.channels.find(c => c.id === msg.channel_id);
+					if (ch?.channel_type === 'dm') {
+						const members = memberStore.getMembers(msg.channel_id);
+						peerOverride = members.find(m => m.user_id !== authStore.user?.id)?.user_id;
+					}
+				}
+				editedContent = await decryptMessage(
+					msg.channel_id,
+					msg.sender_id,
+					msg.ciphertext,
+					msg.message_id,
+					peerOverride,
+				);
+			} catch (err) {
+				console.error('[WS] Failed to decrypt message_edited:', err);
+				editedContent = '[Failed to decrypt]';
+			}
 			messageStore.editMessage(msg.message_id, editedContent, msg.edited_at);
 			// Notify thread panel
 			window.dispatchEvent(
@@ -235,7 +259,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 				wsClient.send({ type: 'leave_voice', channel_id: msg.channel_id });
 				break;
 			}
-			webrtcManager.onVoiceStateUpdate(msg.channel_id, msg.participants);
+			void webrtcManager.onVoiceStateUpdate(msg.channel_id, msg.participants).catch(err => console.error('[VOICE] voice state update failed:', err));
 			for (const uid of msg.participants) {
 				ensureUser(uid);
 			}
@@ -276,20 +300,17 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		// WebRTC signaling
 		case 'rtc_offer': {
-			console.info(`[VOICE-WS] rtc_offer from=${msg.from_user_id.slice(0,8)}`);
-			webrtcManager.handleOffer(msg.from_user_id, msg.session_id, msg.sdp);
+			void webrtcManager.handleOffer(msg.from_user_id, msg.session_id, msg.sdp).catch(err => console.error('[VOICE] handle offer failed:', err));
 			break;
 		}
 
 		case 'rtc_answer': {
-			console.info(`[VOICE-WS] rtc_answer from=${msg.from_user_id.slice(0,8)}`);
-			webrtcManager.handleAnswer(msg.from_user_id, msg.sdp);
+			void webrtcManager.handleAnswer(msg.from_user_id, msg.sdp).catch(err => console.error('[VOICE] handle answer failed:', err));
 			break;
 		}
 
 		case 'rtc_ice_candidate': {
-			console.info(`[VOICE-WS] rtc_ice_candidate from=${msg.from_user_id.slice(0,8)}`);
-			webrtcManager.handleIceCandidate(msg.from_user_id, msg.candidate);
+			void webrtcManager.handleIceCandidate(msg.from_user_id, msg.candidate).catch(err => console.error('[VOICE] handle ICE candidate failed:', err));
 			break;
 		}
 
@@ -564,6 +585,10 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		case 'pong':
 		case 'authenticated':
+			break;
+
+		default:
+			console.warn('[WS] Unknown message type:', (msg as { type: string }).type);
 			break;
 	}
 }

@@ -6,7 +6,7 @@ use axum::{Extension, Json, Router};
 use uuid::Uuid;
 
 use chatalot_common::api_types::{BookmarkResponse, CreateBookmarkRequest, PaginationQuery};
-use chatalot_db::repos::bookmark_repo;
+use chatalot_db::repos::{bookmark_repo, channel_repo, message_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -29,6 +29,17 @@ async fn add_bookmark(
         return Err(AppError::Validation(
             "note must be at most 500 characters".into(),
         ));
+    }
+
+    // Verify the user is a member of the channel containing this message
+    let msg = message_repo::get_message_by_id(&state.db, req.message_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("message not found".to_string()))?;
+    if !channel_repo::is_member(&state.db, msg.channel_id, claims.sub)
+        .await
+        .unwrap_or(false)
+    {
+        return Err(AppError::Forbidden);
     }
 
     let id = Uuid::now_v7();

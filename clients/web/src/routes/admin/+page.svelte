@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { fade, scale } from 'svelte/transition';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import {
@@ -98,6 +99,27 @@
 		if (tab === 'announcements' && adminAnnouncements.length === 0) loadAnnouncements();
 	}
 
+	// ── Confirm dialog ──
+	let confirmDialog = $state<{
+		title: string;
+		message: string;
+		confirmLabel?: string;
+		danger?: boolean;
+		inputPlaceholder?: string;
+		inputValue?: string;
+		checkboxLabel?: string;
+		checkboxValue?: boolean;
+		onConfirm: (inputValue?: string, checkboxValue?: boolean) => void;
+	} | null>(null);
+	let confirmInput = $state('');
+	let confirmCheckbox = $state(false);
+
+	function showConfirmDialog(opts: NonNullable<typeof confirmDialog>) {
+		confirmInput = opts.inputValue ?? '';
+		confirmCheckbox = opts.checkboxValue ?? false;
+		confirmDialog = opts;
+	}
+
 	// ── User handlers ──
 
 	async function loadUsers() {
@@ -116,16 +138,23 @@
 		searchTimeout = setTimeout(() => loadUsers(), 300);
 	}
 
-	async function handleSuspend(user: AdminUser) {
-		const reason = prompt('Suspension reason (optional):');
-		if (reason === null) return;
-		try {
-			await suspendUser(user.id, reason || undefined);
-			toastStore.success(`Suspended ${user.username}`);
-			await loadUsers();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to suspend user');
-		}
+	function handleSuspend(user: AdminUser) {
+		showConfirmDialog({
+			title: `Suspend ${user.username}`,
+			message: 'This will immediately block the user from accessing the platform.',
+			confirmLabel: 'Suspend',
+			danger: true,
+			inputPlaceholder: 'Suspension reason (optional)',
+			async onConfirm(reason) {
+				try {
+					await suspendUser(user.id, reason || undefined);
+					toastStore.success(`Suspended ${user.username}`);
+					await loadUsers();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to suspend user');
+				}
+			}
+		});
 	}
 
 	async function handleUnsuspend(user: AdminUser) {
@@ -138,28 +167,44 @@
 		}
 	}
 
-	async function handleDelete(user: AdminUser) {
-		if (!confirm(`Are you sure you want to delete ${user.username}? This cannot be undone.`)) return;
-		try {
-			await deleteUser(user.id);
-			toastStore.success(`Deleted ${user.username}`);
-			await loadUsers();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to delete user');
-		}
+	function handleDelete(user: AdminUser) {
+		showConfirmDialog({
+			title: `Delete ${user.username}?`,
+			message: 'This will permanently delete this user account. This cannot be undone.',
+			confirmLabel: 'Delete',
+			danger: true,
+			async onConfirm() {
+				try {
+					await deleteUser(user.id);
+					toastStore.success(`Deleted ${user.username}`);
+					await loadUsers();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to delete user');
+				}
+			}
+		});
 	}
 
-	async function handleToggleAdmin(user: AdminUser) {
+	function handleToggleAdmin(user: AdminUser) {
 		const newState = !user.is_admin;
-		const action = newState ? 'grant admin to' : 'revoke admin from';
-		if (!confirm(`Are you sure you want to ${action} ${user.username}?`)) return;
-		try {
-			await setAdmin(user.id, newState);
-			toastStore.success(`${newState ? 'Granted' : 'Revoked'} admin for ${user.username}`);
-			await loadUsers();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to update admin status');
-		}
+		const action = newState ? 'Grant admin to' : 'Revoke admin from';
+		showConfirmDialog({
+			title: `${action} ${user.username}?`,
+			message: newState
+				? 'This user will have full administrative access to the platform.'
+				: 'This user will lose administrative access.',
+			confirmLabel: newState ? 'Grant Admin' : 'Revoke Admin',
+			danger: !newState,
+			async onConfirm() {
+				try {
+					await setAdmin(user.id, newState);
+					toastStore.success(`${newState ? 'Granted' : 'Revoked'} admin for ${user.username}`);
+					await loadUsers();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to update admin status');
+				}
+			}
+		});
 	}
 
 	function handleResetPassword(user: AdminUser) {
@@ -214,15 +259,22 @@
 		}
 	}
 
-	async function handleDeleteInvite(invite: RegistrationInvite) {
-		if (!confirm(`Delete invite code ${invite.code}?`)) return;
-		try {
-			await deleteRegistrationInvite(invite.id);
-			toastStore.success('Invite deleted');
-			await loadInvites();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to delete invite');
-		}
+	function handleDeleteInvite(invite: RegistrationInvite) {
+		showConfirmDialog({
+			title: 'Delete invite?',
+			message: `Delete invite code ${invite.code}?`,
+			confirmLabel: 'Delete',
+			danger: true,
+			async onConfirm() {
+				try {
+					await deleteRegistrationInvite(invite.id);
+					toastStore.success('Invite deleted');
+					await loadInvites();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to delete invite');
+				}
+			}
+		});
 	}
 
 	async function copyText(text: string) {
@@ -268,17 +320,24 @@
 		}
 	}
 
-	async function handleDeleteFile(file: AdminFileEntry) {
-		const blockHash = confirm('Also block this file hash to prevent re-upload?');
-		if (!confirm(`Delete file ${file.id.slice(0, 8)}...? This removes it from disk permanently.`)) return;
-		try {
-			await adminDeleteFile(file.id, blockHash);
-			toastStore.success('File deleted');
-			await loadFiles();
-			await loadStorageStats();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to delete file');
-		}
+	function handleDeleteFile(file: AdminFileEntry) {
+		showConfirmDialog({
+			title: 'Delete file?',
+			message: `Delete file ${file.id.slice(0, 8)}...? This removes it from disk permanently.`,
+			confirmLabel: 'Delete',
+			danger: true,
+			checkboxLabel: 'Also block this file hash to prevent re-upload',
+			async onConfirm(_input, blockHash) {
+				try {
+					await adminDeleteFile(file.id, blockHash ?? false);
+					toastStore.success('File deleted');
+					await loadFiles();
+					await loadStorageStats();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to delete file');
+				}
+			}
+		});
 	}
 
 	// ── Report handlers ──
@@ -359,41 +418,57 @@
 		}
 	}
 
-	async function handleRemoveHash(hash: BlockedHash) {
-		if (!confirm(`Unblock hash ${hash.hash.slice(0, 16)}...?`)) return;
-		try {
-			await removeBlockedHash(hash.id);
-			toastStore.success('Hash unblocked');
-			await loadBlockedHashes();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to unblock hash');
-		}
+	function handleRemoveHash(hash: BlockedHash) {
+		showConfirmDialog({
+			title: 'Unblock hash?',
+			message: `Unblock hash ${hash.hash.slice(0, 16)}...? Files with this hash will be allowed again.`,
+			confirmLabel: 'Unblock',
+			async onConfirm() {
+				try {
+					await removeBlockedHash(hash.id);
+					toastStore.success('Hash unblocked');
+					await loadBlockedHashes();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to unblock hash');
+				}
+			}
+		});
 	}
 
-	async function handlePurge() {
+	function handlePurge() {
 		if (!purgeTargetId.trim()) {
 			toastStore.error('Enter a target ID');
 			return;
 		}
 		const labels: Record<string, string> = {
 			message: 'message',
-			user: `ALL messages and files from user`,
-			channel: `ALL messages and files in channel`
+			user: 'ALL messages and files from user',
+			channel: 'ALL messages and files in channel'
 		};
-		if (!confirm(`PERMANENTLY PURGE ${labels[purgeType]} ${purgeTargetId}?\n\nThis CANNOT be undone.`)) return;
-		purging = true;
-		try {
-			let result: PurgeResult;
-			if (purgeType === 'message') result = await purgeMessage(purgeTargetId, purgeBlockHashes);
-			else if (purgeType === 'user') result = await purgeUserMessages(purgeTargetId, purgeBlockHashes);
-			else result = await purgeChannel(purgeTargetId, purgeBlockHashes);
-			toastStore.success(`Purged: ${result.messages_deleted} messages, ${result.files_deleted} files, ${result.hashes_blocked} hashes blocked`);
-			purgeTargetId = '';
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Purge failed');
-		} finally {
-			purging = false;
-		}
+		const targetId = purgeTargetId.trim();
+		const type = purgeType;
+		const blockHashes = purgeBlockHashes;
+		showConfirmDialog({
+			title: 'Permanent Purge',
+			message: `PERMANENTLY PURGE ${labels[type]} ${targetId}? This CANNOT be undone.`,
+			confirmLabel: 'Purge',
+			danger: true,
+			async onConfirm() {
+				purging = true;
+				try {
+					let result: PurgeResult;
+					if (type === 'message') result = await purgeMessage(targetId, blockHashes);
+					else if (type === 'user') result = await purgeUserMessages(targetId, blockHashes);
+					else result = await purgeChannel(targetId, blockHashes);
+					toastStore.success(`Purged: ${result.messages_deleted} messages, ${result.files_deleted} files, ${result.hashes_blocked} hashes blocked`);
+					purgeTargetId = '';
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Purge failed');
+				} finally {
+					purging = false;
+				}
+			}
+		});
 	}
 
 	function formatBytes(bytes: number): string {
@@ -1048,7 +1123,7 @@
 	<!-- Reset Password Modal -->
 	{#if resetPasswordUser}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onclick={() => { resetPasswordUser = null; }} onkeydown={(e) => { if (e.key === 'Escape') resetPasswordUser = null; }}>
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-label="Reset password" onclick={() => { resetPasswordUser = null; }} onkeydown={(e) => { if (e.key === 'Escape') resetPasswordUser = null; }}>
 			<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 			<form onsubmit={(e) => { e.preventDefault(); submitResetPassword(); }} class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 				<h3 class="mb-1 text-lg font-bold text-[var(--text-primary)]">Reset Password</h3>
@@ -1060,7 +1135,8 @@
 					required
 					minlength="8"
 					autofocus
-					class="mb-2 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+					autocomplete="new-password"
+					class="mb-2 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
 				/>
 				<p class="mb-4 text-xs text-[var(--text-secondary)]">8+ chars, uppercase, lowercase, digit, special character</p>
 				<div class="flex justify-end gap-2">
@@ -1070,6 +1146,62 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	{/if}
+
+	<!-- Confirm Dialog Modal -->
+	{#if confirmDialog}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			role="dialog"
+			tabindex="-1"
+			aria-modal="true"
+			aria-label={confirmDialog.title}
+			transition:fade={{ duration: 150 }}
+			onclick={() => confirmDialog = null}
+			onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-5 shadow-xl"
+				transition:scale={{ start: 0.95, duration: 200 }}
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
+				<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">{confirmDialog.title}</h3>
+				<p class="mb-4 text-sm text-[var(--text-secondary)]">{confirmDialog.message}</p>
+				{#if confirmDialog.inputPlaceholder}
+					<input
+						type="text"
+						bind:value={confirmInput}
+						placeholder={confirmDialog.inputPlaceholder}
+						onkeydown={(e) => { if (e.key === 'Enter') { confirmDialog?.onConfirm(confirmInput, confirmCheckbox); confirmDialog = null; } }}
+						autofocus
+						class="mb-4 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+					/>
+				{/if}
+				{#if confirmDialog.checkboxLabel}
+					<label class="mb-4 flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer">
+						<input type="checkbox" bind:checked={confirmCheckbox} class="rounded" />
+						{confirmDialog.checkboxLabel}
+					</label>
+				{/if}
+				<div class="flex justify-end gap-2">
+					<button
+						onclick={() => confirmDialog = null}
+						class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={() => { confirmDialog?.onConfirm(confirmInput, confirmCheckbox); confirmDialog = null; }}
+						class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}"
+					>
+						{confirmDialog.confirmLabel ?? 'Confirm'}
+					</button>
+				</div>
+			</div>
 		</div>
 	{/if}
 {/if}

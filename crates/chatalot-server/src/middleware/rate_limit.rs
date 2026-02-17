@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
 
-use axum::extract::Request;
+use axum::extract::{ConnectInfo, Request};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -68,17 +68,48 @@ impl RateLimiter {
     }
 }
 
+/// Check if an IP is a trusted reverse proxy (loopback or Docker bridge).
+fn is_trusted_proxy(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.octets()[..2] == [172, 17] // Docker default bridge
+                || v4.octets()[..2] == [172, 18] // Docker additional networks
+                || v4.octets()[..3] == [172, 19, 0] // Docker compose
+        }
+        IpAddr::V6(v6) => v6.is_loopback(),
+    }
+}
+
+/// Extract the real client IP. Trusts proxy headers only from trusted sources.
+fn extract_client_ip(request: &Request) -> IpAddr {
+    let conn_ip = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ci| ci.0.ip());
+
+    // Only trust proxy headers when the direct connection is from a trusted proxy
+    if let Some(peer) = conn_ip {
+        if is_trusted_proxy(peer)
+            && let Some(ip) = request
+                .headers()
+                .get("cf-connecting-ip")
+                .or_else(|| request.headers().get("x-forwarded-for"))
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .and_then(|s| s.trim().parse::<IpAddr>().ok())
+        {
+            return ip;
+        }
+        return peer;
+    }
+
+    IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+}
+
 /// Rate limiting middleware.
 pub async fn rate_limit_middleware(request: Request, next: Next) -> Response {
-    // Extract client IP from X-Forwarded-For (Cloudflare) or connection info
-    let ip = request
-        .headers()
-        .get("cf-connecting-ip")
-        .or_else(|| request.headers().get("x-forwarded-for"))
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .and_then(|s| s.trim().parse::<IpAddr>().ok())
-        .unwrap_or(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+    let ip = extract_client_ip(&request);
 
     // Use a lazily initialized static rate limiter
     static LIMITER: std::sync::LazyLock<RateLimiter> =
@@ -99,14 +130,7 @@ pub async fn rate_limit_middleware(request: Request, next: Next) -> Response {
 
 /// Stricter rate limiter for auth endpoints (login/register).
 pub async fn auth_rate_limit_middleware(request: Request, next: Next) -> Response {
-    let ip = request
-        .headers()
-        .get("cf-connecting-ip")
-        .or_else(|| request.headers().get("x-forwarded-for"))
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .and_then(|s| s.trim().parse::<IpAddr>().ok())
-        .unwrap_or(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+    let ip = extract_client_ip(&request);
 
     // 5 auth attempts per second, burst of 10
     static AUTH_LIMITER: std::sync::LazyLock<RateLimiter> =

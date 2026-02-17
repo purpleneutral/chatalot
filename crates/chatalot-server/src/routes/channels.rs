@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     TransferOwnershipRequest, UpdateChannelRequest, UpdateRoleRequest,
 };
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, sender_key_repo, unread_repo};
+use chatalot_db::repos::{channel_repo, community_repo, group_repo, sender_key_repo, unread_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -63,6 +63,16 @@ async fn create_channel(
         return Err(AppError::Validation(
             "topic must be at most 512 characters".to_string(),
         ));
+    }
+
+    // If assigning to a group, verify user is a community member
+    if let Some(group_id) = req.group_id {
+        let group = group_repo::get_group(&state.db, group_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+        if !community_repo::is_community_member(&state.db, group.community_id, claims.sub).await? {
+            return Err(AppError::Forbidden);
+        }
     }
 
     let id = Uuid::now_v7();
@@ -177,8 +187,8 @@ async fn update_channel(
     .await?
     .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
 
-    // Broadcast channel settings change to all connected users
-    state.connections.broadcast_all(ServerMessage::ChannelUpdated {
+    // Broadcast channel settings change to channel members only
+    state.connections.broadcast_to_channel(channel.id, ServerMessage::ChannelUpdated {
         channel_id: channel.id,
         name: channel.name.clone(),
         topic: channel.topic.clone(),
@@ -197,9 +207,19 @@ async fn join_channel(
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     // Verify channel exists
-    channel_repo::get_channel(&state.db, id)
+    let channel = channel_repo::get_channel(&state.db, id)
         .await?
         .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
+
+    // If channel belongs to a group, verify user is a community member
+    if let Some(group_id) = channel.group_id {
+        let group = group_repo::get_group(&state.db, group_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
+        if !community_repo::is_community_member(&state.db, group.community_id, claims.sub).await? {
+            return Err(AppError::Forbidden);
+        }
+    }
 
     // Check if user is banned
     if channel_repo::is_banned(&state.db, id, claims.sub).await? {

@@ -65,6 +65,10 @@ class ReadReceiptStore {
 		next.delete(channelId);
 		this.cursors = next;
 	}
+
+	clear() {
+		this.cursors = new Map();
+	}
 }
 
 export const readReceiptStore = new ReadReceiptStore();

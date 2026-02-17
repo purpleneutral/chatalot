@@ -52,6 +52,11 @@ pub async fn auth_middleware(
         jsonwebtoken::decode::<AccessClaims>(token, &state.jwt_decoding_key, &validation)
             .map_err(|_| AppError::Unauthorized)?;
 
+    // Reject tokens from suspended users immediately
+    if state.suspended_users.contains(&token_data.claims.sub) {
+        return Err(AppError::Unauthorized);
+    }
+
     // Insert claims into request extensions for downstream handlers
     request.extensions_mut().insert(token_data.claims);
     Ok(next.run(request).await)

@@ -82,7 +82,7 @@
 			</div>
 		{:else if error}
 			<div class="flex flex-col items-center gap-4 py-4">
-				<div class="rounded-lg bg-red-500/10 p-4 text-center text-sm text-[var(--danger)]">
+				<div class="rounded-lg bg-red-500/10 p-4 text-center text-sm text-[var(--danger)]" role="alert">
 					{error}
 				</div>
 				<a

@@ -978,6 +978,16 @@ async fn create_timeout(
     }
     verify_channel_community(&state.db, path.chid, path.cid).await?;
 
+    // Verify the target user is a member of this channel
+    if !channel_repo::is_member(&state.db, path.chid, req.user_id)
+        .await
+        .unwrap_or(false)
+    {
+        return Err(AppError::Validation(
+            "user is not a member of this channel".into(),
+        ));
+    }
+
     if req.duration_seconds < 60 || req.duration_seconds > 30 * 24 * 3600 {
         return Err(AppError::Validation(
             "duration must be between 60 seconds and 30 days".into(),
@@ -1078,6 +1088,16 @@ async fn create_warning(
         return Err(AppError::Forbidden);
     }
     verify_channel_community(&state.db, path.chid, path.cid).await?;
+
+    // Verify the target user is a member of this channel
+    if !channel_repo::is_member(&state.db, path.chid, req.user_id)
+        .await
+        .unwrap_or(false)
+    {
+        return Err(AppError::Validation(
+            "user is not a member of this channel".into(),
+        ));
+    }
 
     if req.reason.is_empty() || req.reason.len() > 1000 {
         return Err(AppError::Validation(
@@ -1319,6 +1339,15 @@ async fn read_image_field(
     if !ALLOWED_IMAGE_TYPES.contains(&ct.as_str()) {
         return Err(AppError::Validation(
             "invalid image type (allowed: png, jpg, webp, gif)".into(),
+        ));
+    }
+
+    // Validate magic bytes match the claimed content type
+    let detected = crate::services::file_security::validate_file_type(&data)
+        .map_err(|reason| AppError::Validation(format!("invalid file: {reason}")))?;
+    if detected != ct {
+        return Err(AppError::Validation(
+            "file content does not match declared image type".into(),
         ));
     }
 

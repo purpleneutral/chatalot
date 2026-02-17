@@ -46,7 +46,8 @@ class WebSocketClient {
 	}
 
 	connect() {
-		if (this.ws?.readyState === WebSocket.OPEN) return;
+		const state = this.ws?.readyState;
+		if (state === WebSocket.OPEN || state === WebSocket.CONNECTING || state === WebSocket.CLOSING) return;
 
 		const url = wsUrl();
 		if (!url) return;

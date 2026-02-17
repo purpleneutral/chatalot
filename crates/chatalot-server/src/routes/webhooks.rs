@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::extract::{Path, State};
 use axum::routing::{patch, post};
@@ -164,11 +165,26 @@ async fn delete_webhook(
     Ok(())
 }
 
+/// Per-webhook rate limiter: max 1 message per second per token.
+static WEBHOOK_RATE: std::sync::LazyLock<dashmap::DashMap<String, Instant>> =
+    std::sync::LazyLock::new(dashmap::DashMap::new);
+
 async fn execute_webhook(
     State(state): State<Arc<AppState>>,
     Path(token): Path<String>,
     Json(req): Json<ExecuteWebhookRequest>,
 ) -> Result<(), AppError> {
+    // Per-webhook rate limit: 1 message/second
+    {
+        let now = Instant::now();
+        if let Some(last) = WEBHOOK_RATE.get(&token)
+            && now.duration_since(*last).as_secs_f64() < 1.0
+        {
+            return Err(AppError::Validation("webhook rate limited (max 1 msg/sec)".into()));
+        }
+        WEBHOOK_RATE.insert(token.clone(), now);
+    }
+
     let webhook = webhook_repo::get_by_token(&state.db, &token)
         .await?
         .ok_or_else(|| AppError::NotFound("webhook not found or inactive".into()))?;

@@ -16,6 +16,8 @@ pub struct AppState {
     pub connections: ConnectionManager,
     pub client_version: String,
     pub http_client: reqwest::Client,
+    /// In-memory set of suspended user IDs for instant JWT rejection.
+    pub suspended_users: dashmap::DashSet<uuid::Uuid>,
 }
 
 impl AppState {
@@ -49,6 +51,7 @@ impl AppState {
             connections: ConnectionManager::new(),
             client_version,
             http_client,
+            suspended_users: dashmap::DashSet::new(),
         })
     }
 }

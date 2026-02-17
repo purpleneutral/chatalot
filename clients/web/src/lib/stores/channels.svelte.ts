@@ -51,6 +51,11 @@ class ChannelStore {
 	setActive(channelId: string | null) {
 		this.activeChannelId = channelId;
 	}
+
+	clear() {
+		this.channels = [];
+		this.activeChannelId = null;
+	}
 }
 
 export const channelStore = new ChannelStore();

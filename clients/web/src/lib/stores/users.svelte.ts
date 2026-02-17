@@ -26,6 +26,10 @@ class UserStore {
 		return Array.from(this.users.values());
 	}
 
+	clear() {
+		this.users = new Map();
+	}
+
 	setUsers(users: UserPublic[]) {
 		const next = new Map(this.users);
 		for (const user of users) {

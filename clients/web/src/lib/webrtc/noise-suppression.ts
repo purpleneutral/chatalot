@@ -124,6 +124,7 @@ export function removeNoiseSuppression(): void {
 	if (!currentState) return;
 	currentState.source.disconnect();
 	currentState.workletNode.disconnect();
+	currentState.destination.disconnect();
 	if ('destroy' in currentState.workletNode) {
 		(currentState.workletNode as RnnoiseWorkletNode | SpeexWorkletNode).destroy();
 	}

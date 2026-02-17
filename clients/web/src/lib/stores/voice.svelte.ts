@@ -65,6 +65,7 @@ class VoiceStore {
 		this.activeSpeakers = new Set();
 		this.remoteVideoEnabled = new Set();
 		this.screenShareMuted = new Set();
+		this.screenShareVolumes = new Map();
 		this.localAudioLevel = 0;
 	}
 

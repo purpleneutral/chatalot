@@ -107,9 +107,120 @@
 
 	// App initialization flag — prevents empty-state flash before data loads
 	let initialized = $state(false);
+	let initError = $state<string | null>(null);
+
+	async function loadInitialData() {
+		initialized = false;
+		initError = null;
+
+		try {
+			const [communities, channels, dms] = await Promise.all([
+				listCommunities(),
+				listChannels(),
+				listDms()
+			]);
+
+			communityStore.setCommunities(communities);
+			channelStore.setChannels(channels);
+			dmChannels = dms;
+
+			// Auto-select first community if none saved
+			if (!communityStore.activeCommunityId && communities.length > 0) {
+				communityStore.setActive(communities[0].id);
+			}
+
+			// Load groups + members for the active community
+			let groups: Group[] = [];
+			if (communityStore.activeCommunityId) {
+				const [loadedGroups, communityMembers] = await Promise.all([
+					loadCommunityGroups(communityStore.activeCommunityId),
+					listCommunityMembers(communityStore.activeCommunityId)
+				]);
+				groups = loadedGroups;
+				communityMemberStore.setMembers(communityStore.activeCommunityId, communityMembers);
+			}
+
+			// Load server-synced preferences + bookmarks
+			preferencesStore.loadFromServer();
+			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch((err) => console.warn('Failed to load bookmarks:', err));
+			listScheduledMessages().then(msgs => scheduledMessages = msgs).catch((err) => console.warn('Failed to load scheduled messages:', err));
+
+			// Populate user cache from DM contacts
+			userStore.setUsers(dms.map(d => d.other_user));
+
+			// Restore previous session state or fall back to defaults
+			const savedChannel = localStorage.getItem('chatalot:activeChannel');
+			const savedExpanded = localStorage.getItem('chatalot:expandedGroups');
+
+			// Restore expanded groups
+			if (savedExpanded) {
+				try {
+					const ids = JSON.parse(savedExpanded) as string[];
+					const validIds = ids.filter(id => groups.some(g => g.id === id));
+					if (validIds.length > 0) {
+						expandedGroupIds = new Set(validIds);
+					} else if (groups.length > 0) {
+						expandedGroupIds = new Set([groups[0].id]);
+					}
+				} catch {
+					if (groups.length > 0) expandedGroupIds = new Set([groups[0].id]);
+				}
+			} else if (groups.length > 0) {
+				expandedGroupIds = new Set([groups[0].id]);
+			}
+
+			// Restore active channel or pick a default
+			const allChannelIds = new Set([
+				...channels.map(c => c.id),
+				...dms.map(d => d.channel.id),
+				...Array.from(groupChannelsMap.values()).flat().map(c => c.id)
+			]);
+
+			if (savedChannel && allChannelIds.has(savedChannel)) {
+				selectChannel(savedChannel);
+			} else if (groups.length > 0) {
+				const firstGroupChannels = groupChannelsMap.get(groups[0].id);
+				if (firstGroupChannels && firstGroupChannels.length > 0) {
+					selectChannel(firstGroupChannels[0].id);
+				}
+			} else if (channels.length > 0) {
+				sidebarTab = 'channels';
+				selectChannel(channels[0].id);
+			}
+
+			// Subscribe to all channels + DMs via WebSocket
+			subscribeToAllChannels();
+
+			// Fetch unread counts
+			try {
+				const activeAtStart = channelStore.activeChannelId;
+				const res = await fetch('/api/channels/unread', {
+					headers: { 'Authorization': `Bearer ${authStore.accessToken}` }
+				});
+				if (res.ok) {
+					const counts = await res.json();
+					messageStore.setUnreadCounts(counts);
+					// Re-clear the active channel since setUnreadCounts replaces the entire map
+					const active = channelStore.activeChannelId;
+					if (active && active === activeAtStart) {
+						messageStore.clearUnread(active);
+					}
+				}
+			} catch { /* ignore */ }
+		} catch (err) {
+			console.error('Failed to load channels:', err);
+			initError = err instanceof Error ? err.message : 'Failed to load data';
+			initialized = true;
+			return;
+		}
+
+		initError = null;
+		initialized = true;
+	}
 
 	// WebSocket connection status
 	let connectionStatus = $state<'connected' | 'reconnecting' | null>(null);
+	let connectionStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Blocked users
 	let blockedUserIds = $state<string[]>([]);
@@ -144,6 +255,7 @@
 					return await getSessionManager().encryptForPeer(peerUserId, text);
 				} catch (err) {
 					console.error('Encryption failed, sending plaintext:', err);
+					toastStore.error('Encryption unavailable — message sent without E2E encryption');
 				}
 			}
 		} else {
@@ -152,6 +264,7 @@
 				return await getSessionManager().encryptForGroup(channelId, text);
 			} catch (err) {
 				console.error('Group encryption failed, sending plaintext:', err);
+				toastStore.error('Encryption unavailable — message sent without E2E encryption');
 			}
 		}
 
@@ -697,9 +810,14 @@
 	async function handleScheduleMessage() {
 		const text = messageInput.trim();
 		if (!text || !channelStore.activeChannelId || !scheduleDate || !scheduleTime) return;
-		const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+		const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`);
+		if (scheduledFor.getTime() <= Date.now()) {
+			toastStore.error('Scheduled time must be in the future');
+			return;
+		}
 		try {
-			const msg = await apiScheduleMessage(channelStore.activeChannelId, text, '0', scheduledFor);
+			const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
+			const msg = await apiScheduleMessage(channelStore.activeChannelId, JSON.stringify(ciphertext), JSON.stringify(nonce), scheduledFor.toISOString());
 			scheduledMessages = [...scheduledMessages, msg];
 			messageInput = '';
 			showSchedulePicker = false;
@@ -798,33 +916,41 @@
 		const text = threadMessageInput.trim();
 		if (!text || !channelStore.activeChannelId || !activeThreadRootId) return;
 
-		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
-		wsClient.send({
-			type: 'send_message',
-			channel_id: channelStore.activeChannelId,
-			ciphertext,
-			nonce,
-			message_type: 'text',
-			reply_to: null,
-			sender_key_id: null,
-			thread_id: activeThreadRootId,
-		});
+		const channelId = channelStore.activeChannelId;
+		const threadId = activeThreadRootId;
+		const { ciphertext, nonce } = await encryptContent(channelId, text);
 
 		// Optimistic add to thread panel
+		const tempId = crypto.randomUUID();
 		const optimisticMsg: ChatMessage = {
-			id: crypto.randomUUID(),
-			channelId: channelStore.activeChannelId,
+			id: tempId,
+			channelId,
 			senderId: authStore.user?.id ?? '',
 			content: text,
 			messageType: 'text',
 			replyToId: null,
 			editedAt: null,
 			createdAt: new Date().toISOString(),
-			threadId: activeThreadRootId,
+			threadId,
 			pending: true,
 		};
 		threadMessages = [...threadMessages, optimisticMsg];
 		threadMessageInput = '';
+
+		const sent = wsClient.send({
+			type: 'send_message',
+			channel_id: channelId,
+			ciphertext,
+			nonce,
+			message_type: 'text',
+			reply_to: null,
+			sender_key_id: null,
+			thread_id: threadId,
+		});
+		if (!sent) {
+			threadMessages = threadMessages.filter(m => m.id !== tempId);
+			toastStore.error('Thread reply not sent — connection lost');
+		}
 	}
 
 	async function handleRoleChange(userId: string, newRole: string) {
@@ -903,7 +1029,7 @@
 	);
 	let typingUsers = $derived(
 		channelStore.activeChannelId
-			? presenceStore.getTypingUsers(channelStore.activeChannelId)
+			? presenceStore.getTypingUsers(channelStore.activeChannelId).filter(uid => !blockedUserIds.includes(uid))
 			: []
 	);
 	let myRole = $derived(
@@ -1068,128 +1194,32 @@
 		window.addEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
 
 		// Load communities + channels + DMs
-		try {
-			const [communities, channels, dms] = await Promise.all([
-				listCommunities(),
-				listChannels(),
-				listDms()
-			]);
+		await loadInitialData();
 
-			communityStore.setCommunities(communities);
-			channelStore.setChannels(channels);
-			dmChannels = dms;
-
-			// Auto-select first community if none saved
-			if (!communityStore.activeCommunityId && communities.length > 0) {
-				communityStore.setActive(communities[0].id);
-			}
-
-			// Load groups + members for the active community
-			let groups: Group[] = [];
+		if (!initError) {
+			// Show welcome splash for active community on first visit
 			if (communityStore.activeCommunityId) {
-				const [loadedGroups, communityMembers] = await Promise.all([
-					loadCommunityGroups(communityStore.activeCommunityId),
-					listCommunityMembers(communityStore.activeCommunityId)
-				]);
-				groups = loadedGroups;
-				communityMemberStore.setMembers(communityStore.activeCommunityId, communityMembers);
-			}
-
-			// Load server-synced preferences + bookmarks
-			preferencesStore.loadFromServer();
-			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch((err) => console.warn('Failed to load bookmarks:', err));
-			listScheduledMessages().then(msgs => scheduledMessages = msgs).catch((err) => console.warn('Failed to load scheduled messages:', err));
-
-			// Populate user cache from DM contacts
-			userStore.setUsers(dms.map(d => d.other_user));
-
-			// Restore previous session state or fall back to defaults
-			const savedChannel = localStorage.getItem('chatalot:activeChannel');
-			const savedExpanded = localStorage.getItem('chatalot:expandedGroups');
-
-			// Restore expanded groups
-			if (savedExpanded) {
-				try {
-					const ids = JSON.parse(savedExpanded) as string[];
-					const validIds = ids.filter(id => groups.some(g => g.id === id));
-					if (validIds.length > 0) {
-						expandedGroupIds = new Set(validIds);
-					} else if (groups.length > 0) {
-						expandedGroupIds = new Set([groups[0].id]);
+				const activeCom = communityStore.communities.find(c => c.id === communityStore.activeCommunityId);
+				if (activeCom?.welcome_message) {
+					const dismissKey = `chatalot:welcomeDismissed:${activeCom.id}`;
+					if (!localStorage.getItem(dismissKey)) {
+						welcomeCommunity = activeCom;
+						showWelcomeSplash = true;
 					}
-				} catch {
-					if (groups.length > 0) expandedGroupIds = new Set([groups[0].id]);
 				}
-			} else if (groups.length > 0) {
-				expandedGroupIds = new Set([groups[0].id]);
 			}
 
-			// Restore active channel or pick a default
-			const allChannelIds = new Set([
-				...channels.map(c => c.id),
-				...dms.map(d => d.channel.id),
-				...Array.from(groupChannelsMap.values()).flat().map(c => c.id)
-			]);
-
-			if (savedChannel && allChannelIds.has(savedChannel)) {
-				selectChannel(savedChannel);
-			} else if (groups.length > 0) {
-				const firstGroupChannels = groupChannelsMap.get(groups[0].id);
-				if (firstGroupChannels && firstGroupChannels.length > 0) {
-					selectChannel(firstGroupChannels[0].id);
-				}
-			} else if (channels.length > 0) {
-				sidebarTab = 'channels';
-				selectChannel(channels[0].id);
-			}
-
-			// Subscribe to all channels + DMs via WebSocket
-			subscribeToAllChannels();
-
-			// Fetch unread counts
+			// Load announcements
 			try {
-				const activeAtStart = channelStore.activeChannelId;
-				const res = await fetch('/api/channels/unread', {
-					headers: { 'Authorization': `Bearer ${authStore.accessToken}` }
-				});
-				if (res.ok) {
-					const counts = await res.json();
-					messageStore.setUnreadCounts(counts);
-					// Re-clear the active channel since setUnreadCounts replaces the entire map
-					const active = channelStore.activeChannelId;
-					if (active && active === activeAtStart) {
-						messageStore.clearUnread(active);
-					}
-				}
-			} catch { /* ignore */ }
-		} catch (err) {
-			console.error('Failed to load channels:', err);
-		}
-
-		initialized = true;
-
-		// Show welcome splash for active community on first visit
-		if (communityStore.activeCommunityId) {
-			const activeCom = communityStore.communities.find(c => c.id === communityStore.activeCommunityId);
-			if (activeCom?.welcome_message) {
-				const dismissKey = `chatalot:welcomeDismissed:${activeCom.id}`;
-				if (!localStorage.getItem(dismissKey)) {
-					welcomeCommunity = activeCom;
-					showWelcomeSplash = true;
-				}
+				announcements = await listUndismissedAnnouncements();
+			} catch (err) {
+				console.warn('Failed to load announcements:', err);
 			}
-		}
 
-		// Load announcements
-		try {
-			announcements = await listUndismissedAnnouncements();
-		} catch (err) {
-			console.warn('Failed to load announcements:', err);
-		}
-
-		// Load custom emojis for active community
-		if (communityStore.activeCommunityId) {
-			loadCustomEmojis(communityStore.activeCommunityId);
+			// Load custom emojis for active community
+			if (communityStore.activeCommunityId) {
+				loadCustomEmojis(communityStore.activeCommunityId);
+			}
 		}
 
 		// Close context menu on click outside
@@ -1253,7 +1283,11 @@
 		if (slowModeTimer) clearInterval(slowModeTimer);
 		if (gifSearchDebounceTimer) clearTimeout(gifSearchDebounceTimer);
 		if (searchTimeout) clearTimeout(searchTimeout);
+		if (connectionStatusTimer) clearTimeout(connectionStatusTimer);
 		clearIdleDetection();
+
+		// Clean up blob URLs
+		if (feedbackScreenshotPreview) URL.revokeObjectURL(feedbackScreenshotPreview);
 	});
 
 	// ── Idle Detection ──
@@ -1442,8 +1476,10 @@
 		} else if (e.detail === 'connected') {
 			connectionStatus = 'connected';
 			// Auto-hide "connected" after 3 seconds
-			setTimeout(() => {
+			if (connectionStatusTimer) clearTimeout(connectionStatusTimer);
+			connectionStatusTimer = setTimeout(() => {
 				if (connectionStatus === 'connected') connectionStatus = null;
+				connectionStatusTimer = null;
 			}, 3000);
 
 			// Re-sync unread counts after reconnect
@@ -1462,6 +1498,8 @@
 			// Reload messages for the active channel to catch anything missed
 			const activeId = channelStore.activeChannelId;
 			if (activeId) {
+				// Clear stale pending messages whose confirmations were lost during disconnect
+				messageStore.clearPending(activeId);
 				getMessages(activeId, undefined, FETCH_LIMIT).then(rawMessages => {
 					// Guard: channel may have changed during the fetch
 					if (channelStore.activeChannelId !== activeId) return;
@@ -1552,6 +1590,13 @@
 		// Increment load ID to invalidate any in-flight async loads from previous channel
 		const thisLoadId = ++channelLoadId;
 
+		// Send stop_typing for the channel we're leaving
+		if (channelStore.activeChannelId && typingTimeout) {
+			wsClient.send({ type: 'stop_typing', channel_id: channelStore.activeChannelId });
+			clearTimeout(typingTimeout);
+			typingTimeout = null;
+		}
+
 		// Reset slow mode cooldown on channel switch
 		slowModeCooldown = 0;
 		if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
@@ -1593,6 +1638,9 @@
 		showEditHistory = false;
 		showGifPicker = false;
 		replyingTo = null;
+		showThreadPanel = false;
+		activeThreadRootId = null;
+		threadMessages = [];
 		polls = [];
 		if (showPollPanel) loadPolls();
 		localStorage.setItem('chatalot:activeChannel', channelId);
@@ -2005,9 +2053,17 @@
 		const file = fileArg || fileInputEl?.files?.[0];
 		if (!file || !channelStore.activeChannelId) return;
 
+		const channelId = channelStore.activeChannelId;
 		uploading = true;
 		try {
-			const result = await uploadFile(file, channelStore.activeChannelId);
+			const result = await uploadFile(file, channelId);
+
+			// Guard: user may have switched channels during upload
+			if (channelStore.activeChannelId !== channelId) {
+				toastStore.error('File uploaded but channel changed — message not sent');
+				return;
+			}
+
 			// Send a file message with the file ID
 			const fileMsg = JSON.stringify({
 				file_id: result.id,
@@ -2015,11 +2071,11 @@
 				size: result.size_bytes
 			});
 
-			const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId!, fileMsg);
+			const { ciphertext, nonce } = await encryptContent(channelId, fileMsg);
 
 			const fileSent = wsClient.send({
 				type: 'send_message',
-				channel_id: channelStore.activeChannelId,
+				channel_id: channelId,
 				ciphertext,
 				nonce,
 				message_type: 'file',
@@ -2033,9 +2089,9 @@
 			}
 
 			// Optimistic add
-			messageStore.addMessage(channelStore.activeChannelId, {
+			messageStore.addMessage(channelId, {
 				id: `temp-${Date.now()}`,
-				channelId: channelStore.activeChannelId,
+				channelId,
 				senderId: authStore.user?.id ?? '',
 				content: fileMsg,
 				messageType: 'file',
@@ -2462,12 +2518,14 @@
 	async function handleVotePoll(pollId: string, optionIndex: number) {
 		const poll = polls.find(p => p.id === pollId);
 		if (!poll || poll.closed) return;
+		// Also check client-side expiry
+		if (poll.expires_at && new Date(poll.expires_at) < new Date()) return;
 		const userId = authStore.user?.id;
 		if (!userId) return;
 
 		// Check if already voted for this option
 		const optVotes = poll.votes[optionIndex];
-		const alreadyVoted = optVotes?.voter_ids.includes(userId);
+		const alreadyVoted = poll.anonymous ? false : optVotes?.voter_ids.includes(userId);
 
 		try {
 			if (alreadyVoted) {
@@ -2484,9 +2542,9 @@
 					if (p.id !== pollId) return p;
 					const newVotes = p.votes.map((v, i) => {
 						if (i === optionIndex) {
-							return { ...v, count: v.count + 1, voter_ids: [...v.voter_ids, userId] };
+							return { ...v, count: v.count + 1, voter_ids: p.anonymous ? v.voter_ids : [...v.voter_ids, userId] };
 						}
-						if (!p.multi_select && v.voter_ids.includes(userId)) {
+						if (!p.multi_select && !p.anonymous && v.voter_ids.includes(userId)) {
 							return { ...v, count: Math.max(0, v.count - 1), voter_ids: v.voter_ids.filter(id => id !== userId) };
 						}
 						return v;
@@ -2548,9 +2606,10 @@
 		return [...new Set(matches)];
 	}
 
+	const IMAGE_URL_TEST = /\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?[^\s<>"']*)?$/i;
 	function extractNonImageUrls(text: string): string[] {
 		const allUrls = text.match(URL_REGEX) || [];
-		return [...new Set(allUrls)].filter(u => !IMAGE_URL_REGEX.test(u));
+		return [...new Set(allUrls)].filter(u => !IMAGE_URL_TEST.test(u));
 	}
 
 	function parseFileMessage(content: string): { file_id: string; filename: string; size: number } | null {
@@ -2590,55 +2649,72 @@
 		}
 	}
 
+	// Reusable renderer for marked — avoids allocating a new one per call
+	const markdownRenderer = new marked.Renderer();
+	markdownRenderer.code = ({ text: code, lang }: { text: string; lang?: string }) => {
+		let highlighted: string;
+		if (lang && hljs.getLanguage(lang)) {
+			highlighted = hljs.highlight(code, { language: lang }).value;
+		} else {
+			try {
+				highlighted = hljs.highlightAuto(code).value;
+			} catch {
+				highlighted = code;
+			}
+		}
+		const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
+		return `<div class="code-block-wrapper">${langLabel}<pre><code class="hljs${lang ? ` language-${lang}` : ''}">${highlighted}</code></pre><button class="code-copy-btn" type="button">Copy</button></div>`;
+	};
+
+	// Markdown render cache — keyed by raw text, avoids re-parsing unchanged messages
+	const markdownCache = new Map<string, string>();
+	const MAX_MARKDOWN_CACHE = 600;
+
 	function renderMarkdown(text: string): string {
+		const cached = markdownCache.get(text);
+		if (cached !== undefined) return cached;
+
+		let html: string;
+
 		// Detect E2E encrypted messages and show placeholder
 		if (isEncryptedMessage(text)) {
-			return '<span class="italic opacity-50">Encrypted message (E2E decryption not available)</span>';
+			html = '<span class="italic opacity-50">Encrypted message (E2E decryption not available)</span>';
+		} else {
+			// Replace :custom_emoji: shortcodes with inline images
+			let processed = text.replace(/:(\w{2,32}):/g, (match, shortcode) => {
+				const emoji = customEmojiMap.get(shortcode);
+				if (emoji && /^https?:\/\//.test(emoji.url)) {
+					return `<img src="${emoji.url}" alt=":${shortcode}:" title=":${shortcode}:" class="custom-emoji" />`;
+				}
+				return match;
+			});
+
+			// Replace @mentions before markdown parsing
+			processed = processed.replace(/@(\w+)/g, (match, username) => {
+				// Special group mentions
+				if (SPECIAL_MENTIONS.includes(username)) {
+					return `<span class="mention mention-group">@${username}</span>`;
+				}
+				const users = Array.from(userStore.getAllUsers?.() ?? []);
+				const found = users.find(u => u.username === username);
+				if (found) {
+					const isSelf = found.id === authStore.user?.id;
+					return `<span class="mention ${isSelf ? 'mention-self' : ''}">@${found.display_name}</span>`;
+				}
+				return match;
+			});
+
+			const rawHtml = marked.parse(processed, { renderer: markdownRenderer }) as string;
+			html = DOMPurify.sanitize(rawHtml, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button', 'img'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type', 'src', 'alt', 'title'] });
 		}
 
-		// Replace :custom_emoji: shortcodes with inline images
-		let processed = text.replace(/:(\w{2,32}):/g, (match, shortcode) => {
-			const emoji = customEmojiMap.get(shortcode);
-			if (emoji && /^https?:\/\//.test(emoji.url)) {
-				return `<img src="${emoji.url}" alt=":${shortcode}:" title=":${shortcode}:" class="custom-emoji" />`;
-			}
-			return match;
-		});
-
-		// Replace @mentions before markdown parsing
-		processed = processed.replace(/@(\w+)/g, (match, username) => {
-			// Special group mentions
-			if (SPECIAL_MENTIONS.includes(username)) {
-				return `<span class="mention mention-group">@${username}</span>`;
-			}
-			const users = Array.from(userStore.getAllUsers?.() ?? []);
-			const found = users.find(u => u.username === username);
-			if (found) {
-				const isSelf = found.id === authStore.user?.id;
-				return `<span class="mention ${isSelf ? 'mention-self' : ''}">@${found.display_name}</span>`;
-			}
-			return match;
-		});
-
-		// Configure marked with syntax highlighting + copy button
-		const renderer = new marked.Renderer();
-		renderer.code = ({ text: code, lang }: { text: string; lang?: string }) => {
-			let highlighted: string;
-			if (lang && hljs.getLanguage(lang)) {
-				highlighted = hljs.highlight(code, { language: lang }).value;
-			} else {
-				try {
-					highlighted = hljs.highlightAuto(code).value;
-				} catch {
-					highlighted = code;
-				}
-			}
-			const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
-			return `<div class="code-block-wrapper">${langLabel}<pre><code class="hljs${lang ? ` language-${lang}` : ''}">${highlighted}</code></pre><button class="code-copy-btn" type="button">Copy</button></div>`;
-		};
-
-		const html = marked.parse(processed, { renderer }) as string;
-		return DOMPurify.sanitize(html, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button', 'img'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type', 'src', 'alt', 'title'] });
+		// Evict oldest entries when cache is full
+		if (markdownCache.size >= MAX_MARKDOWN_CACHE) {
+			const first = markdownCache.keys().next().value;
+			if (first !== undefined) markdownCache.delete(first);
+		}
+		markdownCache.set(text, html);
+		return html;
 	}
 
 	function startReply(msg: ChatMessage) {
@@ -2832,6 +2908,9 @@
 		if (inCall && !wasInCall && preferencesStore.preferences.voiceActivationMode === 'push-to-talk') {
 			voiceStore.setAudioEnabled(false);
 		}
+		if (!inCall && pttActive) {
+			pttActive = false;
+		}
 		wasInCall = inCall;
 	});
 
@@ -2941,6 +3020,8 @@
 		}
 		// Escape to close modals and panels
 		if (e.key === 'Escape') {
+			if (confirmDialog) { confirmDialog = null; confirmInput = ''; e.preventDefault(); return; }
+			if (reportingMessageId) { reportingMessageId = null; reportReason = ''; e.preventDefault(); return; }
 			if (showQuickSwitcher) { showQuickSwitcher = false; e.preventDefault(); return; }
 			if (showEditHistory) { showEditHistory = false; e.preventDefault(); return; }
 			if (lightboxImage) { closeLightbox(); e.preventDefault(); return; }
@@ -2955,6 +3036,10 @@
 			if (showBookmarksPanel) { showBookmarksPanel = false; e.preventDefault(); return; }
 			if (showScheduledPanel) { showScheduledPanel = false; e.preventDefault(); return; }
 			if (showSchedulePicker) { showSchedulePicker = false; e.preventDefault(); return; }
+			if (showFeedback) { showFeedback = false; setFeedbackScreenshot(null); e.preventDefault(); return; }
+			if (showWelcomeSplash) { showWelcomeSplash = false; e.preventDefault(); return; }
+			if (showJoinCommunity) { showJoinCommunity = false; e.preventDefault(); return; }
+			if (showCreateCommunity) { showCreateCommunity = false; e.preventDefault(); return; }
 		}
 	}
 
@@ -2967,7 +3052,7 @@
 	];
 
 	// Mention autocomplete
-	let mentionResults = $derived((): MentionEntry[] => {
+	let mentionResults = $derived.by((): MentionEntry[] => {
 		if (!showMentionPopup || !channelStore.activeChannelId) return [];
 		const members = memberStore.getMembers(channelStore.activeChannelId);
 		const q = mentionQuery.toLowerCase();
@@ -3037,7 +3122,12 @@
 		const replaced = before.replace(/@\w*$/, `@${username} `);
 		messageInput = replaced + after;
 		showMentionPopup = false;
-		tick().then(() => messageInputEl?.focus());
+		tick().then(() => {
+			messageInputEl?.focus();
+			const newPos = replaced.length;
+			messageInputEl!.selectionStart = newPos;
+			messageInputEl!.selectionEnd = newPos;
+		});
 	}
 
 	function selectEmoji(emoji: string, isCustom = false) {
@@ -3083,7 +3173,7 @@
 			}
 		}
 		if (!showMentionPopup) return;
-		const results = mentionResults();
+		const results = mentionResults;
 		if (results.length === 0) return;
 		if (e.key === 'ArrowDown') {
 			e.preventDefault();
@@ -3199,6 +3289,7 @@
 			for (const e of emojis) map.set(e.shortcode, e);
 			customEmojiMap = map;
 			loadedCommunityEmojiId = communityId;
+			markdownCache.clear();
 		} catch (err) {
 			console.warn('Failed to load custom emojis:', err);
 		}
@@ -3660,7 +3751,8 @@
 		if (el.scrollTop > 200 || loadingOlder || !channelStore.activeChannelId) return;
 		if (!messageStore.hasMore(channelStore.activeChannelId)) return;
 
-		const currentMessages = messageStore.getMessages(channelStore.activeChannelId);
+		const activeId = channelStore.activeChannelId;
+		const currentMessages = messageStore.getMessages(activeId);
 		if (currentMessages.length === 0) return;
 
 		const oldestMsg = currentMessages[0];
@@ -3668,7 +3760,8 @@
 		loadingOlderError = false;
 		const prevHeight = el.scrollHeight;
 		try {
-			const raw = await getMessages(channelStore.activeChannelId, oldestMsg.id, FETCH_LIMIT);
+			const raw = await getMessages(activeId, oldestMsg.id, FETCH_LIMIT);
+			if (channelStore.activeChannelId !== activeId) return; // channel switched during fetch
 			const olderMessages: ChatMessage[] = await Promise.all(raw.reverse().map(async (m) => ({
 				id: m.id,
 				channelId: m.channel_id,
@@ -3678,7 +3771,7 @@
 					m.sender_id,
 					m.ciphertext,
 					m.id,
-					m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelStore.activeChannelId) : undefined,
+					m.sender_id === authStore.user?.id ? getPeerUserIdForDm(activeId) : undefined,
 				),
 				messageType: m.message_type,
 				replyToId: m.reply_to_id,
@@ -3689,7 +3782,7 @@
 				threadLastReplyAt: m.thread_last_reply_at ?? undefined,
 				reactions: parseReactions(m.reactions),
 			})));
-			messageStore.prependMessages(channelStore.activeChannelId, olderMessages, FETCH_LIMIT);
+			messageStore.prependMessages(activeId, olderMessages, FETCH_LIMIT);
 			// Preserve scroll position
 			await tick();
 			el.scrollTop = el.scrollHeight - prevHeight;
@@ -4782,7 +4875,7 @@
 		{#if showJoinCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" transition:fade={{ duration: 150 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-				<div role="dialog" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<div role="dialog" aria-label="Join a community" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Join a Community</h3>
 						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" aria-label="Close">&times;</button>
@@ -4815,6 +4908,8 @@
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 				<form
 					onsubmit={(e) => { e.preventDefault(); handleCreateCommunity(); }}
+					role="dialog"
+					aria-label="Create a community"
 					class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl"
 					onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 				>
@@ -4859,16 +4954,16 @@
 		{#if showWelcomeSplash && welcomeCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 200 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-				<div role="dialog" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-2xl bg-[var(--bg-secondary)] shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<div role="dialog" aria-label="Welcome to community" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-2xl bg-[var(--bg-secondary)] shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					{#if welcomeCommunity.banner_url}
-						<img src={welcomeCommunity.banner_url} alt="" class="h-32 w-full object-cover" />
+						<img src={welcomeCommunity.banner_url} alt="Community banner" class="h-32 w-full object-cover" />
 					{:else}
 						<div class="h-20 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
 					{/if}
 					<div class="p-6">
 						<div class="flex items-center gap-3">
 							{#if welcomeCommunity.icon_url}
-								<img src={welcomeCommunity.icon_url} alt="" class="h-12 w-12 rounded-full border-2 border-[var(--bg-secondary)] object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+								<img src={welcomeCommunity.icon_url} alt="Community icon" class="h-12 w-12 rounded-full border-2 border-[var(--bg-secondary)] object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 							{/if}
 							<h3 class="text-xl font-bold text-[var(--text-primary)]">{welcomeCommunity.name}</h3>
 						</div>
@@ -5488,8 +5583,8 @@
 											</div>
 											{/await}
 											<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-												<span>{fileInfo.filename}</span>
-												<span>({formatFileSize(fileInfo.size)})</span>
+												<span class="truncate max-w-[200px]" title={fileInfo.filename}>{fileInfo.filename}</span>
+												<span class="shrink-0">({formatFileSize(fileInfo.size)})</span>
 												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 													<a href={blobUrl} download={fileInfo.filename} class="text-[var(--accent)] hover:underline">Download</a>
 												{/await}
@@ -5510,8 +5605,8 @@
 											</div>
 											{/await}
 											<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-												<span>{fileInfo.filename}</span>
-												<span>({formatFileSize(fileInfo.size)})</span>
+												<span class="truncate max-w-[200px]" title={fileInfo.filename}>{fileInfo.filename}</span>
+												<span class="shrink-0">({formatFileSize(fileInfo.size)})</span>
 												{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
 													<a href={blobUrl} download={fileInfo.filename} class="text-[var(--accent)] hover:underline">Download</a>
 												{/await}
@@ -5540,24 +5635,24 @@
 											{/await}
 										</div>
 									{:else if fileInfo}
-										<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<div class="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
 												<polyline points="14 2 14 8 20 8" />
 											</svg>
-											<span class="text-sm text-[var(--text-primary)]">{fileInfo.filename}</span>
-											<span class="text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
+											<span class="truncate text-sm text-[var(--text-primary)]" title={fileInfo.filename}>{fileInfo.filename}</span>
+											<span class="shrink-0 text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
 											{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
-												<a href={blobUrl} download={fileInfo.filename} class="text-xs text-[var(--accent)] hover:underline">Download</a>
+												<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
 											{/await}
 										</div>
 									{:else}
-										<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<div class="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
+											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
 												<polyline points="14 2 14 8 20 8" />
 											</svg>
-											<span class="text-sm text-[var(--text-primary)]">{msg.content}</span>
+											<span class="truncate text-sm text-[var(--text-primary)]" title={msg.content}>{msg.content}</span>
 										</div>
 									{/if}
 								{:else}
@@ -6055,9 +6150,9 @@
 						</div>
 					{/if}
 					<!-- Mention autocomplete popup -->
-					{#if showMentionPopup && mentionResults().length > 0}
+					{#if showMentionPopup && mentionResults.length > 0}
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden">
-							{#each mentionResults() as member, i (member.user_id)}
+							{#each mentionResults as member, i (member.user_id)}
 								<button
 									onclick={() => selectMention(member.username)}
 									class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition {i === mentionIndex ? 'bg-[var(--accent)]/20 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
@@ -6079,7 +6174,7 @@
 					{/if}
 					<!-- GIF picker panel -->
 					{#if showGifPicker}
-						<div class="absolute bottom-full left-1 md:left-4 z-20 mb-1 w-80 max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
+						<div class="absolute bottom-full left-1 md:left-4 z-20 mb-1 w-80 max-w-[calc(100vw-0.5rem)] max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
 							<div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
 								<input
@@ -6188,6 +6283,7 @@
 							oninput={(e) => { handleMentionInput(); autoResizeTextarea(); }}
 							onkeydown={(e) => { handleMentionKeydown(e); if (!showMentionPopup) handleInputKeydown(e); }}
 							onpaste={handlePaste}
+							maxlength={4000}
 							placeholder="Message {activeChannel.channel_type === 'dm' ? '@' : '#'}{getChannelDisplayName()}..."
 							rows="1"
 							class="flex-1 resize-none rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2 md:px-4 md:py-2.5 text-sm md:text-base text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-secondary)]/50 focus:border-[var(--accent)]"
@@ -6285,7 +6381,28 @@
 				{/if}
 			{:else}
 				<div class="flex flex-1 flex-col items-center justify-center gap-4">
-					{#if initialized}
+					{#if initError}
+						<div class="text-center">
+							<div class="mx-auto mb-4 rounded-full bg-[var(--danger)]/10 p-5">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-[var(--danger)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+									<circle cx="12" cy="12" r="10" />
+									<line x1="12" y1="8" x2="12" y2="12" />
+									<line x1="12" y1="16" x2="12.01" y2="16" />
+								</svg>
+							</div>
+							<h2 class="mb-2 text-2xl font-bold text-[var(--text-primary)]">Failed to load</h2>
+							<p class="mb-1 max-w-sm text-[var(--text-secondary)]">
+								Could not connect to the server. Check your connection and try again.
+							</p>
+							<p class="mb-4 text-xs text-[var(--danger)]">{initError}</p>
+							<button
+								onclick={loadInitialData}
+								class="rounded-xl bg-[var(--accent)] px-6 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)]"
+							>
+								Retry
+							</button>
+						</div>
+					{:else if initialized}
 						<!-- Mobile menu button when no channel selected -->
 						<button
 							onclick={() => { showNavDropdown = true; showMemberPanel = false; }}
@@ -6590,7 +6707,7 @@
 										{:catch}
 											<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load image</span></div>
 										{/await}
-										<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+										<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span class="truncate max-w-[200px]" title={fileInfo.filename}>{fileInfo.filename}</span><span class="shrink-0">({formatFileSize(fileInfo.size)})</span></div>
 									</div>
 								{:else if fileInfo && VIDEO_EXTS.test(fileInfo.filename)}
 									<div class="mt-1">
@@ -6602,7 +6719,7 @@
 										{:catch}
 											<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load video</span></div>
 										{/await}
-										<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+										<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span class="truncate max-w-[200px]" title={fileInfo.filename}>{fileInfo.filename}</span><span class="shrink-0">({formatFileSize(fileInfo.size)})</span></div>
 									</div>
 								{:else if fileInfo && AUDIO_EXTS.test(fileInfo.filename)}
 									<div class="mt-1 max-w-full">
@@ -6620,12 +6737,12 @@
 										{/await}
 									</div>
 								{:else if fileInfo}
-									<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-										<span class="text-sm text-[var(--text-primary)]">{fileInfo.filename}</span>
-										<span class="text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
+									<div class="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+										<span class="truncate text-sm text-[var(--text-primary)]" title={fileInfo.filename}>{fileInfo.filename}</span>
+										<span class="shrink-0 text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
 										{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
-											<a href={blobUrl} download={fileInfo.filename} class="text-xs text-[var(--accent)] hover:underline">Download</a>
+											<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
 										{/await}
 									</div>
 								{/if}
@@ -6728,7 +6845,7 @@
 													{:catch}
 														<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load image</span></div>
 													{/await}
-													<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+													<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span class="truncate max-w-[200px]" title={fileInfo.filename}>{fileInfo.filename}</span><span class="shrink-0">({formatFileSize(fileInfo.size)})</span></div>
 												</div>
 											{:else if fileInfo && VIDEO_EXTS.test(fileInfo.filename)}
 												<div class="mt-1">
@@ -6740,7 +6857,7 @@
 													{:catch}
 														<div class="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2"><span class="text-sm text-[var(--text-secondary)]">Failed to load video</span></div>
 													{/await}
-													<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span>{fileInfo.filename}</span><span>({formatFileSize(fileInfo.size)})</span></div>
+													<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]"><span class="truncate max-w-[200px]" title={fileInfo.filename}>{fileInfo.filename}</span><span class="shrink-0">({formatFileSize(fileInfo.size)})</span></div>
 												</div>
 											{:else if fileInfo && AUDIO_EXTS.test(fileInfo.filename)}
 												<div class="mt-1 max-w-full">
@@ -6758,12 +6875,12 @@
 													{/await}
 												</div>
 											{:else if fileInfo}
-												<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2">
-													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-													<span class="text-sm text-[var(--text-primary)]">{fileInfo.filename}</span>
-													<span class="text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
+												<div class="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2">
+													<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+													<span class="truncate text-sm text-[var(--text-primary)]" title={fileInfo.filename}>{fileInfo.filename}</span>
+													<span class="shrink-0 text-xs text-[var(--text-secondary)]">({formatFileSize(fileInfo.size)})</span>
 													{#await getAuthenticatedBlobUrl(fileInfo.file_id) then blobUrl}
-														<a href={blobUrl} download={fileInfo.filename} class="text-xs text-[var(--accent)] hover:underline">Download</a>
+														<a href={blobUrl} download={fileInfo.filename} class="shrink-0 text-xs text-[var(--accent)] hover:underline">Download</a>
 													{/await}
 												</div>
 											{/if}
@@ -6884,6 +7001,7 @@
 							bind:this={threadTextareaEl}
 							placeholder="Reply in thread..."
 							bind:value={threadMessageInput}
+							maxlength={4000}
 							onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendThreadMessage(); } }}
 							oninput={() => { if (threadTextareaEl) { threadTextareaEl.style.height = 'auto'; threadTextareaEl.style.height = Math.min(threadTextareaEl.scrollHeight, 120) + 'px'; } }}
 							rows={1}
@@ -6908,7 +7026,7 @@
 	{#if showFeedback}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onpaste={handleFeedbackPaste}>
-			<div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }}>
+			<div role="dialog" aria-label="Send feedback" class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }}>
 				<h2 class="mb-1 text-lg font-semibold text-[var(--text-primary)]">Send Feedback</h2>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">Help us improve Chatalot. Your feedback creates an issue for the developers.</p>
 
@@ -7020,8 +7138,8 @@
 			aria-modal="true"
 			aria-label={confirmDialog.title}
 			transition:fade={{ duration: 150 }}
-			onclick={() => confirmDialog = null}
-			onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}
+			onclick={() => { confirmDialog = null; confirmInput = ''; }}
+			onkeydown={(e) => { if (e.key === 'Escape') { confirmDialog = null; confirmInput = ''; } }}
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -7033,23 +7151,25 @@
 				<h3 class="mb-2 text-base font-bold text-[var(--text-primary)]">{confirmDialog.title}</h3>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">{confirmDialog.message}</p>
 				{#if confirmDialog.inputPlaceholder}
+					<!-- svelte-ignore a11y_autofocus -->
 					<input
 						type="text"
 						bind:value={confirmInput}
 						placeholder={confirmDialog.inputPlaceholder}
-						onkeydown={(e) => { if (e.key === 'Enter') { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; } }}
+						autofocus
+						onkeydown={(e) => { if (e.key === 'Enter') { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; confirmInput = ''; } }}
 						class="mb-4 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 				{/if}
 				<div class="flex justify-end gap-2">
 					<button
-						onclick={() => confirmDialog = null}
+						onclick={() => { confirmDialog = null; confirmInput = ''; }}
 						class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 					>
 						Cancel
 					</button>
 					<button
-						onclick={() => { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; }}
+						onclick={() => { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; confirmInput = ''; }}
 						class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}"
 					>
 						{confirmDialog.confirmLabel ?? 'Confirm'}

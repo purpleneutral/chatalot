@@ -97,6 +97,13 @@ class CommunityStore {
 		}
 	}
 
+	clear() {
+		this.communities = [];
+		this.activeCommunityId = null;
+		localStorage.removeItem(ACTIVE_KEY);
+		this.applyCommunityTheme(null);
+	}
+
 	private persist() {
 		if (this.activeCommunityId) {
 			localStorage.setItem(ACTIVE_KEY, this.activeCommunityId);

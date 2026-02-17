@@ -33,7 +33,7 @@
 				<div class="h-8 w-8 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
 			</div>
 		{:else if error}
-			<div class="rounded-lg bg-red-500/10 p-4 text-sm text-[var(--danger)]">
+			<div class="rounded-lg bg-red-500/10 p-4 text-sm text-[var(--danger)]" role="alert">
 				{error}
 			</div>
 		{:else}

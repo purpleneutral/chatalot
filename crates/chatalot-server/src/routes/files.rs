@@ -185,10 +185,13 @@ async fn download_file(
         return Err(AppError::Forbidden);
     }
 
-    // Verify the requesting user has access (member of the file's channel)
-    if let Some(cid) = record.channel_id
-        && !channel_repo::is_member(&state.db, cid, claims.sub).await?
-    {
+    // Verify the requesting user has access
+    if let Some(cid) = record.channel_id {
+        if !channel_repo::is_member(&state.db, cid, claims.sub).await? {
+            return Err(AppError::Forbidden);
+        }
+    } else if record.uploader_id != claims.sub && !claims.is_admin && !claims.is_owner {
+        // Files without a channel are only accessible to the uploader (or admins)
         return Err(AppError::Forbidden);
     }
 
@@ -229,9 +232,11 @@ async fn get_file_meta(
         .ok_or_else(|| AppError::NotFound("file not found".to_string()))?;
 
     // Verify the requesting user has access
-    if let Some(cid) = record.channel_id
-        && !channel_repo::is_member(&state.db, cid, claims.sub).await?
-    {
+    if let Some(cid) = record.channel_id {
+        if !channel_repo::is_member(&state.db, cid, claims.sub).await? {
+            return Err(AppError::Forbidden);
+        }
+    } else if record.uploader_id != claims.sub && !claims.is_admin && !claims.is_owner {
         return Err(AppError::Forbidden);
     }
 

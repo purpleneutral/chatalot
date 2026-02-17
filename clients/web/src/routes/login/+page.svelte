@@ -27,12 +27,18 @@
 		loading = true;
 
 		try {
-			const response = await login(username, password, showTotp ? totpCode : undefined);
+			const response = await login(username.trim(), password, showTotp ? totpCode.trim() : undefined);
 			authStore.setAuth(response.access_token, response.refresh_token, response.user);
 			const redirect = $page.url.searchParams.get('redirect');
 			goto(redirect && redirect.startsWith('/') ? redirect : '/channels');
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Login failed';
+			const msg = err instanceof Error ? err.message : 'Login failed';
+			error = msg;
+			// Auto-show TOTP field if the server says 2FA is required
+			if (msg.toLowerCase().includes('2fa code required') && !showTotp) {
+				showTotp = true;
+				error = '';
+			}
 		} finally {
 			loading = false;
 		}
@@ -68,6 +74,7 @@
 					bind:value={username}
 					required
 					autofocus
+					maxlength={32}
 					autocomplete="username"
 					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
 				/>
@@ -83,6 +90,7 @@
 						type={showPassword ? 'text' : 'password'}
 						bind:value={password}
 						required
+						maxlength={128}
 						autocomplete="current-password"
 						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 pr-10 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30"
 					/>

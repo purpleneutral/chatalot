@@ -441,6 +441,15 @@ pub async fn unsuspend_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Er
     Ok(())
 }
 
+/// Get all currently suspended user IDs (for populating in-memory set on startup).
+pub async fn get_suspended_user_ids(pool: &PgPool) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM users WHERE suspended_at IS NOT NULL")
+            .fetch_all(pool)
+            .await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}
+
 /// List all users (paginated, with optional search).
 pub async fn list_all_users(
     pool: &PgPool,

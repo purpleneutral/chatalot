@@ -1,7 +1,16 @@
 import type { UserPublic } from '$lib/api/auth';
 import { wipeCrypto } from '$lib/crypto';
+import { bookmarkStore } from '$lib/stores/bookmarks.svelte';
+import { channelStore } from '$lib/stores/channels.svelte';
+import { communityStore } from '$lib/stores/communities.svelte';
+import { communityMemberStore } from '$lib/stores/communityMembers.svelte';
+import { groupStore } from '$lib/stores/groups.svelte';
+import { memberStore } from '$lib/stores/members.svelte';
+import { messageStore } from '$lib/stores/messages.svelte';
 import { preferencesStore } from '$lib/stores/preferences.svelte';
 import { presenceStore } from '$lib/stores/presence.svelte';
+import { readReceiptStore } from '$lib/stores/readReceipts.svelte';
+import { userStore } from '$lib/stores/users.svelte';
 import { voiceStore } from '$lib/stores/voice.svelte';
 import { wsClient } from '$lib/ws/connection';
 import { clearMarkReadTimer } from '$lib/ws/handler';
@@ -88,6 +97,15 @@ class AuthStore {
 		preferencesStore.cancelPendingSync();
 		voiceStore.reset();
 		presenceStore.reset();
+		messageStore.clear();
+		channelStore.clear();
+		groupStore.clear();
+		communityStore.clear();
+		communityMemberStore.clear();
+		memberStore.clear();
+		userStore.clear();
+		bookmarkStore.clear();
+		readReceiptStore.clear();
 		wipeCrypto().catch((err) => console.warn('Failed to wipe crypto state:', err));
 	}
 }
