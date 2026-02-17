@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.11',
+			date: '2026-02-17',
+			changes: [
+				'Edit messages now uses a multi-line textarea (preserves line breaks in multi-line messages)',
+				'Community tabs (invites, bans, emoji) now always refresh when switching to them',
+				'Community description field now enforces 2048-character limit client-side',
+				'Confirm dialog input now properly resets when cancelled or dismissed',
+			]
+		},
+		{
 			version: '0.18.10',
 			date: '2026-02-17',
 			changes: [

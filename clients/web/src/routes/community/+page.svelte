@@ -526,9 +526,10 @@
 
 	function switchTab(tab: typeof activeTab) {
 		activeTab = tab;
-		if (tab === 'invites' && invites.length === 0) loadInvites();
-		if (tab === 'bans' && bans.length === 0) loadBans();
-		if (tab === 'emoji' && communityEmojis.length === 0) loadEmojis();
+		// Always reload data when switching to these tabs for freshness
+		if (tab === 'invites') loadInvites();
+		if (tab === 'bans') loadBans();
+		if (tab === 'emoji') loadEmojis();
 	}
 
 	function roleLabel(role: string): string {
@@ -626,6 +627,7 @@
 							<textarea id="edit-community-desc"
 								bind:value={editDescription}
 								rows="3"
+								maxlength={2048}
 								disabled={!canManage}
 								class="w-full resize-none rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] disabled:opacity-50"
 							></textarea>
@@ -1231,8 +1233,8 @@
 			aria-modal="true"
 			aria-label={confirmDialog.title}
 			transition:fade={{ duration: 150 }}
-			onclick={() => confirmDialog = null}
-			onkeydown={(e) => { if (e.key === 'Escape') confirmDialog = null; }}
+			onclick={() => { confirmDialog = null; confirmInput = ''; }}
+			onkeydown={(e) => { if (e.key === 'Escape') { confirmDialog = null; confirmInput = ''; } }}
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -1248,20 +1250,20 @@
 						type="text"
 						bind:value={confirmInput}
 						placeholder={confirmDialog.inputPlaceholder}
-						onkeydown={(e) => { if (e.key === 'Enter') { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; } }}
+						onkeydown={(e) => { if (e.key === 'Enter') { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; confirmInput = ''; } }}
 						autofocus
 						class="mb-4 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 				{/if}
 				<div class="flex justify-end gap-2">
 					<button
-						onclick={() => confirmDialog = null}
+						onclick={() => { confirmDialog = null; confirmInput = ''; }}
 						class="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 					>
 						Cancel
 					</button>
 					<button
-						onclick={() => { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; }}
+						onclick={() => { confirmDialog?.onConfirm(confirmInput); confirmDialog = null; confirmInput = ''; }}
 						class="rounded-lg px-4 py-2 text-sm font-medium text-white transition {confirmDialog.danger ? 'bg-[var(--danger)] hover:bg-red-600' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'}"
 					>
 						{confirmDialog.confirmLabel ?? 'Confirm'}

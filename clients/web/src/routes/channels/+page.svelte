@@ -2165,7 +2165,7 @@
 		editInput = msg.content;
 		contextMenuMessageId = null;
 		await tick();
-		const el = document.querySelector<HTMLInputElement>('input[data-edit-input]');
+		const el = document.querySelector<HTMLTextAreaElement>('textarea[data-edit-input]');
 		el?.focus();
 	}
 
@@ -5558,17 +5558,17 @@
 								{#if editingMessageId === msg.id}
 									<!-- Edit mode -->
 									<div class="mt-1">
-										<input
+										<textarea
 											data-edit-input
-											type="text"
+											rows="2"
 											bind:value={editInput}
 											onkeydown={(e) => handleEditKeydown(e, msg.id)}
-											class="w-full rounded border border-[var(--accent)] bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none"
-										/>
+											class="w-full resize-y rounded border border-[var(--accent)] bg-[var(--bg-secondary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none"
+										></textarea>
 										<div class="mt-1 flex gap-2 text-xs">
 											<button onclick={() => submitEdit(msg.id)} class="text-[var(--accent)] hover:underline">Save</button>
 											<button onclick={cancelEdit} class="text-[var(--text-secondary)] hover:underline">Cancel</button>
-											<span class="text-[var(--text-secondary)]">esc to cancel, enter to save</span>
+											<span class="text-[var(--text-secondary)]">esc to cancel, enter to save, shift+enter for newline</span>
 										</div>
 									</div>
 								{:else if msg.messageType === 'file'}
@@ -6831,17 +6831,17 @@
 										{#if editingMessageId === reply.id}
 											<!-- Edit mode -->
 											<div class="mt-1">
-												<input
+												<textarea
 													data-edit-input
-													type="text"
+													rows="2"
 													bind:value={editInput}
 													onkeydown={(e) => handleEditKeydown(e, reply.id)}
-													class="w-full rounded border border-[var(--accent)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none"
-												/>
+													class="w-full resize-y rounded border border-[var(--accent)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none"
+												></textarea>
 												<div class="mt-1 flex gap-2 text-xs">
 													<button onclick={() => submitEdit(reply.id)} class="text-[var(--accent)] hover:underline">Save</button>
 													<button onclick={cancelEdit} class="text-[var(--text-secondary)] hover:underline">Cancel</button>
-													<span class="text-[var(--text-secondary)]">esc to cancel, enter to save</span>
+													<span class="text-[var(--text-secondary)]">esc to cancel, enter to save, shift+enter for newline</span>
 												</div>
 											</div>
 										{:else if reply.messageType === 'file'}
