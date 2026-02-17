@@ -16,6 +16,27 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.10',
+			date: '2026-02-17',
+			changes: [
+				'Security: cross-group channel delete/update bypass fixed (now verifies channel belongs to the group)',
+				'Security: cross-community emoji deletion fixed (now verifies emoji belongs to the community)',
+				'Security: webhook execute endpoint now validates avatar_url (prevents XSS/SSRF)',
+				'Security: poll remove_vote now checks channel membership (matches vote endpoint)',
+				'Security: group image uploads now validate magic bytes (matches community upload security)',
+				'Fix: poll duplicate vote on multi-select no longer causes server 500 error (graceful no-op)',
+				'Fix: scheduled messages that fail delivery for >5 min are now dropped (prevents infinite retry)',
+				'Fix: file uploads no longer duplicate messages (optimistic add now happens before WS send)',
+				'Fix: editing state now cleared when another user deletes the message being edited',
+				'Fix: kicked/banned users now fully removed from sidebar and voice calls (not just hidden)',
+				'Fix: community invite creation now respects who_can_create_invites policy (not just admin-only)',
+				'Fix: webhook create now trims name (matches update behavior)',
+				'Voice: eliminated duplicate audio playback (per-user volume now works correctly)',
+				'Voice: screen share audio no longer corrupted when changing mic device or noise suppression',
+				'Voice: peers in transient "disconnected" state no longer prematurely torn down',
+			]
+		},
+		{
 			version: '0.18.9',
 			date: '2026-02-17',
 			changes: [

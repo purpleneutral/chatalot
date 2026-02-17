@@ -374,6 +374,18 @@ async fn main() -> anyhow::Result<()> {
                                         "Failed to deliver scheduled message {}: {e}",
                                         msg.id
                                     );
+                                    // Delete the failed message to prevent infinite retry loops.
+                                    // If the scheduled_for is more than 5 minutes in the past,
+                                    // the message is likely permanently undeliverable.
+                                    if msg.scheduled_for < chrono::Utc::now() - chrono::Duration::minutes(5) {
+                                        tracing::warn!(
+                                            "Dropping undeliverable scheduled message {} (overdue by >5min)",
+                                            msg.id
+                                        );
+                                        let _ = chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                            &state.db, msg.id,
+                                        ).await;
+                                    }
                                 }
                             }
                         }

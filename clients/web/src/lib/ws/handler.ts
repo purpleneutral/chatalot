@@ -202,6 +202,12 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		case 'message_deleted': {
 			messageStore.deleteMessage(msg.message_id);
+			// Clear editing state if the deleted message was being edited
+			window.dispatchEvent(
+				new CustomEvent('chatalot:message-edit-cancelled', {
+					detail: { messageId: msg.message_id }
+				})
+			);
 			// Notify thread panel
 			window.dispatchEvent(
 				new CustomEvent('chatalot:thread-message-deleted', {
@@ -317,8 +323,12 @@ export async function handleServerMessage(msg: ServerMessage) {
 		case 'member_kicked': {
 			memberStore.removeMember(msg.channel_id, msg.user_id);
 			if (msg.user_id === authStore.user?.id) {
+				// Leave voice if in a call on this channel
+				if (voiceStore.currentChannelId === msg.channel_id && voiceStore.isInCall) {
+					webrtcManager.leaveCall();
+				}
+				channelStore.removeChannel(msg.channel_id);
 				toastStore.error('You were kicked from the channel');
-				channelStore.setActive(null);
 			}
 			break;
 		}
@@ -326,8 +336,12 @@ export async function handleServerMessage(msg: ServerMessage) {
 		case 'member_banned': {
 			memberStore.removeMember(msg.channel_id, msg.user_id);
 			if (msg.user_id === authStore.user?.id) {
+				// Leave voice if in a call on this channel
+				if (voiceStore.currentChannelId === msg.channel_id && voiceStore.isInCall) {
+					webrtcManager.leaveCall();
+				}
+				channelStore.removeChannel(msg.channel_id);
 				toastStore.error('You were banned from this channel');
-				channelStore.setActive(null);
 			}
 			break;
 		}

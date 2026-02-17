@@ -182,7 +182,11 @@ async fn vote_poll(
     }
 
     let vote_id = Uuid::now_v7();
-    poll_repo::vote(&state.db, vote_id, poll_id, claims.sub, req.option_index).await?;
+    let voted = poll_repo::vote(&state.db, vote_id, poll_id, claims.sub, req.option_index).await?;
+    if voted.is_none() {
+        // Duplicate vote (ON CONFLICT DO NOTHING) — treat as no-op
+        return Ok(());
+    }
 
     let voter_id = if poll.anonymous {
         None
@@ -219,6 +223,10 @@ async fn remove_vote(
         && expires_at < chrono::Utc::now()
     {
         return Err(AppError::Validation("poll has expired".into()));
+    }
+
+    if !channel_repo::is_member(&state.db, poll.channel_id, claims.sub).await? {
+        return Err(AppError::Forbidden);
     }
 
     poll_repo::remove_vote(&state.db, poll_id, claims.sub, idx).await?;

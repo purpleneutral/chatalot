@@ -1557,6 +1557,11 @@ async fn delete_emoji(
         .await?
         .ok_or_else(|| AppError::NotFound("emoji not found".into()))?;
 
+    // Verify the emoji belongs to this community
+    if emoji.community_id != ctx.community_id {
+        return Err(AppError::NotFound("emoji not found".into()));
+    }
+
     // Delete file from disk
     let _ = tokio::fs::remove_file(&emoji.file_path).await;
 

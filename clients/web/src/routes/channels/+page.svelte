@@ -1245,6 +1245,7 @@
 		window.addEventListener('chatalot:thread-message-edited', handleThreadMessageEdited as EventListener);
 		window.addEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
 		window.addEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
+		window.addEventListener('chatalot:message-edit-cancelled', handleExternalEditCancel as EventListener);
 
 		// Idle detection
 		setupIdleDetection();
@@ -1275,6 +1276,7 @@
 		window.removeEventListener('chatalot:thread-message-edited', handleThreadMessageEdited as EventListener);
 		window.removeEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
 		window.removeEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
+		window.removeEventListener('chatalot:message-edit-cancelled', handleExternalEditCancel as EventListener);
 		window.removeEventListener('beforeunload', handleBeforeUnload);
 
 		// Clean up timers
@@ -2073,6 +2075,20 @@
 
 			const { ciphertext, nonce } = await encryptContent(channelId, fileMsg);
 
+			// Optimistic add BEFORE WS send to prevent race with server echo
+			const tempId = `temp-${Date.now()}`;
+			messageStore.addMessage(channelId, {
+				id: tempId,
+				channelId,
+				senderId: authStore.user?.id ?? '',
+				content: fileMsg,
+				messageType: 'file',
+				replyToId: null,
+				editedAt: null,
+				createdAt: new Date().toISOString(),
+				pending: true
+			});
+
 			const fileSent = wsClient.send({
 				type: 'send_message',
 				channel_id: channelId,
@@ -2084,22 +2100,10 @@
 			});
 
 			if (!fileSent) {
+				messageStore.removeMessage(channelId, tempId);
 				toastStore.error('File not sent — connection lost');
 				return;
 			}
-
-			// Optimistic add
-			messageStore.addMessage(channelId, {
-				id: `temp-${Date.now()}`,
-				channelId,
-				senderId: authStore.user?.id ?? '',
-				content: fileMsg,
-				messageType: 'file',
-				replyToId: null,
-				editedAt: null,
-				createdAt: new Date().toISOString(),
-				pending: true
-			});
 			await tick();
 			scrollToBottom();
 		} catch (err) {
@@ -2168,6 +2172,13 @@
 	function cancelEdit() {
 		editingMessageId = null;
 		editInput = '';
+	}
+
+	function handleExternalEditCancel(e: Event) {
+		const { messageId } = (e as CustomEvent).detail;
+		if (editingMessageId === messageId) {
+			cancelEdit();
+		}
 	}
 
 	async function submitEdit(messageId: string) {

@@ -51,7 +51,8 @@ async fn create_webhook(
         return Err(AppError::Forbidden);
     }
 
-    if req.name.is_empty() || req.name.len() > 64 {
+    let name = req.name.trim();
+    if name.is_empty() || name.len() > 64 {
         return Err(AppError::Validation(
             "webhook name must be 1-64 characters".into(),
         ));
@@ -68,7 +69,7 @@ async fn create_webhook(
         &state.db,
         id,
         channel_id,
-        &req.name,
+        name,
         &token,
         claims.sub,
         req.avatar_url.as_deref(),
@@ -201,6 +202,11 @@ async fn execute_webhook(
         return Err(AppError::Validation(
             "username must be at most 64 characters".into(),
         ));
+    }
+
+    // Validate avatar_url if provided (same validation as create/update)
+    if let Some(ref url) = req.avatar_url {
+        validate_avatar_url(url)?;
     }
 
     let message_id = Uuid::now_v7();

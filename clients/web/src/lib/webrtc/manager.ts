@@ -324,9 +324,10 @@ class WebRTCManager {
 
 		// Swap audio track in existing local stream (preserves stream ID for peers)
 		const localStream = voiceStore.activeCall.localStream;
+		let prevMicTrack: MediaStreamTrack | undefined;
 		if (localStream) {
-			const oldAudioTrack = localStream.getAudioTracks()[0];
-			if (oldAudioTrack) localStream.removeTrack(oldAudioTrack);
+			prevMicTrack = localStream.getAudioTracks()[0];
+			if (prevMicTrack) localStream.removeTrack(prevMicTrack);
 			localStream.addTrack(newAudioTrack);
 			// Preserve mute state
 			if (!voiceStore.activeCall.audioEnabled) {
@@ -334,10 +335,10 @@ class WebRTCManager {
 			}
 		}
 
-		// Replace audio track on all peer connections (no renegotiation needed)
+		// Replace only the mic audio sender on all peers (skip screen share audio senders)
 		for (const pc of this.peers.values()) {
 			for (const sender of pc.getSenders()) {
-				if (sender.track?.kind === 'audio') {
+				if (sender.track?.kind === 'audio' && sender.track === prevMicTrack) {
 					await sender.replaceTrack(newAudioTrack);
 				}
 			}
@@ -397,9 +398,10 @@ class WebRTCManager {
 
 		// Swap audio track in existing local stream (preserves stream ID for peers)
 		const localStream = voiceStore.activeCall.localStream;
+		let prevMicTrack: MediaStreamTrack | undefined;
 		if (localStream) {
-			const oldAudioTrack = localStream.getAudioTracks()[0];
-			if (oldAudioTrack) localStream.removeTrack(oldAudioTrack);
+			prevMicTrack = localStream.getAudioTracks()[0];
+			if (prevMicTrack) localStream.removeTrack(prevMicTrack);
 			localStream.addTrack(newAudioTrack);
 			// Preserve mute state
 			if (!voiceStore.activeCall.audioEnabled) {
@@ -407,10 +409,10 @@ class WebRTCManager {
 			}
 		}
 
-		// Replace on all peers
+		// Replace only the mic audio sender on all peers (skip screen share audio senders)
 		for (const pc of this.peers.values()) {
 			for (const sender of pc.getSenders()) {
-				if (sender.track?.kind === 'audio') {
+				if (sender.track?.kind === 'audio' && sender.track === prevMicTrack) {
 					await sender.replaceTrack(newAudioTrack);
 				}
 			}
@@ -970,14 +972,16 @@ class WebRTCManager {
 			for (const userId of participants) {
 				if (userId === myId) continue;
 
-				// Check for stale peer connections (failed/closed/disconnected)
+				// Check for stale peer connections (failed/closed only).
+				// 'disconnected' is a transient state that often self-recovers —
+				// the onconnectionstatechange handler has a 10-second grace period for it.
 				const existingPc = this.peers.get(userId);
 				if (existingPc) {
 					const state = existingPc.connectionState ?? existingPc.iceConnectionState;
-					if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+					if (state === 'failed' || state === 'closed') {
 						this.onUserLeft(userId);
 					} else {
-						continue; // healthy connection, skip
+						continue; // healthy or recovering connection, skip
 					}
 				}
 
@@ -1095,7 +1099,7 @@ class WebRTCManager {
 				// First stream from this user = main stream (audio/camera)
 				this.mainStreamIds.set(userId, stream.id);
 				voiceStore.addRemoteStream(userId, stream);
-				this.playRemoteAudio(userId, stream);
+				// Audio playback is handled by PersistentAudio.svelte (per-user volume via GainNode)
 				this.monitorStream(userId, stream);
 			} else if (stream.id === knownMainId) {
 				// Additional track on the main stream (e.g., camera toggled on)

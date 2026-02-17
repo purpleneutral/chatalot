@@ -46,7 +46,7 @@ pub async fn vote(
     poll_id: Uuid,
     user_id: Uuid,
     option_index: i32,
-) -> Result<PollVote, sqlx::Error> {
+) -> Result<Option<PollVote>, sqlx::Error> {
     sqlx::query_as::<_, PollVote>(
         r#"
         INSERT INTO poll_votes (id, poll_id, user_id, option_index)
@@ -59,7 +59,7 @@ pub async fn vote(
     .bind(poll_id)
     .bind(user_id)
     .bind(option_index)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
 }
 

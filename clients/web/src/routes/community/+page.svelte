@@ -86,6 +86,15 @@
 	let canManage = $derived(myRole === 'owner' || myRole === 'admin' || authStore.user?.is_owner);
 	let isOwner = $derived(myRole === 'owner' || authStore.user?.is_owner);
 
+	// Check community policies for who can create invites/groups (mirrors server meets_policy)
+	function meetsPolicy(role: string | null, policy: string): boolean {
+		if (!role) return false;
+		const level = role === 'owner' ? 3 : role === 'admin' ? 2 : role === 'moderator' ? 1 : 0;
+		const required = policy === 'everyone' ? 0 : policy === 'moderator' ? 1 : 2;
+		return level >= required || !!authStore.user?.is_owner;
+	}
+	let canCreateInvites = $derived(meetsPolicy(myRole, community?.who_can_create_invites ?? 'admin'));
+
 	// Confirm dialog
 	let confirmDialog = $state<{
 		title: string; message: string; confirmLabel: string; danger?: boolean;
@@ -797,7 +806,7 @@
 				{:else if activeTab === 'invites'}
 					<h2 class="mb-4 text-xl font-bold text-[var(--text-primary)]">Invites</h2>
 
-					{#if canManage}
+					{#if canCreateInvites}
 						<div class="mb-4 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4">
 							<h3 class="mb-3 text-sm font-semibold text-[var(--text-primary)]">Create Invite</h3>
 							<div class="flex gap-3">

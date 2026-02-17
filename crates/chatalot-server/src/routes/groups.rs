@@ -840,6 +840,14 @@ async fn update_group_channel(
         ));
     }
 
+    // Verify the channel actually belongs to this group
+    let existing = channel_repo::get_channel(&state.db, path.channel_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
+    if existing.group_id != Some(path.group_id) {
+        return Err(AppError::Forbidden);
+    }
+
     let channel = channel_repo::update_channel(
         &state.db,
         path.channel_id,
@@ -885,6 +893,14 @@ async fn delete_group_channel(
         .ok_or(AppError::Forbidden)?;
 
     if role != "owner" && role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    // Verify the channel actually belongs to this group
+    let existing = channel_repo::get_channel(&state.db, path.channel_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
+    if existing.group_id != Some(path.group_id) {
         return Err(AppError::Forbidden);
     }
 
@@ -1290,6 +1306,14 @@ async fn upload_channel_voice_background(
         return Err(AppError::Forbidden);
     }
 
+    // Verify the channel actually belongs to this group
+    let existing = channel_repo::get_channel(&state.db, path.channel_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("channel not found".to_string()))?;
+    if existing.group_id != Some(path.group_id) {
+        return Err(AppError::Forbidden);
+    }
+
     let (data, ct) = read_image_field(&mut multipart, "background", MAX_VOICE_BG_SIZE).await?;
     let ext = image_ext(&ct);
 
@@ -1417,6 +1441,15 @@ async fn read_image_field(
     if !ALLOWED_IMAGE_TYPES.contains(&ct.as_str()) {
         return Err(AppError::Validation(
             "invalid image type (allowed: png, jpeg, webp, gif)".into(),
+        ));
+    }
+
+    // Validate magic bytes match the declared content type
+    let detected = crate::services::file_security::validate_file_type(&data)
+        .map_err(|reason| AppError::Validation(format!("invalid file: {reason}")))?;
+    if detected != ct {
+        return Err(AppError::Validation(
+            "file content does not match declared image type".into(),
         ));
     }
 
