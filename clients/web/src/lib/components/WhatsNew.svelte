@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.30',
+			date: '2026-02-17',
+			changes: [
+				'Security: escape ILIKE wildcards in user search to prevent wildcard injection (% and _ characters)',
+				'Fix: webhook rate limiter now evicts stale entries to prevent unbounded memory growth',
+			]
+		},
+		{
 			version: '0.18.29',
 			date: '2026-02-17',
 			changes: [

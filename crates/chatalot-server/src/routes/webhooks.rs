@@ -169,6 +169,9 @@ async fn delete_webhook(
 /// Per-webhook rate limiter: max 1 message per second per token.
 static WEBHOOK_RATE: std::sync::LazyLock<dashmap::DashMap<String, Instant>> =
     std::sync::LazyLock::new(dashmap::DashMap::new);
+/// Track when we last evicted stale webhook rate entries.
+static WEBHOOK_RATE_LAST_CLEANUP: std::sync::LazyLock<std::sync::Mutex<Instant>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(Instant::now()));
 
 async fn execute_webhook(
     State(state): State<Arc<AppState>>,
@@ -184,6 +187,14 @@ async fn execute_webhook(
             return Err(AppError::Validation("webhook rate limited (max 1 msg/sec)".into()));
         }
         WEBHOOK_RATE.insert(token.clone(), now);
+
+        // Periodically evict stale entries (every 5 minutes) to prevent unbounded growth
+        if let Ok(mut last_cleanup) = WEBHOOK_RATE_LAST_CLEANUP.try_lock()
+            && now.duration_since(*last_cleanup).as_secs() > 300
+        {
+            WEBHOOK_RATE.retain(|_, ts| now.duration_since(*ts).as_secs() < 60);
+            *last_cleanup = now;
+        }
     }
 
     let webhook = webhook_repo::get_by_token(&state.db, &token)

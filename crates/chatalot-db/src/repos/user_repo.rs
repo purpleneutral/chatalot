@@ -204,6 +204,13 @@ pub async fn create_refresh_token_tx(
     Ok(())
 }
 
+/// Escape ILIKE special characters to prevent wildcard injection.
+fn escape_ilike(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 /// Search users by username prefix.
 pub async fn search_users(
     pool: &PgPool,
@@ -213,7 +220,7 @@ pub async fn search_users(
     sqlx::query_as::<_, User>(
         "SELECT * FROM users WHERE (username ILIKE $1 OR display_name ILIKE $1) ORDER BY username ASC LIMIT $2",
     )
-    .bind(format!("%{query}%"))
+    .bind(format!("%{}%", escape_ilike(query)))
     .bind(limit)
     .fetch_all(pool)
     .await
@@ -466,7 +473,7 @@ pub async fn list_all_users(
             LIMIT $2 OFFSET $3
             "#,
         )
-        .bind(format!("%{q}%"))
+        .bind(format!("%{}%", escape_ilike(q)))
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
