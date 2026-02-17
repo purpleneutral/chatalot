@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
+use axum::http::HeaderMap;
 use axum::routing::{delete, get, post, put};
 use axum::{Extension, Json, Router};
 use uuid::Uuid;
@@ -363,6 +364,7 @@ async fn set_admin(
 async fn reset_password(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
+    headers: HeaderMap,
     Path(user_id): Path<Uuid>,
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<(), AppError> {
@@ -384,13 +386,19 @@ async fn reset_password(
     user_repo::update_password(&state.db, user_id, &new_hash).await?;
     user_repo::revoke_all_refresh_tokens(&state.db, user_id).await?;
 
+    let ip = super::auth::extract_client_ip(&headers);
+    let ua = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .filter(|ua| ua.len() <= 512);
+
     user_repo::insert_audit_log(
         &state.db,
         Uuid::now_v7(),
         Some(claims.sub),
         "admin_reset_password",
-        None,
-        None,
+        ip.as_deref(),
+        ua,
         Some(serde_json::json!({ "target_user_id": user_id })),
     )
     .await?;

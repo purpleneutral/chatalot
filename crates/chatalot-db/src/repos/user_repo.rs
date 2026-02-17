@@ -146,6 +146,64 @@ pub async fn revoke_refresh_token(pool: &PgPool, token_id: Uuid) -> Result<(), s
     Ok(())
 }
 
+/// Find a refresh token by hash within a transaction (for atomic rotation).
+pub async fn find_refresh_token_by_hash_tx(
+    tx: &mut sqlx::PgConnection,
+    token_hash: &[u8],
+) -> Result<Option<RefreshToken>, sqlx::Error> {
+    sqlx::query_as::<_, RefreshToken>(
+        r#"
+        SELECT * FROM refresh_tokens
+        WHERE token_hash = $1
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
+        FOR UPDATE
+        "#,
+    )
+    .bind(token_hash)
+    .fetch_optional(&mut *tx)
+    .await
+}
+
+/// Revoke a refresh token within a transaction.
+pub async fn revoke_refresh_token_tx(
+    tx: &mut sqlx::PgConnection,
+    token_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1")
+        .bind(token_id)
+        .execute(&mut *tx)
+        .await?;
+    Ok(())
+}
+
+/// Create a refresh token within a transaction.
+pub async fn create_refresh_token_tx(
+    tx: &mut sqlx::PgConnection,
+    id: Uuid,
+    user_id: Uuid,
+    token_hash: &[u8],
+    device_name: Option<&str>,
+    ip_address: Option<&str>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO refresh_tokens (id, user_id, token_hash, device_name, ip_address, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(id)
+    .bind(user_id)
+    .bind(token_hash)
+    .bind(device_name)
+    .bind(ip_address)
+    .bind(expires_at)
+    .execute(&mut *tx)
+    .await?;
+    Ok(())
+}
+
 /// Search users by username prefix.
 pub async fn search_users(
     pool: &PgPool,

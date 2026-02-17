@@ -83,7 +83,7 @@ fn parse_device_name(ua: &str) -> String {
 }
 
 /// Extract client IP from headers, checking reverse proxy headers first.
-fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+pub(crate) fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
     // X-Forwarded-For (first entry is the client)
     if let Some(xff) = headers.get("x-forwarded-for")
         && let Ok(val) = xff.to_str()

@@ -454,8 +454,8 @@ pub async fn register(
         Uuid::now_v7(),
         Some(user.id),
         "register",
-        None,
-        None,
+        ip_address,
+        device_name,
         None,
     )
     .await?;
@@ -498,8 +498,8 @@ pub async fn login(
             Uuid::now_v7(),
             Some(user.id),
             "login_failed",
-            None,
-            None,
+            ip_address,
+            device_name,
             None,
         )
         .await?;
@@ -535,8 +535,8 @@ pub async fn login(
                     Uuid::now_v7(),
                     Some(user.id),
                     "login_failed_2fa",
-                    None,
-                    None,
+                    ip_address,
+                    device_name,
                     None,
                 )
                 .await?;
@@ -548,8 +548,8 @@ pub async fn login(
                 Uuid::now_v7(),
                 Some(user.id),
                 "login_backup_code_used",
-                None,
-                None,
+                ip_address,
+                device_name,
                 None,
             )
             .await?;
@@ -590,8 +590,8 @@ pub async fn login(
         Uuid::now_v7(),
         Some(user.id),
         "login",
-        None,
-        None,
+        ip_address,
+        device_name,
         None,
     )
     .await?;
@@ -618,13 +618,20 @@ pub async fn refresh_token(
     let raw_token = hex::decode(&req.refresh_token).map_err(|_| AppError::Unauthorized)?;
     let token_hash = Sha256::digest(&raw_token).to_vec();
 
+    // Use a transaction to atomically revoke old token + create new one
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|e| AppError::Internal(format!("transaction begin: {e}")))?;
+
     // Look up the refresh token
-    let stored = user_repo::find_refresh_token_by_hash(&state.db, &token_hash)
+    let stored = user_repo::find_refresh_token_by_hash_tx(&mut *tx, &token_hash)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
     // Revoke the old refresh token (rotation)
-    user_repo::revoke_refresh_token(&state.db, stored.id).await?;
+    user_repo::revoke_refresh_token_tx(&mut *tx, stored.id).await?;
 
     // Look up the user
     let user = user_repo::find_by_id(&state.db, stored.user_id)
@@ -645,8 +652,8 @@ pub async fn refresh_token(
     let expires_at =
         Utc::now() + chrono::TimeDelta::seconds(REFRESH_TOKEN_LIFETIME_SECS);
 
-    user_repo::create_refresh_token(
-        &state.db,
+    user_repo::create_refresh_token_tx(
+        &mut *tx,
         refresh_id,
         user.id,
         &refresh_hash,
@@ -655,6 +662,10 @@ pub async fn refresh_token(
         expires_at,
     )
     .await?;
+
+    tx.commit()
+        .await
+        .map_err(|e| AppError::Internal(format!("transaction commit: {e}")))?;
 
     let refresh_token_hex = hex::encode(&refresh_raw);
     refresh_raw.zeroize();
