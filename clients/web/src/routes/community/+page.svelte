@@ -3,6 +3,8 @@
 	import { fade, scale } from 'svelte/transition';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { communityStore } from '$lib/stores/communities.svelte';
+	import { channelStore } from '$lib/stores/channels.svelte';
+	import { groupStore } from '$lib/stores/groups.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import {
 		getCommunity,
@@ -317,8 +319,14 @@
 			danger: true,
 			async onConfirm() {
 				try {
-					await deleteCommunity(community!.id);
-					communityStore.removeCommunity(community!.id);
+					const cid = community!.id;
+					await deleteCommunity(cid);
+					// Clean up groups and channels for this community from local stores
+					for (const g of groupStore.groups.filter(g => g.community_id === cid)) {
+						channelStore.removeChannelsForGroup(g.id);
+						groupStore.removeGroup(g.id);
+					}
+					communityStore.removeCommunity(cid);
 					const communities = await listCommunities();
 					communityStore.setCommunities(communities);
 					toastStore.success('Community deleted');
@@ -339,8 +347,14 @@
 			danger: true,
 			async onConfirm() {
 				try {
-					await leaveCommunity(community!.id);
-					communityStore.removeCommunity(community!.id);
+					const cid = community!.id;
+					await leaveCommunity(cid);
+					// Clean up groups and channels for this community from local stores
+					for (const g of groupStore.groups.filter(g => g.community_id === cid)) {
+						channelStore.removeChannelsForGroup(g.id);
+						groupStore.removeGroup(g.id);
+					}
+					communityStore.removeCommunity(cid);
 					const communities = await listCommunities();
 					communityStore.setCommunities(communities);
 					toastStore.success(`Left "${community!.name}"`);

@@ -332,9 +332,9 @@ async fn handle_client_message(
                     && let Ok(Some(last_sent)) =
                         channel_repo::get_slowmode_last_sent(&state.db, channel_id, user_id).await
                 {
-                    let elapsed = (chrono::Utc::now() - last_sent).num_seconds();
+                    let elapsed = (chrono::Utc::now() - last_sent).num_seconds().max(0);
                     if elapsed < channel.slow_mode_seconds as i64 {
-                        let wait = channel.slow_mode_seconds as i64 - elapsed;
+                        let wait = (channel.slow_mode_seconds as i64 - elapsed).max(0);
                         let _ = tx.send(ServerMessage::Error {
                             code: "slow_mode".to_string(),
                             message: format!("slow mode: wait {wait} seconds"),

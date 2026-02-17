@@ -301,6 +301,7 @@
 	let newGroupAssignMemberId = $state('');
 	let expandedGroupIds = $state<Set<string>>(new Set());
 	let groupChannelsMap = $state<Map<string, Channel[]>>(new Map());
+	let communitySwitchId = 0; // Guards against stale community-switch results
 	let showDiscoverGroups = $state(false);
 	let discoverGroupsList = $state<Group[]>([]);
 	let showGroupChannelCreate = $state<string | null>(null);
@@ -3371,8 +3372,11 @@
 		sidebarTab = 'groups';
 		loadCustomEmojis(communityId);
 
+		const switchId = ++communitySwitchId;
 		try {
 			const groups = await loadCommunityGroups(communityId);
+			// Guard: user may have switched communities again during the async load
+			if (switchId !== communitySwitchId) return;
 			// Expand the first group by default
 			if (groups.length > 0) {
 				expandedGroupIds = new Set([groups[0].id]);
@@ -3392,6 +3396,7 @@
 				}
 			}
 		} catch (err: any) {
+			if (switchId !== communitySwitchId) return;
 			toastStore.error(err?.message || 'Failed to load community');
 		}
 	}

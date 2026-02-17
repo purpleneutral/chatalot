@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.17',
+			date: '2026-02-17',
+			changes: [
+				'Fix: community delete/leave now properly cleans up groups, channels, and messages from local state',
+				'Fix: rapidly switching communities no longer shows stale groups from the previous community',
+				'Fix: slow mode wait time now handles edge cases with clock adjustments gracefully',
+			]
+		},
+		{
 			version: '0.18.16',
 			date: '2026-02-17',
 			changes: [
