@@ -131,6 +131,7 @@ pub async fn search_messages_global(
         INNER JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = $1
         WHERE m.deleted_at IS NULL
           AND m.quarantined_at IS NULL
+          AND (m.expires_at IS NULL OR m.expires_at > NOW())
           AND convert_from(m.ciphertext, 'UTF8') ILIKE $2"#,
     );
     let mut param_idx = 4u32; // $3 is limit
@@ -191,6 +192,7 @@ pub async fn search_messages(
         WHERE channel_id = $1
           AND deleted_at IS NULL
           AND quarantined_at IS NULL
+          AND (expires_at IS NULL OR expires_at > NOW())
           AND convert_from(ciphertext, 'UTF8') ILIKE $2"#,
     );
     let mut param_idx = 4u32; // $3 is limit

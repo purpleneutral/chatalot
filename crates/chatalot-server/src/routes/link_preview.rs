@@ -124,7 +124,12 @@ async fn get_link_preview(
         .await
         .map_err(|_| AppError::Validation("Could not read response".into()))?;
     let body = if body.len() > 512_000 {
-        &body[..512_000]
+        // Find a valid UTF-8 char boundary to avoid panicking on multi-byte chars
+        let mut end = 512_000;
+        while !body.is_char_boundary(end) {
+            end -= 1;
+        }
+        &body[..end]
     } else {
         &body
     };
@@ -212,11 +217,16 @@ fn parse_og_metadata(html: &str, url: &str) -> LinkPreviewResponse {
         }
     }
 
+    // Only allow http/https image URLs; truncate to prevent oversized data URIs
+    let image = image.filter(|i| {
+        i.starts_with("http://") || i.starts_with("https://") || i.starts_with("//")
+    });
+
     LinkPreviewResponse {
         url: url.to_string(),
         title: title.map(|t| truncate_str(t, 200)),
         description: description.map(|d| truncate_str(d, 500)),
-        image,
+        image: image.map(|i| truncate_str(i, 2048)),
         site_name: site_name.map(|s| truncate_str(s, 100)),
     }
 }
@@ -254,7 +264,28 @@ fn is_private_ip(ip: std::net::IpAddr) -> bool {
                 || v4.is_link_local()
                 || v4.octets()[0] == 0
         }
-        std::net::IpAddr::V6(v6) => v6.is_loopback(),
+        std::net::IpAddr::V6(v6) => {
+            if v6.is_loopback() {
+                return true;
+            }
+            let segments = v6.segments();
+            // Link-local fe80::/10
+            if segments[0] & 0xffc0 == 0xfe80 {
+                return true;
+            }
+            // Unique local fc00::/7
+            if segments[0] & 0xfe00 == 0xfc00 {
+                return true;
+            }
+            // IPv4-mapped ::ffff:x.x.x.x
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return v4.is_private()
+                    || v4.is_loopback()
+                    || v4.is_link_local()
+                    || v4.octets()[0] == 0;
+            }
+            false
+        }
     }
 }
 

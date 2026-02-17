@@ -16,6 +16,21 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.40',
+			date: '2026-02-17',
+			changes: [
+				'Security: fix SSRF bypass via IPv6 private addresses in link preview (link-local, unique local, IPv4-mapped)',
+				'Security: fix link preview server panic on non-ASCII HTML (UTF-8 boundary-safe truncation)',
+				'Security: og:image URLs now validated to http/https only and truncated to 2048 chars',
+				'Security: admin role hierarchy enforced — admins can no longer demote other admins',
+				'Security: search no longer returns expired (TTL) messages',
+				'Security: scheduled DM messages now check block status at delivery time',
+				'Fix: community ban and channel kick/ban/unban now write audit log entries',
+				'Fix: search query length validation now counts characters instead of bytes',
+				'Accessibility: global keyboard focus indicator on all buttons, links, and focusable elements',
+			]
+		},
+		{
 			version: '0.18.39',
 			date: '2026-02-17',
 			changes: [

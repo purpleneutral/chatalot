@@ -87,7 +87,8 @@ async fn search_messages(
         return Err(AppError::Forbidden);
     }
 
-    if query.q.len() < 2 || query.q.len() > 256 {
+    let q_len = query.q.chars().count();
+    if !(2..=256).contains(&q_len) {
         return Err(AppError::Validation(
             "search query must be 2-256 characters".to_string(),
         ));
@@ -108,7 +109,8 @@ async fn global_search_messages(
     Extension(claims): Extension<AccessClaims>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<Vec<MessageResponse>>, AppError> {
-    if query.q.len() < 2 || query.q.len() > 256 {
+    let q_len = query.q.chars().count();
+    if !(2..=256).contains(&q_len) {
         return Err(AppError::Validation(
             "search query must be 2-256 characters".to_string(),
         ));

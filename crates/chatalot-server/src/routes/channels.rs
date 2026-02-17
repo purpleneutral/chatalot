@@ -11,7 +11,7 @@ use chatalot_common::api_types::{
     TransferOwnershipRequest, UpdateChannelRequest, UpdateRoleRequest,
 };
 use chatalot_db::models::channel::ChannelType;
-use chatalot_db::repos::{channel_repo, community_repo, group_repo, sender_key_repo, unread_repo, voice_repo};
+use chatalot_db::repos::{channel_repo, community_repo, group_repo, sender_key_repo, unread_repo, user_repo, voice_repo};
 
 use crate::app_state::AppState;
 use crate::error::AppError;
@@ -382,6 +382,20 @@ async fn kick_member(
         },
     );
 
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "channel_kick",
+        None,
+        None,
+        Some(serde_json::json!({
+            "channel_id": channel_id,
+            "target_user_id": target_user_id,
+        })),
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -463,6 +477,20 @@ async fn ban_member(
         },
     );
 
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "channel_ban",
+        None,
+        None,
+        Some(serde_json::json!({
+            "channel_id": channel_id,
+            "target_user_id": target_user_id,
+        })),
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -483,6 +511,20 @@ async fn unban_member(
     if !channel_repo::unban_user(&state.db, channel_id, target_user_id).await? {
         return Err(AppError::NotFound("ban not found".to_string()));
     }
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "channel_unban",
+        None,
+        None,
+        Some(serde_json::json!({
+            "channel_id": channel_id,
+            "target_user_id": target_user_id,
+        })),
+    )
+    .await?;
 
     Ok(())
 }

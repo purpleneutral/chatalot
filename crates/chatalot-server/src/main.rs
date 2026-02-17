@@ -278,7 +278,7 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(true) => {}
                             }
 
-                            // Check channel restrictions (archived, read-only, timeout)
+                            // Check channel restrictions (archived, read-only, timeout, DM block)
                             let skip = 'check: {
                                 let channel = match chatalot_db::repos::channel_repo::get_channel(
                                     &state.db,
@@ -291,6 +291,18 @@ async fn main() -> anyhow::Result<()> {
                                 };
                                 if channel.archived || channel.read_only {
                                     break 'check true;
+                                }
+                                // For DMs, check if either user has blocked the other
+                                if channel.channel_type == chatalot_db::models::channel::ChannelType::Dm
+                                    && let Ok(members) = chatalot_db::repos::channel_repo::list_members(&state.db, msg.channel_id).await
+                                {
+                                    for member in &members {
+                                        if member.user_id != msg.user_id
+                                            && let Ok(true) = chatalot_db::repos::block_repo::is_blocked_either_way(&state.db, msg.user_id, member.user_id).await
+                                        {
+                                            break 'check true;
+                                        }
+                                    }
                                 }
                                 if let Ok(Some(_)) =
                                     chatalot_db::repos::timeout_repo::get_active_timeout(

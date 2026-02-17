@@ -402,6 +402,11 @@ input:focus, textarea:focus, select:focus {
 	box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
 	width: 6px;

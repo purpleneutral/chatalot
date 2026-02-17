@@ -612,6 +612,11 @@ async fn set_member_role(
         ));
     }
 
+    // Can only change roles of users with strictly lower role level
+    if community_role_level(&ctx.role) <= community_role_level(&target_role) {
+        return Err(AppError::Forbidden);
+    }
+
     // Only owner/instance_admin can promote to admin
     if req.role == "admin" && !ctx.is_owner() {
         return Err(AppError::Forbidden);
@@ -758,6 +763,20 @@ async fn ban_member(
     }
     community_repo::ban_from_community(&state.db, ctx.community_id, path.uid, claims.sub, reason)
         .await?;
+
+    user_repo::insert_audit_log(
+        &state.db,
+        Uuid::now_v7(),
+        Some(claims.sub),
+        "community_ban",
+        None,
+        None,
+        Some(serde_json::json!({
+            "community_id": ctx.community_id,
+            "target_user_id": path.uid,
+        })),
+    )
+    .await?;
 
     Ok(())
 }
