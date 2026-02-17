@@ -4056,7 +4056,7 @@
 					title="Switch community"
 				>
 					{#if communityStore.activeCommunity?.icon_url}
-						<img src={communityStore.activeCommunity.icon_url} alt="" class="h-5 w-5 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+						<img src={communityStore.activeCommunity.icon_url} alt={communityStore.activeCommunity.name} class="h-5 w-5 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 					{:else}
 						<span class="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
 							{(communityStore.activeCommunity?.name ?? 'CH').slice(0, 2).toUpperCase()}
@@ -4590,7 +4590,7 @@
 										<path d="M8 5l8 7-8 7z" />
 									</svg>
 									{#if group.icon_url}
-										<img src={group.icon_url} alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+										<img src={group.icon_url} alt={group.name} class="h-4 w-4 shrink-0 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 									{:else if group.assigned_member_id}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 									{:else if group.visibility === 'private'}

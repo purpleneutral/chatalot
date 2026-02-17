@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.31',
+			date: '2026-02-17',
+			changes: [
+				'Accessibility: fix text tertiary color contrast to pass WCAG AA (4.5:1 minimum) in both themes',
+				'Accessibility: fix light theme accent color contrast (was 3.83:1, now 4.62:1)',
+				'Accessibility: add proper alt text to community and group icon images',
+			]
+		},
+		{
 			version: '0.18.30',
 			date: '2026-02-17',
 			changes: [
