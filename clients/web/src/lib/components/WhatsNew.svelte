@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.18',
+			date: '2026-02-17',
+			changes: [
+				'Security: HTML-escape user-controlled values (display names, emoji URLs, code block labels) in message rendering for defense-in-depth',
+				'Fix: reply banner now clears when the replied-to message is deleted by anyone',
+				'Fix: search panel now closes when switching channels (no more stale results)',
+				'QoL: search input auto-focuses when opening search via Ctrl+F or the search button',
+			]
+		},
+		{
 			version: '0.18.17',
 			date: '2026-02-17',
 			changes: [

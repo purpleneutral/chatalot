@@ -205,6 +205,12 @@ export async function handleServerMessage(msg: ServerMessage) {
 					detail: { messageId: msg.message_id }
 				})
 			);
+			// Clear reply state if the deleted message was being replied to
+			window.dispatchEvent(
+				new CustomEvent('chatalot:message-reply-cancelled', {
+					detail: { messageId: msg.message_id }
+				})
+			);
 			// Notify thread panel
 			window.dispatchEvent(
 				new CustomEvent('chatalot:thread-message-deleted', {

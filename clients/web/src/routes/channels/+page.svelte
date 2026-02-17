@@ -635,6 +635,7 @@
 	let searchFilterAfter = $state('');
 	let searchFilterBefore = $state('');
 	let searchFilterHasFile = $state(false);
+	let searchInputEl = $state<HTMLInputElement | null>(null);
 
 	// Infinite scroll state
 	let loadingOlder = $state(false);
@@ -1259,6 +1260,7 @@
 		window.addEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
 		window.addEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
 		window.addEventListener('chatalot:message-edit-cancelled', handleExternalEditCancel as EventListener);
+		window.addEventListener('chatalot:message-reply-cancelled', handleExternalReplyCancel as EventListener);
 
 		// Idle detection
 		setupIdleDetection();
@@ -1291,6 +1293,7 @@
 		window.removeEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
 		window.removeEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
 		window.removeEventListener('chatalot:message-edit-cancelled', handleExternalEditCancel as EventListener);
+		window.removeEventListener('chatalot:message-reply-cancelled', handleExternalReplyCancel as EventListener);
 		window.removeEventListener('beforeunload', handleBeforeUnload);
 
 		// Clean up timers
@@ -1639,6 +1642,14 @@
 		// Reset slow mode cooldown on channel switch
 		slowModeCooldown = 0;
 		if (slowModeTimer) { clearInterval(slowModeTimer); slowModeTimer = null; }
+
+		// Close search panel on channel switch to avoid showing stale results
+		if (showSearch) {
+			showSearch = false;
+			searchQuery = '';
+			searchResults = [];
+			searchScope = 'channel';
+		}
 
 		// Reset message count tracker to prevent scroll-to-bottom on channel switch
 		prevMessageCount = 0;
@@ -2196,6 +2207,7 @@
 				const sent = wsClient.send({ type: 'delete_message', message_id: messageId });
 				if (sent) {
 					messageStore.deleteMessage(messageId);
+					if (replyingTo?.id === messageId) replyingTo = null;
 				} else {
 					toastStore.error('Failed to delete — connection lost');
 				}
@@ -2222,6 +2234,13 @@
 		const { messageId } = (e as CustomEvent).detail;
 		if (editingMessageId === messageId) {
 			cancelEdit();
+		}
+	}
+
+	function handleExternalReplyCancel(e: Event) {
+		const { messageId } = (e as CustomEvent).detail;
+		if (replyingTo?.id === messageId) {
+			replyingTo = null;
 		}
 	}
 
@@ -2705,6 +2724,11 @@
 		}
 	}
 
+	// HTML-escape user-controlled values before interpolation into HTML strings
+	function escapeHtml(s: string): string {
+		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	}
+
 	// Reusable renderer for marked — avoids allocating a new one per call
 	const markdownRenderer = new marked.Renderer();
 	markdownRenderer.code = ({ text: code, lang }: { text: string; lang?: string }) => {
@@ -2718,8 +2742,9 @@
 				highlighted = code;
 			}
 		}
-		const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
-		return `<div class="code-block-wrapper">${langLabel}<pre><code class="hljs${lang ? ` language-${lang}` : ''}">${highlighted}</code></pre><button class="code-copy-btn" type="button">Copy</button></div>`;
+		const safeLang = lang ? escapeHtml(lang) : '';
+		const langLabel = safeLang ? `<span class="code-lang-label">${safeLang}</span>` : '';
+		return `<div class="code-block-wrapper">${langLabel}<pre><code class="hljs${safeLang ? ` language-${safeLang}` : ''}">${highlighted}</code></pre><button class="code-copy-btn" type="button">Copy</button></div>`;
 	};
 
 	// Markdown render cache — keyed by raw text, avoids re-parsing unchanged messages
@@ -2740,7 +2765,7 @@
 			let processed = text.replace(/:(\w{2,32}):/g, (match, shortcode) => {
 				const emoji = customEmojiMap.get(shortcode);
 				if (emoji && /^https?:\/\//.test(emoji.url)) {
-					return `<img src="${emoji.url}" alt=":${shortcode}:" title=":${shortcode}:" class="custom-emoji" />`;
+					return `<img src="${escapeHtml(emoji.url)}" alt=":${shortcode}:" title=":${shortcode}:" class="custom-emoji" />`;
 				}
 				return match;
 			});
@@ -2755,7 +2780,7 @@
 				const found = users.find(u => u.username === username);
 				if (found) {
 					const isSelf = found.id === authStore.user?.id;
-					return `<span class="mention ${isSelf ? 'mention-self' : ''}">@${found.display_name}</span>`;
+					return `<span class="mention ${isSelf ? 'mention-self' : ''}">@${escapeHtml(found.display_name)}</span>`;
 				}
 				return match;
 			});
@@ -3034,7 +3059,9 @@
 		if (e.key === 'f' && (e.ctrlKey || e.metaKey)) {
 			e.preventDefault();
 			showSearch = !showSearch;
-			if (!showSearch) {
+			if (showSearch) {
+				tick().then(() => searchInputEl?.focus());
+			} else {
 				searchQuery = '';
 				searchResults = [];
 			}
@@ -3704,7 +3731,9 @@
 	// ── Search ──
 	function toggleSearch() {
 		showSearch = !showSearch;
-		if (!showSearch) {
+		if (showSearch) {
+			tick().then(() => searchInputEl?.focus());
+		} else {
 			searchQuery = '';
 			searchResults = [];
 			searchScope = 'channel';
@@ -5237,6 +5266,7 @@
 						<div class="flex gap-2">
 							<input
 								type="text"
+								bind:this={searchInputEl}
 								bind:value={searchQuery}
 								oninput={handleSearchInput}
 								placeholder={searchScope === 'global' ? 'Search all channels...' : 'Search this channel...'}
