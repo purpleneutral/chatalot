@@ -762,8 +762,11 @@ async fn handle_client_message(
             }
             // Validate both users are in the same voice session
             match voice_repo::are_in_same_session(&state.db, user_id, target_user_id).await {
-                Ok(true) => {}
-                _ => {
+                Ok(true) => {
+                    tracing::info!(%user_id, %target_user_id, "RtcOffer: forwarding (same session confirmed)");
+                }
+                other => {
+                    tracing::warn!(%user_id, %target_user_id, result = ?other, "RtcOffer: REJECTED (not in same session)");
                     let _ = tx.send(ServerMessage::Error {
                         code: "forbidden".to_string(),
                         message: "target user not in your voice session".to_string(),
@@ -793,8 +796,11 @@ async fn handle_client_message(
                 return;
             }
             match voice_repo::are_in_same_session(&state.db, user_id, target_user_id).await {
-                Ok(true) => {}
-                _ => {
+                Ok(true) => {
+                    tracing::info!(%user_id, %target_user_id, "RtcAnswer: forwarding (same session confirmed)");
+                }
+                other => {
+                    tracing::warn!(%user_id, %target_user_id, result = ?other, "RtcAnswer: REJECTED (not in same session)");
                     let _ = tx.send(ServerMessage::Error {
                         code: "forbidden".to_string(),
                         message: "target user not in your voice session".to_string(),
@@ -887,6 +893,12 @@ async fn handle_client_message(
                     if let Ok(participants) =
                         voice_repo::get_participants(&state.db, session.id).await
                     {
+                        tracing::info!(
+                            %user_id, %channel_id,
+                            participants = ?participants,
+                            "JoinVoice: sending VoiceStateUpdate"
+                        );
+
                         // Send directly to the joining user — they may not have
                         // a channel subscription yet (e.g. during WS reconnect
                         // where join_voice is sent before subscribe).

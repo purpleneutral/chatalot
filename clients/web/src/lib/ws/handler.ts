@@ -221,7 +221,9 @@ export async function handleServerMessage(msg: ServerMessage) {
 			// If the server shows us as a participant but we have no active call
 			// (e.g. page was refreshed), leave the stale session immediately
 			const myId = authStore.user?.id;
+			console.info(`[VOICE-WS] voice_state_update ch=${msg.channel_id.slice(0,8)} participants=[${msg.participants.map((p: string) => p.slice(0,8)).join(',')}] isInCall=${voiceStore.isInCall} myInList=${msg.participants.includes(myId ?? '')}`);
 			if (myId && msg.participants.includes(myId) && !voiceStore.isInCall) {
+				console.warn(`[VOICE-WS] Auto-leaving stale voice session (not in call but listed as participant)`);
 				wsClient.send({ type: 'leave_voice', channel_id: msg.channel_id });
 				break;
 			}
@@ -266,16 +268,19 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		// WebRTC signaling
 		case 'rtc_offer': {
+			console.info(`[VOICE-WS] rtc_offer from=${msg.from_user_id.slice(0,8)}`);
 			webrtcManager.handleOffer(msg.from_user_id, msg.session_id, msg.sdp);
 			break;
 		}
 
 		case 'rtc_answer': {
+			console.info(`[VOICE-WS] rtc_answer from=${msg.from_user_id.slice(0,8)}`);
 			webrtcManager.handleAnswer(msg.from_user_id, msg.sdp);
 			break;
 		}
 
 		case 'rtc_ice_candidate': {
+			console.info(`[VOICE-WS] rtc_ice_candidate from=${msg.from_user_id.slice(0,8)}`);
 			webrtcManager.handleIceCandidate(msg.from_user_id, msg.candidate);
 			break;
 		}

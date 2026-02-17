@@ -744,7 +744,11 @@ class WebRTCManager {
 
 	/// Handle an incoming RTC offer (initial or renegotiation).
 	async handleOffer(fromUserId: string, sessionId: string, sdpJson: string): Promise<void> {
-		if (!voiceStore.activeCall?.localStream) return;
+		console.info(`[VOICE] handleOffer from=${fromUserId.slice(0,8)} localStream=${!!voiceStore.activeCall?.localStream}`);
+		if (!voiceStore.activeCall?.localStream) {
+			console.warn(`[VOICE] handleOffer DROPPED: no activeCall/localStream`);
+			return;
+		}
 
 		let pc = this.peers.get(fromUserId);
 		const isRenegotiation = !!pc;
@@ -812,11 +816,12 @@ class WebRTCManager {
 
 	/// Handle an incoming RTC answer.
 	async handleAnswer(fromUserId: string, sdpJson: string): Promise<void> {
+		console.info(`[VOICE] handleAnswer from=${fromUserId.slice(0,8)}`);
 		this.clearAnswerTimeout(fromUserId);
 
 		const pc = this.peers.get(fromUserId);
 		if (!pc) {
-			console.warn(`Received answer from ${fromUserId} but no peer connection exists`);
+			console.warn(`[VOICE] handleAnswer DROPPED: no peer connection for ${fromUserId.slice(0,8)}`);
 			return;
 		}
 
@@ -863,9 +868,12 @@ class WebRTCManager {
 	async onVoiceStateUpdate(channelId: string, participants: string[]): Promise<void> {
 		voiceStore.setChannelParticipants(channelId, participants);
 
+		const myId = authStore.user?.id;
+		const inCall = voiceStore.activeCall?.channelId === channelId;
+		console.info(`[VOICE] onVoiceStateUpdate ch=${channelId.slice(0,8)} participants=[${participants.map(p => p.slice(0,8)).join(',')}] myId=${myId?.slice(0,8)} inCall=${inCall} activeCallCh=${voiceStore.activeCall?.channelId?.slice(0,8)}`);
+
 		// If we're in this call, reconcile peer connections with authoritative list
-		if (voiceStore.activeCall?.channelId === channelId) {
-			const myId = authStore.user?.id;
+		if (inCall) {
 			const participantSet = new Set(participants);
 
 			// Remove peers who are no longer in the participant list
@@ -883,19 +891,23 @@ class WebRTCManager {
 				if (existingPc) {
 					const state = existingPc.connectionState ?? existingPc.iceConnectionState;
 					if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-						console.info(`Cleaning up stale peer connection for ${userId} (state: ${state})`);
+						console.info(`[VOICE] Cleaning up stale peer ${userId.slice(0,8)} (state: ${state})`);
 						this.onUserLeft(userId);
 					} else {
+						console.info(`[VOICE] Peer ${userId.slice(0,8)} exists, state=${state}, skipping`);
 						continue; // healthy connection, skip
 					}
 				}
 
+				const amImpolite = !this.isPolite(userId);
+				console.info(`[VOICE] New peer ${userId.slice(0,8)}: I am ${amImpolite ? 'IMPOLITE (will offer)' : 'POLITE (waiting for offer)'}`);
+
 				// Only the impolite peer (higher ID) creates offers
-				if (!this.isPolite(userId)) {
+				if (amImpolite) {
 					try {
 						await this.createAndSendOffer(userId);
 					} catch (err) {
-						console.error(`Failed to create offer for ${userId}:`, err);
+						console.error(`[VOICE] Failed to create offer for ${userId}:`, err);
 					}
 				}
 			}
@@ -907,8 +919,12 @@ class WebRTCManager {
 
 	/// Create a peer connection, add tracks, create offer, and send it.
 	private async createAndSendOffer(userId: string, isRetry = false): Promise<void> {
-		if (!this.sessionId || !voiceStore.activeCall?.localStream) return;
+		if (!this.sessionId || !voiceStore.activeCall?.localStream) {
+			console.warn(`[VOICE] createAndSendOffer(${userId.slice(0,8)}) ABORTED: sessionId=${!!this.sessionId} localStream=${!!voiceStore.activeCall?.localStream}`);
+			return;
+		}
 
+		console.info(`[VOICE] createAndSendOffer(${userId.slice(0,8)}) retry=${isRetry}`);
 		const pc = this.createPeerConnection(userId);
 
 		// Add our local tracks
