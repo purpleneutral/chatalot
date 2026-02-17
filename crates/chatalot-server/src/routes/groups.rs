@@ -727,14 +727,16 @@ async fn create_group_channel(
         _ => return Err(AppError::Validation("invalid channel type".to_string())),
     };
 
-    if req.name.is_empty() || req.name.len() > 64 {
+    let name = req.name.trim();
+    if name.is_empty() || name.len() > 64 {
         return Err(AppError::Validation(
             "channel name must be 1-64 characters".to_string(),
         ));
     }
 
-    if let Some(ref topic) = req.topic
-        && topic.len() > 512
+    let topic = req.topic.as_deref().map(str::trim);
+    if let Some(t) = topic
+        && t.len() > 512
     {
         return Err(AppError::Validation(
             "topic must be at most 512 characters".to_string(),
@@ -756,9 +758,9 @@ async fn create_group_channel(
     let channel = channel_repo::create_channel(
         &state.db,
         channel_id,
-        &req.name,
+        name,
         channel_type,
-        req.topic.as_deref(),
+        topic,
         claims.sub,
         Some(group_id),
     )

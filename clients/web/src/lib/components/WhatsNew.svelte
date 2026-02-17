@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.27',
+			date: '2026-02-17',
+			changes: [
+				'Security: DM authorization checks now fail closed on database errors (was silently allowing messages)',
+				'Security: users can no longer spoof System or Webhook message types via WebSocket',
+				'Security: nonce size now validated (max 256 bytes) for messages and edits',
+				'Fix: channel owners can no longer leave and orphan their channels',
+				'Fix: channel name and topic now trimmed on creation (consistent with update)',
+			]
+		},
+		{
 			version: '0.18.26',
 			date: '2026-02-17',
 			changes: [

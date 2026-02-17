@@ -270,6 +270,15 @@ async fn handle_client_message(
                 return;
             }
 
+            // Reject oversized nonce (256 bytes max — crypto nonces are 12-24 bytes)
+            if nonce.len() > 256 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "nonce too large".to_string(),
+                });
+                return;
+            }
+
             // Verify membership
             match channel_repo::is_member(&state.db, channel_id, user_id).await {
                 Ok(true) => {}
@@ -362,8 +371,18 @@ async fn handle_client_message(
             // For DM channels, check blocks and shared community
             if channel.channel_type == ChannelType::Dm {
                 // Find the other user in this DM
-                if let Ok(members) = channel_repo::list_members(&state.db, channel_id).await {
-                    for member in &members {
+                let members = match channel_repo::list_members(&state.db, channel_id).await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        tracing::error!("Failed to list DM members: {e}");
+                        let _ = tx.send(ServerMessage::Error {
+                            code: "error".to_string(),
+                            message: "could not verify DM membership".to_string(),
+                        });
+                        return;
+                    }
+                };
+                for member in &members {
                         if member.user_id != user_id {
                             // Check if either user has blocked the other
                             if let Ok(true) = block_repo::is_blocked_either_way(
@@ -397,12 +416,16 @@ async fn handle_client_message(
                                 }
                                 Err(e) => {
                                     tracing::error!("Failed to check shared community: {e}");
+                                    let _ = tx.send(ServerMessage::Error {
+                                        code: "error".to_string(),
+                                        message: "could not verify shared community".to_string(),
+                                    });
+                                    return;
                                 }
                                 _ => {}
                             }
                         }
                     }
-                }
             }
 
             // Validate reply_to references a message in the same channel
@@ -453,11 +476,17 @@ async fn handle_client_message(
                 None
             };
 
+            // Only allow Text and File from clients; System/Webhook are server-only
             let msg_type_str = match message_type {
                 MessageType::Text => "text",
                 MessageType::File => "file",
-                MessageType::System => "system",
-                MessageType::Webhook => "webhook",
+                MessageType::System | MessageType::Webhook => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "validation_error".to_string(),
+                        message: "invalid message type".to_string(),
+                    });
+                    return;
+                }
             };
 
             let message_id = Uuid::now_v7();
@@ -1055,6 +1084,14 @@ async fn handle_client_message(
                     } else {
                         "message too large".to_string()
                     },
+                });
+                return;
+            }
+
+            if nonce.len() > 256 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "nonce too large".to_string(),
                 });
                 return;
             }
