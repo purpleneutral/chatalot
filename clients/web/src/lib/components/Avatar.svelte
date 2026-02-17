@@ -20,6 +20,15 @@
 	} = $props();
 
 	let imgError = $state(false);
+	let prevUrl = $state<string | null>(null);
+
+	// Reset error state when the avatar URL changes (e.g. user updates their avatar)
+	$effect(() => {
+		if (url !== prevUrl) {
+			prevUrl = url;
+			imgError = false;
+		}
+	});
 
 	const sizeClasses: Record<Size, string> = {
 		xs: 'h-6 w-6',

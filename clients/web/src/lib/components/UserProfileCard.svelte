@@ -180,7 +180,7 @@
 		<!-- Banner / header area -->
 		<div class="relative h-24 overflow-hidden rounded-t-xl">
 			{#if user?.banner_url}
-				<img src={user.banner_url} alt="User banner" class="h-full w-full object-cover" />
+				<img src={user.banner_url} alt="User banner" class="h-full w-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 			{:else}
 				<div class="h-full w-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
 			{/if}

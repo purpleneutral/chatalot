@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.19',
+			date: '2026-02-17',
+			changes: [
+				'Fix: zombie WebSocket connections are now detected and auto-reconnected after 45s of no server response',
+				'Fix: avatars now properly update when a user changes their profile picture (previously stuck on fallback initials)',
+				'Fix: broken banner images in profile and group cards now gracefully hide instead of showing broken image icons',
+			]
+		},
+		{
 			version: '0.18.18',
 			date: '2026-02-17',
 			changes: [

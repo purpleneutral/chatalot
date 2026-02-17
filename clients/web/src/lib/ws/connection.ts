@@ -14,6 +14,7 @@ const QUEUEABLE_TYPES = new Set([
 ]);
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
+const ZOMBIE_TIMEOUT_MS = 45_000; // 3 missed pongs → zombie
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const MAX_OFFLINE_QUEUE_SIZE = 50;
 
@@ -21,12 +22,14 @@ class WebSocketClient {
 	private ws: WebSocket | null = null;
 	private reconnectAttempts = 0;
 	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	private zombieTimer: ReturnType<typeof setInterval> | null = null;
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private handlers: Set<MessageHandler> = new Set();
 	private authenticatedCallback: (() => void) | null = null;
 	private connected = false;
 	private _reconnecting = false;
 	private offlineQueue: ClientMessage[] = [];
+	private lastPongTime = 0;
 
 	get isConnected(): boolean {
 		return this.connected;
@@ -126,6 +129,10 @@ class WebSocketClient {
 	}
 
 	private dispatch(msg: ServerMessage) {
+		if (msg.type === 'pong') {
+			this.lastPongTime = Date.now();
+		}
+
 		if (msg.type === 'authenticated') {
 			const wasReconnecting = this._reconnecting;
 			this.connected = true;
@@ -169,8 +176,16 @@ class WebSocketClient {
 
 	private startHeartbeat() {
 		this.stopHeartbeat();
+		this.lastPongTime = Date.now();
 		this.heartbeatTimer = setInterval(() => {
 			this.send({ type: 'ping', timestamp: Date.now() });
+		}, HEARTBEAT_INTERVAL_MS);
+		// Detect zombie connections (TCP open but no data flowing)
+		this.zombieTimer = setInterval(() => {
+			if (this.connected && Date.now() - this.lastPongTime > ZOMBIE_TIMEOUT_MS) {
+				console.warn('Zombie connection detected — no pong in', ZOMBIE_TIMEOUT_MS, 'ms, forcing reconnect');
+				this.ws?.close();
+			}
 		}, HEARTBEAT_INTERVAL_MS);
 	}
 
@@ -178,6 +193,10 @@ class WebSocketClient {
 		if (this.heartbeatTimer) {
 			clearInterval(this.heartbeatTimer);
 			this.heartbeatTimer = null;
+		}
+		if (this.zombieTimer) {
+			clearInterval(this.zombieTimer);
+			this.zombieTimer = null;
 		}
 	}
 

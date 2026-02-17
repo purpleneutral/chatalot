@@ -288,7 +288,7 @@
 		<!-- Banner -->
 		<div class="relative h-20 overflow-hidden rounded-t-xl" style={group.accent_color ? `background: linear-gradient(135deg, ${group.accent_color}, ${group.accent_color}88)` : ''}>
 			{#if group.banner_url}
-				<img src={group.banner_url} alt="Group banner" class="h-full w-full object-cover" />
+				<img src={group.banner_url} alt="Group banner" class="h-full w-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 			{:else if !group.accent_color}
 				<div class="h-full w-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)]"></div>
 			{/if}
