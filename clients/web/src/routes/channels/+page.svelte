@@ -2711,18 +2711,42 @@
 		}, 300);
 	}
 
-	function selectGif(gif: GifResult) {
+	async function selectGif(gif: GifResult) {
 		showGifPicker = false;
 		gifSearchQuery = '';
-		// Send the GIF URL directly
 		const channelId = channelStore.activeChannelId;
 		if (!channelId) return;
-		wsClient.send({
+
+		const { ciphertext, nonce } = await encryptContent(channelId, gif.url);
+
+		// Optimistic add
+		const tempId = `temp-${Date.now()}`;
+		messageStore.addMessage(channelId, {
+			id: tempId,
+			channelId,
+			senderId: authStore.user?.id ?? '',
+			content: gif.url,
+			messageType: 'text',
+			replyToId: null,
+			editedAt: null,
+			createdAt: new Date().toISOString(),
+			pending: true
+		});
+
+		const sent = wsClient.send({
 			type: 'send_message',
 			channel_id: channelId,
-			content: gif.url,
-			nonce: crypto.randomUUID(),
+			ciphertext,
+			nonce,
+			message_type: 'text',
+			reply_to: null,
+			sender_key_id: null
 		});
+
+		if (!sent) {
+			messageStore.removeMessage(channelId, tempId);
+			toastStore.error('GIF not sent — connection lost');
+		}
 	}
 
 	function markAllRead() {
@@ -5992,7 +6016,7 @@
 					{/if}
 					<!-- GIF picker panel -->
 					{#if showGifPicker}
-						<div class="absolute bottom-full right-1 md:right-4 z-20 mb-1 w-80 max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
+						<div class="absolute bottom-full left-1 md:left-4 z-20 mb-1 w-80 max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
 							<div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
 								<input
