@@ -2712,13 +2712,16 @@
 	}
 
 	function selectGif(gif: GifResult) {
-		messageInput = gif.url;
 		showGifPicker = false;
 		gifSearchQuery = '';
-		// Auto-send the GIF
-		tick().then(() => {
-			const form = document.querySelector('form[onsubmit]') as HTMLFormElement;
-			form?.requestSubmit();
+		// Send the GIF URL directly
+		const channelId = channelStore.activeChannelId;
+		if (!channelId) return;
+		wsClient.send({
+			type: 'send_message',
+			channel_id: channelId,
+			content: gif.url,
+			nonce: crypto.randomUUID(),
 		});
 	}
 
@@ -5989,7 +5992,7 @@
 					{/if}
 					<!-- GIF picker panel -->
 					{#if showGifPicker}
-						<div class="absolute bottom-full left-0 right-0 z-20 mb-1 mx-1 md:mx-4 max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
+						<div class="absolute bottom-full right-1 md:right-4 z-20 mb-1 w-80 max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
 							<div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
 								<input

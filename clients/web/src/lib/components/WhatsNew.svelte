@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.2',
+			date: '2026-02-16',
+			changes: [
+				'GIF picker: auto-sends when clicked instead of pasting URL into input',
+				'GIF picker: compact width, right-aligned near GIF button',
+			]
+		},
+		{
 			version: '0.18.1',
 			date: '2026-02-16',
 			changes: [
