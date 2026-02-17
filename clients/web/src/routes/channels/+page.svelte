@@ -1999,7 +1999,7 @@
 		if (e.key === 'ArrowUp' && !messageInput.trim()) {
 			const myId = authStore.user?.id;
 			if (myId) {
-				const lastOwn = [...messages].reverse().find(m => m.senderId === myId && !m.pending);
+				const lastOwn = [...messages].reverse().find(m => m.senderId === myId && !m.pending && m.messageType !== 'file');
 				if (lastOwn) {
 					e.preventDefault();
 					startEditMessage(lastOwn);
@@ -2135,6 +2135,12 @@
 		const file = fileArg || fileInputEl?.files?.[0];
 		if (!file || !channelStore.activeChannelId) return;
 
+		const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB (matches server default)
+		if (file.size > MAX_FILE_SIZE) {
+			toastStore.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 100 MB.`);
+			return;
+		}
+
 		const channelId = channelStore.activeChannelId;
 		uploading = true;
 		try {
@@ -2246,6 +2252,7 @@
 	}
 
 	async function startEditMessage(msg: ChatMessage) {
+		if (msg.messageType === 'file') return;
 		editingMessageId = msg.id;
 		editInput = msg.content;
 		contextMenuMessageId = null;
@@ -6167,13 +6174,15 @@
 							{/if}
 							{#if ctxMsg.senderId === authStore.user?.id}
 								<div class="my-1 border-t border-white/10"></div>
-								<button
-									onclick={() => { startEditMessage(ctxMsg); contextMenuMessageId = null; }}
-									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
-								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-									Edit
-								</button>
+								{#if ctxMsg.messageType !== 'file'}
+									<button
+										onclick={() => { startEditMessage(ctxMsg); contextMenuMessageId = null; }}
+										class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+										Edit
+									</button>
+								{/if}
 								<button
 									onclick={() => { handleDeleteMessage(ctxMsg.id); contextMenuMessageId = null; }}
 									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"

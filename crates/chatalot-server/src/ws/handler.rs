@@ -1331,7 +1331,8 @@ async fn broadcast_presence(
         "online" => chatalot_common::ws_messages::PresenceStatus::Online,
         "idle" => chatalot_common::ws_messages::PresenceStatus::Idle,
         "dnd" => chatalot_common::ws_messages::PresenceStatus::Dnd,
-        "invisible" => chatalot_common::ws_messages::PresenceStatus::Invisible,
+        // Invisible users appear as offline to others
+        "invisible" => chatalot_common::ws_messages::PresenceStatus::Offline,
         _ => chatalot_common::ws_messages::PresenceStatus::Offline,
     };
 

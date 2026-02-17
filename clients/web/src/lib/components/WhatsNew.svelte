@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.23',
+			date: '2026-02-17',
+			changes: [
+				'Security: invisible status no longer leaked to other users (now correctly appears as offline)',
+				'Fix: file messages can no longer be edited (prevented data corruption from editing file metadata)',
+				'Fix: Up arrow shortcut now skips file messages when looking for last editable message',
+				'QoL: client-side file size check prevents wasted bandwidth on oversized uploads (100 MB limit)',
+			]
+		},
+		{
 			version: '0.18.22',
 			date: '2026-02-17',
 			changes: [
