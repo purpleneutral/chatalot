@@ -162,6 +162,9 @@
 		};
 	}
 
+	// Platform detection for keyboard shortcut display
+	const modKey = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'Cmd' : 'Ctrl';
+
 	// File upload state
 	let fileInputEl: HTMLInputElement | undefined = $state();
 	let uploading = $state(false);
@@ -1460,6 +1463,8 @@
 			const activeId = channelStore.activeChannelId;
 			if (activeId) {
 				getMessages(activeId, undefined, FETCH_LIMIT).then(rawMessages => {
+					// Guard: channel may have changed during the fetch
+					if (channelStore.activeChannelId !== activeId) return;
 					const reversed = rawMessages.reverse();
 					const chatMsgs: ChatMessage[] = reversed.map(m => ({
 						id: m.id,
@@ -3848,7 +3853,7 @@
 						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 					</svg>
 					<span>Search...</span>
-					<kbd class="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--text-tertiary)]">Ctrl+K</kbd>
+					<kbd class="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--text-tertiary)]">{modKey}+K</kbd>
 				</button>
 			</div>
 
@@ -6244,10 +6249,10 @@
 					{#if preferencesStore.preferences.showFormattingToolbar}
 					<div class="mt-1 hidden sm:flex items-center gap-1">
 						<div class="flex items-center gap-0.5">
-							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Bold (Ctrl+B)">B</button>
-							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Italic (Ctrl+I)">I</button>
+							<button type="button" onclick={() => wrapSelection('**', '**')} class="rounded px-1.5 py-0.5 text-xs font-bold text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Bold ({modKey}+B)">B</button>
+							<button type="button" onclick={() => wrapSelection('*', '*')} class="rounded px-1.5 py-0.5 text-xs italic text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Italic ({modKey}+I)">I</button>
 							<button type="button" onclick={() => wrapSelection('~~', '~~')} class="rounded px-1.5 py-0.5 text-xs line-through text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Strikethrough">S</button>
-							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Code (Ctrl+E)">&lt;&gt;</button>
+							<button type="button" onclick={() => wrapSelection('`', '`')} class="rounded px-1.5 py-0.5 text-xs font-mono text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Code ({modKey}+E)">&lt;&gt;</button>
 							<button type="button" onclick={() => wrapSelection('[', '](url)')} class="rounded px-1.5 py-0.5 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] focus:bg-white/10 focus:outline-none" title="Link" aria-label="Insert link">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
 							</button>
@@ -6258,7 +6263,7 @@
 								<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> send</span>
 								<span><kbd class="rounded bg-white/5 px-1">Shift+Enter</kbd> new line</span>
 							{:else}
-								<span><kbd class="rounded bg-white/5 px-1">Ctrl+Enter</kbd> send</span>
+								<span><kbd class="rounded bg-white/5 px-1">{modKey}+Enter</kbd> send</span>
 								<span><kbd class="rounded bg-white/5 px-1">Enter</kbd> new line</span>
 							{/if}
 							<span class="hidden sm:inline"><kbd class="rounded bg-white/5 px-1">↑</kbd> edit last</span>
@@ -7252,7 +7257,7 @@
 					<div class="col-span-2 mt-1 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Messages</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Send message</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{preferencesStore.preferences.sendBehavior === 'enter' ? 'Enter' : 'Ctrl+Enter'}</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{preferencesStore.preferences.sendBehavior === 'enter' ? 'Enter' : `${modKey}+Enter`}</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">New line</span>
@@ -7261,24 +7266,24 @@
 					<div class="col-span-2 mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Formatting</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Bold</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+B</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{modKey}+B</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Italic</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+I</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{modKey}+I</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Inline code</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+E</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{modKey}+E</kbd>
 					</div>
 					<div class="col-span-2 mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigation</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Quick switcher</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+K</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{modKey}+K</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Search messages</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+F</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{modKey}+F</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Show shortcuts</span>
@@ -7294,7 +7299,7 @@
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Focus message input</span>
-						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">Ctrl+T</kbd>
+						<kbd class="rounded bg-white/10 px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">{modKey}+T</kbd>
 					</div>
 					<div class="flex items-center justify-between">
 						<span class="text-[var(--text-secondary)]">Mark all read</span>

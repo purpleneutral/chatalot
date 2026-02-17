@@ -25,6 +25,8 @@
 	let searchQuery = $state('');
 	let searchTimeout: ReturnType<typeof setTimeout>;
 	let resettingPasswordId = $state<string | null>(null);
+	let resetPasswordUser = $state<AdminUser | null>(null);
+	let resetPasswordInput = $state('');
 
 	// ── Invites ──
 	let invites = $state<RegistrationInvite[]>([]);
@@ -160,15 +162,19 @@
 		}
 	}
 
-	async function handleResetPassword(user: AdminUser) {
-		const newPassword = prompt(
-			`Reset password for ${user.username}\n\nRequirements: 8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character\n\nEnter new password:`
-		);
-		if (!newPassword) return;
-		resettingPasswordId = user.id;
+	function handleResetPassword(user: AdminUser) {
+		resetPasswordUser = user;
+		resetPasswordInput = '';
+	}
+
+	async function submitResetPassword() {
+		if (!resetPasswordUser || !resetPasswordInput) return;
+		resettingPasswordId = resetPasswordUser.id;
 		try {
-			await resetUserPassword(user.id, newPassword);
-			toastStore.success(`Password reset for ${user.username}`);
+			await resetUserPassword(resetPasswordUser.id, resetPasswordInput);
+			toastStore.success(`Password reset for ${resetPasswordUser.username}`);
+			resetPasswordUser = null;
+			resetPasswordInput = '';
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to reset password');
 		} finally {
@@ -1038,4 +1044,32 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Reset Password Modal -->
+	{#if resetPasswordUser}
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onclick={() => { resetPasswordUser = null; }} onkeydown={(e) => { if (e.key === 'Escape') resetPasswordUser = null; }}>
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+			<form onsubmit={(e) => { e.preventDefault(); submitResetPassword(); }} class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<h3 class="mb-1 text-lg font-bold text-[var(--text-primary)]">Reset Password</h3>
+				<p class="mb-4 text-sm text-[var(--text-secondary)]">Set a new password for <strong>{resetPasswordUser.username}</strong></p>
+				<input
+					type="password"
+					bind:value={resetPasswordInput}
+					placeholder="New password"
+					required
+					minlength="8"
+					autofocus
+					class="mb-2 w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+				/>
+				<p class="mb-4 text-xs text-[var(--text-secondary)]">8+ chars, uppercase, lowercase, digit, special character</p>
+				<div class="flex justify-end gap-2">
+					<button type="button" onclick={() => { resetPasswordUser = null; }} class="rounded-lg px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5">Cancel</button>
+					<button type="submit" disabled={resettingPasswordId !== null || resetPasswordInput.length < 8} class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-600 disabled:opacity-50">
+						{resettingPasswordId ? 'Resetting...' : 'Reset Password'}
+					</button>
+				</div>
+			</form>
+		</div>
+	{/if}
 {/if}
