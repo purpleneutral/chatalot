@@ -967,6 +967,12 @@
 	);
 
 	function subscribeToAllChannels() {
+		// Rejoin voice call FIRST — send join_voice before subscribe so the
+		// server has us in the voice session before the subscribe handler
+		// sends VoiceStateUpdate to us. This prevents a race where we get
+		// a premature participant list that triggers dead peer connections.
+		webrtcManager.rejoinAfterReconnect();
+
 		const groupChannelIds = Array.from(groupChannelsMap.values()).flat().map(c => c.id);
 		const allIds = [
 			...channelStore.channels.map(c => c.id),
@@ -985,10 +991,6 @@
 		if (savedStatus && savedStatus !== 'online') {
 			wsClient.send({ type: 'update_presence', status: savedStatus });
 		}
-
-		// Rejoin voice call if we were in one — clean up dead peers first so
-		// the VoiceStateUpdate from the server re-establishes the full mesh.
-		webrtcManager.rejoinAfterReconnect();
 	}
 
 	function setUserStatus(status: 'online' | 'idle' | 'dnd' | 'invisible') {
@@ -1211,6 +1213,10 @@
 
 		// Idle detection
 		setupIdleDetection();
+
+		// Leave voice call on page unload (refresh/close) so the server cleans up
+		// immediately instead of waiting for the 15s grace period
+		window.addEventListener('beforeunload', handleBeforeUnload);
 	});
 
 	onDestroy(() => {
@@ -1234,6 +1240,7 @@
 		window.removeEventListener('chatalot:thread-message-edited', handleThreadMessageEdited as EventListener);
 		window.removeEventListener('chatalot:thread-message-deleted', handleThreadMessageDeleted as EventListener);
 		window.removeEventListener('chatalot:thread-reaction-updated', handleThreadReactionUpdated as EventListener);
+		window.removeEventListener('beforeunload', handleBeforeUnload);
 
 		// Clean up timers
 		if (typingTimeout) clearTimeout(typingTimeout);
@@ -2736,6 +2743,12 @@
 			&& e.key === preferencesStore.preferences.pttKey) {
 			pttActive = false;
 			voiceStore.setAudioEnabled(false);
+		}
+	}
+
+	function handleBeforeUnload() {
+		if (voiceStore.isInCall && voiceStore.activeCall?.channelId) {
+			wsClient.send({ type: 'leave_voice', channel_id: voiceStore.activeCall.channelId });
 		}
 	}
 

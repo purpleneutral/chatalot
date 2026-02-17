@@ -887,6 +887,14 @@ async fn handle_client_message(
                     if let Ok(participants) =
                         voice_repo::get_participants(&state.db, session.id).await
                     {
+                        // Send directly to the joining user — they may not have
+                        // a channel subscription yet (e.g. during WS reconnect
+                        // where join_voice is sent before subscribe).
+                        let _ = tx.send(ServerMessage::VoiceStateUpdate {
+                            channel_id,
+                            participants: participants.clone(),
+                        });
+
                         // Broadcast full participant list to everyone in the channel
                         // so all clients can establish missing peer connections
                         conn_mgr.broadcast_to_channel(

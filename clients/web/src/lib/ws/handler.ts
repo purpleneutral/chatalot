@@ -218,6 +218,13 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		// Voice/Video
 		case 'voice_state_update': {
+			// If the server shows us as a participant but we have no active call
+			// (e.g. page was refreshed), leave the stale session immediately
+			const myId = authStore.user?.id;
+			if (myId && msg.participants.includes(myId) && !voiceStore.isInCall) {
+				wsClient.send({ type: 'leave_voice', channel_id: msg.channel_id });
+				break;
+			}
 			webrtcManager.onVoiceStateUpdate(msg.channel_id, msg.participants);
 			for (const uid of msg.participants) {
 				ensureUser(uid);

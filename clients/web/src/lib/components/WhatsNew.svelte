@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.1',
+			date: '2026-02-16',
+			changes: [
+				'Fix: voice mesh race condition — join_voice now sent before subscribe to prevent premature peer connections during WebSocket reconnect',
+				'Fix: server sends voice state directly to joining user, ensuring mesh setup even before channel subscription is active',
+				'Fix: stale voice sessions auto-cleaned when server shows you as participant but you have no active call',
+				'Fix: voice call properly leaves on page close/refresh instead of waiting for 15s grace period',
+			]
+		},
+		{
 			version: '0.18.0',
 			date: '2026-02-16',
 			changes: [
