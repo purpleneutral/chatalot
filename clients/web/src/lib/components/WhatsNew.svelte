@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.26',
+			date: '2026-02-17',
+			changes: [
+				'Fix: single-select poll vote changes now correctly update counts for all users (was only decrementing locally)',
+				'Fix: anonymous single-select polls now properly decrement old option count when changing vote',
+				'Security: scheduled message ciphertext/nonce size now validated (max 100 KB / 256 bytes)',
+			]
+		},
+		{
 			version: '0.18.25',
 			date: '2026-02-17',
 			changes: [

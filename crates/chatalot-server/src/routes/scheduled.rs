@@ -55,6 +55,16 @@ async fn schedule_message(
         ));
     }
 
+    // Cap sizes to prevent abuse (100 KB ciphertext, 256 bytes nonce)
+    if req.ciphertext.len() > 100_000 {
+        return Err(AppError::Validation(
+            "ciphertext too large (max 100 KB)".into(),
+        ));
+    }
+    if req.nonce.len() > 256 {
+        return Err(AppError::Validation("nonce too large (max 256 bytes)".into()));
+    }
+
     // Enforce per-user limit
     let existing = scheduled_message_repo::list_for_user(&state.db, claims.sub).await?;
     if existing.len() >= MAX_SCHEDULED_PER_USER {

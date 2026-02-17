@@ -118,15 +118,18 @@ pub async fn list_for_channel(pool: &PgPool, channel_id: Uuid) -> Result<Vec<Pol
 }
 
 /// Remove all votes for a user in a poll (for switching single-select votes).
+/// Returns the option indices that were removed.
 pub async fn remove_all_votes_for_user(
     pool: &PgPool,
     poll_id: Uuid,
     user_id: Uuid,
-) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2")
-        .bind(poll_id)
-        .bind(user_id)
-        .execute(pool)
-        .await?;
-    Ok(result.rows_affected())
+) -> Result<Vec<i32>, sqlx::Error> {
+    let rows: Vec<(i32,)> = sqlx::query_as(
+        "DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2 RETURNING option_index",
+    )
+    .bind(poll_id)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(idx,)| idx).collect())
 }

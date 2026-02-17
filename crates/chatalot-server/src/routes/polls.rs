@@ -176,9 +176,11 @@ async fn vote_poll(
         return Err(AppError::Validation("invalid option index".into()));
     }
 
-    // For single-select, remove previous votes first
+    // For single-select, remove previous votes first and broadcast removals
+    let mut removed_indices = Vec::new();
     if !poll.multi_select {
-        poll_repo::remove_all_votes_for_user(&state.db, poll_id, claims.sub).await?;
+        removed_indices =
+            poll_repo::remove_all_votes_for_user(&state.db, poll_id, claims.sub).await?;
     }
 
     let vote_id = Uuid::now_v7();
@@ -193,6 +195,22 @@ async fn vote_poll(
     } else {
         Some(claims.sub)
     };
+
+    // Broadcast removal of old votes so other clients decrement counts
+    for old_idx in &removed_indices {
+        if *old_idx != req.option_index {
+            state.connections.broadcast_to_channel(
+                poll.channel_id,
+                ServerMessage::PollVoteRemoved {
+                    poll_id,
+                    channel_id: poll.channel_id,
+                    option_index: *old_idx,
+                    voter_id,
+                },
+            );
+        }
+    }
+
     state.connections.broadcast_to_channel(
         poll.channel_id,
         ServerMessage::PollVoted {

@@ -2666,6 +2666,7 @@
 					return { ...p, votes: p.votes.map((v, i) => i === optionIndex ? { ...v, count: Math.max(0, v.count - 1), voter_ids: v.voter_ids.filter(id => id !== userId) } : v) };
 				});
 			} else {
+				const prevAnonVotes = poll.anonymous ? (anonVotes[pollId] ?? []) : [];
 				await votePoll(pollId, optionIndex);
 				if (poll.anonymous) saveAnonVote(pollId, optionIndex, poll.multi_select);
 				// For single-select, remove previous votes first (optimistic)
@@ -2675,8 +2676,13 @@
 						if (i === optionIndex) {
 							return { ...v, count: v.count + 1, voter_ids: p.anonymous ? v.voter_ids : [...v.voter_ids, userId] };
 						}
-						if (!p.multi_select && !p.anonymous && v.voter_ids.includes(userId)) {
-							return { ...v, count: Math.max(0, v.count - 1), voter_ids: v.voter_ids.filter(id => id !== userId) };
+						if (!p.multi_select) {
+							const hadVote = p.anonymous
+								? prevAnonVotes.includes(i)
+								: v.voter_ids.includes(userId);
+							if (hadVote) {
+								return { ...v, count: Math.max(0, v.count - 1), voter_ids: p.anonymous ? v.voter_ids : v.voter_ids.filter(id => id !== userId) };
+							}
 						}
 						return v;
 					});
