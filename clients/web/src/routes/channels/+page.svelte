@@ -1488,6 +1488,7 @@
 		const { messageId } = e.detail;
 		if (activeThreadRoot?.id === messageId) {
 			closeThread();
+			toastStore.error('Thread was deleted');
 			return;
 		}
 		threadMessages = threadMessages.filter(m => m.id !== messageId);
@@ -2301,6 +2302,8 @@
 		const sent = wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
 		if (!sent) {
 			toastStore.error('Cannot edit message while offline');
+			editingMessageId = null;
+			editInput = '';
 			return;
 		}
 		messageStore.editMessage(messageId, text, new Date().toISOString());

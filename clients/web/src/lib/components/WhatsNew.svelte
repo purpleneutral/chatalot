@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.39',
+			date: '2026-02-17',
+			changes: [
+				'Fix: edit mode now closes properly when attempting to edit while offline',
+				'Fix: thread panel shows notification toast when thread root is deleted',
+			]
+		},
+		{
 			version: '0.18.38',
 			date: '2026-02-17',
 			changes: [
