@@ -18,9 +18,6 @@
 	let remoteVideoEls = $state<Map<string, HTMLVideoElement>>(new Map());
 	let remoteScreenEls = $state<Map<string, HTMLVideoElement>>(new Map());
 
-	// Hidden audio elements for remote participant audio (video elements are muted)
-	let remoteAudioEls = $state<Map<string, HTMLAudioElement>>(new Map());
-
 	// Hidden audio elements for screen share audio (separate from muted video)
 	let screenAudioEls = $state<Map<string, HTMLAudioElement>>(new Map());
 
@@ -61,18 +58,9 @@
 		}
 	});
 
-	// Attach remote streams to hidden audio elements and apply output volume
+	// Sync output volume to WebRTC manager's audio elements
 	$effect(() => {
-		const vol = preferencesStore.preferences.outputVolume / 100;
-		for (const [userId, stream] of voiceStore.remoteStreams) {
-			const el = remoteAudioEls.get(userId);
-			if (el) {
-				if (el.srcObject !== stream) {
-					el.srcObject = stream;
-				}
-				el.volume = vol;
-			}
-		}
+		webrtcManager.updateOutputVolume(preferencesStore.preferences.outputVolume);
 	});
 
 	// Attach remote screen share streams to audio elements and apply volume/mute
@@ -113,26 +101,6 @@
 				const next = new Map(remoteVideoEls);
 				next.delete(userId);
 				remoteVideoEls = next;
-			}
-		};
-	}
-
-	function bindRemoteAudio(node: HTMLAudioElement, userId: string) {
-		const next = new Map(remoteAudioEls);
-		next.set(userId, node);
-		remoteAudioEls = next;
-
-		const stream = voiceStore.remoteStreams.get(userId);
-		if (stream) {
-			node.srcObject = stream;
-			node.volume = preferencesStore.preferences.outputVolume / 100;
-		}
-
-		return {
-			destroy() {
-				const next = new Map(remoteAudioEls);
-				next.delete(userId);
-				remoteAudioEls = next;
 			}
 		};
 	}
@@ -245,11 +213,6 @@
 {/snippet}
 
 {#if voiceStore.isInCall}
-	<!-- Hidden audio elements for remote participant audio (video elements are muted to prevent echo) -->
-	{#each remoteEntries as [userId]}
-		<audio autoplay use:bindRemoteAudio={userId} class="hidden"></audio>
-	{/each}
-
 	<div class="{expanded ? 'flex-1 min-h-0' : 'max-h-[500px]'} overflow-hidden border-b border-white/10 {expanded ? 'flex flex-col' : ''}"
 		style="{channelAmbianceStyle || 'background: var(--bg-secondary);'}">
 

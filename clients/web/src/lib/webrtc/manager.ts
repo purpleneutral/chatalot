@@ -57,6 +57,9 @@ class WebRTCManager {
 	// Guard against concurrent audio pipeline rebuilds
 	private rebuildingPipeline = false;
 
+	// Hidden audio elements for playing remote participant audio
+	private remoteAudioElements = new Map<string, HTMLAudioElement>();
+
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
 	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
@@ -106,6 +109,7 @@ class WebRTCManager {
 			this.stopMonitoringStream(userId);
 			voiceStore.removeRemoteStream(userId);
 			voiceStore.removeRemoteScreenStream(userId);
+			this.stopRemoteAudio(userId);
 		}
 		this.peers.clear();
 		this.pendingCandidates.clear();
@@ -268,11 +272,12 @@ class WebRTCManager {
 		// Tell server we're leaving
 		wsClient.send({ type: 'leave_voice', channel_id: this.channelId });
 
-		// Close all peer connections
+		// Close all peer connections and stop remote audio
 		for (const [userId, pc] of this.peers) {
 			pc.close();
 			voiceStore.removeRemoteStream(userId);
 			voiceStore.removeRemoteScreenStream(userId);
+			this.stopRemoteAudio(userId);
 		}
 		this.peers.clear();
 		this.pendingCandidates.clear();
@@ -725,11 +730,46 @@ class WebRTCManager {
 		await this.createAndSendOffer(userId);
 	}
 
+	/// Play remote audio for a user through a hidden audio element.
+	private playRemoteAudio(userId: string, stream: MediaStream): void {
+		// Clean up existing element if any
+		this.stopRemoteAudio(userId);
+
+		const audio = new Audio();
+		audio.autoplay = true;
+		audio.volume = preferencesStore.preferences.outputVolume / 100;
+		audio.srcObject = stream;
+		audio.play().catch(err => {
+			console.warn(`[VOICE] Failed to play remote audio for ${userId.slice(0,8)}:`, err);
+		});
+		this.remoteAudioElements.set(userId, audio);
+		console.info(`[VOICE] Playing remote audio for ${userId.slice(0,8)}`);
+	}
+
+	/// Stop remote audio playback for a user.
+	private stopRemoteAudio(userId: string): void {
+		const audio = this.remoteAudioElements.get(userId);
+		if (audio) {
+			audio.pause();
+			audio.srcObject = null;
+			this.remoteAudioElements.delete(userId);
+		}
+	}
+
+	/// Update output volume for all remote audio elements.
+	updateOutputVolume(volume: number): void {
+		const vol = volume / 100;
+		for (const audio of this.remoteAudioElements.values()) {
+			audio.volume = vol;
+		}
+	}
+
 	/// Called when a user leaves the voice channel.
 	onUserLeft(userId: string): void {
 		this.clearDisconnectTimeout(userId);
 		this.clearAnswerTimeout(userId);
 		this.stopMonitoringStream(userId);
+		this.stopRemoteAudio(userId);
 		voiceStore.setRemoteVideo(userId, false);
 		voiceStore.removeRemoteScreenStream(userId);
 		this.mainStreamIds.delete(userId);
@@ -1015,6 +1055,7 @@ class WebRTCManager {
 				// First stream from this user = main stream (audio/camera)
 				this.mainStreamIds.set(userId, stream.id);
 				voiceStore.addRemoteStream(userId, stream);
+				this.playRemoteAudio(userId, stream);
 				this.monitorStream(userId, stream);
 			} else if (stream.id === knownMainId) {
 				// Additional track on the main stream (e.g., camera toggled on)
