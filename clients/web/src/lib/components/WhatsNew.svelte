@@ -16,12 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.18.3',
+			version: '0.18.4',
 			date: '2026-02-17',
 			changes: [
+				'Keyboard shortcuts now show Cmd on Mac, Ctrl on other platforms',
+				'Admin: password reset uses a proper modal form instead of browser prompt',
+				'Fix: reconnect message reload guards against stale channel',
 				'GIFs freeze when window loses focus, resume on return',
 				'Fix: edit/reply state properly reset when switching channels',
-				'Reduced voice call console noise (removed 11 diagnostic logs)',
 			]
 		},
 		{
