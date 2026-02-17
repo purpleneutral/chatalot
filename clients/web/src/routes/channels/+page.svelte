@@ -2461,10 +2461,17 @@
 	}
 
 	async function startDmFromProfileCard(targetUserId: string) {
-		const user = userStore.getUser(targetUserId);
-		if (user) {
-			await startDm(user);
+		let user = userStore.getUser(targetUserId);
+		if (!user) {
+			try {
+				user = await getUser(targetUserId);
+				userStore.setUser(user);
+			} catch {
+				toastStore.error('Failed to open DM');
+				return;
+			}
 		}
+		await startDm(user);
 	}
 
 	async function loadPinnedMessages() {
@@ -4328,6 +4335,7 @@
 						type="text"
 						bind:value={newGroupDescription}
 						placeholder="Description (optional)..."
+						maxlength="2048"
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 					{#if isCommunityModeratorOrAbove() && communityStore.activeCommunityId}
@@ -4636,7 +4644,7 @@
 								{/each}
 
 								<!-- Add channel button (owner/admin) -->
-								{#if group.owner_id === authStore.user?.id}
+								{#if getMyGroupRole(group.id) === 'owner' || getMyGroupRole(group.id) === 'admin'}
 									{#if showGroupChannelCreate === group.id}
 										<form onsubmit={(e) => handleCreateGroupChannel(e, group.id)} class="space-y-1 px-3 py-1.5">
 											<input
@@ -6359,6 +6367,7 @@
 							onclick={toggleGifPicker}
 							class="hidden sm:block shrink-0 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showGifPicker ? 'border-[var(--accent)] text-[var(--accent)]' : ''}"
 							title="GIF"
+							aria-label="Insert GIF"
 						>
 							<span class="text-xs font-bold">GIF</span>
 						</button>

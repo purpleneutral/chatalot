@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.21',
+			date: '2026-02-17',
+			changes: [
+				'Fix: "Send Message" from profile card no longer silently fails when user data is not yet cached',
+				'Fix: group admins can now create channels (previously only group owners could see the button)',
+				'Added maxlength limits to group description, channel name, and channel topic edit fields',
+				'Accessibility: added aria-label to GIF picker button',
+			]
+		},
+		{
 			version: '0.18.20',
 			date: '2026-02-17',
 			changes: [

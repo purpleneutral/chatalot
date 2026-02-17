@@ -309,6 +309,7 @@
 				<div class="mb-2 flex gap-1">
 					<input
 						class="flex-1 rounded border border-white/20 bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)]"
+						maxlength="64"
 						bind:value={editName}
 						onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
 					/>
@@ -343,6 +344,7 @@
 					<textarea
 						class="w-full rounded border border-white/20 bg-[var(--bg-primary)] px-2 py-1 text-sm text-[var(--text-primary)]"
 						rows="2"
+						maxlength="512"
 						bind:value={editTopic}
 						onkeydown={(e) => { if (e.key === 'Escape') editingTopic = false; }}
 					></textarea>
