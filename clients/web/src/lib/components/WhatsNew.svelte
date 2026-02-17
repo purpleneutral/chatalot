@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.25',
+			date: '2026-02-17',
+			changes: [
+				'Cleanup: removed dead remote audio code from WebRTC manager (PersistentAudio handles playback)',
+				'Fix: RemoveReaction now validates emoji length (matches AddReaction validation)',
+			]
+		},
+		{
 			version: '0.18.24',
 			date: '2026-02-17',
 			changes: [

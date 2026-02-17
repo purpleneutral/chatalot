@@ -57,8 +57,6 @@ class WebRTCManager {
 	// Guard against concurrent audio pipeline rebuilds
 	private rebuildingPipeline = false;
 
-	// Hidden audio elements for playing remote participant audio
-	private remoteAudioElements = new Map<string, HTMLAudioElement>();
 
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
@@ -110,7 +108,6 @@ class WebRTCManager {
 				this.stopMonitoringStream(userId);
 				voiceStore.removeRemoteStream(userId);
 				voiceStore.removeRemoteScreenStream(userId);
-				this.stopRemoteAudio(userId);
 				this.peers.delete(userId);
 				this.pendingCandidates.delete(userId);
 				this.mainStreamIds.delete(userId);
@@ -277,12 +274,11 @@ class WebRTCManager {
 		// Tell server we're leaving
 		wsClient.send({ type: 'leave_voice', channel_id: this.channelId });
 
-		// Close all peer connections and stop remote audio
+		// Close all peer connections
 		for (const [userId, pc] of this.peers) {
 			pc.close();
 			voiceStore.removeRemoteStream(userId);
 			voiceStore.removeRemoteScreenStream(userId);
-			this.stopRemoteAudio(userId);
 		}
 		this.peers.clear();
 		this.pendingCandidates.clear();
@@ -745,77 +741,11 @@ class WebRTCManager {
 		await this.createAndSendOffer(userId);
 	}
 
-	/// Play remote audio for a user through a hidden audio element appended to the DOM.
-	private playRemoteAudio(userId: string, stream: MediaStream): void {
-		// Clean up existing element if any
-		this.stopRemoteAudio(userId);
-
-		const audioTracks = stream.getAudioTracks();
-
-		if (audioTracks.length === 0) {
-			console.warn(`[VOICE] No audio tracks in remote stream for ${userId.slice(0,8)}`);
-			return;
-		}
-
-		// Create audio element IN the DOM — some browsers won't route WebRTC
-		// MediaStream audio through a detached Audio() element.
-		const audio = document.createElement('audio');
-		audio.autoplay = true;
-		audio.volume = preferencesStore.preferences.outputVolume / 100;
-		audio.srcObject = stream;
-		audio.style.cssText = 'position:fixed;width:0;height:0;overflow:hidden;pointer-events:none;opacity:0';
-		document.body.appendChild(audio);
-
-		// Set output device if the user has selected one
-		const outputId = audioDeviceStore.selectedOutputId;
-		if (outputId && 'setSinkId' in audio) {
-			(audio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
-				.setSinkId(outputId)
-				.catch((err: unknown) => console.warn(`[VOICE] setSinkId failed for ${userId.slice(0,8)}:`, err));
-		}
-
-		audio.play().then(() => {}).catch(err => {
-			console.warn(`[VOICE] Failed to play remote audio for ${userId.slice(0,8)}:`, err);
-		});
-		this.remoteAudioElements.set(userId, audio);
-	}
-
-	/// Stop remote audio playback for a user.
-	private stopRemoteAudio(userId: string): void {
-		const audio = this.remoteAudioElements.get(userId);
-		if (audio) {
-			audio.pause();
-			audio.srcObject = null;
-			audio.remove(); // Remove from DOM
-			this.remoteAudioElements.delete(userId);
-		}
-	}
-
-	/// Update output volume for all remote audio elements.
-	updateOutputVolume(volume: number): void {
-		const vol = volume / 100;
-		for (const audio of this.remoteAudioElements.values()) {
-			audio.volume = vol;
-		}
-	}
-
-	/// Switch output device on all remote audio elements.
-	updateOutputDevice(deviceId: string): void {
-		for (const audio of this.remoteAudioElements.values()) {
-			if ('setSinkId' in audio) {
-				(audio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
-					.setSinkId(deviceId)
-					.catch((err: unknown) => console.warn('[VOICE] setSinkId failed:', err));
-			}
-		}
-	}
-
 	/// Called when a user leaves the voice channel.
 	onUserLeft(userId: string): void {
 		this.clearDisconnectTimeout(userId);
 		this.clearAnswerTimeout(userId);
 		this.stopMonitoringStream(userId);
-		this.stopRemoteAudio(userId);
 		voiceStore.setRemoteVideo(userId, false);
 		voiceStore.removeRemoteScreenStream(userId);
 		this.mainStreamIds.delete(userId);

@@ -1237,6 +1237,14 @@ async fn handle_client_message(
         }
 
         ClientMessage::RemoveReaction { message_id, emoji } => {
+            if emoji.is_empty() || emoji.len() > 32 {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "invalid emoji".to_string(),
+                });
+                return;
+            }
+
             let msg_record = match message_repo::get_message_by_id(&state.db, message_id).await {
                 Ok(Some(m)) => m,
                 Ok(None) => {

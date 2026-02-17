@@ -58,11 +58,6 @@
 		}
 	});
 
-	// Sync output volume to WebRTC manager's audio elements
-	$effect(() => {
-		webrtcManager.updateOutputVolume(preferencesStore.preferences.outputVolume);
-	});
-
 	// Attach remote screen share streams to audio elements and apply volume/mute
 	$effect(() => {
 		for (const [userId, stream] of voiceStore.remoteScreenStreams) {
