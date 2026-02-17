@@ -32,6 +32,17 @@ use crate::middleware::auth::AccessClaims;
 use crate::middleware::community_gate::CommunityContext;
 use crate::services::css_sanitizer;
 
+/// Role hierarchy for community moderation actions.
+/// owner/instance_admin(3) > admin(2) > moderator(1) > member(0)
+fn community_role_level(role: &str) -> u8 {
+    match role {
+        "owner" | "instance_admin" => 3,
+        "admin" => 2,
+        "moderator" => 1,
+        _ => 0,
+    }
+}
+
 /// Public routes (no community gate — user may not be member).
 pub fn public_routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -666,15 +677,6 @@ async fn kick_member(
             .ok_or_else(|| AppError::NotFound("member not found".to_string()))?;
 
     // Can only kick users with strictly lower role
-    // Hierarchy: owner/instance_admin(3) > admin(2) > moderator(1) > member(0)
-    fn community_role_level(role: &str) -> u8 {
-        match role {
-            "owner" | "instance_admin" => 3,
-            "admin" => 2,
-            "moderator" => 1,
-            _ => 0,
-        }
-    }
     if community_role_level(&ctx.role) <= community_role_level(&target_role) {
         return Err(AppError::Forbidden);
     }
@@ -737,18 +739,9 @@ async fn ban_member(
     // Can only ban users with strictly lower role
     if let Some(target_role) =
         community_repo::get_community_member_role(&state.db, ctx.community_id, path.uid).await?
+        && community_role_level(&ctx.role) <= community_role_level(&target_role)
     {
-        fn community_role_level(role: &str) -> u8 {
-            match role {
-                "owner" | "instance_admin" => 3,
-                "admin" => 2,
-                "moderator" => 1,
-                _ => 0,
-            }
-        }
-        if community_role_level(&ctx.role) <= community_role_level(&target_role) {
-            return Err(AppError::Forbidden);
-        }
+        return Err(AppError::Forbidden);
     }
 
     let reason = req
@@ -997,6 +990,14 @@ async fn create_timeout(
         ));
     }
 
+    // Cannot timeout users with equal or higher community role
+    if let Some(target_role) =
+        community_repo::get_community_member_role(&state.db, path.cid, req.user_id).await?
+        && community_role_level(&ctx.role) <= community_role_level(&target_role)
+    {
+        return Err(AppError::Forbidden);
+    }
+
     if req.duration_seconds < 60 || req.duration_seconds > 30 * 24 * 3600 {
         return Err(AppError::Validation(
             "duration must be between 60 seconds and 30 days".into(),
@@ -1097,6 +1098,14 @@ async fn create_warning(
         return Err(AppError::Forbidden);
     }
     verify_channel_community(&state.db, path.chid, path.cid).await?;
+
+    // Enforce role hierarchy — can't warn someone at or above your role
+    if let Some(target_role) =
+        community_repo::get_community_member_role(&state.db, path.cid, req.user_id).await?
+        && community_role_level(&ctx.role) <= community_role_level(&target_role)
+    {
+        return Err(AppError::Forbidden);
+    }
 
     // Verify the target user is a member of this channel
     if !channel_repo::is_member(&state.db, path.chid, req.user_id)

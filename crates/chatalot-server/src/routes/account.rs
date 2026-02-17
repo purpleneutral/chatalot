@@ -277,6 +277,15 @@ async fn upload_avatar(
         ));
     }
 
+    // Validate magic bytes match the declared content type
+    let detected = crate::services::file_security::validate_file_type(&data)
+        .map_err(|reason| AppError::Validation(format!("invalid file: {reason}")))?;
+    if detected != ct {
+        return Err(AppError::Validation(
+            "file content does not match declared image type".into(),
+        ));
+    }
+
     let ext = match ct {
         "image/png" => "png",
         "image/jpeg" => "jpg",
@@ -385,6 +394,14 @@ async fn upload_banner(
         ));
     }
 
+    let detected = crate::services::file_security::validate_file_type(&data)
+        .map_err(|reason| AppError::Validation(format!("invalid file: {reason}")))?;
+    if detected != ct {
+        return Err(AppError::Validation(
+            "file content does not match declared image type".into(),
+        ));
+    }
+
     let ext = match ct {
         "image/png" => "png",
         "image/jpeg" => "jpg",
@@ -488,6 +505,14 @@ async fn upload_voice_background(
     if !ALLOWED_TYPES.contains(&ct) {
         return Err(AppError::Validation(
             "invalid image type (allowed: png, jpg, webp, gif)".into(),
+        ));
+    }
+
+    let detected = crate::services::file_security::validate_file_type(&data)
+        .map_err(|reason| AppError::Validation(format!("invalid file: {reason}")))?;
+    if detected != ct {
+        return Err(AppError::Validation(
+            "file content does not match declared image type".into(),
         ));
     }
 

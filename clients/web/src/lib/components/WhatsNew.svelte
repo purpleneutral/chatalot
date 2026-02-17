@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.28',
+			date: '2026-02-17',
+			changes: [
+				'Security: account uploads (avatar, banner, voice background) now validate file magic bytes (not just Content-Type)',
+				'Security: timeout and warning actions now enforce role hierarchy (moderators can no longer timeout/warn admins or owners)',
+			]
+		},
+		{
 			version: '0.18.27',
 			date: '2026-02-17',
 			changes: [
