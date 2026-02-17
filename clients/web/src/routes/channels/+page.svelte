@@ -877,6 +877,8 @@
 
 		try {
 			const msgs = await getThreadMessages(channelId, rootId);
+			// Guard: user may have opened a different thread or closed the panel during fetch
+			if (activeThreadRootId !== rootId) return;
 			threadMessages = await Promise.all(msgs.map(async (m) => ({
 				id: m.id,
 				channelId: m.channel_id,
@@ -896,9 +898,9 @@
 				reactions: m.reactions ? new Map(m.reactions.map(r => [r.emoji, new Set(r.user_ids)])) : undefined,
 			})));
 		} catch {
-			toastStore.error('Failed to load thread');
+			if (activeThreadRootId === rootId) toastStore.error('Failed to load thread');
 		} finally {
-			threadLoading = false;
+			if (activeThreadRootId === rootId) threadLoading = false;
 		}
 	}
 
@@ -2215,9 +2217,9 @@
 
 	async function submitEdit(messageId: string) {
 		const text = editInput.trim();
-		if (!text) return;
+		if (!text || !channelStore.activeChannelId) return;
 
-		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId!, text);
+		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
 
 		const sent = wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
 		if (!sent) {

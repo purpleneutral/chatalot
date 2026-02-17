@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.13',
+			date: '2026-02-17',
+			changes: [
+				'Fix: thread panel race condition when opening threads rapidly (stale thread data no longer overwrites)',
+				'Fix: AudioContext resource leak — now properly closed on logout',
+				'Fix: login 2FA code now cleared when hiding the TOTP field',
+				'Fix: message edit crash guard for edge case when channel changes during edit',
+				'Fix: admin report review form now properly cleared on tab switch',
+			]
+		},
+		{
 			version: '0.18.12',
 			date: '2026-02-17',
 			changes: [

@@ -148,7 +148,7 @@
 
 		<div class="mt-4 flex items-center justify-between text-sm">
 			<button
-				onclick={() => (showTotp = !showTotp)}
+				onclick={() => { showTotp = !showTotp; if (!showTotp) totpCode = ''; }}
 				class="text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
 			>
 				{showTotp ? 'Hide 2FA' : 'Have a 2FA code?'}

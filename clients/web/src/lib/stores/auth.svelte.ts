@@ -11,6 +11,7 @@ import { preferencesStore } from '$lib/stores/preferences.svelte';
 import { presenceStore } from '$lib/stores/presence.svelte';
 import { readReceiptStore } from '$lib/stores/readReceipts.svelte';
 import { userStore } from '$lib/stores/users.svelte';
+import { soundStore } from '$lib/stores/sound.svelte';
 import { voiceStore } from '$lib/stores/voice.svelte';
 import { wsClient } from '$lib/ws/connection';
 import { clearMarkReadTimer } from '$lib/ws/handler';
@@ -106,6 +107,7 @@ class AuthStore {
 		userStore.clear();
 		bookmarkStore.clear();
 		readReceiptStore.clear();
+		soundStore.close();
 		wipeCrypto().catch((err) => console.warn('Failed to wipe crypto state:', err));
 	}
 }

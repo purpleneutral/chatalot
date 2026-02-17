@@ -89,6 +89,12 @@ class SoundStore {
 		this.playTone(700, 0.1);
 		setTimeout(() => this.playTone(500, 0.15), 100);
 	}
+
+	/** Close the AudioContext to free resources (call on logout). */
+	close() {
+		this.context?.close().catch(() => {});
+		this.context = null;
+	}
 }
 
 export const soundStore = new SoundStore();

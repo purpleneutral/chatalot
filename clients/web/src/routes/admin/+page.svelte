@@ -91,6 +91,8 @@
 
 	function switchTab(tab: Tab) {
 		activeTab = tab;
+		// Clear stale review form when leaving reports tab
+		if (tab !== 'reports') reviewingReportId = null;
 		if (tab === 'invites' && invites.length === 0) loadInvites();
 		if (tab === 'files' && !filesResponse) { loadFiles(); loadStorageStats(); }
 		if (tab === 'reports' && !reportsResponse) loadReports();
