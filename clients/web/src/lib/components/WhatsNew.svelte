@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.35',
+			date: '2026-02-17',
+			changes: [
+				'Fix: Shift+Escape mark-all-read shortcut no longer fires while typing in text inputs',
+				'Fix: right-click context menu no longer closes when clicking between menu items',
+				'Fix: blob URL cache deduplicates concurrent fetches for the same file (prevents memory leak)',
+			]
+		},
+		{
 			version: '0.18.34',
 			date: '2026-02-17',
 			changes: [

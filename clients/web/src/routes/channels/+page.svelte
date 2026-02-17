@@ -3103,7 +3103,7 @@
 		}
 
 		// Shift+Escape to mark all channels as read
-		if (e.key === 'Escape' && e.shiftKey) {
+		if (e.key === 'Escape' && e.shiftKey && !isTextInput(e)) {
 			e.preventDefault();
 			markAllRead();
 			return;
@@ -6119,6 +6119,8 @@
 						class="fixed z-50 min-w-[180px] max-w-[calc(100vw-16px)] rounded-xl bg-[var(--bg-secondary)] py-1 shadow-lg"
 						style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px;"
 						transition:scale={{ start: 0.9, duration: 100 }}
+						onclick={(e) => e.stopPropagation()}
+						oncontextmenu={(e) => e.stopPropagation()}
 					>
 						{#if ctxMsg}
 							<button

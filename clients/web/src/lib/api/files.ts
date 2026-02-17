@@ -37,6 +37,7 @@ export function getFileDownloadUrl(fileId: string): string {
 
 const MAX_BLOB_CACHE = 100;
 const blobUrlCache = new Map<string, string>();
+const blobUrlPending = new Map<string, Promise<string>>();
 
 export async function getAuthenticatedBlobUrl(fileId: string): Promise<string> {
 	const cached = blobUrlCache.get(fileId);
@@ -47,6 +48,20 @@ export async function getAuthenticatedBlobUrl(fileId: string): Promise<string> {
 		return cached;
 	}
 
+	// Deduplicate concurrent fetches for the same file
+	const pending = blobUrlPending.get(fileId);
+	if (pending) return pending;
+
+	const promise = fetchBlobUrl(fileId);
+	blobUrlPending.set(fileId, promise);
+	try {
+		return await promise;
+	} finally {
+		blobUrlPending.delete(fileId);
+	}
+}
+
+async function fetchBlobUrl(fileId: string): Promise<string> {
 	const headers: Record<string, string> = {};
 	const token = authStore.accessToken;
 	if (token) {
