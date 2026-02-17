@@ -272,11 +272,11 @@ async fn handle_client_message(
                 return;
             }
 
-            // Reject oversized nonce (256 bytes max — crypto nonces are 12-24 bytes)
-            if nonce.len() > 256 {
+            // Reject empty or oversized nonce (crypto nonces are typically 12-24 bytes)
+            if nonce.is_empty() || nonce.len() > 256 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
-                    message: "nonce too large".to_string(),
+                    message: if nonce.is_empty() { "nonce cannot be empty".to_string() } else { "nonce too large".to_string() },
                 });
                 return;
             }
@@ -789,10 +789,10 @@ async fn handle_client_message(
             session_id,
             sdp,
         } => {
-            if sdp.len() > 32_768 {
+            if sdp.is_empty() || sdp.len() > 32_768 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
-                    message: "SDP too large".to_string(),
+                    message: if sdp.is_empty() { "SDP cannot be empty".to_string() } else { "SDP too large".to_string() },
                 });
                 return;
             }
@@ -824,10 +824,10 @@ async fn handle_client_message(
             session_id,
             sdp,
         } => {
-            if sdp.len() > 32_768 {
+            if sdp.is_empty() || sdp.len() > 32_768 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
-                    message: "SDP too large".to_string(),
+                    message: if sdp.is_empty() { "SDP cannot be empty".to_string() } else { "SDP too large".to_string() },
                 });
                 return;
             }
@@ -858,10 +858,10 @@ async fn handle_client_message(
             session_id,
             candidate,
         } => {
-            if candidate.len() > 2048 {
+            if candidate.is_empty() || candidate.len() > 2048 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
-                    message: "ICE candidate too large".to_string(),
+                    message: if candidate.is_empty() { "ICE candidate cannot be empty".to_string() } else { "ICE candidate too large".to_string() },
                 });
                 return;
             }
@@ -1103,10 +1103,10 @@ async fn handle_client_message(
                 return;
             }
 
-            if nonce.len() > 256 {
+            if nonce.is_empty() || nonce.len() > 256 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
-                    message: "nonce too large".to_string(),
+                    message: if nonce.is_empty() { "nonce cannot be empty".to_string() } else { "nonce too large".to_string() },
                 });
                 return;
             }
@@ -1213,8 +1213,8 @@ async fn handle_client_message(
             }
             *last_reaction_time = now;
 
-            // Validate emoji length
-            if emoji.is_empty() || emoji.len() > 32 {
+            // Validate emoji length (VARCHAR(32) = 32 characters, not bytes)
+            if emoji.is_empty() || emoji.chars().count() > 32 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
                     message: "invalid emoji".to_string(),
@@ -1289,7 +1289,7 @@ async fn handle_client_message(
         }
 
         ClientMessage::RemoveReaction { message_id, emoji } => {
-            if emoji.is_empty() || emoji.len() > 32 {
+            if emoji.is_empty() || emoji.chars().count() > 32 {
                 let _ = tx.send(ServerMessage::Error {
                     code: "validation_error".to_string(),
                     message: "invalid emoji".to_string(),

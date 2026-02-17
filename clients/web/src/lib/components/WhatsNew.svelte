@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.37',
+			date: '2026-02-17',
+			changes: [
+				'Security: add empty-value validation for WebRTC SDP, ICE candidates, and nonces',
+				'Fix: emoji reaction validation now counts characters instead of bytes (multi-byte emoji support)',
+				'UX: admin unsuspend action now requires confirmation dialog',
+				'UX: poll close and vote buttons show loading/disabled state during async operations',
+			]
+		},
+		{
 			version: '0.18.36',
 			date: '2026-02-17',
 			changes: [

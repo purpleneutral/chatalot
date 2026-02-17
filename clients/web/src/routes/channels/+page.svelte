@@ -428,6 +428,8 @@
 	let showPollPanel = $state(false);
 	let polls = $state<Poll[]>([]);
 	let loadingPolls = $state(false);
+	let closingPollId = $state<string | null>(null);
+	let votingPollKey = $state<string | null>(null);
 	let showCreatePoll = $state(false);
 	let newPollQuestion = $state('');
 	let newPollOptions = $state(['', '']);
@@ -2643,12 +2645,15 @@
 	}
 
 	async function handleVotePoll(pollId: string, optionIndex: number) {
+		const voteKey = `${pollId}:${optionIndex}`;
+		if (votingPollKey) return;
 		const poll = polls.find(p => p.id === pollId);
 		if (!poll || poll.closed) return;
 		// Also check client-side expiry
 		if (poll.expires_at && new Date(poll.expires_at) < new Date()) return;
 		const userId = authStore.user?.id;
 		if (!userId) return;
+		votingPollKey = voteKey;
 
 		// Check if already voted for this option
 		const optVotes = poll.votes[optionIndex];
@@ -2693,16 +2698,22 @@
 			toastStore.error(err?.message || 'Failed to vote');
 			// Reload to get correct state
 			await loadPolls();
+		} finally {
+			votingPollKey = null;
 		}
 	}
 
 	async function handleClosePoll(pollId: string) {
+		if (closingPollId) return;
+		closingPollId = pollId;
 		try {
 			await apiClosePoll(pollId);
 			polls = polls.map(p => p.id === pollId ? { ...p, closed: true } : p);
 			toastStore.success('Poll closed');
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to close poll');
+		} finally {
+			closingPollId = null;
 		}
 	}
 
@@ -5518,10 +5529,11 @@
 											{#if !isClosed && (poll.created_by === myUserId || myRole === 'owner' || myRole === 'admin')}
 												<button
 													onclick={() => handleClosePoll(poll.id)}
-													class="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+													disabled={closingPollId === poll.id}
+													class="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)] disabled:opacity-50"
 													title="Close poll"
 												>
-													Close
+													{closingPollId === poll.id ? 'Closing...' : 'Close'}
 												</button>
 											{/if}
 										</div>
@@ -5533,7 +5545,7 @@
 												{@const myVote = poll.anonymous ? (anonVotes[poll.id] ?? []).includes(idx) : optVote?.voter_ids.includes(myUserId)}
 												<button
 													onclick={() => handleVotePoll(poll.id, idx)}
-													disabled={isClosed}
+													disabled={isClosed || votingPollKey !== null}
 													class="group/opt relative flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition {myVote ? 'border-[var(--accent)] bg-[var(--accent)]/10' : 'border-white/10 hover:border-white/20 hover:bg-white/5'} disabled:cursor-default disabled:opacity-70"
 												>
 													<div class="absolute inset-0 rounded-md bg-[var(--accent)]/10 transition-all" style="width: {pct}%"></div>

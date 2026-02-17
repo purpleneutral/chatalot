@@ -159,14 +159,21 @@
 		});
 	}
 
-	async function handleUnsuspend(user: AdminUser) {
-		try {
-			await unsuspendUser(user.id);
-			toastStore.success(`Unsuspended ${user.username}`);
-			await loadUsers();
-		} catch (err) {
-			toastStore.error(err instanceof Error ? err.message : 'Failed to unsuspend user');
-		}
+	function handleUnsuspend(user: AdminUser) {
+		showConfirmDialog({
+			title: `Unsuspend ${user.username}?`,
+			message: 'This will restore access for the user immediately.',
+			confirmLabel: 'Unsuspend',
+			async onConfirm() {
+				try {
+					await unsuspendUser(user.id);
+					toastStore.success(`Unsuspended ${user.username}`);
+					await loadUsers();
+				} catch (err) {
+					toastStore.error(err instanceof Error ? err.message : 'Failed to unsuspend user');
+				}
+			}
+		});
 	}
 
 	function handleDelete(user: AdminUser) {
