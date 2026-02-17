@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.17.1',
+			date: '2026-02-16',
+			changes: [
+				'Fix: voice calls now automatically reconnect when WebSocket drops — dead peer connections are cleaned up and the mesh is re-established',
+				'Fix: reconnecting users no longer trigger the join sound for others already in the call',
+				'Server: voice cleanup grace period now uses timestamp-based logic to preserve sessions rejoined during reconnection',
+			]
+		},
+		{
 			version: '0.17.0',
 			date: '2026-02-16',
 			changes: [

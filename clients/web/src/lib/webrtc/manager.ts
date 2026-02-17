@@ -92,6 +92,31 @@ class WebRTCManager {
 		this.answerTimeouts.clear();
 	}
 
+	/// Rejoin voice channel after WebSocket reconnection.
+	/// Cleans up dead peer connections and re-sends join_voice to trigger
+	/// a fresh VoiceStateUpdate from the server, re-establishing the mesh.
+	rejoinAfterReconnect(): void {
+		if (!voiceStore.isInCall || !this.channelId) return;
+
+		console.info('WebSocket reconnected while in voice call — rejoining to re-establish peers');
+
+		// Clean up all dead peer connections (local stream stays intact)
+		for (const [userId, pc] of this.peers) {
+			pc.close();
+			this.stopMonitoringStream(userId);
+			voiceStore.removeRemoteStream(userId);
+			voiceStore.removeRemoteScreenStream(userId);
+		}
+		this.peers.clear();
+		this.pendingCandidates.clear();
+		this.mainStreamIds.clear();
+		this.clearAllDisconnectTimeouts();
+		this.clearAllAnswerTimeouts();
+
+		// Re-send join_voice — server upserts (idempotent) and broadcasts VoiceStateUpdate
+		wsClient.send({ type: 'join_voice', channel_id: this.channelId });
+	}
+
 	/// Join a voice channel: acquire media, tell server, set up peers.
 	async joinCall(channelId: string, withVideo: boolean = false): Promise<void> {
 		if (voiceStore.isInCall) {

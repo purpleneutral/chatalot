@@ -226,11 +226,13 @@ export async function handleServerMessage(msg: ServerMessage) {
 		}
 
 		case 'user_joined_voice': {
+			// Suppress join sound if user was already in the list (reconnect)
+			const alreadyIn = voiceStore.getChannelParticipants(msg.channel_id).includes(msg.user_id);
 			voiceStore.addChannelParticipant(msg.channel_id, msg.user_id);
 			// Peer connections are established solely via voice_state_update
 			// to avoid race conditions with concurrent offer creation.
 			if (msg.user_id !== authStore.user?.id) {
-				soundStore.playVoiceJoin();
+				if (!alreadyIn) soundStore.playVoiceJoin();
 				ensureUser(msg.user_id);
 			}
 			break;

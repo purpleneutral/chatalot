@@ -170,20 +170,25 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     }
 
     // Clean up voice sessions — delay cleanup to allow quick reconnects (e.g. tunnel flaps).
-    // If user reconnects within the grace period, the cleanup is skipped because
-    // is_online() returns true. The client auto-rejoins voice on reconnect.
+    // Record the disconnect time so we only clean up sessions that were active BEFORE this
+    // disconnect. If the user reconnects and rejoins voice (getting a new joined_at), their
+    // new session is preserved even if this timer fires.
     {
         let state = Arc::clone(&state);
+        let disconnect_time = chrono::Utc::now();
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
-            // If user reconnected in the meantime, skip voice cleanup
+            // If user reconnected in the meantime, skip voice cleanup entirely
             if state.connections.is_online(&user_id) {
                 tracing::debug!(%user_id, "Skipping voice cleanup — user reconnected");
                 return;
             }
 
-            match voice_repo::leave_all_sessions(&state.db, user_id).await {
+            // Only leave sessions the user joined before the disconnect.
+            // If they rejoined during the grace period (new joined_at > disconnect_time),
+            // those sessions are preserved.
+            match voice_repo::leave_sessions_joined_before(&state.db, user_id, disconnect_time).await {
                 Ok(left_sessions) => {
                     for (voice_session_id, channel_id) in &left_sessions {
                         state.connections.broadcast_to_channel(

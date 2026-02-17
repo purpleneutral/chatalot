@@ -113,6 +113,34 @@ pub async fn leave_all_sessions(
     Ok(rows)
 }
 
+/// Remove a user from voice sessions they joined before a given cutoff time.
+/// Used by the grace period cleanup: if the user rejoined after the cutoff,
+/// their new session record is preserved.
+pub async fn leave_sessions_joined_before(
+    pool: &PgPool,
+    user_id: Uuid,
+    cutoff: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<(Uuid, Uuid)>, sqlx::Error> {
+    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        r#"
+        UPDATE voice_session_participants vsp
+        SET left_at = NOW()
+        FROM voice_sessions vs
+        WHERE vsp.session_id = vs.id
+          AND vsp.user_id = $1
+          AND vsp.left_at IS NULL
+          AND vsp.joined_at <= $2
+          AND vs.ended_at IS NULL
+        RETURNING vs.id, vs.channel_id
+        "#,
+    )
+    .bind(user_id)
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 /// Check if two users are in the same active voice session.
 pub async fn are_in_same_session(
     pool: &PgPool,

@@ -986,10 +986,9 @@
 			wsClient.send({ type: 'update_presence', status: savedStatus });
 		}
 
-		// Rejoin voice call if we were in one (server cleans up sessions on disconnect)
-		if (voiceStore.activeCall) {
-			wsClient.send({ type: 'join_voice', channel_id: voiceStore.activeCall.channelId });
-		}
+		// Rejoin voice call if we were in one — clean up dead peers first so
+		// the VoiceStateUpdate from the server re-establishes the full mesh.
+		webrtcManager.rejoinAfterReconnect();
 	}
 
 	function setUserStatus(status: 'online' | 'idle' | 'dnd' | 'invisible') {
