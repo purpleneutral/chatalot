@@ -666,6 +666,11 @@ class WebRTCManager {
 	private monitorStream(userId: string, stream: MediaStream): void {
 		if (!this.audioContext || stream.getAudioTracks().length === 0) return;
 
+		// Ensure AudioContext is running (may be suspended by browser autoplay policy)
+		if (this.audioContext.state === 'suspended') {
+			this.audioContext.resume().catch(() => {});
+		}
+
 		// Clean up existing monitor for this user
 		this.stopMonitoringStream(userId);
 
@@ -730,7 +735,7 @@ class WebRTCManager {
 		await this.createAndSendOffer(userId);
 	}
 
-	/// Play remote audio for a user through a hidden audio element.
+	/// Play remote audio for a user through a hidden audio element appended to the DOM.
 	private playRemoteAudio(userId: string, stream: MediaStream): void {
 		// Clean up existing element if any
 		this.stopRemoteAudio(userId);
@@ -743,12 +748,35 @@ class WebRTCManager {
 			return;
 		}
 
-		const audio = new Audio();
+		// Monitor track mute/unmute state changes (muted=true initially means data isn't flowing yet)
+		for (const track of audioTracks) {
+			track.onunmute = () => {
+				console.info(`[VOICE] Audio track UNMUTED for ${userId.slice(0,8)} readyState=${track.readyState}`);
+			};
+			track.onmute = () => {
+				console.info(`[VOICE] Audio track MUTED for ${userId.slice(0,8)} readyState=${track.readyState}`);
+			};
+		}
+
+		// Create audio element IN the DOM — some browsers won't route WebRTC
+		// MediaStream audio through a detached Audio() element.
+		const audio = document.createElement('audio');
 		audio.autoplay = true;
 		audio.volume = preferencesStore.preferences.outputVolume / 100;
 		audio.srcObject = stream;
+		audio.style.cssText = 'position:fixed;width:0;height:0;overflow:hidden;pointer-events:none;opacity:0';
+		document.body.appendChild(audio);
+
+		// Set output device if the user has selected one
+		const outputId = audioDeviceStore.selectedOutputId;
+		if (outputId && 'setSinkId' in audio) {
+			(audio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
+				.setSinkId(outputId)
+				.catch((err: unknown) => console.warn(`[VOICE] setSinkId failed for ${userId.slice(0,8)}:`, err));
+		}
+
 		audio.play().then(() => {
-			console.info(`[VOICE] Audio playing for ${userId.slice(0,8)}, paused=${audio.paused}, volume=${audio.volume}`);
+			console.info(`[VOICE] Audio element playing for ${userId.slice(0,8)}, paused=${audio.paused}, volume=${audio.volume}, readyState=${audio.readyState}, networkState=${audio.networkState}`);
 		}).catch(err => {
 			console.warn(`[VOICE] Failed to play remote audio for ${userId.slice(0,8)}:`, err);
 		});
@@ -761,6 +789,7 @@ class WebRTCManager {
 		if (audio) {
 			audio.pause();
 			audio.srcObject = null;
+			audio.remove(); // Remove from DOM
 			this.remoteAudioElements.delete(userId);
 		}
 	}
@@ -770,6 +799,17 @@ class WebRTCManager {
 		const vol = volume / 100;
 		for (const audio of this.remoteAudioElements.values()) {
 			audio.volume = vol;
+		}
+	}
+
+	/// Switch output device on all remote audio elements.
+	updateOutputDevice(deviceId: string): void {
+		for (const audio of this.remoteAudioElements.values()) {
+			if ('setSinkId' in audio) {
+				(audio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
+					.setSinkId(deviceId)
+					.catch((err: unknown) => console.warn('[VOICE] setSinkId failed:', err));
+			}
 		}
 	}
 
