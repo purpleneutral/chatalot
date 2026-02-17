@@ -181,6 +181,20 @@
 	// Mobile sidebar state
 	let sidebarOpen = $state(false);
 
+	// Top nav dropdown state
+	let showCommunityPicker = $state(false);
+	let showNavDropdown = $state(false);
+	let showUserMenu = $state(false);
+	let navCollapsed = $state(
+		typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:navCollapsed') === 'true'
+	);
+
+	function closeAllNavDropdowns() {
+		showCommunityPicker = false;
+		showNavDropdown = false;
+		showUserMenu = false;
+	}
+
 	// Reply state
 	let replyingTo = $state<ChatMessage | null>(null);
 
@@ -584,7 +598,7 @@
 	// Member panel functions
 	async function toggleMemberPanel() {
 		showMemberPanel = !showMemberPanel;
-		if (showMemberPanel) { sidebarOpen = false; showBookmarksPanel = false; showScheduledPanel = false; showThreadPanel = false; } // Ensure mutual exclusivity
+		if (showMemberPanel) { sidebarOpen = false; showNavDropdown = false; showBookmarksPanel = false; showScheduledPanel = false; showThreadPanel = false; } // Ensure mutual exclusivity
 		if (showMemberPanel && channelStore.activeChannelId) {
 			membersLoading = true;
 			try {
@@ -615,6 +629,7 @@
 			showScheduledPanel = false;
 			showThreadPanel = false;
 			sidebarOpen = false;
+			showNavDropdown = false;
 		}
 	}
 
@@ -673,6 +688,7 @@
 			showBookmarksPanel = false;
 			showThreadPanel = false;
 			sidebarOpen = false;
+			showNavDropdown = false;
 			loadScheduledMessages();
 		}
 	}
@@ -703,6 +719,7 @@
 		showBookmarksPanel = false;
 		showScheduledPanel = false;
 		sidebarOpen = false;
+		showNavDropdown = false;
 
 		try {
 			const msgs = await getThreadMessages(channelId, rootId);
@@ -1519,6 +1536,7 @@
 		channelStore.setActive(channelId);
 		messageStore.clearUnread(channelId);
 		sidebarOpen = false;
+		showNavDropdown = false;
 		memberFilter = '';
 		polls = [];
 		if (showPollPanel) loadPolls();
@@ -3616,9 +3634,12 @@
 		document.title = total > 0 ? `(${total}) Chatalot` : 'Chatalot';
 	});
 
-	// Persist sidebar tab and expanded groups
+	// Persist sidebar tab, expanded groups, and nav collapsed
 	$effect(() => {
 		localStorage.setItem('chatalot:sidebarTab', sidebarTab);
+	});
+	$effect(() => {
+		localStorage.setItem('chatalot:navCollapsed', String(navCollapsed));
 	});
 	$effect(() => {
 		localStorage.setItem('chatalot:expandedGroups', JSON.stringify([...expandedGroupIds]));
@@ -3660,162 +3681,289 @@
 <svelte:window onkeydown={handleGlobalKeydown} />
 
 {#if authStore.isAuthenticated}
-	<div class="flex h-screen overflow-hidden">
-		<!-- Mobile sidebar overlay -->
-		{#if sidebarOpen}
-			<button
-				class="fixed inset-0 z-30 bg-black/50 md:hidden"
-				transition:fade={{ duration: 150 }}
-				onclick={() => (sidebarOpen = false)}
-				aria-label="Close sidebar"
-			></button>
-		{/if}
-
-		<!-- Community Rail + Sidebar wrapper -->
-		<div class="fixed inset-y-0 left-0 z-40 flex transition-transform duration-200 md:static md:translate-x-0 {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
-
-		<!-- Community Rail -->
-		<nav class="hidden md:flex w-[72px] flex-col items-center gap-2 overflow-y-auto border-r border-white/10 bg-[var(--bg-primary)] py-3 scrollbar-none">
-			{#each communityStore.communities as community (community.id)}
-				{@const isActive = communityStore.activeCommunityId === community.id}
-				<div class="group relative flex items-center">
-					<!-- Active indicator pill -->
-					<div class="absolute left-0 w-1 rounded-r-full bg-[var(--text-primary)] transition-all {isActive ? 'h-10' : 'h-0 group-hover:h-5'}"></div>
-					<button
-						onclick={() => switchCommunity(community.id)}
-						class="ml-3 flex h-12 w-12 items-center justify-center overflow-hidden transition-all {isActive ? 'rounded-2xl bg-[var(--accent)]' : 'rounded-[24px] bg-[var(--bg-secondary)] hover:rounded-2xl hover:bg-[var(--accent)]'}"
-						title={community.name}
-					>
-						{#if community.icon_url}
-							<img src={community.icon_url} alt={community.name} class="h-full w-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-						{:else}
-							<span class="text-sm font-bold text-[var(--text-primary)]">{community.name.slice(0, 2).toUpperCase()}</span>
-						{/if}
-					</button>
-				</div>
-			{/each}
-
-			<!-- Separator -->
-			<div class="mx-auto h-0.5 w-8 rounded-full bg-white/10"></div>
-
-			<!-- Join Community button -->
-			<div class="group relative flex items-center">
+	<div class="flex flex-col h-screen overflow-hidden">
+		<!-- ═══ TOP NAVIGATION BAR ═══ -->
+		{#if !navCollapsed}
+		<nav class="relative flex items-center gap-2 h-12 md:h-14 shrink-0 border-b border-white/10 bg-[var(--bg-secondary)] px-2 md:px-4">
+			<!-- LEFT SECTION -->
+			<div class="flex items-center gap-1">
+				<!-- Mobile menu button -->
 				<button
-					onclick={() => { showJoinCommunity = !showJoinCommunity; communityInvitePreview = null; joinCommunityCode = ''; }}
-					class="ml-3 flex h-12 w-12 items-center justify-center rounded-[24px] bg-[var(--bg-secondary)] text-[var(--success)] transition-all hover:rounded-2xl hover:bg-[var(--success)] hover:text-white"
-					title="Join a Community"
-					aria-label="Join a Community"
+					onclick={() => { showNavDropdown = !showNavDropdown; showCommunityPicker = false; showUserMenu = false; }}
+					class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
+					aria-label="Open navigation"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
 					</svg>
+				</button>
+
+				<!-- Community Dropdown Trigger -->
+				<button
+					onclick={() => { showCommunityPicker = !showCommunityPicker; showNavDropdown = false; showUserMenu = false; }}
+					class="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-white/5 {showCommunityPicker ? 'bg-white/5' : ''}"
+					title="Switch community"
+				>
+					{#if communityStore.activeCommunity?.icon_url}
+						<img src={communityStore.activeCommunity.icon_url} alt="" class="h-5 w-5 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+					{:else}
+						<span class="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
+							{(communityStore.activeCommunity?.name ?? 'CH').slice(0, 2).toUpperCase()}
+						</span>
+					{/if}
+					<span class="hidden sm:inline max-w-[120px] truncate">{communityStore.activeCommunity?.name ?? 'Chatalot'}</span>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+				</button>
+
+				<!-- Separator -->
+				<span class="h-4 w-px bg-white/10"></span>
+
+				<!-- Channel/Nav Dropdown Trigger -->
+				<button
+					onclick={() => { showNavDropdown = !showNavDropdown; showCommunityPicker = false; showUserMenu = false; }}
+					class="hidden md:flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-sm text-[var(--text-primary)] transition hover:bg-white/5 {showNavDropdown ? 'bg-white/5' : ''}"
+				>
+					{#if activeChannel}
+						{#if activeChannel.channel_type === 'dm'}
+							<span class="text-[var(--text-secondary)]">@</span>
+						{:else if activeChannel.channel_type === 'voice'}
+							<span>🔊</span>
+						{:else}
+							<span class="text-[var(--text-secondary)]">#</span>
+						{/if}
+						<span class="max-w-[160px] truncate">{getChannelDisplayName()}</span>
+					{:else}
+						<span class="text-[var(--text-secondary)]">Select channel</span>
+					{/if}
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+					{#if channelUnreadTotal + dmUnreadTotal > 0}
+						<span class="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+							{channelUnreadTotal + dmUnreadTotal > 99 ? '99+' : channelUnreadTotal + dmUnreadTotal}
+						</span>
+					{/if}
 				</button>
 			</div>
 
-			<!-- Create Community button -->
-			{#if authStore.user?.is_admin || authStore.user?.is_owner}
-				<div class="group relative flex items-center">
+			<!-- CENTER SECTION -->
+			<div class="hidden md:flex flex-1 justify-center max-w-md mx-auto">
+				<button
+					onclick={openQuickSwitcher}
+					class="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-secondary)] transition hover:border-white/20"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+					</svg>
+					<span>Search...</span>
+					<kbd class="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--text-tertiary)]">Ctrl+K</kbd>
+				</button>
+			</div>
+
+			<!-- RIGHT SECTION -->
+			<div class="flex items-center gap-0.5 ml-auto">
+				<!-- Voice connected indicator -->
+				{#if voiceStore.activeCall}
 					<button
-						onclick={() => { showCreateCommunity = !showCreateCommunity; newCommunityName = ''; newCommunityDescription = ''; }}
-						class="ml-3 flex h-12 w-12 items-center justify-center rounded-[24px] bg-[var(--bg-secondary)] text-[var(--accent)] transition-all hover:rounded-2xl hover:bg-[var(--accent)] hover:text-white"
-						title="Create a Community"
-						aria-label="Create a Community"
+						onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
+						class="flex items-center gap-1.5 rounded-xl px-2 py-1 text-xs font-medium text-[var(--success)] transition hover:bg-white/5"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+						<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--success)]"></span>
+						<span class="hidden sm:inline">Voice</span>
+					</button>
+				{/if}
+
+				<!-- Call Controls -->
+				{#if activeChannel}
+					<CallControls channelId={activeChannel.id} channelType={activeChannel.channel_type} />
+				{/if}
+
+				<!-- Bookmarks -->
+				<button
+					onclick={toggleBookmarksPanel}
+					class="rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showBookmarksPanel ? 'text-[var(--accent)]' : ''}"
+					title="Saved Items"
+					aria-label="Saved Items"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+					</svg>
+				</button>
+
+				<!-- Scheduled -->
+				<button
+					onclick={toggleScheduledPanel}
+					class="relative rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showScheduledPanel ? 'text-[var(--accent)]' : ''}"
+					title="Scheduled Messages"
+					aria-label="Scheduled Messages"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+					</svg>
+					{#if scheduledMessages.length > 0}
+						<span class="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-white">
+							{scheduledMessages.length}
+						</span>
+					{/if}
+				</button>
+
+				<!-- Mobile search -->
+				<button
+					onclick={toggleSearch}
+					class="rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
+					title="Search"
+					aria-label="Search"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+					</svg>
+				</button>
+
+				<!-- Collapse nav -->
+				<button
+					onclick={() => navCollapsed = true}
+					class="hidden md:block rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					title="Collapse navigation"
+					aria-label="Collapse navigation"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+				</button>
+
+				<!-- Admin -->
+				{#if authStore.user?.is_admin || authStore.user?.is_owner}
+					<button
+						onclick={() => goto('/admin')}
+						class="hidden md:block rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						title="Admin Panel"
+						aria-label="Admin Panel"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
 						</svg>
 					</button>
-				</div>
-			{/if}
-		</nav>
+				{/if}
 
-		<!-- Sidebar -->
-		<aside class="flex w-[80vw] max-w-[300px] md:w-60 md:max-w-none flex-col border-r border-white/10 bg-[var(--bg-secondary)]">
-			<!-- Mobile community switcher (hidden on desktop where rail is visible) -->
-			<div class="flex md:hidden items-center gap-1.5 overflow-x-auto border-b border-white/10 px-3 py-2 scrollbar-none">
+				<!-- Settings -->
+				<button
+					onclick={() => goto('/settings')}
+					class="hidden md:block rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					title="Settings"
+					aria-label="Settings"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+					</svg>
+				</button>
+
+				<!-- User Avatar + Menu Trigger -->
+				<button
+					onclick={(e) => { e.stopPropagation(); showUserMenu = !showUserMenu; showCommunityPicker = false; showNavDropdown = false; }}
+					class="flex items-center gap-1.5 rounded-xl p-1 transition hover:bg-white/5"
+					title="User menu"
+				>
+					{#if authStore.user}
+						<Avatar userId={authStore.user.id} size="xs" showStatus />
+					{/if}
+				</button>
+			</div>
+		</nav>
+		{:else}
+		<!-- Collapsed nav: minimal breadcrumb -->
+		<nav class="flex items-center h-8 shrink-0 border-b border-white/10 bg-[var(--bg-secondary)] px-2">
+			<button
+				onclick={() => navCollapsed = false}
+				class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+				title="Expand navigation"
+				aria-label="Expand navigation"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+			</button>
+			<span class="mx-2 truncate text-xs text-[var(--text-secondary)]">
+				{communityStore.activeCommunity?.name ?? 'Chatalot'} / {activeChannel ? getChannelDisplayName() : 'No channel'}
+			</span>
+			<div class="ml-auto flex items-center gap-1">
+				{#if voiceStore.activeCall}
+					<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--success)]"></span>
+				{/if}
+				{#if channelUnreadTotal + dmUnreadTotal > 0}
+					<span class="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+						{channelUnreadTotal + dmUnreadTotal > 99 ? '99+' : channelUnreadTotal + dmUnreadTotal}
+					</span>
+				{/if}
+				{#if authStore.user}
+					<Avatar userId={authStore.user.id} size="xs" showStatus />
+				{/if}
+			</div>
+		</nav>
+		{/if}
+
+		<!-- ═══ COMMUNITY PICKER DROPDOWN ═══ -->
+		{#if showCommunityPicker}
+			<button class="fixed inset-0 z-30" onclick={() => showCommunityPicker = false} aria-label="Close community picker"></button>
+			<div class="absolute left-2 top-12 md:top-14 z-40 w-72 max-h-[70vh] overflow-y-auto rounded-2xl border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl" transition:fly={{ y: -10, duration: 150 }}>
+				<h3 class="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Communities</h3>
 				{#each communityStore.communities as community (community.id)}
 					<button
-						onclick={() => { switchCommunity(community.id); }}
-						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition
-							{communityStore.activeCommunityId === community.id
-								? 'bg-[var(--accent)] text-white'
-								: 'bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-white/10'}"
-						title={community.name}
+						onclick={() => { switchCommunity(community.id); showCommunityPicker = false; }}
+						class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/5 {communityStore.activeCommunityId === community.id ? 'bg-white/10' : ''}"
 					>
 						{#if community.icon_url}
-							<img src={community.icon_url} alt={community.name} class="h-full w-full rounded-lg object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+							<img src={community.icon_url} alt={community.name} class="h-8 w-8 rounded-full object-cover" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
 						{:else}
-							{community.name.slice(0, 2).toUpperCase()}
+							<span class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-white">{community.name.slice(0, 2).toUpperCase()}</span>
+						{/if}
+						<span class="flex-1 truncate text-sm font-medium text-[var(--text-primary)]">{community.name}</span>
+						{#if communityStore.activeCommunityId === community.id}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
 						{/if}
 					</button>
 				{/each}
+				<div class="my-2 h-px bg-white/10"></div>
 				<button
-					onclick={() => { showJoinCommunity = !showJoinCommunity; communityInvitePreview = null; joinCommunityCode = ''; }}
-					class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[var(--success)] transition hover:bg-[var(--success)] hover:text-white"
-					title="Join Community"
-					aria-label="Join Community"
+					onclick={() => { showJoinCommunity = true; showCommunityPicker = false; }}
+					class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--success)] transition hover:bg-white/5"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+					Join a Community
 				</button>
-			</div>
-
-			<div class="flex h-14 items-center justify-between border-b border-white/10 px-3 md:px-4">
-				<h1 class="truncate text-base md:text-lg font-bold text-[var(--text-primary)]" title={communityStore.activeCommunity?.name ?? 'Chatalot'}>{communityStore.activeCommunity?.name ?? 'Chatalot'}</h1>
-				<div class="flex items-center gap-0.5">
-					{#if authStore.user?.is_admin || authStore.user?.is_owner}
-						<button
-							onclick={() => goto('/admin')}
-							class="hidden sm:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-							title="Admin Panel"
-							aria-label="Admin Panel"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-							</svg>
-						</button>
-					{/if}
-					{#if communityStore.activeCommunityId}
-						<button
-							onclick={() => goto('/community')}
-							class="hidden sm:block rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-							title="Community Settings"
-							aria-label="Community Settings"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-							</svg>
-						</button>
-					{/if}
+				{#if authStore.user?.is_admin || authStore.user?.is_owner}
 					<button
-						onclick={() => goto('/settings')}
-						class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						title="Settings"
-						aria-label="Settings"
+						onclick={() => { showCreateCommunity = true; showCommunityPicker = false; }}
+						class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--accent)] transition hover:bg-white/5"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-						</svg>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+						Create a Community
 					</button>
+				{/if}
+				{#if communityStore.activeCommunityId}
+					<button
+						onclick={() => { goto('/community'); showCommunityPicker = false; }}
+						class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+						Community Settings
+					</button>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- ═══ NAVIGATION DROPDOWN ═══ -->
+		{#if showNavDropdown}
+			<button class="fixed inset-0 z-30" onclick={() => showNavDropdown = false} aria-label="Close navigation"></button>
+			<div class="fixed inset-x-0 top-12 bottom-0 z-40 flex flex-col bg-[var(--bg-secondary)] md:absolute md:inset-auto md:left-20 lg:left-40 md:top-12 lg:top-14 md:w-80 md:max-h-[75vh] md:rounded-2xl md:border md:border-white/10 md:shadow-xl" transition:fly={{ y: -10, duration: 150 }}>
+				<!-- Nav dropdown header with create button -->
+				<div class="flex items-center justify-between border-b border-white/10 px-3 py-2">
+					<span class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigate</span>
 					<button
 						onclick={() => {
-							if (sidebarTab === 'groups') {
-								showCreateGroup = !showCreateGroup;
-							} else if (sidebarTab === 'channels') {
-								showCreateChannel = !showCreateChannel;
-							} else {
-								showNewDm = !showNewDm;
-							}
+							if (sidebarTab === 'groups') { showCreateGroup = !showCreateGroup; }
+							else if (sidebarTab === 'channels') { showCreateChannel = !showCreateChannel; }
+							else { showNewDm = !showNewDm; }
 						}}
-						class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						title={sidebarTab === 'groups' ? 'Create group' : sidebarTab === 'channels' ? 'Create channel' : 'New DM'}
-						aria-label={sidebarTab === 'groups' ? 'Create group' : sidebarTab === 'channels' ? 'Create channel' : 'New DM'}
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 					</button>
 				</div>
-			</div>
 
 			<!-- Tab switcher -->
 			<div class="flex border-b border-white/10">
@@ -4426,167 +4574,107 @@
 					{/if}
 				{/if}
 			</div>
+		</div>
+		{/if}
 
-			<!-- Voice connected bar -->
-			{#if voiceStore.activeCall}
-				{@const voiceChannel = channelStore.channels.find(c => c.id === voiceStore.activeCall?.channelId)}
-				<div class="border-t border-white/10 bg-[var(--success)]/10 px-3 py-2">
-					<div class="flex items-center justify-between">
-						<button
-							onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
-							class="flex items-center gap-2 text-left text-xs font-medium text-[var(--success)] transition hover:brightness-110"
-						>
-							<span class="flex h-2 w-2 animate-pulse rounded-full bg-[var(--success)]"></span>
-							Voice Connected
-						</button>
-						<button
-							onclick={() => voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId)}
-							class="truncate text-[10px] text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-						>
-							{voiceChannel?.name ?? 'Voice'} / {voiceStore.activeCall.participants.length}
-						</button>
-					</div>
-					<div class="mt-1.5 flex items-center justify-center gap-1">
-						<!-- Mute -->
-						<button
-							onclick={() => webrtcManager.toggleAudio()}
-							class="rounded-md p-1.5 transition {voiceStore.activeCall?.audioEnabled ? 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]' : 'bg-red-500/20 text-red-400'}"
-							title={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}
-						aria-label={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}
-						>
-							{#if voiceStore.activeCall?.audioEnabled}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-									<path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
-								</svg>
-							{:else}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<line x1="1" y1="1" x2="23" y2="23" />
-									<path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
-									<path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .4-.03.8-.1 1.17" />
-									<line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
-								</svg>
-							{/if}
-						</button>
-						<!-- Video -->
-						<button
-							onclick={() => webrtcManager.toggleVideo()}
-							class="rounded-md p-1.5 transition {voiceStore.activeCall?.videoEnabled ? 'text-[var(--text-primary)] hover:bg-white/10' : 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'}"
-							title={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
-						aria-label={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}
-						>
-							{#if voiceStore.activeCall?.videoEnabled}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-								</svg>
-							{:else}
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" />
-									<line x1="1" y1="1" x2="23" y2="23" />
-								</svg>
-							{/if}
-						</button>
-						<!-- Screen share -->
-						<button
-							onclick={() => webrtcManager.toggleScreenShare()}
-							class="rounded-md p-1.5 transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'}"
-							title={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen (share a tab for audio)'}
-						aria-label={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'}
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-							</svg>
-						</button>
-						<!-- Disconnect -->
-						<button
-							onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; }}
-							class="rounded-md bg-red-500/20 p-1.5 text-red-400 transition hover:bg-red-500/30"
-							title="Disconnect"
-							aria-label="Disconnect from call"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
-								<line x1="23" y1="1" x2="1" y2="23" />
-							</svg>
-						</button>
-					</div>
-				</div>
-			{/if}
-
-			<!-- User info -->
-			<div class="relative flex items-center gap-3 border-t border-white/10 p-3">
+		<!-- ═══ USER MENU DROPDOWN ═══ -->
+		{#if showUserMenu}
+			<button class="fixed inset-0 z-30" onclick={() => showUserMenu = false} aria-label="Close user menu"></button>
+			<div class="absolute right-2 top-12 md:top-14 z-40 w-64 rounded-2xl border border-white/10 bg-[var(--bg-secondary)] shadow-xl" transition:fly={{ y: -10, duration: 150 }}>
+				<!-- User info -->
 				{#if authStore.user}
-					<button onclick={(e) => { e.stopPropagation(); showStatusPicker = !showStatusPicker; }} class="rounded-full transition hover:ring-2 hover:ring-[var(--accent)]/50" title="Set status" aria-label="Set status">
+					<div class="flex items-center gap-3 border-b border-white/10 p-4">
 						<Avatar userId={authStore.user.id} size="sm" showStatus />
-					</button>
+						<div class="flex-1 overflow-hidden">
+							<div class="truncate text-sm font-medium text-[var(--text-primary)]">{authStore.user.display_name}</div>
+							<div class="truncate text-xs text-[var(--text-secondary)]">
+								{statusOptions.find(s => s.value === (authStore.user ? presenceStore.getStatus(authStore.user.id) : 'offline'))?.label ?? 'Online'}
+							</div>
+						</div>
+					</div>
 				{/if}
-				<div class="flex-1 overflow-hidden">
-					<div class="truncate text-sm font-medium text-[var(--text-primary)]">
-						{authStore.user?.display_name}
-					</div>
-					<div class="truncate text-xs text-[var(--text-secondary)]">
-						{statusOptions.find(s => s.value === (authStore.user ? presenceStore.getStatus(authStore.user.id) : 'offline'))?.label ?? 'Online'}
-					</div>
+				<!-- Status picker -->
+				<div class="border-b border-white/10 p-2">
+					<p class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Status</p>
+					{#each statusOptions as opt (opt.value)}
+						<button
+							onclick={() => { setUserStatus(opt.value); }}
+							class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-white/5"
+						>
+							<span class="h-2 w-2 rounded-full {opt.color}"></span>
+							<span class="text-[var(--text-primary)]">{opt.label}</span>
+						</button>
+					{/each}
 				</div>
-
-				<!-- Status picker dropdown -->
-				{#if showStatusPicker}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div onclick={(e) => e.stopPropagation()} class="absolute bottom-full left-2 mb-2 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" transition:scale={{ start: 0.95, duration: 150 }}>
-						<div class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Set Status</div>
-						{#each statusOptions as opt (opt.value)}
-							<button
-								onclick={() => setUserStatus(opt.value)}
-								class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition hover:bg-white/5"
-							>
-								<span class="h-2.5 w-2.5 rounded-full {opt.color}"></span>
-								<div>
-									<div class="font-medium text-[var(--text-primary)]">{opt.label}</div>
-									<div class="text-xs text-[var(--text-secondary)]">{opt.desc}</div>
-								</div>
+				<!-- Voice controls (when in call) -->
+				{#if voiceStore.activeCall}
+					{@const voiceChannel = channelStore.channels.find(c => c.id === voiceStore.activeCall?.channelId)}
+					<div class="border-b border-white/10 p-3">
+						<button
+							onclick={() => { voiceStore.activeCall && selectChannel(voiceStore.activeCall.channelId); showUserMenu = false; }}
+							class="mb-2 flex items-center gap-2 text-xs font-medium text-[var(--success)] transition hover:brightness-110"
+						>
+							<span class="h-2 w-2 animate-pulse rounded-full bg-[var(--success)]"></span>
+							Voice Connected — {voiceChannel?.name ?? 'Voice'}
+						</button>
+						<div class="flex items-center justify-center gap-1">
+							<button onclick={() => webrtcManager.toggleAudio()} class="rounded-md p-1.5 transition {voiceStore.activeCall?.audioEnabled ? 'text-[var(--text-secondary)] hover:bg-white/10' : 'bg-red-500/20 text-red-400'}" title={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'} aria-label={voiceStore.activeCall?.audioEnabled ? 'Mute' : 'Unmute'}>
+								{#if voiceStore.activeCall?.audioEnabled}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+								{:else}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" /><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .4-.03.8-.1 1.17" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+								{/if}
 							</button>
-						{/each}
+							<button onclick={() => webrtcManager.toggleVideo()} class="rounded-md p-1.5 transition {voiceStore.activeCall?.videoEnabled ? 'text-[var(--text-primary)] hover:bg-white/10' : 'text-[var(--text-secondary)] hover:bg-white/10'}" title={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'} aria-label={voiceStore.activeCall?.videoEnabled ? 'Turn off camera' : 'Turn on camera'}>
+								{#if voiceStore.activeCall?.videoEnabled}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>
+								{:else}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+								{/if}
+							</button>
+							<button onclick={() => webrtcManager.toggleScreenShare()} class="rounded-md p-1.5 transition {voiceStore.activeCall?.screenSharing ? 'bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-white/10'}" title={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'} aria-label={voiceStore.activeCall?.screenSharing ? 'Stop sharing' : 'Share screen'}>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+							</button>
+							<button onclick={() => { webrtcManager.leaveCall(); chatCollapsed = false; showUserMenu = false; }} class="rounded-md bg-red-500/20 p-1.5 text-red-400 transition hover:bg-red-500/30" title="Disconnect" aria-label="Disconnect from call">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" /><line x1="23" y1="1" x2="1" y2="23" /></svg>
+							</button>
+						</div>
 					</div>
 				{/if}
-				<button
-					onclick={() => whatsNewRef?.open()}
-					class="rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--accent)]"
-					title="Changelog"
-				>
-					v{__APP_VERSION__}
-				</button>
-				<button
-					onclick={() => (showFeedback = true)}
-					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--accent)]"
-					title="Send feedback"
-					aria-label="Send feedback"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-					</svg>
-				</button>
-				<button
-					onclick={() => { webrtcManager.leaveCall(); authStore.logout(); wsClient.disconnect(); goto('/login'); }}
-					class="rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--danger)]"
-					title="Sign out"
-					aria-label="Sign out"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-						<polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-					</svg>
-				</button>
+				<!-- Actions -->
+				<div class="p-2">
+					<button
+						onclick={() => { whatsNewRef?.open(); showUserMenu = false; }}
+						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+						Changelog <span class="ml-auto text-[10px] text-[var(--text-secondary)]">v{__APP_VERSION__}</span>
+					</button>
+					<button
+						onclick={() => { showFeedback = true; showUserMenu = false; }}
+						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+						Send Feedback
+					</button>
+					<div class="my-1 h-px bg-white/10"></div>
+					<button
+						onclick={() => { webrtcManager.leaveCall(); authStore.logout(); wsClient.disconnect(); goto('/login'); }}
+						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--danger)] transition hover:bg-white/5"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+						Sign Out
+					</button>
+				</div>
 			</div>
-		</aside>
+		{/if}
 
-		</div><!-- end community rail + sidebar wrapper -->
 
 		<!-- Join Community modal (overlays the sidebar area) -->
 		{#if showJoinCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" transition:fade={{ duration: 150 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-				<div role="dialog" tabindex="-1" class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<div role="dialog" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Join a Community</h3>
 						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" aria-label="Close">&times;</button>
@@ -4619,7 +4707,7 @@
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 				<form
 					onsubmit={(e) => { e.preventDefault(); handleCreateCommunity(); }}
-					class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
+					class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl"
 					onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 				>
 					<div class="mb-4 flex items-center justify-between">
@@ -4663,7 +4751,7 @@
 		{#if showWelcomeSplash && welcomeCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 200 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-				<div role="dialog" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<div role="dialog" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-2xl bg-[var(--bg-secondary)] shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					{#if welcomeCommunity.banner_url}
 						<img src={welcomeCommunity.banner_url} alt="" class="h-32 w-full object-cover" />
 					{:else}
@@ -4691,6 +4779,9 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- Main content row -->
+		<div class="flex flex-1 overflow-hidden">
 
 		<!-- Main chat area -->
 		<main
@@ -4723,18 +4814,8 @@
 			{/if}
 			{#if activeChannel}
 				<!-- Channel header -->
-				<header class="flex h-12 md:h-14 items-center justify-between border-b border-white/10 px-3 md:px-6">
+				<header class="flex h-10 items-center justify-between border-b border-white/10 px-3 md:px-6">
 					<div class="flex items-center">
-						<!-- Mobile menu button -->
-						<button
-							onclick={() => { sidebarOpen = true; showMemberPanel = false; }}
-							class="mr-3 rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
-							aria-label="Open sidebar"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
-							</svg>
-						</button>
 						{#if activeChannel.channel_type === 'dm'}
 							<span class="mr-2 text-[var(--text-secondary)]">@</span>
 						{:else if activeChannel.channel_type === 'voice'}
@@ -4850,7 +4931,7 @@
 								</button>
 								{#if showNotifDropdown}
 									<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-									<div role="menu" tabindex="-1" class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+									<div role="menu" tabindex="-1" class="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl bg-[var(--bg-secondary)] py-1 shadow-lg" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 										<p class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Notifications</p>
 										{#each [['all', 'All Messages'], ['mentions', 'Only @mentions'], ['nothing', 'Nothing']] as [value, label]}
 											<button
@@ -4865,32 +4946,6 @@
 								{/if}
 							</div>
 						{/if}
-						<CallControls channelId={activeChannel.id} channelType={activeChannel.channel_type} />
-						<button
-							onclick={toggleBookmarksPanel}
-							class="rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showBookmarksPanel ? 'text-[var(--accent)]' : ''}"
-							title="Saved Items"
-							aria-label="Saved Items"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-							</svg>
-						</button>
-						<button
-							onclick={toggleScheduledPanel}
-							class="relative rounded-lg p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showScheduledPanel ? 'text-[var(--accent)]' : ''}"
-							title="Scheduled Messages"
-							aria-label="Scheduled Messages"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-								<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-							</svg>
-							{#if scheduledMessages.length > 0}
-								<span class="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-white">
-									{scheduledMessages.length}
-								</span>
-							{/if}
-						</button>
 						{#if activeChannel.channel_type !== 'dm'}
 							<button
 								onclick={toggleMemberPanel}
@@ -5233,7 +5288,7 @@
 						>
 							<!-- Hover action bar -->
 							{#if !msg.pending}
-								<div class="msg-actions absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-1 py-0.5 shadow-lg">
+								<div class="msg-actions absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-xl bg-[var(--bg-secondary)] px-1 py-0.5 shadow-md">
 									<button
 										onclick={() => toggleReaction(msg.id, '👍')}
 										title="React with 👍"
@@ -5643,7 +5698,7 @@
 							<!-- Reaction picker popup -->
 							{#if reactionPickerMessageId === msg.id}
 								<div
-									class="absolute right-2 top-8 z-10 flex items-center gap-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-xl"
+									class="absolute right-2 top-8 z-10 flex items-center gap-1 rounded-xl bg-[var(--bg-secondary)] p-2 shadow-lg"
 									transition:scale={{ start: 0.9, duration: 150 }}
 									role="toolbar"
 									aria-label="Reaction picker"
@@ -5723,7 +5778,7 @@
 						onkeydown={(e) => { if (e.key === 'Escape') contextMenuMessageId = null; }}
 					></div>
 					<div
-						class="fixed z-50 min-w-[180px] max-w-[calc(100vw-16px)] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
+						class="fixed z-50 min-w-[180px] max-w-[calc(100vw-16px)] rounded-xl bg-[var(--bg-secondary)] py-1 shadow-lg"
 						style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px;"
 						transition:scale={{ start: 0.9, duration: 100 }}
 					>
@@ -5950,7 +6005,7 @@
 					{/if}
 					<!-- GIF picker panel -->
 					{#if showGifPicker}
-						<div class="absolute bottom-full left-0 right-0 z-20 mb-1 mx-1 md:mx-4 max-h-[360px] rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
+						<div class="absolute bottom-full left-0 right-0 z-20 mb-1 mx-1 md:mx-4 max-h-[360px] rounded-2xl bg-[var(--bg-secondary)] shadow-xl overflow-hidden flex flex-col" transition:scale={{ start: 0.95, duration: 150 }}>
 							<div class="flex items-center gap-2 border-b border-white/10 px-3 py-2">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
 								<input
@@ -6084,7 +6139,7 @@
 								</svg>
 							</button>
 							{#if showSchedulePicker}
-								<div class="absolute bottom-full right-0 mb-2 w-64 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 shadow-2xl" transition:scale={{ start: 0.95, duration: 150 }}>
+								<div class="absolute bottom-full right-0 mb-2 w-64 rounded-2xl bg-[var(--bg-secondary)] p-4 shadow-xl" transition:scale={{ start: 0.95, duration: 150 }}>
 									<h4 class="mb-3 text-sm font-semibold text-[var(--text-primary)]">Schedule Message</h4>
 									<div class="space-y-2">
 										<div>
@@ -6157,7 +6212,7 @@
 					{#if initialized}
 						<!-- Mobile menu button when no channel selected -->
 						<button
-							onclick={() => { sidebarOpen = true; showMemberPanel = false; }}
+							onclick={() => { showNavDropdown = true; showMemberPanel = false; }}
 							class="rounded-lg border border-white/10 px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] md:hidden"
 						>
 							Open channels
@@ -6717,7 +6772,7 @@
 								<!-- Reaction picker popup -->
 								{#if threadReactionPickerMsgId === reply.id}
 									<div
-										class="absolute right-1 top-8 z-10 flex items-center gap-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-2 shadow-xl"
+										class="absolute right-1 top-8 z-10 flex items-center gap-1 rounded-xl bg-[var(--bg-secondary)] p-2 shadow-lg"
 										transition:scale={{ start: 0.9, duration: 150 }}
 										role="toolbar"
 										aria-label="Reaction picker"
@@ -6770,13 +6825,14 @@
 				</div>
 			</aside>
 		{/if}
+		</div><!-- end main content row -->
 	</div>
 
 	<!-- Feedback modal -->
 	{#if showFeedback}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onpaste={handleFeedbackPaste}>
-			<div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl" transition:scale={{ start: 0.95, duration: 200 }}>
+			<div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }}>
 				<h2 class="mb-1 text-lg font-semibold text-[var(--text-primary)]">Send Feedback</h2>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">Help us improve Chatalot. Your feedback creates an issue for the developers.</p>
 
@@ -6893,7 +6949,7 @@
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-5 shadow-2xl"
+				class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-5 shadow-xl"
 				transition:scale={{ start: 0.95, duration: 200 }}
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
@@ -6942,7 +6998,7 @@
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="w-full max-w-sm rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-5 shadow-2xl"
+				class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-5 shadow-xl"
 				transition:scale={{ start: 0.95, duration: 200 }}
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
@@ -6990,7 +7046,7 @@
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
+				class="w-full max-w-md rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl"
 				transition:scale={{ start: 0.95, duration: 200 }}
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
@@ -7110,7 +7166,7 @@
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="w-full max-w-lg rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
+				class="w-full max-w-lg rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl"
 				transition:scale={{ start: 0.95, duration: 200 }}
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
@@ -7260,7 +7316,7 @@
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="w-full max-w-lg rounded-xl border border-white/10 bg-[var(--bg-secondary)] shadow-2xl"
+				class="w-full max-w-lg rounded-2xl bg-[var(--bg-secondary)] shadow-xl"
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
 				transition:fly={{ y: -20, duration: 150 }}
@@ -7384,7 +7440,7 @@
 
 	<!-- Notification Permission Prompt -->
 	{#if showNotifPrompt}
-		<div class="fixed bottom-4 right-4 z-[90] w-[calc(100vw-2rem)] max-w-xs sm:w-80 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-4 shadow-2xl" transition:fly={{ y: 20, duration: 200 }}>
+		<div class="fixed bottom-4 right-4 z-[90] w-[calc(100vw-2rem)] max-w-xs sm:w-80 rounded-2xl bg-[var(--bg-secondary)] p-4 shadow-xl" transition:fly={{ y: 20, duration: 200 }}>
 			<div class="mb-2 flex items-start gap-3">
 				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -7423,7 +7479,7 @@
 		></div>
 		<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 		<div role="menu" tabindex="-1"
-			class="fixed z-50 w-56 rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-3 shadow-xl"
+			class="fixed z-50 w-56 rounded-xl bg-[var(--bg-secondary)] p-3 shadow-lg"
 			style="left: {voiceContextMenu.x}px; top: {voiceContextMenu.y}px;"
 			onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
 		>
@@ -7505,7 +7561,7 @@
 	<!-- Edit History Modal -->
 	{#if showEditHistory}
 		<div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onclick={() => showEditHistory = false} onkeydown={(e) => { if (e.key === 'Escape') showEditHistory = false; }} role="dialog" tabindex="-1">
-			<div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl border border-white/10" onclick={(e) => e.stopPropagation()}>
+			<div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
 				<div class="flex items-center justify-between mb-4">
 					<h3 class="text-lg font-semibold text-[var(--text-primary)]">Edit History</h3>
 					<button onclick={() => showEditHistory = false} class="rounded p-1 text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition">

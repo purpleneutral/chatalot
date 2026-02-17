@@ -67,7 +67,7 @@
 					bind:value={username}
 					required
 					autocomplete="username"
-					class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 				/>
 			</div>
 
@@ -81,7 +81,7 @@
 					bind:value={password}
 					required
 					autocomplete="current-password"
-					class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+					class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 				/>
 			</div>
 
@@ -96,7 +96,7 @@
 						bind:value={totpCode}
 						autocomplete="one-time-code"
 						placeholder="123456 or XXXX-XXXX"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-center font-mono text-lg tracking-widest text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-center font-mono text-lg tracking-widest text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 					/>
 					<p class="mt-1 text-xs text-[var(--text-secondary)]/70">
 						Enter your 6-digit TOTP code, or a backup code if you lost your device.
@@ -107,7 +107,7 @@
 			<button
 				type="submit"
 				disabled={loading}
-				class="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+				class="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 			>
 				{loading ? 'Signing in...' : 'Sign In'}
 			</button>

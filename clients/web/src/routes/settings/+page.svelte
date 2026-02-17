@@ -568,7 +568,7 @@
 						</div>
 					{/if}
 
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Avatar</h3>
 						<div class="flex items-center gap-4">
 							<div class="group relative">
@@ -608,7 +608,7 @@
 						</div>
 					</section>
 
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Profile Banner</h3>
 						<div class="group relative aspect-[3/1] w-full overflow-hidden rounded-lg border border-white/10">
 							{#if authStore.user?.banner_url}
@@ -654,7 +654,7 @@
 						</div>
 					</section>
 
-					<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Personal Info</h3>
 						<div class="space-y-4">
 							<div>
@@ -664,7 +664,7 @@
 									type="text"
 									bind:value={editDisplayName}
 									maxlength="64"
-									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editDisplayName.length}/64</p>
 							</div>
@@ -676,7 +676,7 @@
 									bind:value={editCustomStatus}
 									maxlength="128"
 									placeholder="What's on your mind?"
-									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editCustomStatus.length}/128</p>
 							</div>
@@ -688,7 +688,7 @@
 									bind:value={editPronouns}
 									maxlength="50"
 									placeholder="e.g. they/them"
-									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editPronouns.length}/50</p>
 							</div>
@@ -700,7 +700,7 @@
 									maxlength="500"
 									rows="3"
 									placeholder="Tell others about yourself..."
-									class="w-full resize-none rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								></textarea>
 								<p class="mt-1 text-right text-[10px] text-[var(--text-secondary)]/50">{editBio.length}/500</p>
 							</div>
@@ -719,7 +719,7 @@
 					<h2 class="mb-6 text-xl font-bold">Appearance</h2>
 
 					<!-- Theme -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Theme</h3>
 						<div class="flex items-center justify-between">
 							<div>
@@ -764,7 +764,7 @@
 					</section>
 
 					<!-- Preset Themes -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Color Palette</h3>
 						<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
 							{#each presetThemeList as themeId}
@@ -832,7 +832,7 @@
 
 					<!-- Accent Color (only shown for default theme) -->
 					{#if preferencesStore.preferences.presetTheme === 'default'}
-						<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 							<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Accent Color</h3>
 							<div class="flex flex-wrap gap-3">
 								{#each accentColorList as color}
@@ -860,7 +860,7 @@
 					{/if}
 
 					<!-- Message Density -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Message Display</h3>
 
 						<div class="mb-4">
@@ -974,7 +974,7 @@
 					</section>
 
 					<!-- Accessibility -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Accessibility</h3>
 
 						<!-- Reduce Motion -->
@@ -1013,7 +1013,7 @@
 					<h2 class="mb-6 text-xl font-bold">Notifications</h2>
 
 					<!-- Sounds -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Sounds</h3>
 						<div class="space-y-4">
 							<div class="flex items-center justify-between">
@@ -1115,7 +1115,7 @@
 					</section>
 
 					<!-- Desktop Notifications -->
-					<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Desktop Notifications</h3>
 						<div class="space-y-4">
 							<div class="flex items-center justify-between">
@@ -1158,7 +1158,7 @@
 										notificationStore.preferences = { ...notificationStore.preferences, defaultChannelLevel: e.currentTarget.value as 'all' | 'mentions' | 'nothing' };
 										notificationStore.save();
 									}}
-									class="rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								>
 									<option value="all">All messages</option>
 									<option value="mentions">Only @mentions</option>
@@ -1172,7 +1172,7 @@
 				{:else if activeTab === 'chat'}
 					<h2 class="mb-6 text-xl font-bold">Chat</h2>
 
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Input</h3>
 
 						<!-- Send behavior -->
@@ -1213,7 +1213,7 @@
 						</div>
 					</section>
 
-					<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Display</h3>
 
 						<!-- Link Previews -->
@@ -1250,7 +1250,7 @@
 					<h2 class="mb-6 text-xl font-bold">Voice & Audio</h2>
 
 					<!-- ── Input Device ── -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Input Device</h3>
 
 						<div class="mb-4">
@@ -1312,7 +1312,7 @@
 					</section>
 
 					<!-- ── Output Device ── -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Output Device</h3>
 
 						<div class="mb-4">
@@ -1357,7 +1357,7 @@
 					</section>
 
 					<!-- ── Noise Suppression ── -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Noise Suppression</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
 							Reduce background noise during voice calls. Higher levels use more CPU but produce cleaner audio. All processing happens on your device.
@@ -1395,7 +1395,7 @@
 					</section>
 
 					<!-- ── Advanced ── -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Advanced</h3>
 
 						<div class="mb-4 flex items-center justify-between">
@@ -1430,7 +1430,7 @@
 					</section>
 
 					<!-- ── Stream Focus ── -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Stream Focus</h3>
 
 						<div class="flex items-center justify-between">
@@ -1452,7 +1452,7 @@
 					</section>
 
 					<!-- ── Call Background ── -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Call Background</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
 							Set a background for your video tile when your camera is off.
@@ -1542,7 +1542,7 @@
 					<h2 class="mb-6 text-xl font-bold">Security</h2>
 
 					<!-- 2FA -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Two-Factor Authentication</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
 							Add an extra layer of security with TOTP-based 2FA.
@@ -1560,7 +1560,7 @@
 						{/if}
 
 						{#if showTotpSetup && totpSetup}
-							<div class="rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
+							<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-4">
 								<p class="mb-3 text-sm">Scan with your authenticator app, or enter the secret manually:</p>
 								<div class="mb-3 rounded-lg bg-white p-4 text-center">
 									<p class="text-xs text-gray-500">QR Code for: {totpSetup.otpauth_url}</p>
@@ -1578,7 +1578,7 @@
 										placeholder="Enter 6-digit code"
 										maxlength="6"
 										pattern="[0-9]{6}"
-										class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+										class="flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 									/>
 									<button
 										type="submit"
@@ -1596,7 +1596,7 @@
 									placeholder="Enter 2FA code to disable"
 									maxlength="6"
 									pattern="[0-9]{6}"
-									class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								<button
 									type="submit"
@@ -1631,7 +1631,7 @@
 					</section>
 
 					<!-- Recovery Code -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Recovery Code</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
 							Your recovery code lets you reset your password if you forget it, without needing an admin. Generate a new one if you've lost it.
@@ -1686,7 +1686,7 @@
 
 					<!-- 2FA Backup Codes -->
 					{#if showBackupCodes && backupCodes.length > 0}
-						<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 							<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">2FA Backup Codes</h3>
 							<p class="mb-4 text-sm text-[var(--text-secondary)]">
 								Each code can only be used once. Save these in case you lose your authenticator device.
@@ -1717,7 +1717,7 @@
 							</div>
 						</section>
 					{:else}
-						<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+						<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 							<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">2FA Backup Codes</h3>
 							<p class="mb-4 text-sm text-[var(--text-secondary)]">
 								Regenerate backup codes if you've used some or lost them. Requires a valid 2FA code.
@@ -1734,7 +1734,7 @@
 									placeholder="Enter 2FA code"
 									maxlength="6"
 									pattern="[0-9]{6}"
-									class="flex-1 rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								<button
 									type="submit"
@@ -1747,7 +1747,7 @@
 					{/if}
 
 					<!-- Sessions -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<div class="mb-4 flex items-center justify-between">
 							<h3 class="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Active Sessions</h3>
 							<button
@@ -1807,7 +1807,7 @@
 					</section>
 
 					<!-- Encryption info -->
-					<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Encryption</h3>
 						<div class="space-y-3 text-sm text-[var(--text-secondary)]">
 							<div class="flex items-center justify-between">
@@ -1826,7 +1826,7 @@
 					<h2 class="mb-6 text-xl font-bold">Account</h2>
 
 					<!-- Change Password -->
-					<section class="mb-6 rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Change Password</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
 							Changing your password will sign you out of all devices.
@@ -1846,7 +1846,7 @@
 									type="password"
 									bind:value={currentPassword}
 									required
-									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 							</div>
 							<div>
@@ -1856,7 +1856,7 @@
 									type="password"
 									bind:value={newPassword}
 									required
-									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 								{#if newPassword.length > 0}
 									<div class="mt-2 space-y-1 text-xs">
@@ -1875,7 +1875,7 @@
 									type="password"
 									bind:value={confirmPassword}
 									required
-									class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+									class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 								/>
 							</div>
 							<button

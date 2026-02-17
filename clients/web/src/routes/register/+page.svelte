@@ -140,7 +140,7 @@
 							bind:value={inviteCode}
 							required
 							placeholder="Enter your invite code"
-							class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 font-mono tracking-wider text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+							class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 font-mono tracking-wider text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
 						/>
 						<p class="mt-1 text-xs text-[var(--text-secondary)]">
 							An invite code is required to register on this server.
@@ -160,7 +160,7 @@
 						minlength="3"
 						maxlength="32"
 						autocomplete="username"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 					/>
 					<p class="mt-1 text-xs text-[var(--text-secondary)]/70">
 						3-32 characters. Letters, numbers, underscores, hyphens, and dots.
@@ -177,7 +177,7 @@
 						bind:value={displayName}
 						maxlength="64"
 						placeholder={username || 'Your display name'}
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 					/>
 				</div>
 
@@ -191,7 +191,7 @@
 						bind:value={email}
 						required
 						autocomplete="email"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 					/>
 				</div>
 
@@ -206,7 +206,7 @@
 						required
 						minlength="8"
 						autocomplete="new-password"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 					/>
 					{#if password.length > 0}
 						<div class="mt-2 space-y-1 text-xs">
@@ -239,14 +239,14 @@
 						bind:value={confirmPassword}
 						required
 						autocomplete="new-password"
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
+						class="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-2.5 text-[var(--text-primary)] outline-none transition focus:border-[var(--accent)]"
 					/>
 				</div>
 
 				<button
 					type="submit"
 					disabled={loading}
-					class="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+					class="w-full rounded-xl bg-[var(--accent)] px-4 py-2.5 font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{loading ? 'Creating account...' : 'Create Account'}
 				</button>
@@ -295,13 +295,13 @@
 						copiedRecovery = true;
 						setTimeout(() => (copiedRecovery = false), 2000);
 					}}
-					class="flex-1 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:bg-white/5"
+					class="flex-1 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition hover:bg-white/5"
 				>
 					{copiedRecovery ? 'Copied!' : 'Copy Code'}
 				</button>
 				<button
 					onclick={() => goto('/channels')}
-					class="flex-1 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
+					class="flex-1 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)]"
 				>
 					I've Saved My Code
 				</button>
