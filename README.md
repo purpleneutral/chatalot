@@ -9,16 +9,35 @@ No data harvesting. No algorithmic feeds. No subscription tiers to unlock basic 
 > **Our mission:** Chatalot was born from a simple belief — your conversations are yours. Not a corporation's asset, not a data point, not a product. This is an independent, passion-driven project built for the long haul, with no corporate ties, no investors, and no exit strategy. Just software that respects its users. [Read the full mission statement &rarr;](MISSION.md)
 
 <p align="center">
-  <img src="docs/screenshots/chat-hero.png" alt="Chatalot chat interface — light mode" width="800">
+  <img src="screenshots/01-chat-conversation.png" alt="Chatalot chat interface — light mode" width="800">
 </p>
 
 <details>
 <summary>Dark mode & customization</summary>
 
 <p align="center">
-  <img src="docs/screenshots/chat-dark.png" alt="Chatalot chat interface — dark mode" width="800">
+  <img src="screenshots/07-chat-dark.png" alt="Chatalot chat interface — dark mode" width="800">
   <br><br>
-  <img src="docs/screenshots/settings-appearance.png" alt="Chatalot appearance settings — themes, palettes, accent colors" width="800">
+  <img src="screenshots/05-settings.png" alt="Chatalot appearance settings — themes, palettes, accent colors" width="800">
+</p>
+
+</details>
+
+<details>
+<summary>More screenshots</summary>
+
+<p align="center">
+  <img src="screenshots/00-login-page.png" alt="Login page" width="400">
+  <img src="screenshots/09-register-page.png" alt="Registration page" width="400">
+  <br><br>
+  <img src="screenshots/02-community-picker.png" alt="Community picker" width="800">
+  <br><br>
+  <img src="screenshots/04-members-panel.png" alt="Members panel" width="800">
+  <br><br>
+  <img src="screenshots/08-admin-panel.png" alt="Admin panel" width="800">
+  <br><br>
+  <img src="screenshots/10-mobile-login.png" alt="Mobile login" width="300">
+  <img src="screenshots/11-mobile-chat.png" alt="Mobile chat" width="300">
 </p>
 
 </details>
@@ -48,7 +67,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Admin panel** — user management, invite codes, announcements, report review, and system feedback
 - **Legal framework** — built-in privacy policy and terms of service, customizable per instance
 
-For a complete feature list, see [docs/features.md](docs/features.md).
+For a complete feature list, see [Feature Status](docs/appendix/feature-status.md). For full documentation, see the [Chatalot Documentation](docs/README.md).
 
 > All messages are end-to-end encrypted. DMs use the Signal protocol (X3DH + Double Ratchet), group channels use Sender Keys — both compiled to WASM and running in the browser. Keys are generated at registration, sessions are persisted in IndexedDB, and the server acts as an untrusted relay.
 
@@ -304,7 +323,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (34 files)
+├── migrations/                # PostgreSQL migrations (39 files)
 ├── scripts/
 │   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
