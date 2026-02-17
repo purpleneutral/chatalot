@@ -113,6 +113,30 @@ pub async fn leave_all_sessions(
     Ok(rows)
 }
 
+/// Check if two users are in the same active voice session.
+pub async fn are_in_same_session(
+    pool: &PgPool,
+    user_a: Uuid,
+    user_b: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let row: Option<(i64,)> = sqlx::query_as(
+        r#"
+        SELECT 1 FROM voice_session_participants a
+        JOIN voice_session_participants b ON a.session_id = b.session_id
+        JOIN voice_sessions s ON s.id = a.session_id
+        WHERE a.user_id = $1 AND b.user_id = $2
+          AND a.left_at IS NULL AND b.left_at IS NULL
+          AND s.ended_at IS NULL
+        LIMIT 1
+        "#,
+    )
+    .bind(user_a)
+    .bind(user_b)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.is_some())
+}
+
 /// End a voice session (when last participant leaves).
 pub async fn end_session(pool: &PgPool, session_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE voice_sessions SET ended_at = NOW() WHERE id = $1")

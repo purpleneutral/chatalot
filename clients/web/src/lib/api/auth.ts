@@ -39,9 +39,16 @@ export interface RegisterParams {
 	invite_code?: string;
 }
 
+export interface IceServer {
+	urls: string | string[];
+	username?: string;
+	credential?: string;
+}
+
 export interface ServerConfig {
 	registration_mode: string;
 	public_url?: string;
+	ice_servers?: IceServer[];
 }
 
 /** Cached public URL from server config, populated on first getServerConfig() call. */

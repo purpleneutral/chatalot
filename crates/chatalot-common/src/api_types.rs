@@ -659,11 +659,22 @@ pub struct RegistrationInviteResponse {
 
 // ── Server Config (public) ──
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IceServer {
+    pub urls: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ServerConfigResponse {
     pub registration_mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_url: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub ice_servers: Vec<IceServer>,
 }
 
 // ── Health ──

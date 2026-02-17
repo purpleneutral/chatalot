@@ -3,13 +3,14 @@ import { authStore } from '$lib/stores/auth.svelte';
 import { preferencesStore, type NoiseSuppression } from '$lib/stores/preferences.svelte';
 import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 import { wsClient } from '$lib/ws/connection';
+import { getServerConfig } from '$lib/api/auth';
 import {
 	applyNoiseSuppression,
 	removeNoiseSuppression,
 	changeSuppressionLevel
 } from './noise-suppression';
 
-const ICE_SERVERS: RTCIceServer[] = [
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 	{ urls: 'stun:stun.l.google.com:19302' },
 	{ urls: 'stun:stun1.l.google.com:19302' }
 ];
@@ -47,6 +48,12 @@ class WebRTCManager {
 	// Timeouts for cleaning up peers stuck in 'disconnected' state
 	private disconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
+	// Timeouts for offer answers that never arrive
+	private answerTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+	// ICE servers fetched from server config (STUN/TURN)
+	private iceServers: RTCIceServer[] = DEFAULT_ICE_SERVERS;
+
 	// Guard against concurrent audio pipeline rebuilds
 	private rebuildingPipeline = false;
 
@@ -70,6 +77,21 @@ class WebRTCManager {
 		this.disconnectTimeouts.clear();
 	}
 
+	private clearAnswerTimeout(userId: string): void {
+		const timeout = this.answerTimeouts.get(userId);
+		if (timeout) {
+			clearTimeout(timeout);
+			this.answerTimeouts.delete(userId);
+		}
+	}
+
+	private clearAllAnswerTimeouts(): void {
+		for (const timeout of this.answerTimeouts.values()) {
+			clearTimeout(timeout);
+		}
+		this.answerTimeouts.clear();
+	}
+
 	/// Join a voice channel: acquire media, tell server, set up peers.
 	async joinCall(channelId: string, withVideo: boolean = false): Promise<void> {
 		if (voiceStore.isInCall) {
@@ -84,6 +106,16 @@ class WebRTCManager {
 
 		this.channelId = channelId;
 		this.sessionId = crypto.randomUUID();
+
+		// Fetch ICE servers from server config (includes TURN if configured)
+		try {
+			const config = await getServerConfig();
+			if (config.ice_servers && config.ice_servers.length > 0) {
+				this.iceServers = config.ice_servers;
+			}
+		} catch {
+			// Fall back to default STUN servers
+		}
 
 		// Enumerate devices first so we can validate the saved selection
 		await audioDeviceStore.enumerateDevices();
@@ -221,6 +253,7 @@ class WebRTCManager {
 		this.pendingCandidates.clear();
 		this.mainStreamIds.clear();
 		this.clearAllDisconnectTimeouts();
+		this.clearAllAnswerTimeouts();
 
 		voiceStore.clearCall();
 		this.channelId = null;
@@ -665,6 +698,7 @@ class WebRTCManager {
 	/// Called when a user leaves the voice channel.
 	onUserLeft(userId: string): void {
 		this.clearDisconnectTimeout(userId);
+		this.clearAnswerTimeout(userId);
 		this.stopMonitoringStream(userId);
 		voiceStore.setRemoteVideo(userId, false);
 		voiceStore.removeRemoteScreenStream(userId);
@@ -690,6 +724,7 @@ class WebRTCManager {
 			// Only reject if there's an actual offer collision: we're the impolite
 			// peer AND we already sent our own offer (have-local-offer).
 			if (!this.isPolite(fromUserId) && pc.signalingState === 'have-local-offer') {
+				console.info(`Offer collision with ${fromUserId} — dropping (we are impolite peer)`);
 				return;
 			}
 			// Accept their offer. Roll back our pending offer if needed (polite peer yields).
@@ -713,21 +748,27 @@ class WebRTCManager {
 			}
 		}
 
-		const offer = JSON.parse(sdpJson) as RTCSessionDescriptionInit;
-		await pc.setRemoteDescription(offer);
+		try {
+			const offer = JSON.parse(sdpJson) as RTCSessionDescriptionInit;
+			await pc.setRemoteDescription(offer);
 
-		// Flush any ICE candidates that arrived before the offer
-		await this.flushPendingCandidates(fromUserId, pc);
+			// Flush any ICE candidates that arrived before the offer
+			await this.flushPendingCandidates(fromUserId, pc);
 
-		const answer = await pc.createAnswer();
-		await pc.setLocalDescription(answer);
+			const answer = await pc.createAnswer();
+			await pc.setLocalDescription(answer);
 
-		wsClient.send({
-			type: 'rtc_answer',
-			target_user_id: fromUserId,
-			session_id: sessionId,
-			sdp: JSON.stringify(answer)
-		});
+			wsClient.send({
+				type: 'rtc_answer',
+				target_user_id: fromUserId,
+				session_id: sessionId,
+				sdp: JSON.stringify(answer)
+			});
+		} catch (err) {
+			console.error(`Failed to handle offer from ${fromUserId}:`, err);
+			this.onUserLeft(fromUserId);
+			return;
+		}
 
 		// After renegotiation, check for stale screen shares. Track events
 		// (onended/onmute) don't fire reliably across browsers when the sender
@@ -741,6 +782,8 @@ class WebRTCManager {
 
 	/// Handle an incoming RTC answer.
 	async handleAnswer(fromUserId: string, sdpJson: string): Promise<void> {
+		this.clearAnswerTimeout(fromUserId);
+
 		const pc = this.peers.get(fromUserId);
 		if (!pc) {
 			console.warn(`Received answer from ${fromUserId} but no peer connection exists`);
@@ -752,11 +795,16 @@ class WebRTCManager {
 			return;
 		}
 
-		const answer = JSON.parse(sdpJson) as RTCSessionDescriptionInit;
-		await pc.setRemoteDescription(answer);
+		try {
+			const answer = JSON.parse(sdpJson) as RTCSessionDescriptionInit;
+			await pc.setRemoteDescription(answer);
 
-		// Flush any ICE candidates that arrived before the answer
-		await this.flushPendingCandidates(fromUserId, pc);
+			// Flush any ICE candidates that arrived before the answer
+			await this.flushPendingCandidates(fromUserId, pc);
+		} catch (err) {
+			console.error(`Failed to handle answer from ${fromUserId}:`, err);
+			this.onUserLeft(fromUserId);
+		}
 	}
 
 	/// Handle an incoming ICE candidate.
@@ -772,7 +820,13 @@ class WebRTCManager {
 			return;
 		}
 
-		await pc.addIceCandidate(candidate);
+		if (pc.connectionState === 'closed') return;
+
+		try {
+			await pc.addIceCandidate(candidate);
+		} catch (err) {
+			console.warn(`Failed to add ICE candidate from ${fromUserId}:`, err);
+		}
 	}
 
 	/// Handle voice state update (list of current participants).
@@ -822,7 +876,7 @@ class WebRTCManager {
 	}
 
 	/// Create a peer connection, add tracks, create offer, and send it.
-	private async createAndSendOffer(userId: string): Promise<void> {
+	private async createAndSendOffer(userId: string, isRetry = false): Promise<void> {
 		if (!this.sessionId || !voiceStore.activeCall?.localStream) return;
 
 		const pc = this.createPeerConnection(userId);
@@ -839,16 +893,35 @@ class WebRTCManager {
 			}
 		}
 
-		// Create and send offer
-		const offer = await pc.createOffer();
-		await pc.setLocalDescription(offer);
+		try {
+			// Create and send offer
+			const offer = await pc.createOffer();
+			await pc.setLocalDescription(offer);
 
-		wsClient.send({
-			type: 'rtc_offer',
-			target_user_id: userId,
-			session_id: this.sessionId,
-			sdp: JSON.stringify(offer)
-		});
+			wsClient.send({
+				type: 'rtc_offer',
+				target_user_id: userId,
+				session_id: this.sessionId,
+				sdp: JSON.stringify(offer)
+			});
+
+			// Set timeout for answer — if no answer arrives, clean up and retry once
+			this.clearAnswerTimeout(userId);
+			this.answerTimeouts.set(userId, setTimeout(() => {
+				this.answerTimeouts.delete(userId);
+				const current = this.peers.get(userId);
+				if (current?.signalingState === 'have-local-offer') {
+					console.warn(`No answer from ${userId} after 15s${isRetry ? ' (retry)' : ''}, cleaning up`);
+					this.onUserLeft(userId);
+					if (!isRetry) {
+						this.createAndSendOffer(userId, true).catch(() => {});
+					}
+				}
+			}, 15_000));
+		} catch (err) {
+			console.error(`Failed to create offer for ${userId}:`, err);
+			this.onUserLeft(userId);
+		}
 	}
 
 	/// Flush queued ICE candidates after remote description is set.
@@ -856,7 +929,11 @@ class WebRTCManager {
 		const pending = this.pendingCandidates.get(userId);
 		if (pending) {
 			for (const candidate of pending) {
-				await pc.addIceCandidate(candidate);
+				try {
+					await pc.addIceCandidate(candidate);
+				} catch (err) {
+					console.warn(`Failed to add buffered ICE candidate for ${userId}:`, err);
+				}
 			}
 			this.pendingCandidates.delete(userId);
 		}
@@ -866,7 +943,7 @@ class WebRTCManager {
 		// Close existing connection if any
 		this.peers.get(userId)?.close();
 
-		const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+		const pc = new RTCPeerConnection({ iceServers: this.iceServers });
 		this.peers.set(userId, pc);
 
 		// ICE candidate handling

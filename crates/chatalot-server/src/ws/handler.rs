@@ -727,7 +727,7 @@ async fn handle_client_message(
             }
         }
 
-        // Forward WebRTC signaling messages to the target user
+        // Forward WebRTC signaling messages to the target user (validated)
         ClientMessage::RtcOffer {
             target_user_id,
             session_id,
@@ -739,6 +739,17 @@ async fn handle_client_message(
                     message: "SDP too large".to_string(),
                 });
                 return;
+            }
+            // Validate both users are in the same voice session
+            match voice_repo::are_in_same_session(&state.db, user_id, target_user_id).await {
+                Ok(true) => {}
+                _ => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "forbidden".to_string(),
+                        message: "target user not in your voice session".to_string(),
+                    });
+                    return;
+                }
             }
             conn_mgr.send_to_user(
                 &target_user_id,
@@ -761,6 +772,16 @@ async fn handle_client_message(
                 });
                 return;
             }
+            match voice_repo::are_in_same_session(&state.db, user_id, target_user_id).await {
+                Ok(true) => {}
+                _ => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "forbidden".to_string(),
+                        message: "target user not in your voice session".to_string(),
+                    });
+                    return;
+                }
+            }
             conn_mgr.send_to_user(
                 &target_user_id,
                 &ServerMessage::RtcAnswer {
@@ -781,6 +802,16 @@ async fn handle_client_message(
                     message: "ICE candidate too large".to_string(),
                 });
                 return;
+            }
+            match voice_repo::are_in_same_session(&state.db, user_id, target_user_id).await {
+                Ok(true) => {}
+                _ => {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "forbidden".to_string(),
+                        message: "target user not in your voice session".to_string(),
+                    });
+                    return;
+                }
             }
             conn_mgr.send_to_user(
                 &target_user_id,
