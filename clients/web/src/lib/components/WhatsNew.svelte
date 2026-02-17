@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.33',
+			date: '2026-02-17',
+			changes: [
+				'Fix: admin invite creation now validates numeric inputs (prevents NaN from being sent to server)',
+				'Fix: recovery code modal now closes with Escape key',
+			]
+		},
+		{
 			version: '0.18.32',
 			date: '2026-02-17',
 			changes: [

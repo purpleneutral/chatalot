@@ -321,7 +321,7 @@
 		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
 		role="dialog"
 		aria-label="Save recovery code"
-		onkeydown={(e) => e.stopPropagation()}
+		onkeydown={(e) => { if (e.key === 'Escape') goto('/channels'); e.stopPropagation(); }}
 	>
 		<div class="w-full max-w-md rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-2xl">
 			<h2 class="mb-2 text-xl font-bold text-[var(--text-primary)]">Save Your Recovery Code</h2>

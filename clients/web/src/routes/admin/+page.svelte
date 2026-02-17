@@ -246,8 +246,16 @@
 		creatingInvite = true;
 		try {
 			const params: { max_uses?: number; expires_in_hours?: number } = {};
-			if (newInviteMaxUses) params.max_uses = parseInt(newInviteMaxUses);
-			if (newInviteExpiresHours) params.expires_in_hours = parseInt(newInviteExpiresHours);
+			if (newInviteMaxUses) {
+				const n = parseInt(newInviteMaxUses, 10);
+				if (!Number.isFinite(n) || n < 1) { toastStore.error('Max uses must be a positive number'); creatingInvite = false; return; }
+				params.max_uses = n;
+			}
+			if (newInviteExpiresHours) {
+				const n = parseInt(newInviteExpiresHours, 10);
+				if (!Number.isFinite(n) || n < 1) { toastStore.error('Expiry hours must be a positive number'); creatingInvite = false; return; }
+				params.expires_in_hours = n;
+			}
 			const invite = await createRegistrationInvite(params);
 			toastStore.success(`Invite code created: ${invite.code}`);
 			showCreateInvite = false;
