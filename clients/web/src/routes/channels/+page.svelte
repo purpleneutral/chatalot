@@ -2754,6 +2754,48 @@
 		messageStore.clearAllUnread();
 	}
 
+	// ── GIF freeze on window blur ──
+	let windowActive = $state(document.hasFocus());
+
+	function freezeGifs() {
+		if (!messageListEl) return;
+		const imgs = messageListEl.querySelectorAll<HTMLImageElement>('img[src*=".gif"]');
+		for (const img of imgs) {
+			if (img.dataset.gifSrc || !img.naturalWidth) continue;
+			try {
+				const canvas = document.createElement('canvas');
+				canvas.width = img.naturalWidth;
+				canvas.height = img.naturalHeight;
+				const ctx = canvas.getContext('2d');
+				if (!ctx) continue;
+				ctx.drawImage(img, 0, 0);
+				img.dataset.gifSrc = img.src;
+				img.src = canvas.toDataURL();
+			} catch {
+				// CORS or other issue — leave it animating
+			}
+		}
+	}
+
+	function unfreezeGifs() {
+		if (!messageListEl) return;
+		const imgs = messageListEl.querySelectorAll<HTMLImageElement>('img[data-gif-src]');
+		for (const img of imgs) {
+			img.src = img.dataset.gifSrc!;
+			delete img.dataset.gifSrc;
+		}
+	}
+
+	function handleWindowFocus() {
+		windowActive = true;
+		unfreezeGifs();
+	}
+
+	function handleWindowBlurGifs() {
+		windowActive = false;
+		freezeGifs();
+	}
+
 	// ── Push-to-Talk / Toggle-Mute ──
 	let pttActive = $state(false);
 
@@ -3715,7 +3757,7 @@
 	});
 </script>
 
-<svelte:window onkeydown={handleGlobalKeydown} onkeyup={handleGlobalKeyup} onblur={handleWindowBlur} />
+<svelte:window onkeydown={handleGlobalKeydown} onkeyup={handleGlobalKeyup} onfocus={handleWindowFocus} onblur={(e) => { handleWindowBlur(); handleWindowBlurGifs(); }} />
 
 {#if authStore.isAuthenticated}
 	<div class="flex flex-col h-screen overflow-hidden">
@@ -5509,6 +5551,7 @@
 												<img
 													src={imgUrl}
 													alt="Linked content"
+													crossorigin="anonymous"
 													class="max-h-80 max-w-[75vw] md:max-w-sm cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90"
 													loading="lazy"
 													onclick={() => openLightbox(imgUrl, 'Image')}
@@ -6574,7 +6617,7 @@
 									<div class="mt-2 flex flex-col gap-2">
 										{#each imageUrls as imgUrl}
 											<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-											<img src={imgUrl} alt="Linked content" class="max-h-60 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+											<img src={imgUrl} alt="Linked content" crossorigin="anonymous" class="max-h-60 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 										{/each}
 									</div>
 								{/if}
@@ -6712,7 +6755,7 @@
 												<div class="mt-2 flex flex-col gap-2">
 													{#each imageUrls as imgUrl}
 														<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-														<img src={imgUrl} alt="Linked content" class="max-h-48 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+														<img src={imgUrl} alt="Linked content" crossorigin="anonymous" class="max-h-48 max-w-full cursor-pointer rounded-lg border border-white/10 transition hover:brightness-90" loading="lazy" onclick={() => openLightbox(imgUrl, 'Image')} onkeydown={(e) => { if (e.key === 'Enter') openLightbox(imgUrl, 'Image'); }} onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 													{/each}
 												</div>
 											{/if}
