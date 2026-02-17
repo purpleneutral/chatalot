@@ -795,10 +795,19 @@
 		showEditHistory = true;
 		try {
 			const edits = await getEditHistory(channelId, messageId);
-			editHistoryEntries = edits.map(e => ({
-				content: new TextDecoder().decode(new Uint8Array(e.old_ciphertext)),
+			// Look up the sender so we can decrypt properly
+			const msg = messageStore.getMessages(channelId).find(m => m.id === messageId);
+			const senderId = msg?.senderId ?? '';
+			editHistoryEntries = await Promise.all(edits.map(async (e) => ({
+				content: await decryptMessage(
+					channelId,
+					senderId,
+					e.old_ciphertext,
+					undefined,
+					senderId === authStore.user?.id ? getPeerUserIdForDm(channelId) : undefined,
+				),
 				editedAt: e.edited_at
-			}));
+			})));
 		} catch {
 			toastStore.error('Failed to load edit history');
 			showEditHistory = false;
@@ -3764,10 +3773,17 @@
 		}
 	}
 
-	function jumpToSearchResult(msgId: string) {
+	async function jumpToSearchResult(msgId: string, channelId?: string) {
 		showSearch = false;
 		searchQuery = '';
 		searchResults = [];
+		// If the result is from a different channel, navigate there first
+		if (channelId && channelId !== channelStore.activeChannelId) {
+			selectChannel(channelId);
+			await tick();
+			// Wait for messages to load before highlighting
+			await new Promise(r => setTimeout(r, 300));
+		}
 		highlightMessage(msgId);
 	}
 
@@ -5290,7 +5306,7 @@
 							<div class="mt-2 max-h-60 space-y-1 overflow-y-auto">
 								{#each searchResults as result (result.id)}
 									<button
-										onclick={() => { if (searchScope === 'global' && result.channelId !== channelStore.activeChannelId) { channelStore.setActive(result.channelId); } jumpToSearchResult(result.id); }}
+										onclick={() => jumpToSearchResult(result.id, result.channelId)}
 										class="flex w-full flex-col rounded-lg px-3 py-2 text-left transition hover:bg-white/5"
 									>
 										<div class="flex items-baseline gap-2">

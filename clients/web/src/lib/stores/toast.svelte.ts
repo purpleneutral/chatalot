@@ -11,6 +11,8 @@ class ToastStore {
 	toasts = $state<Toast[]>([]);
 
 	show(message: string, type: Toast['type'] = 'info', duration = 4000) {
+		// Deduplicate: skip if same message+type is already visible
+		if (this.toasts.some(t => t.message === message && t.type === type)) return;
 		const id = nextId++;
 		this.toasts = [...this.toasts, { id, message, type }];
 		timers.set(id, setTimeout(() => this.dismiss(id), duration));

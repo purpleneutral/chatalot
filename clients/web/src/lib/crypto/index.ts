@@ -13,10 +13,19 @@ export async function initCrypto(): Promise<void> {
 	if (_initPromise) return _initPromise;
 
 	_initPromise = (async () => {
-		_storage = new CryptoStorage();
-		await _storage.open();
-		_keyManager = new KeyManager(_storage);
-		_sessionManager = new SessionManager(_storage, _keyManager);
+		try {
+			_storage = new CryptoStorage();
+			await _storage.open();
+			_keyManager = new KeyManager(_storage);
+			_sessionManager = new SessionManager(_storage, _keyManager);
+		} catch (err) {
+			// Reset so future calls can retry instead of returning a stale rejected promise
+			_storage = null;
+			_keyManager = null;
+			_sessionManager = null;
+			_initPromise = null;
+			throw err;
+		}
 	})();
 
 	return _initPromise;

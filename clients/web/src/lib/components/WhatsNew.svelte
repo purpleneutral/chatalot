@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.14',
+			date: '2026-02-17',
+			changes: [
+				'Fix: edit history now properly decrypts messages (was showing raw ciphertext)',
+				'Fix: global search results now navigate to the correct channel when clicked',
+				'Fix: crypto initialization now retries on failure instead of permanently breaking',
+				'QoL: duplicate toast notifications are now suppressed (no more spam on rapid actions)',
+			]
+		},
+		{
 			version: '0.18.13',
 			date: '2026-02-17',
 			changes: [
