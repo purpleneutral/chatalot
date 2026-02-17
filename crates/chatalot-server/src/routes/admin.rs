@@ -211,10 +211,10 @@ async fn suspend_user(
         .await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
 
-    // Cannot suspend another admin
-    if target.is_admin {
+    // Cannot suspend another admin or the instance owner
+    if target.is_admin || target.is_owner {
         return Err(AppError::Validation(
-            "cannot suspend an admin user".to_string(),
+            "cannot suspend an admin or owner".to_string(),
         ));
     }
 
