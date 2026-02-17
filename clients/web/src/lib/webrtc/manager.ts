@@ -735,15 +735,24 @@ class WebRTCManager {
 		// Clean up existing element if any
 		this.stopRemoteAudio(userId);
 
+		const audioTracks = stream.getAudioTracks();
+		console.info(`[VOICE] playRemoteAudio ${userId.slice(0,8)}: ${audioTracks.length} audio tracks, states=[${audioTracks.map(t => `${t.readyState},muted=${t.muted},enabled=${t.enabled}`).join('; ')}]`);
+
+		if (audioTracks.length === 0) {
+			console.warn(`[VOICE] No audio tracks in remote stream for ${userId.slice(0,8)}`);
+			return;
+		}
+
 		const audio = new Audio();
 		audio.autoplay = true;
 		audio.volume = preferencesStore.preferences.outputVolume / 100;
 		audio.srcObject = stream;
-		audio.play().catch(err => {
+		audio.play().then(() => {
+			console.info(`[VOICE] Audio playing for ${userId.slice(0,8)}, paused=${audio.paused}, volume=${audio.volume}`);
+		}).catch(err => {
 			console.warn(`[VOICE] Failed to play remote audio for ${userId.slice(0,8)}:`, err);
 		});
 		this.remoteAudioElements.set(userId, audio);
-		console.info(`[VOICE] Playing remote audio for ${userId.slice(0,8)}`);
 	}
 
 	/// Stop remote audio playback for a user.
@@ -1049,6 +1058,8 @@ class WebRTCManager {
 			const [stream] = event.streams;
 			if (!stream) return;
 
+			console.info(`[VOICE] ontrack from=${userId.slice(0,8)} kind=${event.track.kind} readyState=${event.track.readyState} muted=${event.track.muted} enabled=${event.track.enabled} streamTracks=${stream.getTracks().map(t => `${t.kind}:${t.readyState}:muted=${t.muted}`).join(',')}`);
+
 			const knownMainId = this.mainStreamIds.get(userId);
 
 			if (!knownMainId) {
@@ -1110,6 +1121,7 @@ class WebRTCManager {
 
 		// Connection state monitoring
 		pc.onconnectionstatechange = () => {
+			console.info(`[VOICE] connectionState ${userId.slice(0,8)}: ${pc.connectionState}`);
 			if (pc.connectionState === 'failed') {
 				console.warn(`Peer connection to ${userId} failed, cleaning up`);
 				this.clearDisconnectTimeout(userId);
@@ -1128,6 +1140,10 @@ class WebRTCManager {
 			} else if (pc.connectionState === 'connected') {
 				this.clearDisconnectTimeout(userId);
 			}
+		};
+
+		pc.oniceconnectionstatechange = () => {
+			console.info(`[VOICE] iceConnectionState ${userId.slice(0,8)}: ${pc.iceConnectionState}`);
 		};
 
 		return pc;
