@@ -198,6 +198,15 @@
 	}
 </script>
 
+{#snippet audioLevelMeter()}
+	<div class="absolute bottom-0 left-0 right-0 h-1 overflow-hidden rounded-b-lg bg-black/20 pointer-events-none">
+		<div
+			class="h-full transition-[width] duration-75 {voiceStore.localAudioLevel > 70 ? 'bg-yellow-400/70' : 'bg-green-400/70'}"
+			style="width: {voiceStore.localAudioLevel}%"
+		></div>
+	</div>
+{/snippet}
+
 {#if voiceStore.isInCall}
 	<div class="{expanded ? 'flex-1 min-h-0' : 'max-h-[500px]'} overflow-hidden border-b border-white/10 {expanded ? 'flex flex-col' : ''}"
 		style="{channelAmbianceStyle || 'background: var(--bg-secondary);'}">
@@ -297,6 +306,7 @@
 								LIVE
 							</div>
 						{/if}
+						{@render audioLevelMeter()}
 					</div>
 
 					<!-- Remote participant tiles -->
@@ -485,6 +495,7 @@
 							<span class="ml-1 opacity-70">{preferencesStore.preferences.inputGain}%</span>
 						{/if}
 					</div>
+					{@render audioLevelMeter()}
 				</div>
 
 				<!-- Remote participants -->

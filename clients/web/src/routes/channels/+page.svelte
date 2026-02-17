@@ -2712,7 +2712,63 @@
 		messageStore.clearAllUnread();
 	}
 
+	// ── Push-to-Talk / Toggle-Mute ──
+	let pttActive = $state(false);
+
+	function isTextInput(e: KeyboardEvent): boolean {
+		const tag = (e.target as HTMLElement)?.tagName;
+		return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+			|| (e.target as HTMLElement)?.isContentEditable === true;
+	}
+
+	// Auto-mute when joining a call in PTT mode
+	let wasInCall = false;
+	$effect(() => {
+		const inCall = voiceStore.isInCall;
+		if (inCall && !wasInCall && preferencesStore.preferences.voiceActivationMode === 'push-to-talk') {
+			voiceStore.setAudioEnabled(false);
+		}
+		wasInCall = inCall;
+	});
+
+	function handleGlobalKeyup(e: KeyboardEvent) {
+		if (pttActive && preferencesStore.preferences.voiceActivationMode === 'push-to-talk'
+			&& e.key === preferencesStore.preferences.pttKey) {
+			pttActive = false;
+			voiceStore.setAudioEnabled(false);
+		}
+	}
+
+	function handleWindowBlur() {
+		if (pttActive) {
+			pttActive = false;
+			if (voiceStore.isInCall && preferencesStore.preferences.voiceActivationMode === 'push-to-talk') {
+				voiceStore.setAudioEnabled(false);
+			}
+		}
+	}
+
 	function handleGlobalKeydown(e: KeyboardEvent) {
+		// Push-to-Talk / Toggle-Mute (before other shortcuts, only when in a call and not typing)
+		if (voiceStore.isInCall && !isTextInput(e) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+			const mode = preferencesStore.preferences.voiceActivationMode;
+
+			if (mode === 'push-to-talk' && e.key === preferencesStore.preferences.pttKey) {
+				e.preventDefault();
+				if (!pttActive && !e.repeat) {
+					pttActive = true;
+					voiceStore.setAudioEnabled(true);
+				}
+				return;
+			}
+
+			if (mode === 'toggle-mute' && e.key === preferencesStore.preferences.toggleMuteKey && !e.repeat) {
+				e.preventDefault();
+				voiceStore.setAudioEnabled(!voiceStore.activeCall!.audioEnabled);
+				return;
+			}
+		}
+
 		// Shift+Escape to mark all channels as read
 		if (e.key === 'Escape' && e.shiftKey) {
 			e.preventDefault();
@@ -3611,7 +3667,7 @@
 	});
 </script>
 
-<svelte:window onkeydown={handleGlobalKeydown} />
+<svelte:window onkeydown={handleGlobalKeydown} onkeyup={handleGlobalKeyup} onblur={handleWindowBlur} />
 
 {#if authStore.isAuthenticated}
 	<div class="flex flex-col h-screen overflow-hidden">

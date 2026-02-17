@@ -17,6 +17,7 @@ export type SendBehavior = 'enter' | 'ctrl-enter';
 export type NoiseSuppression = 'off' | 'noise-gate' | 'standard' | 'maximum';
 export type ChatBubbleStyle = 'flat' | 'bubbles';
 export type PresetTheme = 'default' | 'monokai' | 'dracula' | 'nord' | 'solarized' | 'amoled' | 'catppuccin' | 'custom';
+export type VoiceActivationMode = 'open-mic' | 'push-to-talk' | 'toggle-mute';
 export type VoiceBackgroundType = 'none' | 'solid' | 'gradient' | 'preset' | 'custom';
 
 export interface VoiceBackground {
@@ -91,6 +92,9 @@ export interface UserPreferences {
 	customThemeColors: CustomThemeColors;
 	voiceBackground: VoiceBackground;
 	sendReadReceipts: boolean;
+	voiceActivationMode: VoiceActivationMode;
+	pttKey: string;
+	toggleMuteKey: string;
 }
 
 const DEFAULT_CUSTOM_COLORS: CustomThemeColors = {
@@ -127,7 +131,10 @@ const DEFAULTS: UserPreferences = {
 	presetTheme: 'default',
 	customThemeColors: { ...DEFAULT_CUSTOM_COLORS },
 	voiceBackground: { type: 'none' },
-	sendReadReceipts: true
+	sendReadReceipts: true,
+	voiceActivationMode: 'open-mic',
+	pttKey: ' ',
+	toggleMuteKey: 'm'
 };
 
 export const PRESET_THEMES: Record<PresetTheme, { label: string; colors: { dark: CustomThemeColors; light: CustomThemeColors } }> = {

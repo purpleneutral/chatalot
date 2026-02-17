@@ -648,6 +648,11 @@ class WebRTCManager {
 				}
 				const rms = Math.sqrt(sum / buffer.length);
 				voiceStore.setSpeaking(userId, rms > SPEAKING_THRESHOLD);
+
+				// Expose numeric level for the local user's in-call meter
+				if (userId === myId) {
+					voiceStore.setLocalAudioLevel(Math.min(100, Math.round(rms * 3)));
+				}
 			}
 		}, SPEAKING_CHECK_INTERVAL);
 	}

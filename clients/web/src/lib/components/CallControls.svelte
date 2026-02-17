@@ -19,6 +19,13 @@
 	let callActive = $derived(voiceParticipants.length > 0);
 	let nsLevel = $derived(preferencesStore.preferences.noiseSuppression);
 	let nsActive = $derived(nsLevel !== 'off');
+	let voiceMode = $derived(preferencesStore.preferences.voiceActivationMode);
+
+	function formatKey(key: string): string {
+		if (key === ' ') return 'Space';
+		if (key.length === 1) return key.toUpperCase();
+		return key;
+	}
 
 	async function joinCall(withVideo: boolean) {
 		joining = true;
@@ -82,6 +89,16 @@
 						</svg>
 					{/if}
 				</button>
+
+				{#if voiceMode === 'push-to-talk'}
+					<span class="hidden sm:inline text-[10px] text-[var(--text-secondary)] whitespace-nowrap">
+						Hold <kbd class="rounded bg-white/10 px-1 py-0.5 text-[9px] font-mono">{formatKey(preferencesStore.preferences.pttKey)}</kbd>
+					</span>
+				{:else if voiceMode === 'toggle-mute'}
+					<span class="hidden sm:inline text-[10px] text-[var(--text-secondary)] whitespace-nowrap">
+						<kbd class="rounded bg-white/10 px-1 py-0.5 text-[9px] font-mono">{formatKey(preferencesStore.preferences.toggleMuteKey)}</kbd> to {voiceStore.activeCall?.audioEnabled ? 'mute' : 'unmute'}
+					</span>
+				{/if}
 
 				<!-- Noise suppression toggle -->
 				<button

@@ -29,6 +29,9 @@ class VoiceStore {
 	// Which remote users have video enabled
 	remoteVideoEnabled = $state<Set<string>>(new Set());
 
+	// Local user audio level (0-100), updated every ~100ms by WebRTCManager
+	localAudioLevel = $state<number>(0);
+
 	// Per-user volume (0-500, default 100)
 	userVolumes = $state<Map<string, number>>(new Map());
 
@@ -42,6 +45,10 @@ class VoiceStore {
 
 	get currentChannelId(): string | null {
 		return this.activeCall?.channelId ?? null;
+	}
+
+	setLocalAudioLevel(level: number) {
+		this.localAudioLevel = Math.max(0, Math.min(100, level));
 	}
 
 	setCallState(state: VoiceState) {
@@ -58,6 +65,7 @@ class VoiceStore {
 		this.activeSpeakers = new Set();
 		this.remoteVideoEnabled = new Set();
 		this.screenShareMuted = new Set();
+		this.localAudioLevel = 0;
 	}
 
 	setAudioEnabled(enabled: boolean) {

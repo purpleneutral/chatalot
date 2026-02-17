@@ -5,7 +5,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { soundStore } from '$lib/stores/sound.svelte';
 	import { notificationStore } from '$lib/stores/notification.svelte';
-	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, VOICE_BG_PRESETS, voiceBackgroundStyle, type AccentColor, type NoiseSuppression, type PresetTheme, type VoiceBackgroundType } from '$lib/stores/preferences.svelte';
+	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, VOICE_BG_PRESETS, voiceBackgroundStyle, type AccentColor, type NoiseSuppression, type PresetTheme, type VoiceBackgroundType, type VoiceActivationMode } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
@@ -102,6 +102,42 @@
 	let testLevel = $state(0);
 	let testActive = $state(false);
 	let testRafId = 0;
+
+	// Voice activation keybind recording
+	let recordingKeybind = $state<'ptt' | 'toggle' | null>(null);
+
+	const voiceActivationModes: { id: VoiceActivationMode; label: string; desc: string }[] = [
+		{ id: 'open-mic', label: 'Open Mic', desc: 'Microphone is always active' },
+		{ id: 'push-to-talk', label: 'Push to Talk', desc: 'Hold a key to transmit' },
+		{ id: 'toggle-mute', label: 'Toggle Mute', desc: 'Press a key to toggle mic' },
+	];
+
+	function formatKeyForDisplay(key: string): string {
+		if (key === ' ') return 'Space';
+		if (key.length === 1) return key.toUpperCase();
+		return key;
+	}
+
+	function startRecordingKey(target: 'ptt' | 'toggle') {
+		recordingKeybind = target;
+		const handler = (e: KeyboardEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+			preferencesStore.set(target === 'ptt' ? 'pttKey' : 'toggleMuteKey', e.key);
+			recordingKeybind = null;
+			window.removeEventListener('keydown', handler, true);
+			window.removeEventListener('click', clickHandler, true);
+		};
+		const clickHandler = () => {
+			recordingKeybind = null;
+			window.removeEventListener('keydown', handler, true);
+			window.removeEventListener('click', clickHandler, true);
+		};
+		window.addEventListener('keydown', handler, true);
+		// Cancel if user clicks away (delay to avoid catching the triggering click)
+		setTimeout(() => window.addEventListener('click', clickHandler, true), 0);
+	}
 
 	// Voice background state
 	let voiceBgType = $state<VoiceBackgroundType>(preferencesStore.preferences.voiceBackground.type);
@@ -1427,6 +1463,65 @@
 						<p class="mt-3 text-xs text-[var(--text-secondary)]">
 							These settings take effect on your next call, or when switching input devices.
 						</p>
+					</section>
+
+					<!-- ── Voice Activation ── -->
+					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
+						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Voice Activation</h3>
+						<p class="mb-4 text-sm text-[var(--text-secondary)]">
+							Choose how your microphone activates during voice calls.
+						</p>
+
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+							{#each voiceActivationModes as mode}
+								<button
+									onclick={() => preferencesStore.set('voiceActivationMode', mode.id)}
+									class="rounded-lg border p-4 text-left transition
+										{preferencesStore.preferences.voiceActivationMode === mode.id
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
+								>
+									<div class="mb-1 text-sm font-medium">{mode.label}</div>
+									<div class="text-xs text-[var(--text-secondary)]">{mode.desc}</div>
+								</button>
+							{/each}
+						</div>
+
+						{#if preferencesStore.preferences.voiceActivationMode === 'push-to-talk'}
+							<div class="mt-4 flex items-center justify-between rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
+								<div>
+									<div class="text-sm font-medium text-[var(--text-primary)]">Push-to-Talk Key</div>
+									<div class="text-xs text-[var(--text-secondary)]">Hold this key to unmute while in a call</div>
+								</div>
+								<button
+									onclick={() => startRecordingKey('ptt')}
+									class="rounded-lg border border-white/10 px-4 py-2 text-sm font-mono text-[var(--text-primary)] transition hover:border-[var(--accent)] hover:bg-white/5"
+								>
+									{#if recordingKeybind === 'ptt'}
+										<span class="text-[var(--accent)] animate-pulse">Press a key...</span>
+									{:else}
+										{formatKeyForDisplay(preferencesStore.preferences.pttKey)}
+									{/if}
+								</button>
+							</div>
+						{:else if preferencesStore.preferences.voiceActivationMode === 'toggle-mute'}
+							<div class="mt-4 flex items-center justify-between rounded-lg border border-white/10 bg-[var(--bg-primary)] p-4">
+								<div>
+									<div class="text-sm font-medium text-[var(--text-primary)]">Toggle Mute Key</div>
+									<div class="text-xs text-[var(--text-secondary)]">Press this key to toggle your microphone</div>
+								</div>
+								<button
+									onclick={() => startRecordingKey('toggle')}
+									class="rounded-lg border border-white/10 px-4 py-2 text-sm font-mono text-[var(--text-primary)] transition hover:border-[var(--accent)] hover:bg-white/5"
+								>
+									{#if recordingKeybind === 'toggle'}
+										<span class="text-[var(--accent)] animate-pulse">Press a key...</span>
+									{:else}
+										{formatKeyForDisplay(preferencesStore.preferences.toggleMuteKey)}
+									{/if}
+								</button>
+							</div>
+						{/if}
 					</section>
 
 					<!-- ── Stream Focus ── -->

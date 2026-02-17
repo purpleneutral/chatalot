@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.0',
+			date: '2026-02-16',
+			changes: [
+				'Push-to-Talk: three voice activation modes — Open Mic, Push to Talk (hold key to transmit), and Toggle Mute (press key to toggle)',
+				'Configurable keybinds: set your PTT or toggle-mute key in Settings > Voice & Audio > Voice Activation',
+				'In-call audio level meter: real-time input level bar on your local tile — works even when muted to show what your mic picks up',
+				'PTT auto-mutes on join so you start silent, and re-mutes if you Alt+Tab while holding the key',
+				'Keybind hint shown next to the mute button during calls (e.g., "Hold Space" or "M to mute")',
+			]
+		},
+		{
 			version: '0.17.1',
 			date: '2026-02-16',
 			changes: [
