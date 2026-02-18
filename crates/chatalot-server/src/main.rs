@@ -222,10 +222,21 @@ async fn main() -> anyhow::Result<()> {
                 // Walk storage directory and find disk files with no DB record
                 let mut orphan_disk_files = 0u64;
                 let storage = std::path::Path::new(&storage_path);
+                // Directories that store non-file assets (avatars, community/group
+                // images).  These are NOT tracked in the `files` table, so they must
+                // be skipped or the cleanup will delete them.
+                const SKIP_DIRS: &[&str] = &["avatars", "community_assets", "group_assets"];
+
                 if let Ok(mut shard_dirs) = tokio::fs::read_dir(storage).await {
                     while let Ok(Some(shard_entry)) = shard_dirs.next_entry().await {
                         let shard_path = shard_entry.path();
                         if !shard_path.is_dir() {
+                            continue;
+                        }
+                        // Skip asset directories that aren't managed by the files table
+                        if let Some(name) = shard_path.file_name().and_then(|n| n.to_str())
+                            && SKIP_DIRS.contains(&name)
+                        {
                             continue;
                         }
                         if let Ok(mut files) = tokio::fs::read_dir(&shard_path).await {
