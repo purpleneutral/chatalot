@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { login } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { storePersonalKey } from '$lib/crypto';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 
 	let serverUrl = $derived(isTauri() ? getServerUrl() : null);
@@ -29,6 +30,10 @@
 		try {
 			const response = await login(username.trim(), password, showTotp ? totpCode.trim() : undefined);
 			authStore.setAuth(response.access_token, response.refresh_token, response.user);
+			// Derive personal encryption key from password before we lose access to it
+			storePersonalKey(password, response.user.id).catch(err =>
+				console.warn('Failed to derive personal key:', err)
+			);
 			const redirect = $page.url.searchParams.get('redirect');
 			goto(redirect && redirect.startsWith('/') ? redirect : '/channels');
 		} catch (err) {

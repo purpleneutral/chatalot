@@ -10,12 +10,13 @@ pub async fn create(
     user_id: Uuid,
     ciphertext: &str,
     nonce: &str,
+    content_preview: Option<&str>,
     scheduled_for: chrono::DateTime<chrono::Utc>,
 ) -> Result<ScheduledMessage, sqlx::Error> {
     sqlx::query_as::<_, ScheduledMessage>(
         r#"
-        INSERT INTO scheduled_messages (id, channel_id, user_id, ciphertext, nonce, scheduled_for)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO scheduled_messages (id, channel_id, user_id, ciphertext, nonce, content_preview, scheduled_for)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
         "#,
     )
@@ -24,6 +25,7 @@ pub async fn create(
     .bind(user_id)
     .bind(ciphertext)
     .bind(nonce)
+    .bind(content_preview)
     .bind(scheduled_for)
     .fetch_one(pool)
     .await

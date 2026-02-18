@@ -9,6 +9,7 @@ pub struct ScheduledMessage {
     pub user_id: Uuid,
     pub ciphertext: String,
     pub nonce: String,
+    pub content_preview: Option<String>,
     pub scheduled_for: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
 }

@@ -73,6 +73,15 @@ async fn schedule_message(
         ));
     }
 
+    // Cap content_preview size (max 10 KB encrypted blob)
+    if let Some(ref preview) = req.content_preview {
+        if preview.len() > 10_000 {
+            return Err(AppError::Validation(
+                "content_preview too large (max 10 KB)".into(),
+            ));
+        }
+    }
+
     let id = Uuid::now_v7();
     let msg = scheduled_message_repo::create(
         &state.db,
@@ -81,6 +90,7 @@ async fn schedule_message(
         claims.sub,
         &req.ciphertext,
         &req.nonce,
+        req.content_preview.as_deref(),
         scheduled_for,
     )
     .await?;
@@ -90,6 +100,7 @@ async fn schedule_message(
         channel_id: msg.channel_id,
         scheduled_for: msg.scheduled_for.to_rfc3339(),
         created_at: msg.created_at.to_rfc3339(),
+        content_preview: msg.content_preview,
     }))
 }
 
@@ -106,6 +117,7 @@ async fn list_scheduled(
                 channel_id: m.channel_id,
                 scheduled_for: m.scheduled_for.to_rfc3339(),
                 created_at: m.created_at.to_rfc3339(),
+                content_preview: m.content_preview.clone(),
             })
             .collect(),
     ))

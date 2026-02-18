@@ -1010,6 +1010,9 @@ pub struct ScheduleMessageRequest {
     pub ciphertext: String,
     pub nonce: String,
     pub scheduled_for: String,
+    /// Client-encrypted preview (opaque to server, decrypted with personal key)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_preview: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1018,6 +1021,8 @@ pub struct ScheduledMessageResponse {
     pub channel_id: Uuid,
     pub scheduled_for: String,
     pub created_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_preview: Option<String>,
 }
 
 // ── Polls ──

@@ -81,6 +81,16 @@ export class CryptoStorage {
 		return this.put('identity', 'self', keys);
 	}
 
+	// ─── Personal Key ─────────────────────────────────────────────
+
+	async getPersonalKey(): Promise<Uint8Array | null> {
+		return this.get('identity', 'personalKey');
+	}
+
+	async setPersonalKey(key: Uint8Array): Promise<void> {
+		return this.put('identity', 'personalKey', key);
+	}
+
 	// ─── Signed Prekeys ───────────────────────────────────────────
 
 	async getSignedPrekey(keyId: number): Promise<SignedPrekeyPrivate | null> {

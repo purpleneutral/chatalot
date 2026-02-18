@@ -5,7 +5,9 @@ export interface ScheduledMessage {
 	channel_id: string;
 	scheduled_for: string;
 	created_at: string;
-	/** Client-only: plaintext cached locally (not from server — E2E safe) */
+	/** Encrypted preview stored on server (opaque blob, decrypted client-side with personal key) */
+	content_preview?: string;
+	/** Client-only: decrypted plaintext for display */
 	content?: string;
 }
 
@@ -13,13 +15,15 @@ export async function scheduleMessage(
 	channelId: string,
 	ciphertext: string,
 	nonce: string,
-	scheduledFor: string
+	scheduledFor: string,
+	contentPreview?: string
 ): Promise<ScheduledMessage> {
 	return api.post('/messages/schedule', {
 		channel_id: channelId,
 		ciphertext,
 		nonce,
-		scheduled_for: scheduledFor
+		scheduled_for: scheduledFor,
+		content_preview: contentPreview
 	});
 }
 

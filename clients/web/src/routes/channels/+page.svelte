@@ -93,7 +93,7 @@
 	import { communityStore } from '$lib/stores/communities.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
-	import { initCrypto, getSessionManager, getKeyManager, getCryptoStorage } from '$lib/crypto';
+	import { initCrypto, getSessionManager, getKeyManager, getCryptoStorage, getPersonalKey } from '$lib/crypto';
 	import { getCrypto } from '$lib/crypto/wasm-loader';
 	import { decryptMessage } from '$lib/crypto/decrypt';
 	import { getSenderKeys } from '$lib/api/sender-keys';
@@ -146,7 +146,7 @@
 			// Load server-synced preferences + bookmarks
 			preferencesStore.loadFromServer();
 			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch((err) => console.warn('Failed to load bookmarks:', err));
-			listScheduledMessages().then(msgs => { scheduledMessages = msgs.map(m => ({ ...m, content: loadScheduledContent(m.id) })); }).catch((err) => console.warn('Failed to load scheduled messages:', err));
+			loadScheduledMessages();
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
@@ -892,27 +892,22 @@
 		}
 	}
 
-	function saveScheduledContent(id: string, content: string) {
+	async function encryptPreview(text: string): Promise<string | undefined> {
 		try {
-			const cache = JSON.parse(localStorage.getItem('chatalot-scheduled-content') || '{}');
-			cache[id] = content;
-			localStorage.setItem('chatalot-scheduled-content', JSON.stringify(cache));
-		} catch { /* storage full or unavailable */ }
-	}
-
-	function loadScheduledContent(id: string): string | undefined {
-		try {
-			const cache = JSON.parse(localStorage.getItem('chatalot-scheduled-content') || '{}');
-			return cache[id];
+			const key = await getPersonalKey();
+			if (!key) return undefined;
+			const { personalEncrypt } = await import('$lib/crypto/personal-key');
+			return await personalEncrypt(key, text);
 		} catch { return undefined; }
 	}
 
-	function removeScheduledContent(id: string) {
+	async function decryptPreview(encrypted: string): Promise<string | null> {
 		try {
-			const cache = JSON.parse(localStorage.getItem('chatalot-scheduled-content') || '{}');
-			delete cache[id];
-			localStorage.setItem('chatalot-scheduled-content', JSON.stringify(cache));
-		} catch { /* ignore */ }
+			const key = await getPersonalKey();
+			if (!key) return null;
+			const { personalDecrypt } = await import('$lib/crypto/personal-key');
+			return await personalDecrypt(key, encrypted);
+		} catch { return null; }
 	}
 
 	async function handleScheduleMessage() {
@@ -925,8 +920,8 @@
 		}
 		try {
 			const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
-			const msg = await apiScheduleMessage(channelStore.activeChannelId, JSON.stringify(ciphertext), JSON.stringify(nonce), scheduledFor.toISOString());
-			saveScheduledContent(msg.id, text);
+			const preview = await encryptPreview(text);
+			const msg = await apiScheduleMessage(channelStore.activeChannelId, JSON.stringify(ciphertext), JSON.stringify(nonce), scheduledFor.toISOString(), preview);
 			scheduledMessages = [...scheduledMessages, { ...msg, content: text }];
 			messageInput = '';
 			showSchedulePicker = false;
@@ -941,7 +936,15 @@
 	async function loadScheduledMessages() {
 		try {
 			const msgs = await listScheduledMessages();
-			scheduledMessages = msgs.map(m => ({ ...m, content: loadScheduledContent(m.id) }));
+			// Decrypt previews in parallel
+			const decrypted = await Promise.all(msgs.map(async (m) => {
+				if (m.content_preview) {
+					const content = await decryptPreview(m.content_preview);
+					return { ...m, content: content ?? undefined };
+				}
+				return m;
+			}));
+			scheduledMessages = decrypted;
 		} catch { /* ignore */ }
 	}
 
@@ -960,7 +963,6 @@
 	async function handleCancelScheduled(id: string) {
 		try {
 			await cancelScheduledMessage(id);
-			removeScheduledContent(id);
 			scheduledMessages = scheduledMessages.filter(m => m.id !== id);
 			toastStore.success('Scheduled message cancelled');
 		} catch { toastStore.error('Failed to cancel'); }

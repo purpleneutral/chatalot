@@ -46,6 +46,24 @@ export function getCryptoStorage(): CryptoStorage {
 	return _storage;
 }
 
+/**
+ * Derive personal key from password + userId and store in IndexedDB.
+ * Called at login time when we still have the plaintext password.
+ */
+export async function storePersonalKey(password: string, userId: string): Promise<void> {
+	const { derivePersonalKey } = await import('./personal-key');
+	const storage = new CryptoStorage();
+	await storage.open();
+	const key = await derivePersonalKey(password, userId);
+	await storage.setPersonalKey(key);
+}
+
+/** Get the personal key from IndexedDB (null if not yet derived, e.g. haven't logged in since feature was added). */
+export async function getPersonalKey(): Promise<Uint8Array | null> {
+	if (!_storage) return null;
+	return _storage.getPersonalKey();
+}
+
 /** Wipe all crypto state from IndexedDB. Call on logout. */
 export async function wipeCrypto(): Promise<void> {
 	if (_storage) {
