@@ -6670,8 +6670,8 @@
 										</div>
 									</div>
 									<div class="mt-3 flex gap-2">
-										<button onclick={() => showSchedulePicker = false} class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/5">Cancel</button>
-										<button onclick={handleScheduleMessage} disabled={!scheduleDate || !scheduleTime} class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50">Schedule</button>
+										<button type="button" onclick={() => showSchedulePicker = false} class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/5">Cancel</button>
+										<button type="button" onclick={handleScheduleMessage} disabled={!scheduleDate || !scheduleTime} class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-50">Schedule</button>
 									</div>
 								</div>
 							{/if}
