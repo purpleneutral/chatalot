@@ -118,6 +118,10 @@ class AuthStore {
 		readReceiptStore.clear();
 		soundStore.close();
 		wipeCrypto().catch((err) => console.warn('Failed to wipe crypto state:', err));
+		// Clear service worker cache to prevent next user from seeing cached pages
+		if (typeof caches !== 'undefined') {
+			caches.delete('chatalot-v3').catch(() => {});
+		}
 	}
 }
 

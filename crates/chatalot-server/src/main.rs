@@ -147,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 // End orphaned voice sessions (no participants, still active)
                 match sqlx::query(
-                    "UPDATE voice_sessions SET ended_at = NOW() WHERE ended_at IS NULL AND id NOT IN (SELECT DISTINCT session_id FROM voice_session_participants WHERE left_at IS NULL)"
+                    "UPDATE voice_sessions SET ended_at = NOW() WHERE ended_at IS NULL AND NOT EXISTS (SELECT 1 FROM voice_session_participants WHERE session_id = voice_sessions.id AND left_at IS NULL)"
                 )
                     .execute(&db)
                     .await

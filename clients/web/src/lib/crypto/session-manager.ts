@@ -303,11 +303,9 @@ export class SessionManager {
 		};
 
 		const wireBytes = new TextEncoder().encode(JSON.stringify(wireMessage));
-		const nonce = new Uint8Array(12);
-		globalThis.crypto.getRandomValues(nonce);
 		return {
 			ciphertext: Array.from(wireBytes),
-			nonce: Array.from(nonce),
+			nonce: wireMessage.message.nonce,
 		};
 	}
 

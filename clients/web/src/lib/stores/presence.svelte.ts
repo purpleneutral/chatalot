@@ -13,6 +13,7 @@ class PresenceStore {
 	}
 
 	setStatus(userId: string, status: PresenceStatus) {
+		if (this.statuses.get(userId) === status) return;
 		const next = new Map(this.statuses);
 		next.set(userId, status);
 		this.statuses = next;

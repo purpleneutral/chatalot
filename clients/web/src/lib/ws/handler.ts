@@ -601,7 +601,11 @@ export async function handleServerMessage(msg: ServerMessage) {
 				const match = msg.message.match(/wait (\d+)/);
 				const seconds = match ? parseInt(match[1], 10) : 5;
 				window.dispatchEvent(new CustomEvent('chatalot:slow-mode', { detail: { seconds } }));
-			} else if (msg.code === 'timed_out') {
+			} else if (msg.code === 'out_of_sync') {
+				// Don't toast — handled by reconnect logic
+			} else if (msg.code === 'rate_limited') {
+				// Silently ignore rate limit errors to avoid toast spam
+			} else {
 				toastStore.error(msg.message);
 			}
 			break;

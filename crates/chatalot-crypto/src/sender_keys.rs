@@ -11,7 +11,7 @@
 
 use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
-    aead::{Aead, KeyInit},
+    aead::{Aead, KeyInit, Payload},
 };
 use hkdf::Hkdf;
 use rand::RngCore;
@@ -126,11 +126,17 @@ impl SenderKeyState {
         let iteration = self.iteration;
         self.iteration += 1;
 
+        // Build AAD from chain_id + iteration to bind ciphertext to this context
+        let aad = build_sender_key_aad(self.chain_id, iteration);
+
         // Encrypt
         let nonce = aead::generate_nonce();
         let cipher = ChaCha20Poly1305::new((&msg_key).into());
         let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext)
+            .encrypt(
+                Nonce::from_slice(&nonce),
+                Payload { msg: plaintext, aad: &aad },
+            )
             .map_err(|_| SenderKeyError::EncryptionFailed)?;
 
         Ok(SenderKeyMessage {
@@ -173,9 +179,11 @@ impl ReceiverKeyState {
             return Err(SenderKeyError::UnknownChain);
         }
 
+        let aad = build_sender_key_aad(message.chain_id, message.iteration);
+
         // Check if we have a cached key for this iteration
         if let Some(mut msg_key) = self.cached_keys.remove(&message.iteration) {
-            let result = decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext);
+            let result = decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext, &aad);
             msg_key.zeroize();
             return result;
         }
@@ -199,7 +207,7 @@ impl ReceiverKeyState {
         if message.iteration < self.iteration {
             // Message from the past — check cached keys
             if let Some(mut msg_key) = self.cached_keys.remove(&message.iteration) {
-                let result = decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext);
+                let result = decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext, &aad);
                 msg_key.zeroize();
                 return result;
             }
@@ -211,7 +219,7 @@ impl ReceiverKeyState {
         self.chain_key = new_chain_key;
         self.iteration += 1;
 
-        decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext)
+        decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext, &aad)
     }
 
     /// Serialize for storage.
@@ -249,15 +257,35 @@ fn advance_chain(chain_key: &[u8; 32]) -> Result<([u8; 32], [u8; 32]), SenderKey
     Ok((msg_key, new_chain))
 }
 
-/// Decrypt with a specific message key.
+/// Build AAD bytes from chain_id and iteration.
+fn build_sender_key_aad(chain_id: u32, iteration: u32) -> [u8; 8] {
+    let mut aad = [0u8; 8];
+    aad[..4].copy_from_slice(&chain_id.to_be_bytes());
+    aad[4..].copy_from_slice(&iteration.to_be_bytes());
+    aad
+}
+
+/// Decrypt with a specific message key and AAD.
+///
+/// Tries decryption with AAD first (new format), then falls back to
+/// no AAD for backwards compatibility with pre-AAD messages.
 fn decrypt_with_key(
     msg_key: &[u8; 32],
     nonce: &[u8; 12],
     ciphertext: &[u8],
+    aad: &[u8],
 ) -> Result<Vec<u8>, SenderKeyError> {
     let cipher = ChaCha20Poly1305::new(msg_key.into());
+    let n = Nonce::from_slice(nonce);
+
+    // Try with AAD (new format)
+    if let Ok(plaintext) = cipher.decrypt(n, Payload { msg: ciphertext, aad }) {
+        return Ok(plaintext);
+    }
+
+    // Fall back to no AAD (pre-AAD messages)
     cipher
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .decrypt(n, ciphertext)
         .map_err(|_| SenderKeyError::DecryptionFailed)
 }
 

@@ -311,11 +311,13 @@ async fn handle_client_message(
 
             // Check role for non-DM channels (admins/owners exempt from slow mode, read-only)
             let is_privileged = if channel.channel_type != ChannelType::Dm {
-                let role = channel_repo::get_member_role(&state.db, channel_id, user_id)
-                    .await
-                    .ok()
-                    .flatten()
-                    .unwrap_or_default();
+                let role = match channel_repo::get_member_role(&state.db, channel_id, user_id).await {
+                    Ok(r) => r.unwrap_or_default(),
+                    Err(e) => {
+                        tracing::warn!(%user_id, %channel_id, "Failed to fetch member role: {e}");
+                        String::new()
+                    }
+                };
                 matches!(role.as_str(), "owner" | "admin")
             } else {
                 false
@@ -655,7 +657,11 @@ async fn handle_client_message(
                     return;
                 }
                 Err(e) => {
-                    tracing::error!("Failed to look up message: {e}");
+                    tracing::error!("Failed to look up message for deletion: {e}");
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "internal_error".to_string(),
+                        message: "could not look up message".to_string(),
+                    });
                     return;
                 }
             };
@@ -665,10 +671,13 @@ async fn handle_client_message(
                 message_repo::delete_message(&state.db, message_id, user_id).await
             } else {
                 // Not own message — check mod permissions
-                let role = channel_repo::get_member_role(&state.db, msg_record.channel_id, user_id)
-                    .await
-                    .ok()
-                    .flatten();
+                let role = match channel_repo::get_member_role(&state.db, msg_record.channel_id, user_id).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!(%user_id, "Failed to fetch role for delete check: {e}");
+                        None
+                    }
+                };
                 match role {
                     Some(ref r) if permissions::can_delete_others_messages(r) => {
                         message_repo::delete_message_as_mod(&state.db, message_id).await

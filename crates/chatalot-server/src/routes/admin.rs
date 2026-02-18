@@ -325,6 +325,42 @@ async fn delete_user(
     )
     .await?;
 
+    // Transfer community/group ownership to the instance owner before deletion.
+    // This prevents orphaned communities/groups with NULL owner_id.
+    let instance_owner_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM users WHERE is_owner = TRUE LIMIT 1",
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    if let Some(owner_id) = instance_owner_id {
+        sqlx::query("UPDATE communities SET owner_id = $1 WHERE owner_id = $2")
+            .bind(owner_id)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+        sqlx::query("UPDATE groups SET owner_id = $1 WHERE owner_id = $2")
+            .bind(owner_id)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+    }
+
+    // Clean up orphaned DM channels (ones where the deleted user is the only remaining member)
+    sqlx::query(
+        "DELETE FROM channels WHERE channel_type = 'dm' AND id IN (
+            SELECT c.id FROM channels c
+            JOIN channel_members cm ON cm.channel_id = c.id
+            WHERE c.channel_type = 'dm'
+            GROUP BY c.id
+            HAVING COUNT(cm.user_id) = 1
+            AND BOOL_OR(cm.user_id = $1)
+        )",
+    )
+    .bind(user_id)
+    .execute(&state.db)
+    .await?;
+
     user_repo::delete_user(&state.db, user_id).await?;
 
     Ok(())

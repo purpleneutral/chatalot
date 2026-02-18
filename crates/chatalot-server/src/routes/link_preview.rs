@@ -76,9 +76,10 @@ async fn get_link_preview(
         PREVIEW_CACHE.remove(&url);
     }
 
-    // Fetch the URL
+    // Fetch the URL (10s timeout to prevent hanging on slow/malicious URLs)
     let mut response = state.http_client.get(&url)
         .header(reqwest::header::USER_AGENT, "ChatalotBot/1.0 (link preview)")
+        .timeout(std::time::Duration::from_secs(10))
         .send().await.map_err(|e| {
         tracing::debug!("Link preview fetch failed for {url}: {e}");
         AppError::Validation("Could not fetch URL".into())

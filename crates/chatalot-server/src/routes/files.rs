@@ -185,7 +185,7 @@ async fn download_file(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<AccessClaims>,
     Path(file_id): Path<Uuid>,
-) -> Result<([(header::HeaderName, String); 2], Body), AppError> {
+) -> Result<([(header::HeaderName, String); 3], Body), AppError> {
     let record = file_repo::get_file(&state.db, file_id)
         .await?
         .ok_or_else(|| AppError::NotFound("file not found".to_string()))?;
@@ -219,6 +219,7 @@ async fn download_file(
     Ok((
         [
             (header::CONTENT_TYPE, content_type),
+            (header::CACHE_CONTROL, "private, no-store".to_string()),
             (
                 header::CONTENT_DISPOSITION,
                 format!(

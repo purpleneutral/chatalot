@@ -9,7 +9,7 @@
  * 3. Use for encrypt/decrypt of personal data
  */
 
-const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_ITERATIONS = 210_000;
 const KEY_USAGE: KeyUsage[] = ['encrypt', 'decrypt'];
 
 /** Derive an AES-256-GCM key from password + userId using PBKDF2. */

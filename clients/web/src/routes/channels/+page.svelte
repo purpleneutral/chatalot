@@ -584,7 +584,7 @@
 
 	function quickSwitcherSelect(item: QuickSwitchItem) {
 		showQuickSwitcher = false;
-		channelStore.addChannel(channelStore.channels.find(c => c.id === item.id) ?? { id: item.id, name: item.name, channel_type: 'text', topic: null, created_by: null, created_at: '', group_id: null, read_only: false, slow_mode_seconds: 0, discoverable: false, archived: false, voice_background: null });
+		channelStore.addChannel(channelStore.channels.find(c => c.id === item.id) ?? { id: item.id, name: item.name, channel_type: 'text', topic: null, created_by: null, created_at: new Date().toISOString(), group_id: null, read_only: false, slow_mode_seconds: 0, discoverable: false, archived: false, voice_background: null });
 		selectChannel(item.id);
 	}
 
@@ -625,21 +625,30 @@
 	}
 
 	// Collect all viewable images from current messages for lightbox navigation
+	const imgRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+	const srcRegex = /src="([^"]+\.(png|jpg|jpeg|gif|webp|svg)[^"]*)"/gi;
 	let channelImages = $derived.by(() => {
+		const seen = new Set<string>();
 		const imgs: { src: string; alt: string }[] = [];
 		for (const msg of messages) {
 			if (!msg.content) continue;
+			// Quick check before expensive regex
+			if (!msg.content.includes('![') && !msg.content.includes('src=')) continue;
 			// Match image URLs from file messages and inline images
-			const imgRegex = /!\[[^\]]*\]\(([^)]+)\)/g;
+			imgRegex.lastIndex = 0;
 			let m: RegExpExecArray | null;
 			while ((m = imgRegex.exec(msg.content)) !== null) {
-				imgs.push({ src: m[1], alt: 'Image' });
+				if (!seen.has(m[1])) {
+					seen.add(m[1]);
+					imgs.push({ src: m[1], alt: 'Image' });
+				}
 			}
 			// Also check for direct image blob URLs in content
-			const srcRegex = /src="([^"]+\.(png|jpg|jpeg|gif|webp|svg)[^"]*)"/gi;
+			srcRegex.lastIndex = 0;
 			while ((m = srcRegex.exec(msg.content)) !== null) {
 				const url = m[1];
-				if (!imgs.some(i => i.src === url)) {
+				if (!seen.has(url)) {
+					seen.add(url);
 					imgs.push({ src: url, alt: 'Image' });
 				}
 			}
@@ -1298,13 +1307,7 @@
 		pushStore.init().catch((err) => console.warn('Push init failed:', err));
 
 		// Listen for SW postMessage from notification clicks
-		navigator.serviceWorker?.addEventListener('message', (event) => {
-			if (event.data?.type === 'navigate-channel' && event.data.channelId) {
-				window.dispatchEvent(
-					new CustomEvent('chatalot:navigate-channel', { detail: event.data.channelId })
-				);
-			}
-		});
+		navigator.serviceWorker?.addEventListener('message', handleSwMessage);
 
 		// Listen for version update events BEFORE connecting WS to avoid race
 		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
@@ -1424,6 +1427,7 @@
 		window.removeEventListener('chatalot:message-edit-cancelled', handleExternalEditCancel as EventListener);
 		window.removeEventListener('chatalot:message-reply-cancelled', handleExternalReplyCancel as EventListener);
 		window.removeEventListener('beforeunload', handleBeforeUnload);
+		navigator.serviceWorker?.removeEventListener('message', handleSwMessage);
 
 		// Clean up timers
 		if (typingTimeout) clearTimeout(typingTimeout);
@@ -1475,6 +1479,14 @@
 		if (idleTimer) clearTimeout(idleTimer);
 		const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
 		events.forEach(e => document.removeEventListener(e, resetIdleTimer));
+	}
+
+	function handleSwMessage(event: MessageEvent) {
+		if (event.data?.type === 'navigate-channel' && event.data.channelId) {
+			window.dispatchEvent(
+				new CustomEvent('chatalot:navigate-channel', { detail: event.data.channelId })
+			);
+		}
 	}
 
 	function handleUpdateAvailable() {
@@ -2938,6 +2950,7 @@
 	// Markdown render cache — keyed by raw text, avoids re-parsing unchanged messages
 	const markdownCache = new Map<string, string>();
 	const MAX_MARKDOWN_CACHE = 600;
+	const DOMPURIFY_CONFIG = { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button', 'img'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type', 'src', 'alt', 'title'] };
 
 	function renderMarkdown(text: string): string {
 		const cached = markdownCache.get(text);
@@ -2974,7 +2987,7 @@
 			});
 
 			const rawHtml = marked.parse(processed, { renderer: markdownRenderer }) as string;
-			html = DOMPurify.sanitize(rawHtml, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'span', 'div', 'button', 'img'], ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'type', 'src', 'alt', 'title'] });
+			html = DOMPurify.sanitize(rawHtml, DOMPURIFY_CONFIG);
 		}
 
 		// Evict oldest entries when cache is full

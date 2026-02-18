@@ -16,6 +16,22 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.46',
+			date: '2026-02-18',
+			changes: [
+				'Security: AEAD encryption now includes associated data for ciphertext authentication',
+				'Security: sender key encryption validates chain ID bounds and rejects out-of-range values',
+				'Security: service worker clears all caches on logout',
+				'Performance: DOMPurify config hoisted to module-level constant',
+				'Performance: presence store skips redundant Map copies on unchanged status',
+				'Fix: admin user deletion now transfers community/group ownership to instance owner',
+				'Fix: admin user deletion cleans up orphaned DM channels',
+				'Fix: all foreign keys referencing users now have proper ON DELETE actions',
+				'Fix: WebSocket errors now show user-visible toast notifications',
+				'Fix: voice session cleanup query optimized with NOT EXISTS',
+			]
+		},
+		{
 			version: '0.18.45',
 			date: '2026-02-17',
 			changes: [

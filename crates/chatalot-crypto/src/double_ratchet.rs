@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
-    aead::{Aead, KeyInit},
+    aead::{Aead, KeyInit, Payload},
 };
 use hkdf::Hkdf;
 use rand::rngs::OsRng;
@@ -194,11 +194,16 @@ impl RatchetSession {
 
         self.send_count += 1;
 
-        // Encrypt with ChaCha20-Poly1305
+        // Encrypt with ChaCha20-Poly1305, using serialized header as AAD
+        // per Signal spec: ENCRYPT(mk, plaintext, CONCAT(AD, header))
         let nonce = crate::aead::generate_nonce();
+        let header_aad = serde_json::to_vec(&header).unwrap_or_default();
         let cipher = ChaCha20Poly1305::new((&msg_key).into());
         let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext)
+            .encrypt(
+                Nonce::from_slice(&nonce),
+                Payload { msg: plaintext, aad: &header_aad },
+            )
             .map_err(|_| RatchetError::DecryptionFailed)?;
 
         Ok(EncryptedMessage {
@@ -217,7 +222,7 @@ impl RatchetSession {
         };
 
         if let Some(mut msg_key) = self.skipped_keys.remove(&skip_key) {
-            let result = decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext);
+            let result = decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext, &message.header);
             msg_key.zeroize();
             return result;
         }
@@ -247,7 +252,7 @@ impl RatchetSession {
         self.receiving_chain_key = Some(new_chain_key);
         self.recv_count = message.header.message_number + 1;
 
-        decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext)
+        decrypt_with_key(&msg_key, &message.nonce, &message.ciphertext, &message.header)
     }
 
     /// Perform a DH ratchet step with a new remote public key.
@@ -354,15 +359,28 @@ fn kdf_ck(chain_key: &[u8; 32]) -> Result<([u8; 32], [u8; 32]), RatchetError> {
     Ok((msg_key, new_chain))
 }
 
-/// Decrypt ciphertext with a given message key and nonce.
+/// Decrypt ciphertext with a given message key, nonce, and header AAD.
+///
+/// Tries decryption with header-based AAD first (new format), then falls
+/// back to no AAD for backwards compatibility with pre-AAD messages.
 fn decrypt_with_key(
     msg_key: &[u8; 32],
     nonce: &[u8; 12],
     ciphertext: &[u8],
+    header: &MessageHeader,
 ) -> Result<Vec<u8>, RatchetError> {
     let cipher = ChaCha20Poly1305::new(msg_key.into());
+    let n = Nonce::from_slice(nonce);
+
+    // Try with AAD (new format)
+    let header_aad = serde_json::to_vec(header).unwrap_or_default();
+    if let Ok(plaintext) = cipher.decrypt(n, Payload { msg: ciphertext, aad: &header_aad }) {
+        return Ok(plaintext);
+    }
+
+    // Fall back to no AAD (pre-AAD messages)
     cipher
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .decrypt(n, ciphertext)
         .map_err(|_| RatchetError::DecryptionFailed)
 }
 
