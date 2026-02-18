@@ -1,6 +1,6 @@
 import { getCrypto } from './wasm-loader';
 import type { CryptoStorage } from './storage';
-import { getPrekeyCount, uploadOneTimePrekeys } from '$lib/api/keys';
+import { getPrekeyCount, registerKeys, uploadOneTimePrekeys } from '$lib/api/keys';
 
 const INITIAL_OTP_COUNT = 100;
 const OTP_REPLENISH_THRESHOLD = 25;
@@ -72,6 +72,25 @@ export class KeyManager {
 				public_key: otp.public_key,
 			})),
 		};
+	}
+
+	/**
+	 * For users who registered before E2E was active: generate keys,
+	 * upload them to the server, and store them locally.
+	 * No-op if keys already exist.
+	 */
+	async ensureKeysRegistered(): Promise<void> {
+		const existing = await this.storage.getIdentity();
+		if (existing) return; // Already have keys
+
+		console.info('No E2E keys found — generating and registering...');
+		const keys = await this.generateRegistrationKeys();
+		await registerKeys({
+			identity_key: keys.identityKey,
+			signed_prekey: keys.signedPrekey,
+			one_time_prekeys: keys.oneTimePrekeys,
+		});
+		console.info('E2E key registration complete');
 	}
 
 	/**

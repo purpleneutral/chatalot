@@ -36,3 +36,11 @@ export async function getPrekeyCount(): Promise<number> {
 	const result = await api.get<{ count: number }>('/keys/prekeys/count');
 	return result.count;
 }
+
+export async function registerKeys(data: {
+	identity_key: number[];
+	signed_prekey: { key_id: number; public_key: number[]; signature: number[] };
+	one_time_prekeys: { key_id: number; public_key: number[] }[];
+}): Promise<void> {
+	await api.post('/keys/register', data);
+}

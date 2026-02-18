@@ -1255,9 +1255,10 @@
 			userStore.setUser(authStore.user as UserPublic);
 		}
 
-		// Initialize E2E crypto and proactively replenish prekeys
+		// Initialize E2E crypto, ensure keys exist, and replenish prekeys
 		try {
 			await initCrypto();
+			await getKeyManager().ensureKeysRegistered();
 			getKeyManager().replenishPrekeys().catch((err) =>
 				console.error('Failed to replenish prekeys:', err)
 			);

@@ -109,6 +109,14 @@ pub struct UserPublic {
 
 // ── Keys ──
 
+/// Register all E2E keys for a user who registered before E2E was active.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyRegistrationRequest {
+    pub identity_key: Vec<u8>,
+    pub signed_prekey: SignedPrekeyUpload,
+    pub one_time_prekeys: Vec<OneTimePrekeyUpload>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeyBundleResponse {
     pub identity_key: Vec<u8>,

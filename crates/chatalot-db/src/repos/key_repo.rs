@@ -4,6 +4,31 @@ use uuid::Uuid;
 use crate::models::key_bundle::{OneTimePrekey, SignedPrekey};
 use crate::models::user::IdentityKey;
 
+/// Upsert an identity key (for users who registered before E2E was active).
+pub async fn upsert_identity_key(
+    pool: &PgPool,
+    user_id: Uuid,
+    identity_key: &[u8],
+    fingerprint: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO identity_keys (user_id, identity_key, fingerprint)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id) DO UPDATE
+            SET identity_key = EXCLUDED.identity_key,
+                fingerprint = EXCLUDED.fingerprint,
+                rotated_at = NOW()
+        "#,
+    )
+    .bind(user_id)
+    .bind(identity_key)
+    .bind(fingerprint)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Upload a signed prekey.
 pub async fn upsert_signed_prekey(
     pool: &PgPool,
