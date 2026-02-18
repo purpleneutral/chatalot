@@ -74,12 +74,12 @@ async fn schedule_message(
     }
 
     // Cap content_preview size (max 10 KB encrypted blob)
-    if let Some(ref preview) = req.content_preview {
-        if preview.len() > 10_000 {
-            return Err(AppError::Validation(
-                "content_preview too large (max 10 KB)".into(),
-            ));
-        }
+    if let Some(ref preview) = req.content_preview
+        && preview.len() > 10_000
+    {
+        return Err(AppError::Validation(
+            "content_preview too large (max 10 KB)".into(),
+        ));
     }
 
     let id = Uuid::now_v7();
