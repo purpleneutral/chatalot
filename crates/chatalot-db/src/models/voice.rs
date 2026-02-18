@@ -6,7 +6,7 @@ use uuid::Uuid;
 pub struct VoiceSession {
     pub id: Uuid,
     pub channel_id: Uuid,
-    pub started_by: Uuid,
+    pub started_by: Option<Uuid>,
     pub started_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
 }

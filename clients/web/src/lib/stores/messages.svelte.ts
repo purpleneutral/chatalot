@@ -142,6 +142,19 @@ class MessageStore {
 		this.messagesByChannel = next;
 	}
 
+	// Remove stale pending messages from ALL channels (call on reconnect)
+	clearAllPending() {
+		let changed = false;
+		const next = new Map(this.messagesByChannel);
+		for (const [channelId, messages] of next) {
+			if (messages.some(m => m.pending)) {
+				next.set(channelId, messages.filter(m => !m.pending));
+				changed = true;
+			}
+		}
+		if (changed) this.messagesByChannel = next;
+	}
+
 	// Remove a message from a specific channel (e.g. failed pending message)
 	removeMessage(channelId: string, messageId: string) {
 		const next = new Map(this.messagesByChannel);

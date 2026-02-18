@@ -7,6 +7,6 @@ pub struct BlockedHash {
     pub id: Uuid,
     pub hash: String,
     pub reason: Option<String>,
-    pub blocked_by: Uuid,
+    pub blocked_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }

@@ -106,6 +106,14 @@ async fn upload_one_time_prekeys(
         ));
     }
 
+    for p in &prekeys {
+        if p.public_key.len() != 32 {
+            return Err(AppError::Validation(
+                "each prekey public_key must be exactly 32 bytes".to_string(),
+            ));
+        }
+    }
+
     let pairs: Vec<(i32, Vec<u8>)> = prekeys
         .into_iter()
         .map(|p| (p.key_id, p.public_key))

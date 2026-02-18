@@ -765,9 +765,14 @@ async fn handle_client_message(
                     continue;
                 }
 
-                let is_member = channel_repo::is_member(&state.db, channel_id, user_id)
-                    .await
-                    .unwrap_or(false);
+                let is_member = match channel_repo::is_member(&state.db, channel_id, user_id).await {
+                    Ok(true) => true,
+                    Ok(false) => false,
+                    Err(e) => {
+                        tracing::warn!(channel_id = %channel_id, user_id = %user_id, error = %e, "Membership check failed, denying subscribe");
+                        false
+                    }
+                };
                 if !is_member {
                     continue;
                 }
@@ -1399,12 +1404,15 @@ async fn handle_client_message(
                 .await
                 .unwrap_or(false)
             {
-                let _ = unread_repo::mark_read(&state.db, user_id, channel_id, message_id).await;
+                if let Err(e) = unread_repo::mark_read(&state.db, user_id, channel_id, message_id).await {
+                    tracing::warn!(user_id = %user_id, channel_id = %channel_id, error = %e, "Failed to mark read");
+                }
 
-                // Broadcast read receipt to channel if user hasn't opted out
+                // Broadcast read receipt to channel if user hasn't opted out.
+                // Fail-secure: if the DB check errors, assume receipts are disabled (privacy).
                 if !unread_repo::is_read_receipts_disabled(&state.db, user_id)
                     .await
-                    .unwrap_or(false)
+                    .unwrap_or(true)
                 {
                     conn_mgr.broadcast_to_channel(
                         channel_id,
@@ -1420,7 +1428,9 @@ async fn handle_client_message(
         }
 
         ClientMessage::MarkAllRead => {
-            let _ = unread_repo::mark_all_read(&state.db, user_id).await;
+            if let Err(e) = unread_repo::mark_all_read(&state.db, user_id).await {
+                tracing::warn!(user_id = %user_id, error = %e, "Failed to mark all read");
+            }
         }
     }
 }

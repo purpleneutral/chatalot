@@ -616,7 +616,7 @@ pub struct BlockedHashResponse {
     pub id: Uuid,
     pub hash: String,
     pub reason: Option<String>,
-    pub blocked_by: Uuid,
+    pub blocked_by: Option<Uuid>,
     pub created_at: String,
 }
 
@@ -659,7 +659,7 @@ pub struct CreateRegistrationInviteRequest {
 pub struct RegistrationInviteResponse {
     pub id: Uuid,
     pub code: String,
-    pub created_by: Uuid,
+    pub created_by: Option<Uuid>,
     pub max_uses: Option<i32>,
     pub used_count: i32,
     pub expires_at: Option<String>,

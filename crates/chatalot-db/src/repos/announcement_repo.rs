@@ -36,6 +36,7 @@ pub async fn list_undismissed(
             SELECT announcement_id FROM announcement_dismissals WHERE user_id = $1
         )
         ORDER BY a.created_at DESC
+        LIMIT 50
         "#,
     )
     .bind(user_id)

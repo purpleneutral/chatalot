@@ -43,7 +43,7 @@ pub struct GroupMemberInfo {
 pub struct GroupInvite {
     pub id: Uuid,
     pub group_id: Uuid,
-    pub created_by: Uuid,
+    pub created_by: Option<Uuid>,
     pub code: String,
     pub max_uses: Option<i32>,
     pub used_count: i32,

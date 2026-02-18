@@ -1665,11 +1665,12 @@
 				}
 			}).catch((err) => console.warn('Failed to sync unread counts:', err));
 
+			// Clear stale pending messages across all channels (confirmations lost during disconnect)
+			messageStore.clearAllPending();
+
 			// Reload messages for the active channel to catch anything missed
 			const activeId = channelStore.activeChannelId;
 			if (activeId) {
-				// Clear stale pending messages whose confirmations were lost during disconnect
-				messageStore.clearPending(activeId);
 				getMessages(activeId, undefined, FETCH_LIMIT).then(async rawMessages => {
 					// Guard: channel may have changed during the fetch
 					if (channelStore.activeChannelId !== activeId) return;

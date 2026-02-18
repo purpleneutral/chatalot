@@ -40,9 +40,12 @@
 			const msg = err instanceof Error ? err.message : 'Login failed';
 			error = msg;
 			// Auto-show TOTP field if the server says 2FA is required
-			if (msg.toLowerCase().includes('2fa code required') && !showTotp) {
-				showTotp = true;
-				error = '';
+			if (msg.toLowerCase().includes('2fa code required') || msg.toLowerCase().includes('2fa')) {
+				if (!showTotp) showTotp = true;
+				totpCode = '';
+				error = msg.toLowerCase().includes('2fa code required') ? '' : msg;
+				// Focus the TOTP input after the DOM updates
+				setTimeout(() => document.getElementById('totp')?.focus(), 50);
 			}
 		} finally {
 			loading = false;
