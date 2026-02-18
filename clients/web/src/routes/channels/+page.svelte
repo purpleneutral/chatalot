@@ -4331,15 +4331,19 @@
 				</div>
 
 			<!-- Tab switcher -->
-			<div class="flex border-b border-white/10">
+			<div class="flex border-b border-white/10" role="tablist">
 				<button
 					onclick={() => (sidebarTab = 'groups')}
+					role="tab"
+					aria-selected={sidebarTab === 'groups'}
 					class="flex-1 px-3 py-2 text-sm font-medium transition {sidebarTab === 'groups' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 				>
 					Groups
 				</button>
 				<button
 					onclick={() => (sidebarTab = 'channels')}
+					role="tab"
+					aria-selected={sidebarTab === 'channels'}
 					class="flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition inline-flex {sidebarTab === 'channels' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 				>
 					Channels
@@ -4351,6 +4355,8 @@
 				</button>
 				<button
 					onclick={() => (sidebarTab = 'dms')}
+					role="tab"
+					aria-selected={sidebarTab === 'dms'}
 					class="flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition inline-flex {sidebarTab === 'dms' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 				>
 					DMs
@@ -5049,7 +5055,7 @@
 		{#if showJoinCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" transition:fade={{ duration: 150 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-				<div role="dialog" aria-label="Join a community" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<div role="dialog" aria-modal="true" aria-label="Join a community" tabindex="-1" class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-bold text-[var(--text-primary)]">Join a Community</h3>
 						<button onclick={() => { showJoinCommunity = false; }} class="text-[var(--text-secondary)] hover:text-[var(--text-primary)]" aria-label="Close">&times;</button>
@@ -5083,6 +5089,7 @@
 				<form
 					onsubmit={(e) => { e.preventDefault(); handleCreateCommunity(); }}
 					role="dialog"
+					aria-modal="true"
 					aria-label="Create a community"
 					class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl"
 					onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}
@@ -5128,7 +5135,7 @@
 		{#if showWelcomeSplash && welcomeCommunity}
 			<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 200 }}>
 				<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-				<div role="dialog" aria-label="Welcome to community" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-2xl bg-[var(--bg-secondary)] shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				<div role="dialog" aria-modal="true" aria-label="Welcome to community" tabindex="-1" class="w-full max-w-md overflow-hidden rounded-2xl bg-[var(--bg-secondary)] shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 					{#if welcomeCommunity.banner_url}
 						<img src={welcomeCommunity.banner_url} alt="Community banner" class="h-32 w-full object-cover" />
 					{:else}
@@ -5622,7 +5629,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-				<div bind:this={messageListEl} class="min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6 md:py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
+				<div bind:this={messageListEl} role="log" aria-live="polite" aria-label="Messages" class="min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6 md:py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
 					{#if loadingOlderError}
 						<div class="mb-4 rounded-lg border border-[var(--danger)]/20 bg-[var(--danger)]/5 px-4 py-3 text-center">
 							<p class="text-sm text-[var(--danger)]">Failed to load older messages</p>
@@ -6131,6 +6138,8 @@
 						onkeydown={(e) => { if (e.key === 'Escape') contextMenuMessageId = null; }}
 					></div>
 					<div
+						role="menu"
+						aria-label="Message actions"
 						class="fixed z-50 min-w-[180px] max-w-[calc(100vw-16px)] rounded-xl bg-[var(--bg-secondary)] py-1 shadow-lg"
 						style="left: {contextMenuPos.x}px; top: {contextMenuPos.y}px;"
 						transition:scale={{ start: 0.9, duration: 100 }}
@@ -6140,41 +6149,42 @@
 						{#if ctxMsg}
 							<button
 								onclick={() => { if (ctxMsg) startReply(ctxMsg); contextMenuMessageId = null; }}
-								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+								role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
 								Reply
 							</button>
 							<button
 								onclick={() => { if (ctxMsg) { openThread(ctxMsg.threadId ?? ctxMsg.id); contextMenuMessageId = null; } }}
-								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+								role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><line x1="9" y1="10" x2="15" y2="10" /></svg>
 								Reply in Thread
 							</button>
 							<button
 								onclick={() => { if (ctxMsg) forwardMessage(ctxMsg); }}
-								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+								role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
 								Forward
 							</button>
 							<button
 								onclick={() => copyMessageText(contextMenuMessageId!)}
-								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+								role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
 								Copy Text
 							</button>
 							<button
 								onclick={() => { copyToClipboard(`${window.location.origin}/channels#msg-${ctxMsg.id}`, 'Message link copied'); contextMenuMessageId = null; }}
-								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+								role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
 								Copy Link
 							</button>
 							<button
 								onclick={() => toggleBookmark(ctxMsg.id)}
+								role="menuitem"
 								class="flex w-full items-center gap-2 px-3 py-1.5 text-sm {bookmarkStore.isBookmarked(ctxMsg.id) ? 'text-yellow-400' : 'text-[var(--text-primary)]'} hover:bg-white/5"
 							>
 								{#if bookmarkStore.isBookmarked(ctxMsg.id)}
@@ -6190,7 +6200,7 @@
 								{#if messageStore.isPinned(channelStore.activeChannelId, ctxMsg.id)}
 									<button
 										onclick={() => { handleUnpinMessage(ctxMsg.id); contextMenuMessageId = null; }}
-										class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-yellow-400 hover:bg-white/5"
+										role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-yellow-400 hover:bg-white/5"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
 										Unpin
@@ -6198,7 +6208,7 @@
 								{:else}
 									<button
 										onclick={() => { handlePinMessage(ctxMsg.id); contextMenuMessageId = null; }}
-										class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+										role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z"/></svg>
 										Pin
@@ -6210,7 +6220,7 @@
 								{#if ctxMsg.messageType !== 'file'}
 									<button
 										onclick={() => { startEditMessage(ctxMsg); contextMenuMessageId = null; }}
-										class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
+										role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-white/5"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
 										Edit
@@ -6218,7 +6228,7 @@
 								{/if}
 								<button
 									onclick={() => { handleDeleteMessage(ctxMsg.id); contextMenuMessageId = null; }}
-									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
+									role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 									Delete
@@ -6227,7 +6237,7 @@
 								<div class="my-1 border-t border-white/10"></div>
 								<button
 									onclick={() => { handleDeleteMessage(ctxMsg.id); contextMenuMessageId = null; }}
-									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
+									role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-white/5"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 									Delete (mod)
@@ -6237,7 +6247,7 @@
 								<div class="my-1 border-t border-white/10"></div>
 								<button
 									onclick={() => { reportingMessageId = ctxMsg.id; contextMenuMessageId = null; }}
-									class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-orange-400 hover:bg-white/5"
+									role="menuitem" class="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-orange-400 hover:bg-white/5"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></svg>
 									Report
@@ -7219,7 +7229,7 @@
 	{#if showFeedback}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onpaste={handleFeedbackPaste}>
-			<div role="dialog" aria-label="Send feedback" class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }}>
+			<div role="dialog" aria-modal="true" aria-label="Send feedback" tabindex="-1" class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" transition:scale={{ start: 0.95, duration: 200 }}>
 				<h2 class="mb-1 text-lg font-semibold text-[var(--text-primary)]">Send Feedback</h2>
 				<p class="mb-4 text-sm text-[var(--text-secondary)]">Help us improve Chatalot. Your feedback creates an issue for the developers.</p>
 
@@ -7705,6 +7715,9 @@
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
+				role="dialog"
+				aria-modal="true"
+				aria-label="Quick switcher"
 				class="w-full max-w-lg rounded-2xl bg-[var(--bg-secondary)] shadow-xl"
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
@@ -7718,6 +7731,7 @@
 						bind:value={quickSwitcherQuery}
 						oninput={() => { quickSwitcherIndex = 0; }}
 						onkeydown={handleQuickSwitcherKeydown}
+						aria-label="Search channels and DMs"
 						placeholder="Jump to a channel or DM..."
 						autofocus
 						class="flex-1 bg-transparent text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50"
@@ -7952,7 +7966,7 @@
 
 	<!-- Edit History Modal -->
 	{#if showEditHistory}
-		<div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onclick={() => showEditHistory = false} onkeydown={(e) => { if (e.key === 'Escape') showEditHistory = false; }} role="dialog" tabindex="-1">
+		<div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4" transition:fade={{ duration: 150 }} onclick={() => showEditHistory = false} onkeydown={(e) => { if (e.key === 'Escape') showEditHistory = false; }} role="dialog" aria-modal="true" aria-label="Edit History" tabindex="-1">
 			<div class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
 				<div class="flex items-center justify-between mb-4">
 					<h3 class="text-lg font-semibold text-[var(--text-primary)]">Edit History</h3>

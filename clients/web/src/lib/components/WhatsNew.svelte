@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.43',
+			date: '2026-02-17',
+			changes: [
+				'Accessibility: all modals now have proper dialog semantics (role, aria-modal, aria-label) for screen readers',
+				'Accessibility: context menu buttons now have role="menuitem" for proper screen reader navigation',
+				'Accessibility: settings, community, and admin tabs now have role="tab" and aria-selected for screen readers',
+				'Accessibility: quick switcher search input now has an aria-label',
+			]
+		},
+		{
 			version: '0.18.42',
 			date: '2026-02-17',
 			changes: [
@@ -929,6 +939,9 @@
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
+			role="dialog"
+			aria-modal="true"
+			aria-label="What's New in Chatalot"
 			class="w-full max-w-md rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6 shadow-2xl"
 			transition:scale={{ start: 0.95, duration: 200 }}
 			onclick={(e) => e.stopPropagation()}

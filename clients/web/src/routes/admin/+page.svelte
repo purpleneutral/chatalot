@@ -551,10 +551,12 @@
 			</div>
 
 			<!-- Tabs -->
-			<div class="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-1">
+			<div class="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-white/10 bg-[var(--bg-secondary)] p-1" role="tablist" aria-label="Admin panel">
 				{#each tabs as tab}
 					<button
 						onclick={() => switchTab(tab.id)}
+						role="tab"
+						aria-selected={activeTab === tab.id}
 						class="whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition {activeTab === tab.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 					>
 						{tab.label}
@@ -1142,7 +1144,7 @@
 	<!-- Reset Password Modal -->
 	{#if resetPasswordUser}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-label="Reset password" onclick={() => { resetPasswordUser = null; }} onkeydown={(e) => { if (e.key === 'Escape') resetPasswordUser = null; }}>
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" aria-label="Reset password" onclick={() => { resetPasswordUser = null; }} onkeydown={(e) => { if (e.key === 'Escape') resetPasswordUser = null; }}>
 			<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 			<form onsubmit={(e) => { e.preventDefault(); submitResetPassword(); }} class="w-full max-w-sm rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 				<h3 class="mb-1 text-lg font-bold text-[var(--text-primary)]">Reset Password</h3>

@@ -586,10 +586,12 @@
 	{:else if community}
 		<div class="mx-auto flex w-full max-w-4xl flex-1 flex-col md:flex-row gap-4 md:gap-6 p-4 md:p-6">
 			<!-- Mobile tab bar -->
-			<div class="flex gap-1 overflow-x-auto pb-1 md:hidden">
+			<div class="flex gap-1 overflow-x-auto pb-1 md:hidden" role="tablist" aria-label="Community settings">
 				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme'], ['emoji', 'Emoji']] : [])] as [tab, label]}
 					<button
 						onclick={() => switchTab(tab as typeof activeTab)}
+						role="tab"
+						aria-selected={activeTab === tab}
 						class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition {activeTab === tab ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
 					>
 						{label}
@@ -597,10 +599,12 @@
 				{/each}
 			</div>
 			<!-- Sidebar tabs (desktop only) -->
-			<nav class="hidden md:block w-48 shrink-0 space-y-1">
+			<nav class="hidden md:block w-48 shrink-0 space-y-1" role="tablist" aria-label="Community settings">
 				{#each [['overview', 'Overview'], ['members', 'Members'], ['invites', 'Invites'], ['bans', 'Bans'], ...(canManage ? [['settings', 'Settings'], ['theme', 'Theme'], ['emoji', 'Emoji']] : [])] as [tab, label]}
 					<button
 						onclick={() => switchTab(tab as typeof activeTab)}
+						role="tab"
+						aria-selected={activeTab === tab}
 						class="w-full rounded-lg px-3 py-2 text-left text-sm transition {activeTab === tab ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
 					>
 						{label}
