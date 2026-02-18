@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.47',
+			date: '2026-02-18',
+			changes: [
+				'New: sidebar layout preference — choose between Expanded (always-visible sidebar panel) and Compact (dropdown overlay)',
+				'New: expanded sidebar shows Groups, Channels, and DMs tabs as a persistent panel next to the chat area',
+				'Setting available in Settings > Message Display > Sidebar layout',
+			]
+		},
+		{
 			version: '0.18.46',
 			date: '2026-02-18',
 			changes: [

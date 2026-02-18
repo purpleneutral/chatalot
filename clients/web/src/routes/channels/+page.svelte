@@ -342,6 +342,13 @@
 		typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:navCollapsed') === 'true'
 	);
 
+	let isExpandedSidebar = $derived(
+		preferencesStore.preferences.sidebarLayout === 'expanded'
+	);
+
+	// Auto-close dropdown when switching to expanded mode
+	$effect(() => { if (isExpandedSidebar) showNavDropdown = false; });
+
 	function closeAllNavDropdowns() {
 		showCommunityPicker = false;
 		showNavDropdown = false;
@@ -4218,29 +4225,48 @@
 				<span class="h-4 w-px bg-white/10"></span>
 
 				<!-- Channel/Nav Dropdown Trigger -->
-				<button
-					onclick={() => { showNavDropdown = !showNavDropdown; showCommunityPicker = false; showUserMenu = false; }}
-					class="hidden md:flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-sm text-[var(--text-primary)] transition hover:bg-white/5 {showNavDropdown ? 'bg-white/5' : ''}"
-				>
-					{#if activeChannel}
-						{#if activeChannel.channel_type === 'dm'}
-							<span class="text-[var(--text-secondary)]">@</span>
-						{:else if activeChannel.channel_type === 'voice'}
-							<span>🔊</span>
+				{#if isExpandedSidebar}
+					<!-- Expanded mode: static channel name on desktop -->
+					<span class="hidden md:flex items-center gap-1.5 px-2 py-1.5 text-sm text-[var(--text-primary)]">
+						{#if activeChannel}
+							{#if activeChannel.channel_type === 'dm'}
+								<span class="text-[var(--text-secondary)]">@</span>
+							{:else if activeChannel.channel_type === 'voice'}
+								<span>🔊</span>
+							{:else}
+								<span class="text-[var(--text-secondary)]">#</span>
+							{/if}
+							<span class="max-w-[160px] truncate">{getChannelDisplayName()}</span>
 						{:else}
-							<span class="text-[var(--text-secondary)]">#</span>
+							<span class="text-[var(--text-secondary)]">Select channel</span>
 						{/if}
-						<span class="max-w-[160px] truncate">{getChannelDisplayName()}</span>
-					{:else}
-						<span class="text-[var(--text-secondary)]">Select channel</span>
-					{/if}
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
-					{#if channelUnreadTotal + dmUnreadTotal > 0}
-						<span class="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
-							{channelUnreadTotal + dmUnreadTotal > 99 ? '99+' : channelUnreadTotal + dmUnreadTotal}
-						</span>
-					{/if}
-				</button>
+					</span>
+				{:else}
+					<!-- Compact mode: clickable dropdown trigger -->
+					<button
+						onclick={() => { showNavDropdown = !showNavDropdown; showCommunityPicker = false; showUserMenu = false; }}
+						class="hidden md:flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-sm text-[var(--text-primary)] transition hover:bg-white/5 {showNavDropdown ? 'bg-white/5' : ''}"
+					>
+						{#if activeChannel}
+							{#if activeChannel.channel_type === 'dm'}
+								<span class="text-[var(--text-secondary)]">@</span>
+							{:else if activeChannel.channel_type === 'voice'}
+								<span>🔊</span>
+							{:else}
+								<span class="text-[var(--text-secondary)]">#</span>
+							{/if}
+							<span class="max-w-[160px] truncate">{getChannelDisplayName()}</span>
+						{:else}
+							<span class="text-[var(--text-secondary)]">Select channel</span>
+						{/if}
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+						{#if channelUnreadTotal + dmUnreadTotal > 0}
+							<span class="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+								{channelUnreadTotal + dmUnreadTotal > 99 ? '99+' : channelUnreadTotal + dmUnreadTotal}
+							</span>
+						{/if}
+					</button>
+				{/if}
 
 				<!-- E2E Encryption Badge -->
 				{#if activeChannel?.channel_type === 'dm'}
@@ -4462,11 +4488,9 @@
 			</div>
 		{/if}
 
-		<!-- ═══ NAVIGATION DROPDOWN ═══ -->
-		{#if showNavDropdown}
-			<button class="fixed inset-0 z-30" onclick={() => showNavDropdown = false} aria-label="Close navigation"></button>
-			<div class="fixed inset-x-0 top-12 bottom-0 z-40 flex flex-col bg-[var(--bg-secondary)] md:absolute md:inset-auto md:left-20 lg:left-40 md:top-12 lg:top-14 md:w-80 md:max-h-[75vh] md:rounded-2xl md:border md:border-white/10 md:shadow-xl" transition:fly={{ y: -10, duration: 150 }}>
-				<!-- Nav dropdown header with create button -->
+		<!-- ═══ SIDEBAR NAV CONTENT SNIPPET ═══ -->
+		{#snippet sidebarNavContent()}
+				<!-- Nav header with create button -->
 				<div class="flex items-center justify-between border-b border-white/10 px-3 py-2">
 					<span class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigate</span>
 					<button
@@ -5107,7 +5131,14 @@
 					{/if}
 				{/if}
 			</div>
-		</div>
+		{/snippet}
+
+		<!-- ═══ NAVIGATION DROPDOWN (compact mode + mobile) ═══ -->
+		{#if showNavDropdown}
+			<button class="fixed inset-0 z-30 {isExpandedSidebar ? 'md:hidden' : ''}" onclick={() => showNavDropdown = false} aria-label="Close navigation"></button>
+			<div class="fixed inset-x-0 top-12 bottom-0 z-40 flex flex-col bg-[var(--bg-secondary)] {isExpandedSidebar ? 'md:hidden' : 'md:absolute md:inset-auto md:left-20 lg:left-40 md:top-12 lg:top-14 md:w-80 md:max-h-[75vh] md:rounded-2xl md:border md:border-white/10 md:shadow-xl'}" transition:fly={{ y: -10, duration: 150 }}>
+				{@render sidebarNavContent()}
+			</div>
 		{/if}
 
 		<!-- ═══ USER MENU DROPDOWN ═══ -->
@@ -5318,6 +5349,13 @@
 
 		<!-- Main content row -->
 		<div class="flex flex-1 overflow-hidden">
+
+		<!-- Expanded sidebar panel (desktop only) -->
+		{#if isExpandedSidebar}
+			<aside class="hidden md:flex w-64 lg:w-72 shrink-0 flex-col border-r border-white/10 bg-[var(--bg-secondary)]">
+				{@render sidebarNavContent()}
+			</aside>
+		{/if}
 
 		<!-- Main chat area -->
 		<main

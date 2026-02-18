@@ -17,6 +17,7 @@ export type SendBehavior = 'enter' | 'ctrl-enter';
 export type NoiseSuppression = 'off' | 'noise-gate' | 'standard' | 'maximum';
 export type ChatBubbleStyle = 'flat' | 'bubbles';
 export type PresetTheme = 'default' | 'monokai' | 'dracula' | 'nord' | 'solarized' | 'amoled' | 'catppuccin' | 'custom';
+export type SidebarLayout = 'expanded' | 'compact';
 export type VoiceActivationMode = 'open-mic' | 'push-to-talk' | 'toggle-mute';
 export type VoiceBackgroundType = 'none' | 'solid' | 'gradient' | 'preset' | 'custom';
 
@@ -92,6 +93,7 @@ export interface UserPreferences {
 	customThemeColors: CustomThemeColors;
 	voiceBackground: VoiceBackground;
 	sendReadReceipts: boolean;
+	sidebarLayout: SidebarLayout;
 	voiceActivationMode: VoiceActivationMode;
 	pttKey: string;
 	toggleMuteKey: string;
@@ -132,6 +134,7 @@ const DEFAULTS: UserPreferences = {
 	customThemeColors: { ...DEFAULT_CUSTOM_COLORS },
 	voiceBackground: { type: 'none' },
 	sendReadReceipts: true,
+	sidebarLayout: 'expanded',
 	voiceActivationMode: 'open-mic',
 	pttKey: ' ',
 	toggleMuteKey: 'm'

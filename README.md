@@ -60,7 +60,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **File sharing** — drag-and-drop, clipboard paste, inline image/video/audio previews with lightbox viewer
 - **Desktop notifications** — configurable per-channel with sound controls
 - **Web push notifications** — receive DM notifications even when the tab is closed (metadata only, never message content)
-- **Customization** — themes, 8 accent colors, message density, font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
+- **Customization** — themes, 8 accent colors, message density, sidebar layout (expanded panel or compact dropdown), font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
 - **Webhooks** — create incoming webhooks for channels, post messages from external services
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0
 - **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, rate limiting, invite-only registration, self-service account recovery
@@ -324,7 +324,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (42 files)
+├── migrations/                # PostgreSQL migrations (46 files)
 ├── scripts/
 │   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)

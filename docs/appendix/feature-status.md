@@ -104,6 +104,7 @@ The definitive reference for all Chatalot features and their implementation stat
 | Custom Theme Creator | Complete | Pick colors for backgrounds, text, and accents |
 | Accent Colors | Complete | 8 options: Blue, Purple, Green, Orange, Red, Pink, Teal, Cyan |
 | Message Density | Complete | Cozy (with avatars) / Compact (tight spacing) |
+| Sidebar Layout | Complete | Expanded (persistent panel) / Compact (dropdown overlay) |
 | Font Sizes | Complete | Small (13px) / Medium (14px) / Large (16px) |
 | Time Format | Complete | 12-hour / 24-hour |
 | Send Behavior | Complete | Enter or Ctrl+Enter (configurable) |

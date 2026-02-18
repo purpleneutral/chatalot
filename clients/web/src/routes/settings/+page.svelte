@@ -1029,6 +1029,33 @@
 							</div>
 						</div>
 
+						<!-- Sidebar Layout -->
+						<div class="mb-4">
+							<div class="mb-2 font-medium">Sidebar layout</div>
+							<div class="flex gap-3">
+								<button
+									onclick={() => preferencesStore.set('sidebarLayout', 'expanded')}
+									class="flex-1 rounded-lg border p-3 text-left transition
+										{preferencesStore.preferences.sidebarLayout === 'expanded'
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
+								>
+									<div class="mb-1 text-sm font-medium">Expanded</div>
+									<div class="text-xs text-[var(--text-secondary)]">Always-visible sidebar panel</div>
+								</button>
+								<button
+									onclick={() => preferencesStore.set('sidebarLayout', 'compact')}
+									class="flex-1 rounded-lg border p-3 text-left transition
+										{preferencesStore.preferences.sidebarLayout === 'compact'
+											? 'border-[var(--accent)] bg-[var(--accent)]/10'
+											: 'border-white/10 hover:border-white/20'}"
+								>
+									<div class="mb-1 text-sm font-medium">Compact</div>
+									<div class="text-xs text-[var(--text-secondary)]">Dropdown navigation overlay</div>
+								</button>
+							</div>
+						</div>
+
 						<!-- Time Format -->
 						<div class="mb-4 flex items-center justify-between">
 							<div>
