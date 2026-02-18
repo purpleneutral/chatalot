@@ -255,6 +255,20 @@ async fn main() -> anyhow::Result<()> {
                 {
                     Ok(messages) => {
                         for msg in messages {
+                            // Check if user is suspended
+                            if state.suspended_users.contains(&msg.user_id) {
+                                tracing::info!(
+                                    "Dropping scheduled message {}: user is suspended",
+                                    msg.id
+                                );
+                                let _ =
+                                    chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                        &state.db, msg.id,
+                                    )
+                                    .await;
+                                continue;
+                            }
+
                             // Verify user is still a member before delivering
                             match chatalot_db::repos::channel_repo::is_member(
                                 &state.db,
@@ -278,30 +292,54 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(true) => {}
                             }
 
-                            // Check channel restrictions (archived, read-only, timeout, DM block)
+                            // Fetch channel for restriction checks and TTL
+                            let channel = match chatalot_db::repos::channel_repo::get_channel(
+                                &state.db,
+                                msg.channel_id,
+                            )
+                            .await
+                            {
+                                Ok(Some(ch)) => ch,
+                                _ => {
+                                    tracing::info!(
+                                        "Dropping scheduled message {}: channel not found",
+                                        msg.id
+                                    );
+                                    let _ =
+                                        chatalot_db::repos::scheduled_message_repo::delete_by_id(
+                                            &state.db, msg.id,
+                                        )
+                                        .await;
+                                    continue;
+                                }
+                            };
+
+                            // Check channel restrictions
                             let skip = 'check: {
-                                let channel = match chatalot_db::repos::channel_repo::get_channel(
-                                    &state.db,
-                                    msg.channel_id,
-                                )
-                                .await
-                                {
-                                    Ok(Some(ch)) => ch,
-                                    _ => break 'check true,
-                                };
                                 if channel.archived || channel.read_only {
                                     break 'check true;
                                 }
-                                // For DMs, check if either user has blocked the other
-                                if channel.channel_type == chatalot_db::models::channel::ChannelType::Dm
-                                    && let Ok(members) = chatalot_db::repos::channel_repo::list_members(&state.db, msg.channel_id).await
-                                {
-                                    for member in &members {
-                                        if member.user_id != msg.user_id
-                                            && let Ok(true) = chatalot_db::repos::block_repo::is_blocked_either_way(&state.db, msg.user_id, member.user_id).await
-                                        {
-                                            break 'check true;
+                                // For DMs, check blocks and shared community
+                                if channel.channel_type == chatalot_db::models::channel::ChannelType::Dm {
+                                    if let Ok(members) = chatalot_db::repos::channel_repo::list_members(&state.db, msg.channel_id).await {
+                                        for member in &members {
+                                            if member.user_id != msg.user_id {
+                                                // Block check (fail closed)
+                                                match chatalot_db::repos::block_repo::is_blocked_either_way(&state.db, msg.user_id, member.user_id).await {
+                                                    Ok(true) => break 'check true,
+                                                    Err(_) => break 'check true,
+                                                    Ok(false) => {}
+                                                }
+                                                // Shared community check (fail closed)
+                                                match chatalot_db::repos::community_repo::shares_community(&state.db, msg.user_id, member.user_id).await {
+                                                    Ok(false) => break 'check true,
+                                                    Err(_) => break 'check true,
+                                                    Ok(true) => {}
+                                                }
+                                            }
                                         }
+                                    } else {
+                                        break 'check true; // fail closed
                                     }
                                 }
                                 if let Ok(Some(_)) =
@@ -318,7 +356,7 @@ async fn main() -> anyhow::Result<()> {
                             };
                             if skip {
                                 tracing::info!(
-                                    "Dropping scheduled message {}: channel restricted or user timed out",
+                                    "Dropping scheduled message {}: channel restricted or user blocked/timed out",
                                     msg.id
                                 );
                                 let _ =
@@ -331,6 +369,11 @@ async fn main() -> anyhow::Result<()> {
 
                             // Deliver the message as if the user sent it now
                             let message_id = uuid::Uuid::now_v7();
+
+                            // Compute expires_at if channel has a TTL configured
+                            let expires_at = channel
+                                .message_ttl_seconds
+                                .map(|ttl| chrono::Utc::now() + chrono::Duration::seconds(ttl as i64));
 
                             // Decode ciphertext/nonce: new format is JSON byte arrays,
                             // fallback to raw UTF-8 bytes for legacy plaintext messages
@@ -352,34 +395,46 @@ async fn main() -> anyhow::Result<()> {
                                 None,
                                 None,
                                 None,
-                                None,
+                                expires_at,
                                 None,
                             )
                             .await
                             {
                                 Ok(stored) => {
-                                    state.connections.broadcast_to_channel(
-                                        msg.channel_id,
-                                        chatalot_common::ws_messages::ServerMessage::NewMessage {
-                                            id: message_id,
-                                            channel_id: msg.channel_id,
-                                            sender_id: msg.user_id,
-                                            ciphertext: ciphertext_bytes,
-                                            nonce: nonce_bytes,
-                                            message_type:
-                                                chatalot_common::ws_messages::MessageType::Text,
-                                            reply_to: None,
-                                            sender_key_id: None,
-                                            created_at: stored.created_at.to_rfc3339(),
-                                            thread_id: None,
-                                        },
-                                    );
-                                    // Delete the scheduled message after delivery
+                                    // Delete the scheduled message first to minimize duplicate risk on crash
                                     let _ =
                                         chatalot_db::repos::scheduled_message_repo::delete_by_id(
                                             &state.db, msg.id,
                                         )
                                         .await;
+
+                                    let new_msg = chatalot_common::ws_messages::ServerMessage::NewMessage {
+                                        id: message_id,
+                                        channel_id: msg.channel_id,
+                                        sender_id: msg.user_id,
+                                        ciphertext: ciphertext_bytes,
+                                        nonce: nonce_bytes,
+                                        message_type:
+                                            chatalot_common::ws_messages::MessageType::Text,
+                                        reply_to: None,
+                                        sender_key_id: None,
+                                        created_at: stored.created_at.to_rfc3339(),
+                                        thread_id: None,
+                                    };
+
+                                    // For DM channels, deliver directly to users (not via channel subscription)
+                                    let is_dm = channel.channel_type == chatalot_db::models::channel::ChannelType::Dm;
+                                    if is_dm {
+                                        if let Ok(members) = chatalot_db::repos::channel_repo::list_members(&state.db, msg.channel_id).await {
+                                            for member in &members {
+                                                if member.user_id != msg.user_id {
+                                                    state.connections.send_to_user(&member.user_id, &new_msg);
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        state.connections.broadcast_to_channel(msg.channel_id, new_msg);
+                                    }
                                 }
                                 Err(e) => {
                                     tracing::warn!(

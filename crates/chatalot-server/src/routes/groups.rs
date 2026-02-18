@@ -457,16 +457,18 @@ async fn update_group(
 
     let count = group_repo::get_member_count(&state.db, id).await?;
 
-    // Broadcast group settings change to all connected users
-    state.connections.broadcast_all(ServerMessage::GroupUpdated {
-        group_id: group.id,
-        name: group.name.clone(),
-        description: group.description.clone(),
-        icon_url: group.icon_url.clone(),
-        banner_url: group.banner_url.clone(),
-        accent_color: group.accent_color.clone(),
-        visibility: group.visibility.clone(),
-    });
+    // Broadcast group settings change only to community members
+    if let Ok(member_ids) = community_repo::get_member_ids(&state.db, current_group.community_id).await {
+        state.connections.broadcast_to_users(&member_ids, ServerMessage::GroupUpdated {
+            group_id: group.id,
+            name: group.name.clone(),
+            description: group.description.clone(),
+            icon_url: group.icon_url.clone(),
+            banner_url: group.banner_url.clone(),
+            accent_color: group.accent_color.clone(),
+            visibility: group.visibility.clone(),
+        });
+    }
 
     Ok(Json(GroupResponse {
         id: group.id,
@@ -513,10 +515,13 @@ async fn delete_group_handler(
         }
     }
 
+    // Fetch community member IDs before deletion for scoped broadcast
+    let member_ids = community_repo::get_member_ids(&state.db, group.community_id).await.unwrap_or_default();
+
     group_repo::delete_group(&state.db, id).await?;
 
-    // Broadcast group deletion to all connected users
-    state.connections.broadcast_all(ServerMessage::GroupDeleted { group_id: id });
+    // Broadcast group deletion only to community members
+    state.connections.broadcast_to_users(&member_ids, ServerMessage::GroupDeleted { group_id: id });
 
     user_repo::insert_audit_log(
         &state.db,
@@ -906,10 +911,13 @@ async fn delete_group_channel(
         return Err(AppError::Forbidden);
     }
 
+    // Fetch community member IDs before deletion for scoped broadcast
+    let member_ids = community_repo::get_member_ids(&state.db, group.community_id).await.unwrap_or_default();
+
     channel_repo::delete_channel(&state.db, path.channel_id).await?;
 
-    // Broadcast channel deletion to all connected users
-    state.connections.broadcast_all(ServerMessage::ChannelDeleted {
+    // Broadcast channel deletion only to community members
+    state.connections.broadcast_to_users(&member_ids, ServerMessage::ChannelDeleted {
         channel_id: path.channel_id,
     });
 

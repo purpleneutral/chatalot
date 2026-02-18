@@ -77,7 +77,7 @@ async fn get_link_preview(
     }
 
     // Fetch the URL
-    let response = state.http_client.get(&url)
+    let mut response = state.http_client.get(&url)
         .header(reqwest::header::USER_AGENT, "ChatalotBot/1.0 (link preview)")
         .send().await.map_err(|e| {
         tracing::debug!("Link preview fetch failed for {url}: {e}");
@@ -118,23 +118,23 @@ async fn get_link_preview(
         return Ok(Json(preview));
     }
 
-    // Limit response body to 512KB
-    let body = response
-        .text()
+    // Limit response body to 512KB using chunked reads (prevents OOM from malicious servers)
+    const MAX_BODY_SIZE: usize = 512_000;
+    let mut body_buf = Vec::with_capacity(MAX_BODY_SIZE.min(65_536));
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|_| AppError::Validation("Could not read response".into()))?;
-    let body = if body.len() > 512_000 {
-        // Find a valid UTF-8 char boundary to avoid panicking on multi-byte chars
-        let mut end = 512_000;
-        while !body.is_char_boundary(end) {
-            end -= 1;
+        .map_err(|_| AppError::Validation("Could not read response".into()))?
+    {
+        let remaining = MAX_BODY_SIZE.saturating_sub(body_buf.len());
+        if remaining == 0 {
+            break;
         }
-        &body[..end]
-    } else {
-        &body
-    };
+        body_buf.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+    }
+    let body = String::from_utf8_lossy(&body_buf);
 
-    let preview = parse_og_metadata(body, &url);
+    let preview = parse_og_metadata(&body, &url);
     cache_preview(&url, &preview);
 
     Ok(Json(preview))

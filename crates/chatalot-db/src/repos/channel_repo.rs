@@ -305,13 +305,13 @@ pub async fn update_channel(
         r#"
         UPDATE channels
         SET name = COALESCE($2, name),
-            topic = COALESCE($3, topic),
+            topic = CASE WHEN $3 IS NULL THEN topic WHEN $3 = '' THEN NULL ELSE $3 END,
             read_only = COALESCE($4, read_only),
             slow_mode_seconds = COALESCE($5, slow_mode_seconds),
             message_ttl_seconds = COALESCE($6, message_ttl_seconds),
             discoverable = COALESCE($7, discoverable),
             archived = COALESCE($8, archived),
-            voice_background = COALESCE($9, voice_background),
+            voice_background = CASE WHEN $9 IS NULL THEN voice_background WHEN $9 = '' THEN NULL ELSE $9 END,
             updated_at = NOW()
         WHERE id = $1
         RETURNING *

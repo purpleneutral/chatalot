@@ -94,13 +94,13 @@ pub async fn update_group(
         r#"
         UPDATE groups
         SET name = COALESCE($2, name),
-            description = COALESCE($3, description),
+            description = CASE WHEN $3 IS NULL THEN description WHEN $3 = '' THEN NULL ELSE $3 END,
             visibility = COALESCE($4, visibility),
             discoverable = COALESCE($5, discoverable),
             allow_invites = COALESCE($6, allow_invites),
-            icon_url = COALESCE($7, icon_url),
-            banner_url = COALESCE($8, banner_url),
-            accent_color = COALESCE($9, accent_color),
+            icon_url = CASE WHEN $7 IS NULL THEN icon_url WHEN $7 = '' THEN NULL ELSE $7 END,
+            banner_url = CASE WHEN $8 IS NULL THEN banner_url WHEN $8 = '' THEN NULL ELSE $8 END,
+            accent_color = CASE WHEN $9 IS NULL THEN accent_color WHEN $9 = '' THEN NULL ELSE $9 END,
             updated_at = NOW()
         WHERE id = $1
         RETURNING *

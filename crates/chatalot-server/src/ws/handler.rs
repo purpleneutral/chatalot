@@ -386,19 +386,30 @@ async fn handle_client_message(
                 };
                 for member in &members {
                         if member.user_id != user_id {
-                            // Check if either user has blocked the other
-                            if let Ok(true) = block_repo::is_blocked_either_way(
+                            // Check if either user has blocked the other (fail closed on DB error)
+                            match block_repo::is_blocked_either_way(
                                 &state.db,
                                 user_id,
                                 member.user_id,
                             )
                             .await
                             {
-                                let _ = tx.send(ServerMessage::Error {
-                                    code: "blocked".to_string(),
-                                    message: "cannot send messages to this user".to_string(),
-                                });
-                                return;
+                                Ok(true) => {
+                                    let _ = tx.send(ServerMessage::Error {
+                                        code: "blocked".to_string(),
+                                        message: "cannot send messages to this user".to_string(),
+                                    });
+                                    return;
+                                }
+                                Err(e) => {
+                                    tracing::error!("Failed to check block status: {e}");
+                                    let _ = tx.send(ServerMessage::Error {
+                                        code: "error".to_string(),
+                                        message: "could not verify block status".to_string(),
+                                    });
+                                    return;
+                                }
+                                Ok(false) => {}
                             }
 
                             match community_repo::shares_community(

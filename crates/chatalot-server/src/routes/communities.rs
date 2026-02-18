@@ -462,16 +462,18 @@ async fn update_community(
 
     let count = community_repo::get_community_member_count(&state.db, ctx.community_id).await?;
 
-    // Broadcast community settings change to all connected users
-    state.connections.broadcast_all(ServerMessage::CommunityUpdated {
-        community_id: community.id,
-        name: community.name.clone(),
-        description: community.description.clone(),
-        icon_url: community.icon_url.clone(),
-        banner_url: community.banner_url.clone(),
-        community_theme: community.community_theme.clone(),
-        welcome_message: community.welcome_message.clone(),
-    });
+    // Broadcast community settings change only to community members
+    if let Ok(member_ids) = community_repo::get_member_ids(&state.db, ctx.community_id).await {
+        state.connections.broadcast_to_users(&member_ids, ServerMessage::CommunityUpdated {
+            community_id: community.id,
+            name: community.name.clone(),
+            description: community.description.clone(),
+            icon_url: community.icon_url.clone(),
+            banner_url: community.banner_url.clone(),
+            community_theme: community.community_theme.clone(),
+            welcome_message: community.welcome_message.clone(),
+        });
+    }
 
     Ok(Json(CommunityResponse {
         id: community.id,

@@ -93,6 +93,17 @@ impl ConnectionManager {
         let _ = sender.send(message);
     }
 
+    /// Broadcast a message to a specific set of users (e.g. community members).
+    pub fn broadcast_to_users(&self, user_ids: &[Uuid], message: ServerMessage) {
+        for uid in user_ids {
+            if let Some(sessions) = self.connections.get(uid) {
+                for session in sessions.iter() {
+                    let _ = session.tx.send(message.clone());
+                }
+            }
+        }
+    }
+
     /// Broadcast a message to all connected users.
     pub fn broadcast_all(&self, message: ServerMessage) {
         for entry in self.connections.iter() {

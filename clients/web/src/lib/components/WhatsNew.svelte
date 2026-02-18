@@ -16,6 +16,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.42',
+			date: '2026-02-17',
+			changes: [
+				'Security: DM block check now fails closed on database error (was silently allowing messages through)',
+				'Security: link preview body download now capped at 512KB with chunked reads (prevents OOM from malicious servers)',
+				'Security: community/group/channel updates now broadcast only to members (was leaking private info to all users)',
+				'Security: scheduled messages now check for suspended users, DM blocks, shared community, and message TTL',
+				'Security: scheduled DM delivery uses direct send instead of channel broadcast',
+				'Fix: nullable fields (description, topic, theme, welcome message) can now be cleared via settings',
+				'Fix: user deletion no longer fails when user created community invites or bans (FK constraint fix)',
+			]
+		},
+		{
 			version: '0.18.41',
 			date: '2026-02-17',
 			changes: [

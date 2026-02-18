@@ -745,7 +745,7 @@
 									saving = true;
 									try {
 										const updated = await updateCommunity(community.id, {
-											welcome_message: editWelcomeMessage.trim() || null
+											welcome_message: editWelcomeMessage.trim()
 										});
 										community = updated;
 										toastStore.success('Welcome message updated');

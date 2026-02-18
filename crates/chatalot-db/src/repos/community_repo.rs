@@ -72,14 +72,14 @@ pub async fn update_community(
         r#"
         UPDATE communities
         SET name = COALESCE($2, name),
-            description = COALESCE($3, description),
-            icon_url = COALESCE($4, icon_url),
+            description = CASE WHEN $3 IS NULL THEN description WHEN $3 = '' THEN NULL ELSE $3 END,
+            icon_url = CASE WHEN $4 IS NULL THEN icon_url WHEN $4 = '' THEN NULL ELSE $4 END,
             who_can_create_groups = COALESCE($5, who_can_create_groups),
             who_can_create_invites = COALESCE($6, who_can_create_invites),
             discoverable = COALESCE($7, discoverable),
-            banner_url = COALESCE($8, banner_url),
-            community_theme = COALESCE($9, community_theme),
-            welcome_message = COALESCE($10, welcome_message),
+            banner_url = CASE WHEN $8 IS NULL THEN banner_url WHEN $8 = '' THEN NULL ELSE $8 END,
+            community_theme = CASE WHEN $9 IS NULL THEN community_theme WHEN $9 = 'null'::jsonb THEN NULL ELSE $9 END,
+            welcome_message = CASE WHEN $10 IS NULL THEN welcome_message WHEN $10 = '' THEN NULL ELSE $10 END,
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -584,6 +584,17 @@ pub async fn shares_community(
     .fetch_one(pool)
     .await?;
     Ok(row.0)
+}
+
+/// Get all member user IDs for a specific community (lightweight, no JOINs).
+pub async fn get_member_ids(pool: &PgPool, community_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT user_id FROM community_members WHERE community_id = $1",
+    )
+    .bind(community_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
 /// Get all distinct user IDs that share at least one community with the given user.
