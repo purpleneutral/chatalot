@@ -34,9 +34,23 @@ services:
       - jwt_private_key
       - jwt_public_key
     networks:
-      - chatalot-net
+      - external
+      - internal
     ports:
       - "8080:8080"
+    # Security hardening
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
 
   postgres:
     image: postgres:17
@@ -49,13 +63,28 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - chatalot-net
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chatalot"]
       interval: 10s
       timeout: 5s
       retries: 5
-    # Not exposed to host — only accessible within docker network
+    # Security hardening — DB is on internal network only, never exposed
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -65,11 +94,15 @@ services:
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
-      - chatalot-net
+      - external
     depends_on:
       - chatalot
     profiles:
       - production  # Only starts with: docker compose --profile production up
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   coturn:
     image: coturn/coturn:latest
@@ -98,11 +131,15 @@ services:
     restart: unless-stopped
     command: tunnel --no-autoupdate --url http://chatalot:8080
     networks:
-      - chatalot-net
+      - external
     depends_on:
       - chatalot
     profiles:
       - quick-tunnel  # docker compose --profile quick-tunnel up -d
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   postgres_data:
@@ -115,5 +152,8 @@ secrets:
     file: ./secrets/jwt_public.pem
 
 networks:
-  chatalot-net:
+  external:
     driver: bridge
+  internal:
+    driver: bridge
+    internal: true  # No internet access — DB isolation
