@@ -7,11 +7,13 @@ class UserStore {
 		return this.users.get(id);
 	}
 
-	getDisplayName(id: string): string {
+	getDisplayName(id: string | null): string {
+		if (!id) return 'Deleted User';
 		return this.users.get(id)?.display_name ?? id.slice(0, 8);
 	}
 
-	getInitial(id: string): string {
+	getInitial(id: string | null): string {
+		if (!id) return '?';
 		const name = this.users.get(id)?.display_name;
 		return name ? name[0].toUpperCase() : id.slice(0, 2).toUpperCase();
 	}

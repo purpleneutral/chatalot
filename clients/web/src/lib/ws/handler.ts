@@ -37,7 +37,8 @@ export function clearMarkReadTimer() {
 }
 
 /** Fetch and cache user info if not already in the store. */
-async function ensureUser(userId: string) {
+async function ensureUser(userId: string | null) {
+	if (!userId) return;
 	if (userStore.getUser(userId)) return;
 	try {
 		const user = await getUser(userId);

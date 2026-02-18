@@ -2512,7 +2512,8 @@
 	}
 
 	/** Get display name respecting community nicknames. */
-	function getDisplayNameForContext(userId: string): string {
+	function getDisplayNameForContext(userId: string | null): string {
+		if (!userId) return 'Deleted User';
 		if (communityStore.activeCommunityId) {
 			const nickname = communityMemberStore.getNickname(communityStore.activeCommunityId, userId);
 			if (nickname) return nickname;
@@ -2905,7 +2906,8 @@
 
 	const SPECIAL_MENTIONS = ['everyone', 'here', 'channel'];
 
-	function getUserColor(userId: string): string {
+	function getUserColor(userId: string | null): string {
+		if (!userId) return 'hsl(0, 0%, 65%)';
 		let hash = 0;
 		for (let i = 0; i < userId.length; i++) {
 			hash = userId.charCodeAt(i) + ((hash << 5) - hash);

@@ -4,7 +4,7 @@
 export interface ChatMessage {
 	id: string;
 	channelId: string;
-	senderId: string;
+	senderId: string | null;
 	content: string;        // Decrypted plaintext (or placeholder)
 	messageType: string;
 	replyToId: string | null;
