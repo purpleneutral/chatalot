@@ -146,7 +146,7 @@
 			// Load server-synced preferences + bookmarks
 			preferencesStore.loadFromServer();
 			listBookmarks().then(b => bookmarkStore.setBookmarks(b)).catch((err) => console.warn('Failed to load bookmarks:', err));
-			listScheduledMessages().then(msgs => scheduledMessages = msgs).catch((err) => console.warn('Failed to load scheduled messages:', err));
+			listScheduledMessages().then(msgs => { scheduledMessages = msgs.map(m => ({ ...m, content: loadScheduledContent(m.id) })); }).catch((err) => console.warn('Failed to load scheduled messages:', err));
 
 			// Populate user cache from DM contacts
 			userStore.setUsers(dms.map(d => d.other_user));
@@ -892,6 +892,29 @@
 		}
 	}
 
+	function saveScheduledContent(id: string, content: string) {
+		try {
+			const cache = JSON.parse(localStorage.getItem('chatalot-scheduled-content') || '{}');
+			cache[id] = content;
+			localStorage.setItem('chatalot-scheduled-content', JSON.stringify(cache));
+		} catch { /* storage full or unavailable */ }
+	}
+
+	function loadScheduledContent(id: string): string | undefined {
+		try {
+			const cache = JSON.parse(localStorage.getItem('chatalot-scheduled-content') || '{}');
+			return cache[id];
+		} catch { return undefined; }
+	}
+
+	function removeScheduledContent(id: string) {
+		try {
+			const cache = JSON.parse(localStorage.getItem('chatalot-scheduled-content') || '{}');
+			delete cache[id];
+			localStorage.setItem('chatalot-scheduled-content', JSON.stringify(cache));
+		} catch { /* ignore */ }
+	}
+
 	async function handleScheduleMessage() {
 		const text = messageInput.trim();
 		if (!text || !channelStore.activeChannelId || !scheduleDate || !scheduleTime) return;
@@ -903,7 +926,8 @@
 		try {
 			const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
 			const msg = await apiScheduleMessage(channelStore.activeChannelId, JSON.stringify(ciphertext), JSON.stringify(nonce), scheduledFor.toISOString());
-			scheduledMessages = [...scheduledMessages, msg];
+			saveScheduledContent(msg.id, text);
+			scheduledMessages = [...scheduledMessages, { ...msg, content: text }];
 			messageInput = '';
 			showSchedulePicker = false;
 			scheduleDate = '';
@@ -916,7 +940,8 @@
 
 	async function loadScheduledMessages() {
 		try {
-			scheduledMessages = await listScheduledMessages();
+			const msgs = await listScheduledMessages();
+			scheduledMessages = msgs.map(m => ({ ...m, content: loadScheduledContent(m.id) }));
 		} catch { /* ignore */ }
 	}
 
@@ -935,6 +960,7 @@
 	async function handleCancelScheduled(id: string) {
 		try {
 			await cancelScheduledMessage(id);
+			removeScheduledContent(id);
 			scheduledMessages = scheduledMessages.filter(m => m.id !== id);
 			toastStore.success('Scheduled message cancelled');
 		} catch { toastStore.error('Failed to cancel'); }
@@ -6980,29 +7006,39 @@
 					{:else}
 						{#each scheduledMessages as msg (msg.id)}
 							{@const channel = channelStore.channels.find(c => c.id === msg.channel_id)}
-							<div class="group rounded-lg p-2.5 transition hover:bg-white/5">
-								<div class="flex items-start justify-between gap-1">
-									<div class="min-w-0 flex-1">
-										<div class="flex items-center gap-1.5 mb-1">
-											<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-												<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-											</svg>
-											<p class="text-xs font-medium text-[var(--text-primary)]">
-												{new Date(msg.scheduled_for).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-											</p>
-										</div>
-										{#if channel}
-											<p class="text-[10px] text-[var(--text-secondary)]/60">#{channel.name ?? 'DM'}</p>
-										{/if}
+							<div class="group rounded-xl border border-white/5 bg-[var(--bg-primary)]/50 p-3 transition hover:border-white/10">
+								<!-- Message content -->
+								<div class="mb-2">
+									{#if msg.content}
+										<p class="text-sm text-[var(--text-primary)] line-clamp-3 break-words">{msg.content}</p>
+									{:else}
+										<p class="text-sm italic text-[var(--text-secondary)]/60">Encrypted message</p>
+									{/if}
+								</div>
+								<!-- Channel -->
+								{#if channel}
+									<div class="mb-1.5 flex items-center gap-1">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--text-secondary)]/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9l16 0"/><path d="M4 15l16 0"/><path d="M10 3l-2 18"/><path d="M16 3l-2 18"/></svg>
+										<span class="text-[11px] text-[var(--text-secondary)]/60">{channel.name ?? 'DM'}</span>
+									</div>
+								{/if}
+								<!-- Delivery time + cancel -->
+								<div class="flex items-center justify-between">
+									<div class="flex items-center gap-1.5">
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+										</svg>
+										<span class="text-[11px] text-[var(--text-secondary)]">
+											{new Date(msg.scheduled_for).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+										</span>
 									</div>
 									<button
+										type="button"
 										onclick={() => handleCancelScheduled(msg.id)}
-										class="shrink-0 rounded p-1 text-[var(--text-secondary)] opacity-0 transition hover:text-[var(--danger)] group-hover:opacity-100"
-										title="Cancel"
+										class="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-red-400/70 opacity-0 transition hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
+										title="Cancel scheduled message"
 										aria-label="Cancel scheduled message"
-									>
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-									</button>
+									>Cancel</button>
 								</div>
 							</div>
 						{/each}

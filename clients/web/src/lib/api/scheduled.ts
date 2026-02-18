@@ -5,6 +5,8 @@ export interface ScheduledMessage {
 	channel_id: string;
 	scheduled_for: string;
 	created_at: string;
+	/** Client-only: plaintext cached locally (not from server — E2E safe) */
+	content?: string;
 }
 
 export async function scheduleMessage(
