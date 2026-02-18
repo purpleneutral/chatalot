@@ -106,9 +106,13 @@
 	let ownPublicKeyHex = $state('');
 	let fingerprintCopied = $state(false);
 	let fingerprintLoaded = $state(false);
+	let fingerprintLoading = $state(false);
+	let fingerprintError = $state('');
 
 	async function loadOwnFingerprint() {
-		if (fingerprintLoaded) return;
+		if (fingerprintLoaded || fingerprintLoading) return;
+		fingerprintLoading = true;
+		fingerprintError = '';
 		try {
 			await initCrypto();
 			const crypto = await getCrypto();
@@ -116,8 +120,13 @@
 			ownFingerprintSettings = crypto.compute_fingerprint(ownKey);
 			ownPublicKeyHex = Array.from(ownKey).map(b => b.toString(16).padStart(2, '0')).join('');
 			fingerprintLoaded = true;
-		} catch {
-			// Crypto not available (e.g. not registered)
+		} catch (err) {
+			console.error('Failed to load fingerprint:', err);
+			fingerprintError = err instanceof Error && err.message.includes('No identity key')
+				? 'No encryption keys found. Send a message first to generate keys.'
+				: 'Failed to load encryption keys.';
+		} finally {
+			fingerprintLoading = false;
 		}
 	}
 
@@ -2045,10 +2054,14 @@
 							{#if !fingerprintLoaded}
 								<button
 									onclick={loadOwnFingerprint}
-									class="text-xs text-[var(--accent)] hover:underline"
+									disabled={fingerprintLoading}
+									class="text-xs text-[var(--accent)] hover:underline disabled:opacity-50"
 								>
-									Show identity fingerprint
+									{fingerprintLoading ? 'Loading...' : 'Show identity fingerprint'}
 								</button>
+								{#if fingerprintError}
+									<p class="text-xs text-red-400">{fingerprintError}</p>
+								{/if}
 							{:else if ownFingerprintSettings}
 								<div>
 									<div class="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Your Fingerprint</div>
