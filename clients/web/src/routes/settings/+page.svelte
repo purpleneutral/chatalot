@@ -115,6 +115,8 @@
 		fingerprintError = '';
 		try {
 			await initCrypto();
+			// Ensure keys exist (generates + uploads if missing, e.g. pre-E2E accounts)
+			await getKeyManager().ensureKeysRegistered();
 			const crypto = await getCrypto();
 			const ownKey = await getKeyManager().getVerifyingKey();
 			ownFingerprintSettings = crypto.compute_fingerprint(ownKey);
@@ -122,9 +124,7 @@
 			fingerprintLoaded = true;
 		} catch (err) {
 			console.error('Failed to load fingerprint:', err);
-			fingerprintError = err instanceof Error && err.message.includes('No identity key')
-				? 'No encryption keys found. Send a message first to generate keys.'
-				: 'Failed to load encryption keys.';
+			fingerprintError = 'Failed to load encryption keys. Please try refreshing the page.';
 		} finally {
 			fingerprintLoading = false;
 		}
