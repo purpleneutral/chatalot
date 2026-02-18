@@ -16,6 +16,7 @@
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import { initCrypto, getKeyManager } from '$lib/crypto';
 	import { getCrypto } from '$lib/crypto/wasm-loader';
+	import QRCode from 'qrcode';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount, onDestroy } from 'svelte';
 
@@ -26,6 +27,7 @@
 	let serverUrl = $derived(isDesktop ? getServerUrl() : null);
 
 	let totpSetup = $state<TotpSetup | null>(null);
+	let totpQrDataUrl = $state('');
 	let totpCode = $state('');
 	let disableCode = $state('');
 	let totpMessage = $state('');
@@ -499,6 +501,11 @@
 		totpMessage = '';
 		try {
 			totpSetup = await setupTotp();
+			totpQrDataUrl = await QRCode.toDataURL(totpSetup.otpauth_url, {
+				width: 200,
+				margin: 2,
+				color: { dark: '#000000', light: '#ffffff' }
+			});
 			showTotpSetup = true;
 		} catch (err) {
 			totpError = err instanceof Error ? err.message : 'Failed to setup 2FA';
@@ -1771,8 +1778,12 @@
 						{#if showTotpSetup && totpSetup}
 							<div class="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-4">
 								<p class="mb-3 text-sm">Scan with your authenticator app, or enter the secret manually:</p>
-								<div class="mb-3 rounded-lg bg-white p-4 text-center">
-									<p class="text-xs text-gray-500">QR Code for: {totpSetup.otpauth_url}</p>
+								<div class="mb-3 flex justify-center rounded-lg bg-white p-4">
+									{#if totpQrDataUrl}
+										<img src={totpQrDataUrl} alt="TOTP QR code" class="h-[200px] w-[200px]" />
+									{:else}
+										<p class="text-xs text-gray-500">Generating QR code...</p>
+									{/if}
 								</div>
 								<div class="mb-4">
 									<span class="mb-1 block text-xs text-[var(--text-secondary)]">Manual entry secret</span>

@@ -1,7 +1,7 @@
 {
   "name": "chatalot-web",
   "private": true,
-  "version": "0.18.44",
+  "version": "0.18.45",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -14,6 +14,7 @@
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/qrcode": "^1.5.6",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.0.0",
@@ -26,6 +27,7 @@
     "dompurify": "^3.3.1",
     "emoji-picker-element": "^1.29.0",
     "highlight.js": "^11.11.1",
-    "marked": "^17.0.2"
+    "marked": "^17.0.2",
+    "qrcode": "^1.5.4"
   }
 }

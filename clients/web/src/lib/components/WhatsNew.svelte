@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.45',
+			date: '2026-02-17',
+			changes: [
+				'Fixed 2FA setup: QR code now renders as a scannable image instead of showing raw text',
+				'Fixed orphan file cleanup deleting avatars and community assets from storage',
+			]
+		},
+		{
 			version: '0.18.44',
 			date: '2026-02-17',
 			changes: [
