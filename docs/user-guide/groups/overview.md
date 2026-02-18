@@ -2,7 +2,7 @@
 
 > **Status: Complete**
 
-Groups are organizational folders within a community, similar to "categories" in Discord. They sit between communities and channels in the hierarchy and help you organize related channels together.
+Groups are organizational folders within a community, similar to "categories" in other chat platforms. They sit between communities and channels in the hierarchy and help you organize related channels together.
 
 ## What is a Group?
 

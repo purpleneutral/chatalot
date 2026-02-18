@@ -25,7 +25,7 @@ Choose between two visual styles for message layout:
 
 | Style | Description |
 |-------|-------------|
-| **Flat** (default) | Discord-style layout where messages appear in a linear list with a subtle color border on the left. Clean and familiar. |
+| **Flat** (default) | Classic layout where messages appear in a linear list with a subtle color border on the left. Clean and familiar. |
 | **Bubbles** | iMessage-style rounded bubbles. Messages are wrapped in rounded containers for a more conversational feel. |
 
 ### How to Switch

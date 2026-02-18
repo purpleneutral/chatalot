@@ -52,16 +52,20 @@ export async function handleServerMessage(msg: ServerMessage) {
 	switch (msg.type) {
 		case 'new_message': {
 			let content: string;
+			let encryptionStatus: ChatMessage['encryptionStatus'] = 'plaintext';
 			try {
-				content = await decryptMessage(
+				const result = await decryptMessage(
 					msg.channel_id,
 					msg.sender_id,
 					msg.ciphertext,
 					msg.id,
 				);
+				content = result.content;
+				encryptionStatus = result.encrypted ? 'encrypted' : 'plaintext';
 			} catch (err) {
 				console.error('[WS] Failed to decrypt new_message:', err);
 				content = '[Failed to decrypt]';
+				encryptionStatus = 'decryption_failed';
 			}
 			// Fetch user info (don't block message addition)
 			const userReady = ensureUser(msg.sender_id);
@@ -76,6 +80,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 				editedAt: null,
 				createdAt: msg.created_at,
 				threadId: msg.thread_id ?? null,
+				encryptionStatus,
 			};
 			messageStore.addMessage(msg.channel_id, chatMsg);
 
@@ -176,13 +181,14 @@ export async function handleServerMessage(msg: ServerMessage) {
 						peerOverride = members.find(m => m.user_id !== authStore.user?.id)?.user_id;
 					}
 				}
-				editedContent = await decryptMessage(
+				const editResult = await decryptMessage(
 					msg.channel_id,
 					msg.sender_id,
 					msg.ciphertext,
 					msg.message_id,
 					peerOverride,
 				);
+				editedContent = editResult.content;
 			} catch (err) {
 				console.error('[WS] Failed to decrypt message_edited:', err);
 				editedContent = '[Failed to decrypt]';

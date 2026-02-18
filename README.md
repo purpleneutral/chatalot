@@ -53,12 +53,13 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Communities, groups, and channels** — organize your server with roles, permissions, and invite links
 - **Personal groups** — moderators assign isolated spaces to members with full channel control; privacy and invite permissions managed by moderators
 - **Voice and video calls** — peer-to-peer WebRTC with video grid (up to 25 participants)
-- **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups), compiled to WASM and running client-side
+- **End-to-end encryption** — Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups), compiled to WASM and running client-side, with per-message lock icons, fingerprint verification, and TOFU key change warnings
 - **Rich messaging** — markdown, syntax-highlighted code blocks, inline media previews, GIF search, emoji autocomplete, reactions, replies, and forwarding
 - **Polls** — create polls with 2-10 options, multi-select, anonymous voting, optional expiry, and real-time vote broadcasting
 - **Custom emoji** — upload per-community emoji (PNG/GIF/WebP), use with `:shortcode:` syntax, autocomplete in composer
 - **File sharing** — drag-and-drop, clipboard paste, inline image/video/audio previews with lightbox viewer
 - **Desktop notifications** — configurable per-channel with sound controls
+- **Web push notifications** — receive DM notifications even when the tab is closed (metadata only, never message content)
 - **Customization** — themes, 8 accent colors, message density, font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
 - **Webhooks** — create incoming webhooks for channels, post messages from external services
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0
@@ -323,7 +324,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (39 files)
+├── migrations/                # PostgreSQL migrations (42 files)
 ├── scripts/
 │   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
@@ -349,6 +350,8 @@ chatalot/
 | `FILE_STORAGE_PATH` | `./data/files` | Encrypted file storage directory |
 | `MAX_FILE_SIZE_MB` | `100` | Max upload size in MB |
 | `RUST_LOG` | `info` | Log level |
+| `VAPID_PRIVATE_KEY` | *optional* | Base64-encoded ECDSA P-256 private key for web push notifications |
+| `VAPID_PUBLIC_KEY` | *optional* | Base64-encoded ECDSA P-256 public key for web push notifications |
 | `CLOUDFLARE_TUNNEL_TOKEN` | *optional* | For production Cloudflare Tunnel profile |
 | `TENOR_API_KEY` | *optional* | Google API key for GIF search ([get one free](https://developers.google.com/tenor/guides/quickstart)) |
 
@@ -384,7 +387,7 @@ npm run dev
 ### Tests
 
 ```bash
-cargo test          # 52 unit tests (crypto, auth, security, CSS sanitizer)
+cargo test          # 59 unit tests (crypto, auth, security, CSS sanitizer)
 cargo clippy        # Lint checks
 cd clients/web && npm run check   # Svelte type checking
 ```

@@ -1,6 +1,6 @@
 # Chatalot Documentation
 
-Welcome to the official Chatalot documentation. Chatalot is a self-hosted, end-to-end encrypted chat platform — a privacy-focused alternative to Discord. This guide covers everything from getting started to self-hosting your own instance.
+Welcome to the official Chatalot documentation. Chatalot is a self-hosted, end-to-end encrypted chat platform — a privacy-focused alternative to mainstream chat platforms. This guide covers everything from getting started to self-hosting your own instance.
 
 ---
 

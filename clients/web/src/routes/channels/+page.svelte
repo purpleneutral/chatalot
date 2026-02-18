@@ -93,9 +93,12 @@
 	import { communityStore } from '$lib/stores/communities.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { fade, slide, fly, scale } from 'svelte/transition';
-	import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
+	import { initCrypto, getSessionManager, getKeyManager, getCryptoStorage } from '$lib/crypto';
+	import { getCrypto } from '$lib/crypto/wasm-loader';
 	import { decryptMessage } from '$lib/crypto/decrypt';
 	import { getSenderKeys } from '$lib/api/sender-keys';
+	import { pushStore } from '$lib/stores/push.svelte';
+	import { encryptionStore } from '$lib/stores/encryption.svelte';
 
 	let messageInput = $state('');
 	let newChannelName = $state('');
@@ -394,6 +397,47 @@
 	// Slow mode cooldown
 	let slowModeCooldown = $state(0);
 	let slowModeTimer: ReturnType<typeof setInterval> | null = null;
+
+	// Encryption verification modal state
+	let showEncryptionInfo = $state(false);
+	let encryptionInfoLoading = $state(false);
+	let safetyNumber = $state('');
+	let ownFingerprint = $state('');
+	let peerFingerprint = $state('');
+	let safetyNumberCopied = $state(false);
+
+	async function loadEncryptionInfo() {
+		if (!activeChannel || activeChannel.channel_type !== 'dm') return;
+		const peerUserId = getPeerUserIdForDm(activeChannel.id);
+		if (!peerUserId) return;
+
+		encryptionInfoLoading = true;
+		try {
+			await initCrypto();
+			const crypto = await getCrypto();
+			const storage = getCryptoStorage();
+
+			const ownKey = await getKeyManager().getVerifyingKey();
+			const peerKey = await storage.getPeerIdentity(peerUserId);
+
+			ownFingerprint = crypto.compute_fingerprint(ownKey);
+			if (peerKey) {
+				peerFingerprint = crypto.compute_fingerprint(peerKey);
+				safetyNumber = crypto.compute_safety_number(ownKey, peerKey);
+			} else {
+				peerFingerprint = '';
+				safetyNumber = '';
+			}
+		} catch (err) {
+			console.error('Failed to load encryption info:', err);
+			safetyNumber = '';
+			ownFingerprint = '';
+			peerFingerprint = '';
+		} finally {
+			encryptionInfoLoading = false;
+		}
+		showEncryptionInfo = true;
+	}
 
 	// Guard against stale async loads on rapid channel switching
 	let channelLoadId = 0;
@@ -831,13 +875,13 @@
 			const msg = messageStore.getMessages(channelId).find(m => m.id === messageId);
 			const senderId = msg?.senderId ?? '';
 			editHistoryEntries = await Promise.all(edits.map(async (e) => ({
-				content: await decryptMessage(
+				content: (await decryptMessage(
 					channelId,
 					senderId,
 					e.old_ciphertext,
 					undefined,
 					senderId === authStore.user?.id ? getPeerUserIdForDm(channelId) : undefined,
-				),
+				)).content,
 				editedAt: e.edited_at
 			})));
 		} catch {
@@ -920,24 +964,28 @@
 			const msgs = await getThreadMessages(channelId, rootId);
 			// Guard: user may have opened a different thread or closed the panel during fetch
 			if (activeThreadRootId !== rootId) return;
-			threadMessages = await Promise.all(msgs.map(async (m) => ({
-				id: m.id,
-				channelId: m.channel_id,
-				senderId: m.sender_id ?? '',
-				content: await decryptMessage(
+			threadMessages = await Promise.all(msgs.map(async (m) => {
+				const { content, encrypted } = await decryptMessage(
 					m.channel_id,
 					m.sender_id ?? '',
 					m.ciphertext,
 					m.id,
 					m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelId) : undefined,
-				),
-				messageType: m.message_type,
-				replyToId: m.reply_to_id ?? null,
-				editedAt: m.edited_at ?? null,
-				createdAt: m.created_at,
-				threadId: m.thread_id ?? null,
-				reactions: m.reactions ? new Map(m.reactions.map(r => [r.emoji, new Set(r.user_ids)])) : undefined,
-			})));
+				);
+				return {
+					id: m.id,
+					channelId: m.channel_id,
+					senderId: m.sender_id ?? '',
+					content,
+					encryptionStatus: encrypted ? 'encrypted' as const : 'plaintext' as const,
+					messageType: m.message_type,
+					replyToId: m.reply_to_id ?? null,
+					editedAt: m.edited_at ?? null,
+					createdAt: m.created_at,
+					threadId: m.thread_id ?? null,
+					reactions: m.reactions ? new Map(m.reactions.map(r => [r.emoji, new Set(r.user_ids)])) : undefined,
+				};
+			}));
 		} catch {
 			if (activeThreadRootId === rootId) toastStore.error('Failed to load thread');
 		} finally {
@@ -1217,6 +1265,18 @@
 			console.error('Failed to initialize crypto:', err);
 		}
 
+		// Initialize push notifications (silently checks VAPID key availability)
+		pushStore.init().catch((err) => console.warn('Push init failed:', err));
+
+		// Listen for SW postMessage from notification clicks
+		navigator.serviceWorker?.addEventListener('message', (event) => {
+			if (event.data?.type === 'navigate-channel' && event.data.channelId) {
+				window.dispatchEvent(
+					new CustomEvent('chatalot:navigate-channel', { detail: event.data.channelId })
+				);
+			}
+		});
+
 		// Listen for version update events BEFORE connecting WS to avoid race
 		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
 		window.addEventListener('chatalot:connection', handleConnectionChange as EventListener);
@@ -1238,6 +1298,9 @@
 
 		// Listen for block/unblock events to refresh the list
 		window.addEventListener('chatalot:blocks-changed', handleBlocksChanged);
+
+		// Listen for identity key changes (TOFU violations)
+		window.addEventListener('chatalot:identity-key-changed', handleIdentityKeyChanged as EventListener);
 
 		// Listen for slow mode cooldown events
 		window.addEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
@@ -1317,6 +1380,7 @@
 		window.removeEventListener('chatalot:update-available', handleUpdateAvailable);
 		window.removeEventListener('chatalot:connection', handleConnectionChange as EventListener);
 		window.removeEventListener('chatalot:blocks-changed', handleBlocksChanged);
+		window.removeEventListener('chatalot:identity-key-changed', handleIdentityKeyChanged as EventListener);
 		window.removeEventListener('chatalot:slow-mode', handleSlowModeEvent as EventListener);
 		window.removeEventListener('chatalot:poll-created', handlePollCreated as EventListener);
 		window.removeEventListener('chatalot:poll-voted', handlePollVoted as EventListener);
@@ -1395,6 +1459,10 @@
 		} catch (err) {
 			console.warn('Failed to load blocked users:', err);
 		}
+	}
+
+	function handleIdentityKeyChanged(e: CustomEvent<{ userId: string }>) {
+		encryptionStore.addKeyChange(e.detail.userId);
 	}
 
 	function handlePollCreated(e: CustomEvent<{ pollId: string; channelId: string; createdBy: string; question: string }>) {
@@ -1577,26 +1645,30 @@
 					// Guard: channel may have changed during the fetch
 					if (channelStore.activeChannelId !== activeId) return;
 					const reversed = rawMessages.reverse();
-					const chatMsgs: ChatMessage[] = await Promise.all(reversed.map(async m => ({
-						id: m.id,
-						channelId: m.channel_id,
-						senderId: m.sender_id,
-						content: await decryptMessage(
+					const chatMsgs: ChatMessage[] = await Promise.all(reversed.map(async m => {
+						const { content, encrypted } = await decryptMessage(
 							m.channel_id,
 							m.sender_id,
 							m.ciphertext,
 							m.id,
 							m.sender_id === authStore.user?.id ? getPeerUserIdForDm(activeId) : undefined,
-						),
-						messageType: m.message_type,
-						replyToId: m.reply_to_id,
-						editedAt: m.edited_at,
-						createdAt: m.created_at,
-						threadId: m.thread_id ?? null,
-						threadReplyCount: m.thread_reply_count ?? undefined,
-						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
-						reactions: m.reactions ? new Map(m.reactions.map((r: ReactionInfo) => [r.emoji, new Set(r.user_ids)])) : undefined
-					})));
+						);
+						return {
+							id: m.id,
+							channelId: m.channel_id,
+							senderId: m.sender_id,
+							content,
+							encryptionStatus: encrypted ? 'encrypted' as const : 'plaintext' as const,
+							messageType: m.message_type,
+							replyToId: m.reply_to_id,
+							editedAt: m.edited_at,
+							createdAt: m.created_at,
+							threadId: m.thread_id ?? null,
+							threadReplyCount: m.thread_reply_count ?? undefined,
+							threadLastReplyAt: m.thread_last_reply_at ?? undefined,
+							reactions: m.reactions ? new Map(m.reactions.map((r: ReactionInfo) => [r.emoji, new Set(r.user_ids)])) : undefined,
+						};
+					}));
 					messageStore.setMessages(activeId, chatMsgs, FETCH_LIMIT);
 				}).catch((err) => console.warn('Failed to reload messages after reconnect:', err));
 			}
@@ -1769,45 +1841,54 @@
 					await initCrypto();
 					if (thisLoadId !== channelLoadId) return;
 					const sm = getSessionManager();
-					chatMessages = await Promise.all(reversed.map(async (m) => ({
-						id: m.id,
-						channelId: m.channel_id,
-						senderId: m.sender_id,
-						content: await sm.decryptOrFallback(
+					chatMessages = await Promise.all(reversed.map(async (m) => {
+						const bytes = new Uint8Array(m.ciphertext);
+						const content = await sm.decryptOrFallback(
 							m.sender_id === authStore.user?.id ? getPeerUserIdForDm(channelId) : m.sender_id,
-							new Uint8Array(m.ciphertext),
+							bytes,
 							m.id,
 							m.channel_id,
-						),
-						messageType: m.message_type,
-						replyToId: m.reply_to_id,
-						editedAt: m.edited_at,
-						createdAt: m.created_at,
-						threadId: m.thread_id ?? null,
-						threadReplyCount: m.thread_reply_count ?? undefined,
-						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
-						reactions: parseReactions(m.reactions),
-					})));
+						);
+						return {
+							id: m.id,
+							channelId: m.channel_id,
+							senderId: m.sender_id,
+							content,
+							encryptionStatus: 'encrypted' as const,
+							messageType: m.message_type,
+							replyToId: m.reply_to_id,
+							editedAt: m.edited_at,
+							createdAt: m.created_at,
+							threadId: m.thread_id ?? null,
+							threadReplyCount: m.thread_reply_count ?? undefined,
+							threadLastReplyAt: m.thread_last_reply_at ?? undefined,
+							reactions: parseReactions(m.reactions),
+						};
+					}));
 				} else {
-					chatMessages = await Promise.all(reversed.map(async (m) => ({
-						id: m.id,
-						channelId: m.channel_id,
-						senderId: m.sender_id,
-						content: await decryptMessage(
+					chatMessages = await Promise.all(reversed.map(async (m) => {
+						const { content, encrypted } = await decryptMessage(
 							m.channel_id,
 							m.sender_id,
 							m.ciphertext,
 							m.id,
-						),
-						messageType: m.message_type,
-						replyToId: m.reply_to_id,
-						editedAt: m.edited_at,
-						createdAt: m.created_at,
-						threadId: m.thread_id ?? null,
-						threadReplyCount: m.thread_reply_count ?? undefined,
-						threadLastReplyAt: m.thread_last_reply_at ?? undefined,
-						reactions: parseReactions(m.reactions),
-					})));
+						);
+						return {
+							id: m.id,
+							channelId: m.channel_id,
+							senderId: m.sender_id,
+							content,
+							encryptionStatus: encrypted ? 'encrypted' as const : 'plaintext' as const,
+							messageType: m.message_type,
+							replyToId: m.reply_to_id,
+							editedAt: m.edited_at,
+							createdAt: m.created_at,
+							threadId: m.thread_id ?? null,
+							threadReplyCount: m.thread_reply_count ?? undefined,
+							threadLastReplyAt: m.thread_last_reply_at ?? undefined,
+							reactions: parseReactions(m.reactions),
+						};
+					}));
 				}
 				if (thisLoadId !== channelLoadId) return;
 				messageStore.setMessages(channelId, chatMessages, FETCH_LIMIT);
@@ -2533,7 +2614,7 @@
 			const pins = await getPinnedMessages(channelStore.activeChannelId);
 			pinnedMessages = await Promise.all(pins.map(async (pin) => ({
 				...pin,
-				_decryptedContent: await decryptMessage(
+				_decryptedContent: (await decryptMessage(
 					pin.channel_id,
 					pin.sender_id ?? '',
 					pin.ciphertext,
@@ -2541,7 +2622,7 @@
 					pin.sender_id === authStore.user?.id
 						? getPeerUserIdForDm(channelStore.activeChannelId)
 						: undefined,
-				),
+				)).content,
 			})));
 			messageStore.setPinnedIds(channelStore.activeChannelId, pins.map(p => p.id));
 		} catch (err) {
@@ -3838,23 +3919,27 @@
 				const raw = searchScope === 'global'
 					? await searchMessagesGlobal(q, opts)
 					: await searchMessages(channelStore.activeChannelId!, q, opts);
-				searchResults = await Promise.all(raw.reverse().map(async (m) => ({
-					id: m.id,
-					channelId: m.channel_id,
-					senderId: m.sender_id,
-					content: await decryptMessage(
+				searchResults = await Promise.all(raw.reverse().map(async (m) => {
+					const { content, encrypted } = await decryptMessage(
 						m.channel_id,
 						m.sender_id,
 						m.ciphertext,
 						m.id,
 						m.sender_id === authStore.user?.id ? getPeerUserIdForDm(m.channel_id) : undefined,
-					),
-					messageType: m.message_type,
-					replyToId: m.reply_to_id,
-					editedAt: m.edited_at,
-					createdAt: m.created_at,
-					threadId: m.thread_id ?? null,
-				})));
+					);
+					return {
+						id: m.id,
+						channelId: m.channel_id,
+						senderId: m.sender_id,
+						content,
+						encryptionStatus: encrypted ? 'encrypted' as const : 'plaintext' as const,
+						messageType: m.message_type,
+						replyToId: m.reply_to_id,
+						editedAt: m.edited_at,
+						createdAt: m.created_at,
+						threadId: m.thread_id ?? null,
+					};
+				}));
 			} catch (err) {
 				console.warn('Search failed:', err);
 				searchResults = [];
@@ -3935,26 +4020,30 @@
 		try {
 			const raw = await getMessages(activeId, oldestMsg.id, FETCH_LIMIT);
 			if (channelStore.activeChannelId !== activeId) return; // channel switched during fetch
-			const olderMessages: ChatMessage[] = await Promise.all(raw.reverse().map(async (m) => ({
-				id: m.id,
-				channelId: m.channel_id,
-				senderId: m.sender_id,
-				content: await decryptMessage(
+			const olderMessages: ChatMessage[] = await Promise.all(raw.reverse().map(async (m) => {
+				const { content, encrypted } = await decryptMessage(
 					m.channel_id,
 					m.sender_id,
 					m.ciphertext,
 					m.id,
 					m.sender_id === authStore.user?.id ? getPeerUserIdForDm(activeId) : undefined,
-				),
-				messageType: m.message_type,
-				replyToId: m.reply_to_id,
-				editedAt: m.edited_at,
-				createdAt: m.created_at,
-				threadId: m.thread_id ?? null,
-				threadReplyCount: m.thread_reply_count ?? undefined,
-				threadLastReplyAt: m.thread_last_reply_at ?? undefined,
-				reactions: parseReactions(m.reactions),
-			})));
+				);
+				return {
+					id: m.id,
+					channelId: m.channel_id,
+					senderId: m.sender_id,
+					content,
+					encryptionStatus: encrypted ? 'encrypted' as const : 'plaintext' as const,
+					messageType: m.message_type,
+					replyToId: m.reply_to_id,
+					editedAt: m.edited_at,
+					createdAt: m.created_at,
+					threadId: m.thread_id ?? null,
+					threadReplyCount: m.thread_reply_count ?? undefined,
+					threadLastReplyAt: m.thread_last_reply_at ?? undefined,
+					reactions: parseReactions(m.reactions),
+				};
+			}));
 			messageStore.prependMessages(activeId, olderMessages, FETCH_LIMIT);
 			// Preserve scroll position
 			await tick();
@@ -4107,6 +4196,24 @@
 						</span>
 					{/if}
 				</button>
+
+				<!-- E2E Encryption Badge -->
+				{#if activeChannel?.channel_type === 'dm'}
+					<button
+						onclick={loadEncryptionInfo}
+						class="hidden md:flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-400 transition hover:bg-green-500/25"
+						title="End-to-end encrypted — click to verify"
+						aria-label="Verify encryption"
+					>
+						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+						E2E
+					</button>
+				{:else if activeChannel}
+					<span class="hidden md:flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400/60" title="Messages are encrypted">
+						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+						E2E
+					</span>
+				{/if}
 			</div>
 
 			<!-- CENTER SECTION -->
@@ -5712,6 +5819,11 @@
 										<span class="text-xs text-[var(--text-secondary)]" title={formatFullTimestamp(msg.createdAt)}>
 											{formatTime(msg.createdAt)}
 										</span>
+										{#if msg.encryptionStatus === 'encrypted'}
+											<svg class="inline-block h-3 w-3 text-green-500/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="End-to-end encrypted"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+										{:else if msg.encryptionStatus === 'decryption_failed'}
+											<svg class="inline-block h-3 w-3 text-red-400/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Decryption failed"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+										{/if}
 										{#if msg.pending}
 											<span class="text-xs text-[var(--text-secondary)] italic">sending...</span>
 										{:else if msg.editedAt}
@@ -5847,6 +5959,12 @@
 										</div>
 									{/if}
 								{:else}
+									{#if msg.encryptionStatus === 'decryption_failed'}
+										<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2">
+											<svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+											<span class="text-sm text-red-300">Unable to decrypt this message</span>
+										</div>
+									{:else}
 									{@const imageUrls = extractImageUrls(msg.content)}
 									{@const linkUrls = extractNonImageUrls(msg.content)}
 									<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(msg.content)}</div>
@@ -5888,6 +6006,7 @@
 												{/if}
 											{/await}
 										{/each}
+									{/if}
 									{/if}
 								{/if}
 
@@ -6318,6 +6437,33 @@
 						</span>
 					</div>
 				{/if}
+				<!-- Identity key change warning -->
+				{#if activeChannel?.channel_type === 'dm' && getPeerUserIdForDm(activeChannel.id) && encryptionStore.hasKeyChanged(getPeerUserIdForDm(activeChannel.id)!)}
+					{@const peerIdForBanner = getPeerUserIdForDm(activeChannel.id)!}
+					<div class="border-t border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5" transition:slide={{ duration: 200 }}>
+						<div class="flex items-center justify-between gap-2">
+							<div class="flex items-center gap-2 text-sm text-yellow-300">
+								<svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+								<span>Safety number has changed for this contact. They may have re-registered or switched devices.</span>
+							</div>
+							<div class="flex shrink-0 items-center gap-2">
+								<button
+									onclick={() => { encryptionStore.acknowledgeKeyChange(peerIdForBanner); }}
+									class="rounded-lg bg-yellow-500/20 px-3 py-1 text-xs font-medium text-yellow-300 transition hover:bg-yellow-500/30"
+								>
+									Acknowledge
+								</button>
+								<button
+									onclick={() => { encryptionStore.acknowledgeKeyChange(peerIdForBanner); loadEncryptionInfo(); }}
+									class="rounded-lg bg-[var(--accent)] px-3 py-1 text-xs font-medium text-white transition hover:bg-[var(--accent-hover)]"
+								>
+									Verify
+								</button>
+							</div>
+						</div>
+					</div>
+				{/if}
+
 				<!-- Slow mode cooldown -->
 				{#if slowModeCooldown > 0 && !isReadOnlyForMe}
 					<div class="border-t border-white/10 bg-blue-500/10 px-4 py-1.5 text-center">
@@ -7546,6 +7692,111 @@
 						</button>
 					</div>
 				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Encryption Verification Modal -->
+	{#if showEncryptionInfo}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+			role="dialog"
+			tabindex="-1"
+			aria-modal="true"
+			aria-label="Encryption Verification"
+			transition:fade={{ duration: 150 }}
+			onclick={() => showEncryptionInfo = false}
+			onkeydown={(e) => { if (e.key === 'Escape') showEncryptionInfo = false; }}
+		>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="w-full max-w-md rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-xl"
+				transition:scale={{ start: 0.95, duration: 200 }}
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
+				<div class="mb-4 flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<div class="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/15">
+							<svg class="h-4 w-4 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+						</div>
+						<h2 class="text-lg font-bold text-[var(--text-primary)]">End-to-End Encrypted</h2>
+					</div>
+					<button aria-label="Close encryption info" onclick={() => showEncryptionInfo = false} class="rounded p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+					</button>
+				</div>
+
+				{#if encryptionInfoLoading}
+					<div class="flex items-center justify-center py-8">
+						<div class="h-6 w-6 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"></div>
+					</div>
+				{:else if safetyNumber}
+					<p class="mb-3 text-sm text-[var(--text-secondary)]">
+						Messages in this conversation are secured with X3DH + Double Ratchet encryption. Verify the safety number below matches on both devices.
+					</p>
+
+					<!-- Safety Number -->
+					<div class="mb-4">
+						<div class="mb-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Safety Number</div>
+						<div class="relative rounded-lg bg-[var(--bg-primary)] p-3">
+							<div class="select-all break-all font-mono text-sm leading-relaxed tracking-widest text-[var(--text-primary)]">
+								{safetyNumber}
+							</div>
+							<button
+								onclick={() => {
+									navigator.clipboard.writeText(safetyNumber);
+									safetyNumberCopied = true;
+									setTimeout(() => safetyNumberCopied = false, 2000);
+								}}
+								class="absolute right-2 top-2 rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+								title="Copy safety number"
+								aria-label="Copy safety number"
+							>
+								{#if safetyNumberCopied}
+									<svg class="h-4 w-4 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+								{:else}
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+								{/if}
+							</button>
+						</div>
+					</div>
+
+					<!-- Fingerprints -->
+					<div class="space-y-3">
+						<div>
+							<div class="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Your Fingerprint</div>
+							<div class="select-all rounded-lg bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs leading-relaxed text-[var(--text-primary)] break-all">
+								{ownFingerprint}
+							</div>
+						</div>
+						{#if peerFingerprint}
+							<div>
+								<div class="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Their Fingerprint</div>
+								<div class="select-all rounded-lg bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs leading-relaxed text-[var(--text-primary)] break-all">
+									{peerFingerprint}
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<p class="mt-4 text-xs text-[var(--text-tertiary)]">
+						Compare these numbers with your contact through a separate trusted channel (in person, phone call, etc.) to confirm the encryption is secure.
+					</p>
+				{:else}
+					<p class="text-sm text-[var(--text-secondary)]">
+						No encryption session established yet. Send or receive a message to start an encrypted session.
+					</p>
+					{#if ownFingerprint}
+						<div class="mt-3">
+							<div class="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Your Fingerprint</div>
+							<div class="select-all rounded-lg bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs leading-relaxed text-[var(--text-primary)] break-all">
+								{ownFingerprint}
+							</div>
+						</div>
+					{/if}
+				{/if}
 			</div>
 		</div>
 	{/if}

@@ -2,7 +2,7 @@
 
 > **Status: Complete**
 
-A community is the top-level organizational unit in Chatalot -- similar to a "server" in Discord. It is the container for everything: groups, channels, members, roles, custom emoji, and settings.
+A community is the top-level organizational unit in Chatalot -- similar to a "server" in other chat platforms. It is the container for everything: groups, channels, members, roles, custom emoji, and settings.
 
 ## What is a Community?
 
@@ -13,7 +13,7 @@ When you open Chatalot, the community picker on the left side of the screen show
 Each community is an independent space with its own:
 
 - **Members** -- users who have joined the community, each with a role
-- **Groups** -- organizational folders that contain channels (like Discord categories)
+- **Groups** -- organizational folders that contain channels (like categories in other chat platforms)
 - **Channels** -- text and voice channels where conversations happen
 - **Roles** -- a hierarchy that determines who can do what (Owner, Admin, Moderator, Member)
 - **Custom emoji** -- community-specific emoji uploaded by admins

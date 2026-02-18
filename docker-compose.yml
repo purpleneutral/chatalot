@@ -26,6 +26,8 @@ services:
       COMMUNITY_CREATION_MODE: ${COMMUNITY_CREATION_MODE:-admin_only}
       GIPHY_API_KEY: ${GIPHY_API_KEY:-}
       ICE_SERVERS: ${ICE_SERVERS:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     volumes:
       - file_storage:/app/data/files
     secrets:

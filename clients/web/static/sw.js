@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chatalot-v2';
+const CACHE_NAME = 'chatalot-v3';
 const STATIC_ASSETS = [
 	'/',
 	'/manifest.json',
@@ -49,5 +49,58 @@ self.addEventListener('fetch', (event) => {
 					return cached || caches.match('/');
 				});
 			})
+	);
+});
+
+// ── Web Push ──
+
+self.addEventListener('push', (event) => {
+	if (!event.data) return;
+
+	let data;
+	try {
+		data = event.data.json();
+	} catch {
+		return;
+	}
+
+	const title = data.sender_name || 'Chatalot';
+	const body = data.notification_type === 'dm'
+		? 'Sent you a message'
+		: 'New message';
+
+	event.waitUntil(
+		self.registration.showNotification(title, {
+			body,
+			icon: '/icon-192.png',
+			badge: '/icon-192.png',
+			tag: data.channel_id || 'chatalot',
+			data: { channelId: data.channel_id }
+		})
+	);
+});
+
+self.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+
+	const channelId = event.notification.data?.channelId;
+	const url = channelId ? `/channels?id=${channelId}` : '/channels';
+
+	event.waitUntil(
+		self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+			// Focus an existing window if one is open
+			for (const client of clients) {
+				if (new URL(client.url).origin === self.location.origin) {
+					client.focus();
+					client.postMessage({
+						type: 'navigate-channel',
+						channelId
+					});
+					return;
+				}
+			}
+			// Otherwise open a new window
+			return self.clients.openWindow(url);
+		})
 	);
 });

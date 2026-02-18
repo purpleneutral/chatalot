@@ -75,6 +75,38 @@ When a desktop notification appears:
 - **Tag:** Notifications are tagged by channel ID, so multiple messages in the same channel replace the previous notification rather than stacking.
 - **Sound:** Desktop notifications are set to `silent: true` to avoid double-playing with Chatalot's own sound notifications.
 
+## Web Push Notifications
+
+Web push notifications let you receive DM notifications even when the Chatalot tab is completely closed. They are delivered through the browser's push service and displayed as OS-level notifications.
+
+### Requirements
+
+- The server must be configured with VAPID keys (`VAPID_PRIVATE_KEY` and `VAPID_PUBLIC_KEY` environment variables).
+- Your browser must support the Push API (most modern browsers do).
+- You must grant notification permission.
+
+### Enabling Push Notifications
+
+1. Go to **Settings > Notifications > Desktop Notifications**.
+2. Toggle the **Push notifications** switch to On.
+3. Your browser will prompt for notification permission if not already granted.
+
+### Privacy
+
+Push notification payloads contain **only metadata** -- the sender's display name and channel identifier. Message content is never included in push payloads, because the server cannot decrypt E2E encrypted messages.
+
+### How It Works
+
+1. When you enable push, your browser generates a push subscription (endpoint + encryption keys) and sends it to the server.
+2. When someone sends you a DM and you are offline (no active WebSocket connection), the server sends a push notification through your browser's push service.
+3. Clicking the notification opens Chatalot and navigates to the correct channel.
+
+### Disabling Push
+
+Toggle the push switch off in Settings. This unsubscribes from the browser push service and removes your subscription from the server.
+
+> **Note:** Push notifications are currently DM-only. Channel and mention push notifications are planned for a future release.
+
 ## Default Channel Notification Level
 
 At **Settings > Notifications > Desktop Notifications**, you can set the default notification level for all channels:

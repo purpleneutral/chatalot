@@ -2,7 +2,7 @@
 
 Chatalot uses Signal Protocol-based end-to-end encryption to protect your messages. The server never sees plaintext message content -- only encrypted blobs pass through it.
 
-> **Status: Beta** -- The cryptographic infrastructure is fully implemented and tested in the `chatalot-crypto` Rust crate. The WASM bridge to the web client is in progress. During this beta period, some messages may fall back to plaintext transport when the WASM module is not yet loaded.
+> **Status: Complete** -- The cryptographic infrastructure is fully implemented, compiled to WASM, and running client-side. All DMs use the Signal protocol (X3DH + Double Ratchet) and group channels use Sender Keys. Per-message encryption indicators and fingerprint verification are available in the UI.
 
 ## Pages
 
@@ -28,8 +28,11 @@ Chatalot uses Signal Protocol-based end-to-end encryption to protect your messag
 | Sender Keys (groups) | Implemented and tested |
 | Safety numbers | Implemented and tested |
 | WASM bridge | Compiled and bundled |
-| Web client integration | In progress |
-| Key storage (IndexedDB) | Implemented |
+| Web client integration | Complete |
+| Per-message encryption indicators | Complete |
+| Fingerprint verification modal | Complete |
+| TOFU key change detection | Complete |
+| Key storage (IndexedDB) | Complete |
 | Key storage (desktop) | Planned (OS keychain) |
 
 The crypto library includes 23 unit tests covering all protocols, including edge cases such as out-of-order messages, tampered ciphertext, invalid signatures, and session serialization round-trips.

@@ -1,6 +1,11 @@
 import { channelStore } from '$lib/stores/channels.svelte';
 import { initCrypto, getSessionManager } from '$lib/crypto';
 
+export interface DecryptResult {
+	content: string;
+	encrypted: boolean;
+}
+
 /**
  * Decrypt message ciphertext: E2E for DMs, plain UTF-8 for group channels.
  *
@@ -20,7 +25,7 @@ export async function decryptMessage(
 	ciphertext: number[] | Uint8Array,
 	messageId?: string,
 	peerUserIdOverride?: string | null,
-): Promise<string> {
+): Promise<DecryptResult> {
 	const channel = channelStore.channels.find((c) => c.id === channelId);
 	const isDm = channel?.channel_type === 'dm';
 	const bytes = ciphertext instanceof Uint8Array ? ciphertext : new Uint8Array(ciphertext);
@@ -31,7 +36,10 @@ export async function decryptMessage(
 			const sm = getSessionManager();
 			const peerUserId = peerUserIdOverride !== undefined ? peerUserIdOverride : senderId;
 			if (peerUserId) {
-				return await sm.decryptOrFallback(peerUserId, bytes, messageId, channelId);
+				const content = await sm.decryptOrFallback(peerUserId, bytes, messageId, channelId);
+				// Check if it was actually E2E encrypted (v:1 wire format)
+				const encrypted = isEncryptedWireFormat(bytes);
+				return { content, encrypted };
 			}
 		} catch (err) {
 			console.error('DM decryption failed, falling back to UTF-8:', err);
@@ -41,11 +49,24 @@ export async function decryptMessage(
 		try {
 			await initCrypto();
 			const sm = getSessionManager();
-			return await sm.decryptGroupMessage(channelId, senderId, bytes, messageId);
+			const content = await sm.decryptGroupMessage(channelId, senderId, bytes, messageId);
+			const encrypted = isEncryptedWireFormat(bytes);
+			return { content, encrypted };
 		} catch {
 			// Expected for unencrypted messages — fall through to UTF-8
 		}
 	}
 
-	return new TextDecoder().decode(bytes);
+	return { content: new TextDecoder().decode(bytes), encrypted: false };
+}
+
+/** Check if ciphertext bytes contain our v:1 encrypted wire format. */
+function isEncryptedWireFormat(bytes: Uint8Array): boolean {
+	try {
+		const text = new TextDecoder().decode(bytes);
+		const parsed = JSON.parse(text);
+		return parsed?.v === 1;
+	} catch {
+		return false;
+	}
 }

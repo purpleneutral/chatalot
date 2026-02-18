@@ -2,7 +2,7 @@
 
 > **Status: Complete**
 
-Chatalot is a self-hosted, end-to-end encrypted chat platform designed as a privacy-focused alternative to Discord.
+Chatalot is a self-hosted, end-to-end encrypted chat platform designed as a privacy-focused alternative to popular chat platforms.
 
 ![Chatalot login page](../../screenshots/00-login-page.png)
 
@@ -10,12 +10,12 @@ Chatalot is a self-hosted, end-to-end encrypted chat platform designed as a priv
 
 Chatalot gives communities a place to communicate through text channels, voice calls, and direct messages -- all while keeping conversations private through end-to-end encryption (E2E). Because it is self-hosted, your organization controls the server, the data, and who has access.
 
-## How It Compares to Discord
+## How It Compares
 
-If you have used Discord before, Chatalot will feel familiar. The organizational hierarchy is similar:
+If you have used modern chat platforms before, Chatalot will feel familiar. The organizational hierarchy is similar:
 
-| Discord | Chatalot | Description |
-|---------|----------|-------------|
+| Typical Term | Chatalot | Description |
+|--------------|----------|-------------|
 | Server | **Community** | The top-level container for your group |
 | Category | **Group** | A folder-like grouping of channels within a community |
 | Channel | **Channel** | A text or voice channel where conversations happen |
@@ -30,7 +30,7 @@ If you have used Discord before, Chatalot will feel familiar. The organizational
 
 ## Core Features
 
-- **Communities, Groups, and Channels** -- Organize conversations with the same hierarchy you are used to from Discord.
+- **Communities, Groups, and Channels** -- Organize conversations with a familiar hierarchy: communities contain groups, and groups contain channels.
 - **Text channels** -- Rich messaging with Markdown formatting, file attachments, GIFs, emoji reactions, threads, pins, and polls.
 - **Voice and video calls** -- WebRTC-based calls with microphone/camera controls, screen sharing, and noise suppression.
 - **Direct messages** -- Private E2E encrypted conversations between two users.

@@ -2,7 +2,7 @@
 
 How to verify that you are communicating with the right person, and what Chatalot does (and plans to do) to help.
 
-> **Status: Planned** -- Safety number computation is implemented; UI for verification is not yet available.
+> **Status: Complete** -- Safety numbers, fingerprints, verification modal, and TOFU key change warnings are fully implemented.
 
 ---
 
@@ -47,16 +47,19 @@ Because the keys are sorted before hashing, both Alice and Bob will compute the 
 
 ### How to Verify
 
-Once the verification UI is implemented, you will be able to verify a contact by:
+To verify a contact:
 
-1. Opening their profile or the encryption details for your conversation
-2. Viewing your shared safety number
-3. Comparing it with your contact through an independent channel:
+1. Open a DM conversation and click the **E2E** badge in the channel header.
+2. The verification modal displays your shared safety number, your fingerprint, and their fingerprint.
+3. Compare the safety number with your contact through an independent channel:
    - **In person**: Read the numbers aloud to each other
    - **Video call**: Show each other your screens
    - **Trusted messaging**: Send the numbers through a different, trusted communication channel
+4. Use the **copy** button to easily share the safety number.
 
 If the numbers match, you have confirmed that no one has intercepted or substituted identity keys.
+
+You can also view your own fingerprint in **Settings > Security > Encryption**.
 
 ## Fingerprints
 
@@ -81,26 +84,28 @@ A planned feature is QR code verification:
 
 This is the same approach used by Signal and WhatsApp for contact verification.
 
-## Key Change Detection (Planned)
+## Key Change Detection
 
-When a contact's identity key changes (because they re-registered, reinstalled, or switched devices), the client will:
+When a contact's identity key changes (because they re-registered, reinstalled, or switched devices), the client:
 
-1. Detect the mismatch between the stored peer identity key and the new one in the X3DH header
-2. Display a prominent warning: "This contact's security key has changed"
-3. Require the user to acknowledge the change before continuing the conversation
-4. Offer the option to re-verify using safety numbers
+1. Detects the mismatch between the stored peer identity key and the new one in the X3DH header.
+2. Displays a yellow warning banner: "Safety number has changed for this contact. They may have re-registered or switched devices."
+3. Provides two options:
+   - **Acknowledge** -- accept the key change and dismiss the warning.
+   - **Verify** -- acknowledge and immediately open the verification modal to confirm the new safety number.
 
-This is not yet implemented in the UI, but the infrastructure is in place: the `peerIdentities` IndexedDB store tracks known identity keys per user.
+The warning persists until acknowledged. Identity keys are tracked in the `peerIdentities` IndexedDB store.
 
 ## Verification Roadmap
 
 | Feature | Status |
 |---------|--------|
-| Safety number computation | Implemented (Rust + WASM) |
-| Fingerprint computation | Implemented (Rust + WASM) |
-| Peer identity storage (TOFU) | Implemented (IndexedDB) |
-| Safety number display UI | Planned |
-| Key change warning UI | Planned |
+| Safety number computation | Complete (Rust + WASM) |
+| Fingerprint computation | Complete (Rust + WASM) |
+| Peer identity storage (TOFU) | Complete (IndexedDB) |
+| Safety number display UI | Complete |
+| Key change warning UI | Complete |
+| Per-message encryption indicators | Complete |
 | QR code generation/scanning | Planned |
 | Verified contact indicator | Planned |
 

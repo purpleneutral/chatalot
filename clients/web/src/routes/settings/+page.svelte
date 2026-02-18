@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { soundStore } from '$lib/stores/sound.svelte';
 	import { notificationStore } from '$lib/stores/notification.svelte';
+	import { pushStore } from '$lib/stores/push.svelte';
 	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, VOICE_BG_PRESETS, voiceBackgroundStyle, type AccentColor, type NoiseSuppression, type PresetTheme, type VoiceBackgroundType, type VoiceActivationMode } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import { voiceStore } from '$lib/stores/voice.svelte';
@@ -13,6 +14,8 @@
 	import { setupTotp, verifyTotp, disableTotp, regenerateBackupCodes, type TotpSetup } from '$lib/api/totp';
 	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, regenerateRecoveryCode, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
+	import { initCrypto, getKeyManager } from '$lib/crypto';
+	import { getCrypto } from '$lib/crypto/wasm-loader';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import { onMount, onDestroy } from 'svelte';
 
@@ -95,6 +98,26 @@
 	let deletePassword = $state('');
 	let deleteError = $state('');
 	let deleting = $state(false);
+
+	// Encryption info
+	let ownFingerprintSettings = $state('');
+	let ownPublicKeyHex = $state('');
+	let fingerprintCopied = $state(false);
+	let fingerprintLoaded = $state(false);
+
+	async function loadOwnFingerprint() {
+		if (fingerprintLoaded) return;
+		try {
+			await initCrypto();
+			const crypto = await getCrypto();
+			const ownKey = await getKeyManager().getVerifyingKey();
+			ownFingerprintSettings = crypto.compute_fingerprint(ownKey);
+			ownPublicKeyHex = Array.from(ownKey).map(b => b.toString(16).padStart(2, '0')).join('');
+			fingerprintLoaded = true;
+		} catch {
+			// Crypto not available (e.g. not registered)
+		}
+	}
 
 	const tabs: { id: Tab; label: string; icon: string }[] = [
 		{ id: 'profile', label: 'Profile', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' },
@@ -1237,6 +1260,31 @@
 								</div>
 							</div>
 
+							{#if pushStore.supported}
+								<div class="flex items-center justify-between">
+									<div>
+										<div class="font-medium">Push notifications</div>
+										<div class="text-sm text-[var(--text-secondary)]">Get notified when you're offline</div>
+									</div>
+									<button
+										onclick={async () => {
+											if (pushStore.enabled) {
+												await pushStore.unsubscribe();
+											} else {
+												await pushStore.subscribe();
+											}
+										}}
+										disabled={pushStore.loading}
+										class="relative h-8 w-14 rounded-full bg-[var(--bg-tertiary)] transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)] disabled:opacity-50"
+										aria-label="Toggle push notifications"
+										role="switch"
+										aria-checked={pushStore.enabled}
+									>
+										<span class="absolute left-1 top-1 h-6 w-6 rounded-full transition-transform {pushStore.enabled ? 'translate-x-6 bg-[var(--accent)]' : 'bg-[var(--text-secondary)]'}"></span>
+									</button>
+								</div>
+							{/if}
+
 							<div class="flex items-center justify-between">
 								<div>
 									<div class="font-medium">Default channel notifications</div>
@@ -1973,15 +2021,61 @@
 					<!-- Encryption info -->
 					<section class="rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Encryption</h3>
-						<div class="space-y-3 text-sm text-[var(--text-secondary)]">
+						<div class="space-y-4 text-sm text-[var(--text-secondary)]">
 							<div class="flex items-center justify-between">
 								<span>End-to-end encryption</span>
 								<span class="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">Active</span>
 							</div>
 							<div class="flex items-center justify-between">
-								<span>Identity key fingerprint</span>
-								<code class="font-mono text-xs text-[var(--text-secondary)]">Stored on device</code>
+								<span>Protocol</span>
+								<span class="text-xs text-[var(--text-primary)]">X3DH + Double Ratchet (DMs) / Sender Keys (Groups)</span>
 							</div>
+
+							{#if !fingerprintLoaded}
+								<button
+									onclick={loadOwnFingerprint}
+									class="text-xs text-[var(--accent)] hover:underline"
+								>
+									Show identity fingerprint
+								</button>
+							{:else if ownFingerprintSettings}
+								<div>
+									<div class="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Your Fingerprint</div>
+									<div class="relative rounded-lg bg-[var(--bg-primary)] p-3">
+										<div class="select-all break-all pr-8 font-mono text-xs leading-relaxed tracking-widest text-[var(--text-primary)]">
+											{ownFingerprintSettings}
+										</div>
+										<button
+											onclick={() => {
+												navigator.clipboard.writeText(ownFingerprintSettings);
+												fingerprintCopied = true;
+												setTimeout(() => fingerprintCopied = false, 2000);
+											}}
+											class="absolute right-2 top-2 rounded p-1 text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]"
+											title="Copy fingerprint"
+											aria-label="Copy fingerprint"
+										>
+											{#if fingerprintCopied}
+												<svg class="h-4 w-4 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+											{:else}
+												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+											{/if}
+										</button>
+									</div>
+								</div>
+								{#if ownPublicKeyHex}
+									<div>
+										<div class="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Public Key</div>
+										<code class="block select-all break-all rounded-lg bg-[var(--bg-primary)] px-3 py-2 font-mono text-[10px] leading-relaxed text-[var(--text-secondary)]">
+											{ownPublicKeyHex}
+										</code>
+									</div>
+								{/if}
+							{/if}
+
+							<p class="text-xs text-[var(--text-tertiary)]">
+								Keys are stored only on this device. If you clear browser data or switch devices, you will need to re-register to generate new keys.
+							</p>
 						</div>
 					</section>
 

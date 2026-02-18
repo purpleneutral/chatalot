@@ -61,6 +61,20 @@ Access tokens are valid for **15 minutes**. Refresh tokens are valid for **30 da
 | `FORGEJO_REPO_OWNER` | Repository owner for feedback issues | *(none)* |
 | `FORGEJO_REPO_NAME` | Repository name for feedback issues | *(none)* |
 
+### Web Push Notifications (Optional)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VAPID_PRIVATE_KEY` | Base64-encoded ECDSA P-256 private key for web push | *(none -- push disabled)* |
+| `VAPID_PUBLIC_KEY` | Base64-encoded ECDSA P-256 public key for web push | *(none -- push disabled)* |
+
+If both keys are set, users can enable push notifications in Settings to receive DM alerts when the tab is closed. If omitted, the push feature is silently hidden.
+
+Generate VAPID keys with:
+```bash
+npx web-push generate-vapid-keys
+```
+
 ### Cloudflare Tunnel (Optional)
 
 | Variable | Description | Default |
@@ -105,6 +119,10 @@ COMMUNITY_CREATION_MODE=admin_only
 
 # Public URL (if behind a reverse proxy)
 PUBLIC_URL=https://chat.example.com
+
+# Web push notifications (optional -- generate with: npx web-push generate-vapid-keys)
+VAPID_PRIVATE_KEY=
+VAPID_PUBLIC_KEY=
 
 # Cloudflare Tunnel (optional)
 CLOUDFLARE_TUNNEL_TOKEN=

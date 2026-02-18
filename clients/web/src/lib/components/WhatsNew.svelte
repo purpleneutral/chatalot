@@ -16,6 +16,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.44',
+			date: '2026-02-17',
+			changes: [
+				'Web push notifications: receive DM alerts even when the tab is closed (Settings > Notifications)',
+				'E2E encryption indicators: green lock icon on encrypted messages, red broken lock on decryption failures',
+				'E2E header badge: green "E2E" pill in channel header; click in DMs to verify encryption',
+				'Verification modal: view safety numbers and fingerprints for DM contacts, with copy button',
+				'TOFU key change detection: yellow warning banner when a contact\'s identity key changes, with Acknowledge and Verify options',
+				'Enhanced encryption settings: view your fingerprint, public key hex, and protocol info in Settings > Security',
+				'Decryption failure display: clear red indicator when a message cannot be decrypted',
+			]
+		},
+		{
 			version: '0.18.43',
 			date: '2026-02-17',
 			changes: [

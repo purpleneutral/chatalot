@@ -28,8 +28,8 @@ Community
         └── Channel (text or voice)
 ```
 
-- **Communities** are the top-level unit, similar to a Discord "server." Each community has its own members, roles, settings, and custom emoji.
-- **Groups** are organizational folders within a community, similar to Discord "categories." They contain channels and can be collapsed in the sidebar.
+- **Communities** are the top-level unit -- the main organizational container. Each community has its own members, roles, settings, and custom emoji.
+- **Groups** are organizational folders within a community that contain channels and can be collapsed in the sidebar.
 - **Channels** are where conversations happen. Text channels support rich messaging; voice channels support real-time audio and video.
 
 You also have access to **Direct Messages (DMs)**, which exist outside of any community hierarchy.

@@ -11,6 +11,7 @@ pub mod key_bundle;
 pub mod message;
 pub mod pin;
 pub mod poll;
+pub mod push_subscription;
 pub mod reaction;
 pub mod registration_invite;
 pub mod report;

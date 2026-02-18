@@ -12,11 +12,12 @@ How Chatalot keeps you informed about new messages, mentions, and activity -- an
 
 ## Overview
 
-Chatalot has three layers of notification:
+Chatalot has four layers of notification:
 
 1. **Visual indicators** -- Unread badges, bold channel names, and unread separators in the message list. These are always active.
 2. **Sound notifications** -- Short tonal sounds for DMs, channel messages, mentions, and voice join/leave events. Configurable per event type.
 3. **Desktop notifications** -- OS-level popup notifications (e.g., macOS Notification Center, Windows toast, Linux notification daemon). Requires browser permission.
+4. **Web push notifications** -- Notifications delivered even when the browser tab is closed. DMs only. Requires service worker and browser permission. Payloads contain only metadata (sender name, channel) -- never message content.
 
 All notification settings are stored locally and synced to the server as part of your preferences, so they follow you across devices.
 
@@ -25,7 +26,7 @@ All notification settings are stored locally and synced to the server as part of
 | What happened | Visual | Sound | Desktop |
 |--------------|--------|-------|---------|
 | New message in channel | Unread badge + bold name | Optional (off by default) | Optional (off by default) |
-| New direct message | Unread badge + bold name | On by default | On by default |
+| New direct message | Unread badge + bold name | On by default | On by default (+ push if enabled) |
 | @mention | Unread badge + bold name | On by default | On by default |
 | Someone joined voice | -- | On by default | -- |
 | Someone left voice | -- | On by default | -- |

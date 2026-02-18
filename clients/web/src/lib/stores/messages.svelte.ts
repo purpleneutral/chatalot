@@ -15,6 +15,7 @@ export interface ChatMessage {
 	threadId?: string | null;
 	threadReplyCount?: number;
 	threadLastReplyAt?: string | null;
+	encryptionStatus?: 'encrypted' | 'plaintext' | 'decryption_failed';
 }
 
 export interface UnreadCount {

@@ -6,7 +6,7 @@ Welcome to Chatalot! This section will walk you through everything you need to s
 
 | # | Page | Description |
 |---|------|-------------|
-| 1 | [What is Chatalot?](./what-is-chatalot.md) | Overview of the platform, core features, and how it compares to Discord |
+| 1 | [What is Chatalot?](./what-is-chatalot.md) | Overview of the platform, core features, and how it compares to other chat platforms |
 | 2 | [Creating an Account](./creating-an-account.md) | Registration flow, username rules, and password requirements |
 | 3 | [Setting Up Your Profile](./setting-up-your-profile.md) | Display name, avatar, bio, pronouns, and status |
 | 4 | [Navigating the Interface](./navigating-the-interface.md) | Layout overview: header, sidebar, chat area, and members panel |

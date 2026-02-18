@@ -10,7 +10,7 @@ Common questions about Chatalot and their answers.
 
 Yes. Chatalot is free and open source software licensed under GPL-3.0. There are no paid tiers, premium features, or subscriptions. You host it yourself on your own hardware.
 
-### How is Chatalot different from Discord?
+### How is Chatalot different from other chat platforms?
 
 Chatalot is **self-hosted** -- you run the server on your own infrastructure. Your data never leaves your control. Key differences:
 
@@ -21,9 +21,9 @@ Chatalot is **self-hosted** -- you run the server on your own infrastructure. Yo
 - **No feature gates** -- every feature is available to every user
 - **You own the server** -- you set the rules, control access, and manage the data
 
-### Can I migrate from Discord?
+### Can I migrate from another chat platform?
 
-Not yet. A Discord import tool is planned but not currently available. You would need to manually recreate your server structure and invite your members.
+Not yet. An import tool is planned but not currently available. You would need to manually recreate your server structure and invite your members.
 
 ### Is Chatalot federated?
 

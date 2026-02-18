@@ -107,7 +107,7 @@ The definitive reference for all Chatalot features and their implementation stat
 | Font Sizes | Complete | Small (13px) / Medium (14px) / Large (16px) |
 | Time Format | Complete | 12-hour / 24-hour |
 | Send Behavior | Complete | Enter or Ctrl+Enter (configurable) |
-| Chat Bubble Style | Complete | Flat (Discord-style) / Rounded (iMessage-style) |
+| Chat Bubble Style | Complete | Flat (classic) / Rounded (bubble-style) |
 | Relative Timestamps | Complete | "5m ago" instead of exact times; toggleable |
 | Animated Accent | Complete | Subtle color shift on accent elements |
 | Reduce Motion | Complete | Disable all animations for accessibility |
@@ -143,6 +143,7 @@ The definitive reference for all Chatalot features and their implementation stat
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Desktop Notifications | Complete | Browser Notification API / OS-native in desktop app |
+| Web Push Notifications | Complete | DM notifications when tab is closed; metadata only (never message content); VAPID-signed |
 | Notification Sounds | Complete | Per-type with volume control |
 | Per-Channel Levels | Complete | All messages, @mentions only, or nothing |
 | Permission Prompt | Complete | Polished slide-up prompt after first message |
@@ -179,9 +180,11 @@ The definitive reference for all Chatalot features and their implementation stat
 | Security Headers | Complete | HSTS, CSP, X-Frame-Options, Permissions-Policy |
 | SSRF Protection | Complete | Link preview proxy blocks private/internal IPs |
 | Session Management | Complete | View and revoke active sessions; logout all devices |
-| E2E Encryption (DMs) | Beta | Signal protocol (X3DH + Double Ratchet); compiled to WASM |
-| E2E Encryption (Groups) | Beta | Sender Keys implemented; WASM integration pending |
-| Key Verification | Planned | Visual key fingerprint comparison |
+| E2E Encryption (DMs) | Complete | Signal protocol (X3DH + Double Ratchet); compiled to WASM, running client-side |
+| E2E Encryption (Groups) | Complete | Sender Keys; compiled to WASM, running client-side |
+| Key Verification | Complete | Safety numbers, fingerprints, verification modal with copy |
+| TOFU Key Change Detection | Complete | Yellow warning banner when peer identity key changes; acknowledge or re-verify |
+| Encryption Status Indicators | Complete | Per-message lock icons (green = encrypted, red = decryption failed); header E2E badge |
 | Disappearing Messages | Planned | Auto-delete after configurable time |
 
 ## Deployment

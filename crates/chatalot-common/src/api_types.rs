@@ -1082,6 +1082,25 @@ pub struct CustomEmojiResponse {
     pub created_at: String,
 }
 
+// ── Push Notifications ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PushSubscribeRequest {
+    pub endpoint: String,
+    pub p256dh_key: String,
+    pub auth_key: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PushUnsubscribeRequest {
+    pub endpoint: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VapidKeyResponse {
+    pub public_key: String,
+}
+
 // ── Announcements ──
 
 #[derive(Debug, Serialize, Deserialize)]

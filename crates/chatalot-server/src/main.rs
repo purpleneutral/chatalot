@@ -159,6 +159,17 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Err(e) => tracing::warn!("Failed to clean orphaned voice sessions: {e}"),
                 }
+                // Clean up failed and stale push subscriptions
+                match chatalot_db::repos::push_subscription_repo::cleanup_failed(&db).await {
+                    Ok(n) if n > 0 => tracing::info!("Cleaned up {n} failed push subscriptions"),
+                    Err(e) => tracing::warn!("Failed to clean push subscriptions: {e}"),
+                    _ => {}
+                }
+                match chatalot_db::repos::push_subscription_repo::cleanup_stale(&db).await {
+                    Ok(n) if n > 0 => tracing::info!("Cleaned up {n} stale push subscriptions"),
+                    Err(e) => tracing::warn!("Failed to clean stale push subscriptions: {e}"),
+                    _ => {}
+                }
             }
         });
     }

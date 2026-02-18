@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Result;
@@ -5,6 +6,7 @@ use jsonwebtoken::{DecodingKey, EncodingKey};
 use sqlx::PgPool;
 
 use crate::config::Config;
+use crate::services::push_service::PushService;
 use crate::ws::connection_manager::ConnectionManager;
 
 pub struct AppState {
@@ -18,6 +20,8 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     /// In-memory set of suspended user IDs for instant JWT rejection.
     pub suspended_users: dashmap::DashSet<uuid::Uuid>,
+    /// Web Push notification service (None if VAPID keys not configured).
+    pub push_service: Option<Arc<PushService>>,
 }
 
 impl AppState {
@@ -42,6 +46,26 @@ impl AppState {
             .redirect(reqwest::redirect::Policy::limited(3))
             .build()?;
 
+        // Initialize push service if VAPID keys are configured
+        let push_service = config
+            .vapid_private_key
+            .as_ref()
+            .and_then(|key| {
+                if key.is_empty() {
+                    return None;
+                }
+                match PushService::new(key, config.public_url.as_deref()) {
+                    Ok(svc) => {
+                        tracing::info!("Web Push notifications enabled");
+                        Some(Arc::new(svc))
+                    }
+                    Err(e) => {
+                        tracing::warn!("Web Push disabled: {e}");
+                        None
+                    }
+                }
+            });
+
         Ok(Self {
             config,
             db,
@@ -52,6 +76,7 @@ impl AppState {
             client_version,
             http_client,
             suspended_users: dashmap::DashSet::new(),
+            push_service,
         })
     }
 }

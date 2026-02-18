@@ -596,6 +596,29 @@ async fn handle_client_message(
                                         );
                                     }
                                     conn_mgr.send_to_user(&member.user_id, &new_msg);
+
+                                    // Push notification for offline DM recipients
+                                    if !conn_mgr.is_online(&member.user_id)
+                                        && let Some(ref push_svc) = state.push_service
+                                    {
+                                        let push_svc = push_svc.clone();
+                                        let pool = state.db.clone();
+                                        let recipient_id = member.user_id;
+                                        let ch_id = channel_id.to_string();
+                                        tokio::spawn(async move {
+                                            let sender_name = match user_repo::find_by_id(&pool, user_id).await {
+                                                Ok(Some(u)) => u.display_name,
+                                                _ => "Someone".to_string(),
+                                            };
+                                            let payload = crate::services::push_service::PushPayload {
+                                                notification_type: "dm".to_string(),
+                                                sender_name,
+                                                channel_id: ch_id,
+                                                channel_name: "Direct Message".to_string(),
+                                            };
+                                            push_svc.send_to_user(&pool, recipient_id, &payload).await;
+                                        });
+                                    }
                                 }
                             }
                         }

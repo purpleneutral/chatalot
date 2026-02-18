@@ -1,41 +1,51 @@
 # Encryption Status
 
-> **Status: Beta** -- E2E encryption infrastructure is complete but the WASM bridge to the web client is pending.
+> **Status: Complete** -- E2E encryption is fully active. All messages are encrypted client-side before leaving your device.
 
-Chatalot is built with end-to-end encryption (E2E) at its core. The cryptographic library (`chatalot-crypto`) implements the full Signal Protocol, but the bridge that connects it to the web and desktop clients is still in progress. This page explains what is encrypted, what is not, and where things stand.
+Chatalot uses end-to-end encryption (E2E) for all messages. The cryptographic library (`chatalot-crypto`) is compiled to WASM and runs in the browser. The server stores and routes only encrypted ciphertext -- it never sees plaintext message content.
 
 ## Current Status
 
 The encryption system is viewable in **Settings > Security** under the **Encryption** section, which shows:
 
-- **End-to-end encryption**: Active
-- **Identity key fingerprint**: Stored on device
+- **Protocol**: X3DH + Double Ratchet (DMs), Sender Keys (groups)
+- **Identity key fingerprint**: Your device's public key fingerprint (copyable)
+- **Public key hex**: Full hex-encoded public key
 
-### What Is Built
+### Visual Indicators
 
-The `chatalot-crypto` crate implements the complete cryptographic stack:
+Chatalot makes encryption status visible on every message:
 
-| Component | Protocol | Purpose |
-|-----------|----------|---------|
-| Key exchange | X3DH (Extended Triple Diffie-Hellman) | Establishes shared secrets between two users, even when one is offline |
-| DM encryption | Double Ratchet | Provides forward secrecy and break-in recovery for one-on-one messages |
-| Group encryption | Sender Keys | Efficient group messaging where each member encrypts once for all recipients |
-| Symmetric encryption | ChaCha20-Poly1305 (AEAD) | Encrypts and authenticates individual messages |
-| Key derivation | HKDF-SHA256 | Derives per-message keys from ratchet state |
-| Identity | Ed25519 | Signs prekeys and authenticates users cryptographically |
-| Password hashing | Argon2id | Securely hashes passwords on the server |
+| Indicator | Meaning |
+|-----------|---------|
+| Green lock icon | Message was end-to-end encrypted |
+| Red broken lock icon | Message could not be decrypted (session mismatch or corruption) |
+| No icon | Legacy plaintext message (sent before encryption was enabled) |
 
-### What Remains
+The channel header displays a green **E2E** badge:
+- **DMs**: Clickable -- opens the verification modal with safety numbers and fingerprints
+- **Group channels**: Static indicator showing encryption is active
 
-The WASM compilation of `chatalot-crypto` and its integration into the Svelte web client and Tauri desktop client have not yet been completed. This means:
+### Verification
 
-- The cryptographic primitives are implemented and tested in Rust.
-- The client-side key management, session establishment, and message encrypt/decrypt flows are not yet wired up in the UI.
-- Messages are currently transmitted and stored on the server without E2E encryption.
+To verify a contact's identity:
 
-## What Will Be Encrypted
+1. Open a DM and click the **E2E** badge in the header.
+2. The modal shows your shared **safety number** (monospace, copyable), your fingerprint, and their fingerprint.
+3. Compare the safety number with your contact through a separate trusted channel (in person, phone call, etc.).
+4. If the numbers match, the encryption is verified.
 
-Once the WASM bridge is complete, the following will be end-to-end encrypted:
+### Key Change Warnings
+
+When a contact's identity key changes (they re-registered, reinstalled, or switched devices), a yellow warning banner appears:
+
+> "Safety number has changed for this contact. They may have re-registered or switched devices."
+
+You can:
+- **Acknowledge** -- accept the change and dismiss the warning.
+- **Verify** -- acknowledge and immediately open the verification modal to confirm the new identity.
+
+## What Is Encrypted
 
 ### Direct Messages (DMs)
 
@@ -66,6 +76,7 @@ Even with full E2E encryption, certain data remains visible to the server:
 | **File names and sizes** | File metadata is not encrypted (file content encryption is planned) |
 | **Community/channel structure** | Community names, channel names, group hierarchy, and membership lists are stored in plaintext |
 | **Message existence** | The server knows a message was sent, even though it cannot read the content |
+| **Push notification metadata** | If web push is enabled, the server sends notification metadata (sender name, channel) -- never message content |
 
 ## Encryption Keys
 
@@ -91,18 +102,10 @@ The private portions of these keys **never leave your device**. Only the public 
 | Random number generation | OS CSPRNG | `rand` |
 | Sensitive data cleanup | Zeroization | `zeroize` |
 
-## Roadmap
-
-1. **Compile `chatalot-crypto` to WASM** -- make the Rust crypto available in the browser.
-2. **Wire up key management in the client** -- generate, store, and rotate keys from the web and desktop apps.
-3. **Implement session establishment** -- X3DH handshake when starting a new DM.
-4. **Encrypt/decrypt message flow** -- integrate Double Ratchet into the message send/receive pipeline.
-5. **Sender Key distribution for groups** -- distribute Sender Keys via pairwise sessions when joining a group.
-6. **File encryption** -- encrypt file contents before upload.
-
 ## Further Reading
 
 - [Encryption Protocol](../../encryption/overview.md) -- full technical specification of the encryption protocol
+- [Verification](../../encryption/verification.md) -- safety numbers, fingerprints, and TOFU
 - [Account Security](./account-security.md) -- passwords, 2FA, and session management
 
-> **Tip:** Even while the WASM bridge is pending, your connection to the Chatalot server is always encrypted in transit via HTTPS/WSS. The E2E layer adds protection against a compromised server.
+> **Tip:** Your connection to the Chatalot server is always encrypted in transit via HTTPS/WSS. The E2E layer adds an additional layer of protection -- even a compromised server cannot read message content.

@@ -33,6 +33,23 @@ export class SessionManager {
 	) {}
 
 	/**
+	 * Store a peer's identity key, comparing with any previously stored key.
+	 * If the key has changed (TOFU violation), dispatches a custom event.
+	 */
+	private async storePeerIdentity(peerUserId: string, identityKey: Uint8Array): Promise<void> {
+		const existing = await this.storage.getPeerIdentity(peerUserId);
+		if (existing && !arraysEqual(existing, identityKey)) {
+			// Identity key changed — possible MITM or device change
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('chatalot:identity-key-changed', {
+					detail: { userId: peerUserId },
+				}));
+			}
+		}
+		await this.storage.setPeerIdentity(peerUserId, identityKey);
+	}
+
+	/**
 	 * Encrypt a plaintext string for a DM peer.
 	 * If no session exists, performs X3DH first (fetches their key bundle).
 	 * Returns the wire-format bytes to put in the WS ciphertext field.
@@ -62,11 +79,8 @@ export class SessionManager {
 
 			sessionJson = result.session_json;
 
-			// Store peer identity (trust on first use)
-			await this.storage.setPeerIdentity(
-				peerUserId,
-				new Uint8Array(bundle.identity_key),
-			);
+			// Store peer identity (trust on first use, detect key changes)
+			await this.storePeerIdentity(peerUserId, new Uint8Array(bundle.identity_key));
 
 			x3dhHeader = {
 				identity_key: Array.from(await this.keyManager.getVerifyingKey()),
@@ -159,11 +173,8 @@ export class SessionManager {
 
 			sessionJson = result.session_json;
 
-			// Store peer identity (trust on first use)
-			await this.storage.setPeerIdentity(
-				peerUserId,
-				new Uint8Array(wire.x3dh.identity_key),
-			);
+			// Store peer identity (trust on first use, detect key changes)
+			await this.storePeerIdentity(peerUserId, new Uint8Array(wire.x3dh.identity_key));
 		}
 
 		if (!sessionJson) {
@@ -383,6 +394,15 @@ export class SessionManager {
 		const receiverStateJson = crypto.sender_key_from_distribution(distributionJson);
 		await this.storage.setReceiverKeyState(channelId, senderId, receiverStateJson);
 	}
+}
+
+/** Compare two Uint8Arrays for equality. */
+function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) return false;
+	}
+	return true;
 }
 
 /** Wire format for Sender Key encrypted group messages. */

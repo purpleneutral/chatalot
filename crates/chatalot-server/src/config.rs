@@ -19,6 +19,10 @@ pub struct Config {
     pub public_url: Option<String>,
     /// ICE servers for WebRTC (JSON array of {urls, username?, credential?}).
     pub ice_servers_json: Option<String>,
+    /// VAPID private key for Web Push (base64 URL-safe encoded).
+    pub vapid_private_key: Option<String>,
+    /// VAPID public key for Web Push (base64 URL-safe encoded).
+    pub vapid_public_key: Option<String>,
     /// Per-user upload quota in MB (0 = unlimited). Default 500 MB.
     pub upload_quota_mb: u64,
 }
@@ -51,6 +55,8 @@ impl Config {
                 .unwrap_or_else(|_| "admin_only".to_string()),
             public_url: std::env::var("PUBLIC_URL").ok(),
             ice_servers_json: std::env::var("ICE_SERVERS").ok(),
+            vapid_private_key: std::env::var("VAPID_PRIVATE_KEY").ok(),
+            vapid_public_key: std::env::var("VAPID_PUBLIC_KEY").ok(),
             upload_quota_mb: std::env::var("UPLOAD_QUOTA_MB")
                 .unwrap_or_else(|_| "500".to_string())
                 .parse()
