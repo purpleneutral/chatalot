@@ -261,7 +261,7 @@ pub enum ServerMessage {
     SenderKeyUpdated {
         channel_id: Uuid,
         user_id: Uuid,
-        chain_id: i32,
+        chain_id: i64,
         distribution: serde_json::Value,
     },
     SenderKeyRotationRequired {

@@ -803,7 +803,7 @@ pub struct TransferCommunityOwnershipRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UploadSenderKeyRequest {
-    pub chain_id: i32,
+    pub chain_id: i64,
     pub distribution: serde_json::Value,
 }
 
@@ -812,7 +812,7 @@ pub struct SenderKeyDistributionResponse {
     pub id: Uuid,
     pub channel_id: Uuid,
     pub user_id: Uuid,
-    pub chain_id: i32,
+    pub chain_id: i64,
     pub distribution: serde_json::Value,
     pub created_at: String,
 }

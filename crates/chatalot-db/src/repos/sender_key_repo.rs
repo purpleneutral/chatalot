@@ -9,7 +9,7 @@ pub async fn upsert_distribution(
     id: Uuid,
     channel_id: Uuid,
     user_id: Uuid,
-    chain_id: i32,
+    chain_id: i64,
     distribution: &serde_json::Value,
 ) -> Result<SenderKeyDistributionRow, sqlx::Error> {
     sqlx::query_as::<_, SenderKeyDistributionRow>(

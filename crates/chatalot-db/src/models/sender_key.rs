@@ -7,7 +7,7 @@ pub struct SenderKeyDistributionRow {
     pub id: Uuid,
     pub channel_id: Uuid,
     pub user_id: Uuid,
-    pub chain_id: i32,
+    pub chain_id: i64,
     pub distribution: serde_json::Value,
     pub created_at: DateTime<Utc>,
 }
