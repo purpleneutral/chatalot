@@ -9,6 +9,7 @@
 	import { pushStore } from '$lib/stores/push.svelte';
 	import { preferencesStore, ACCENT_COLORS, FONT_SIZES, PRESET_THEMES, VOICE_BG_PRESETS, voiceBackgroundStyle, type AccentColor, type NoiseSuppression, type PresetTheme, type VoiceBackgroundType, type VoiceActivationMode } from '$lib/stores/preferences.svelte';
 	import { webrtcManager } from '$lib/webrtc/manager';
+	import { userStore } from '$lib/stores/users.svelte';
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { setupTotp, verifyTotp, disableTotp, regenerateBackupCodes, type TotpSetup } from '$lib/api/totp';
@@ -363,6 +364,7 @@
 			try {
 				const updated = await uploadAvatar(blob);
 				authStore.updateUser(updated);
+				userStore.setUser(updated);
 				setProfileMessage('Avatar updated.');
 			} catch (err) {
 				profileError = err instanceof Error ? err.message : 'Failed to upload avatar';
@@ -375,6 +377,7 @@
 			try {
 				const updated = await uploadBanner(blob);
 				authStore.updateUser(updated);
+				userStore.setUser(updated);
 				setProfileMessage('Banner updated.');
 			} catch (err) {
 				profileError = err instanceof Error ? err.message : 'Failed to upload banner';
@@ -408,6 +411,7 @@
 		try {
 			const updated = await updateProfile({ avatar_url: '' });
 			authStore.updateUser(updated);
+			userStore.setUser(updated);
 			setProfileMessage('Avatar removed.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to remove avatar';
@@ -431,6 +435,7 @@
 		try {
 			const updated = await updateProfile({ banner_url: null });
 			authStore.updateUser(updated);
+			userStore.setUser(updated);
 			setProfileMessage('Banner removed.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to remove banner';
@@ -451,6 +456,7 @@
 				pronouns: editPronouns || null
 			});
 			authStore.updateUser(updated);
+			userStore.setUser(updated);
 			setProfileMessage('Profile updated.');
 		} catch (err) {
 			profileError = err instanceof Error ? err.message : 'Failed to update profile';

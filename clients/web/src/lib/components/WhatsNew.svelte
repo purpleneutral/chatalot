@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.54',
+			date: '2026-02-18',
+			changes: [
+				'Fix: avatar and banner changes in Settings now reflect immediately everywhere (sidebar, messages, profile cards)',
+			]
+		},
+		{
 			version: '0.18.53',
 			date: '2026-02-18',
 			changes: [

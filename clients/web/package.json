@@ -1,7 +1,7 @@
 {
   "name": "chatalot-web",
   "private": true,
-  "version": "0.18.53",
+  "version": "0.18.54",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
