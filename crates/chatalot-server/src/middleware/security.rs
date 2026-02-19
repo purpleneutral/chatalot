@@ -46,7 +46,7 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
         HeaderValue::from_static(
             "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; \
              style-src 'self' 'unsafe-inline'; \
-             connect-src 'self' wss:; \
+             connect-src 'self' wss: https://cdn.jsdelivr.net; \
              img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
              media-src 'self' blob:; \
              worker-src 'self' blob:; \

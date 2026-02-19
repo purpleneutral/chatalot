@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.52',
+			date: '2026-02-18',
+			changes: [
+				'Fix: emoji picker now loads correctly (CSP was blocking the emoji database CDN)',
+			]
+		},
+		{
 			version: '0.18.51',
 			date: '2026-02-18',
 			changes: [
