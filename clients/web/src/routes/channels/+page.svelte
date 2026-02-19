@@ -4501,7 +4501,7 @@
 					aria-selected={sidebarTab === 'groups'}
 					class="flex-1 px-3 py-2 text-sm font-medium transition {sidebarTab === 'groups' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 				>
-					Groups
+					Community
 				</button>
 				<button
 					onclick={() => (sidebarTab = 'dms')}
@@ -5275,7 +5275,15 @@
 			{/if}
 			{#if pendingUpdate}
 				<button
-					onclick={() => location.reload()}
+					onclick={async () => {
+						if ('caches' in window) {
+							const keys = await caches.keys();
+							await Promise.all(keys.map(k => caches.delete(k)));
+						}
+						const regs = await navigator.serviceWorker?.getRegistrations();
+						if (regs) await Promise.all(regs.map(r => r.unregister()));
+						location.reload();
+					}}
 					class="flex w-full items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 cursor-pointer"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>

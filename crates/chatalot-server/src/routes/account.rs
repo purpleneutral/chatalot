@@ -194,10 +194,14 @@ async fn update_profile(
         ));
     }
 
-    if let Some(ref url) = req.avatar_url {
+    if let Some(ref url) = req.avatar_url
+        && !url.is_empty()
+    {
         validate_avatar_url(url)?;
     }
-    if let Some(ref url) = req.banner_url {
+    if let Some(ref url) = req.banner_url
+        && !url.is_empty()
+    {
         validate_avatar_url(url)?;
     }
 
@@ -205,8 +209,8 @@ async fn update_profile(
         &state.db,
         claims.sub,
         display_name,
-        req.avatar_url.as_ref().map(|s| Some(s.as_str())),
-        req.banner_url.as_ref().map(|s| Some(s.as_str())),
+        req.avatar_url.as_ref().map(|s| if s.is_empty() { None } else { Some(s.as_str()) }),
+        req.banner_url.as_ref().map(|s| if s.is_empty() { None } else { Some(s.as_str()) }),
         custom_status.map(|s| if s.is_empty() { None } else { Some(s) }),
         bio.map(|s| if s.is_empty() { None } else { Some(s) }),
         pronouns.map(|s| if s.is_empty() { None } else { Some(s) }),

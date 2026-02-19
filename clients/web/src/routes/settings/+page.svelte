@@ -406,7 +406,7 @@
 		profileSaving = true;
 		profileError = '';
 		try {
-			const updated = await updateProfile({ avatar_url: null });
+			const updated = await updateProfile({ avatar_url: '' });
 			authStore.updateUser(updated);
 			setProfileMessage('Avatar removed.');
 		} catch (err) {

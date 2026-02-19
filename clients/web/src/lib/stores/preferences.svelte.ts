@@ -257,12 +257,12 @@ class PreferencesStore {
 		this.applyToDOM();
 	}
 
-	/** Load from server and merge with local. */
+	/** Load from server and merge with local (local values preserved for keys server doesn't have). */
 	async loadFromServer() {
 		try {
 			const serverPrefs = await getPreferences();
 			if (serverPrefs && typeof serverPrefs === 'object') {
-				this.preferences = { ...DEFAULTS, ...serverPrefs } as UserPreferences;
+				this.preferences = { ...this.preferences, ...serverPrefs } as UserPreferences;
 				this.saveLocal();
 				this.applyToDOM();
 			}

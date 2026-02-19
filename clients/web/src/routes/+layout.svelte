@@ -2,16 +2,9 @@
 	import '../app.css';
 	import Toast from '$lib/components/Toast.svelte';
 	import PersistentAudio from '$lib/components/PersistentAudio.svelte';
-	import { themeStore } from '$lib/stores/theme.svelte';
-	import { onMount } from 'svelte';
 
 	let { children } = $props();
 	let runtimeError = $state<Error | null>(null);
-
-	onMount(() => {
-		// Ensure theme is applied on mount
-		document.documentElement.setAttribute('data-theme', themeStore.resolved);
-	});
 
 	function handleError(error: unknown) {
 		console.error('Runtime error caught by boundary:', error);

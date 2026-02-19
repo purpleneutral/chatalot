@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.51',
+			date: '2026-02-18',
+			changes: [
+				'Fix: update banner now fully clears service worker caches before reloading — new features apply immediately',
+				'Fix: avatar and banner can now be removed (was silently failing)',
+				'Fix: theme no longer flashes default colors when loading server preferences',
+				'Sidebar: "Groups" tab renamed to "Community" for clarity',
+			]
+		},
+		{
 			version: '0.18.50',
 			date: '2026-02-18',
 			changes: [
