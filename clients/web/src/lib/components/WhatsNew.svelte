@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.58',
+			date: '2026-02-18',
+			changes: [
+				'Standalone channels can now be created as public or private (visibility toggle in creation form)',
+			]
+		},
+		{
 			version: '0.18.57',
 			date: '2026-02-18',
 			changes: [

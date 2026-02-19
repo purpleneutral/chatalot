@@ -14,13 +14,14 @@ pub async fn create_channel(
     topic: Option<&str>,
     created_by: Uuid,
     group_id: Option<Uuid>,
+    discoverable: bool,
 ) -> Result<Channel, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let channel = sqlx::query_as::<_, Channel>(
         r#"
-        INSERT INTO channels (id, name, channel_type, topic, created_by, group_id)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO channels (id, name, channel_type, topic, created_by, group_id, discoverable)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
         "#,
     )
@@ -30,6 +31,7 @@ pub async fn create_channel(
     .bind(topic)
     .bind(created_by)
     .bind(group_id)
+    .bind(discoverable)
     .fetch_one(&mut *tx)
     .await?;
 

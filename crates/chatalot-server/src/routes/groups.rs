@@ -221,6 +221,7 @@ async fn create_group(
         None,
         channel_creator,
         Some(group_id),
+        true,
     )
     .await?;
 
@@ -768,6 +769,7 @@ async fn create_group_channel(
         topic,
         claims.sub,
         Some(group_id),
+        true,
     )
     .await?;
 

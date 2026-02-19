@@ -103,6 +103,7 @@
 	let messageInput = $state('');
 	let newChannelName = $state('');
 	let newChannelType = $state('text');
+	let newChannelVisibility = $state('public');
 	let showCreateChannel = $state(false);
 	let showSidebarCreateMenu = $state(false);
 	let messageListEl: HTMLDivElement | undefined = $state();
@@ -2207,12 +2208,13 @@
 		if (!name || creatingChannel) return;
 		creatingChannel = true;
 		try {
-			const channel = await createChannel(name, newChannelType);
+			const channel = await createChannel(name, newChannelType, undefined, newChannelVisibility === 'public');
 			channelStore.addChannel(channel);
 			wsClient.send({ type: 'subscribe', channel_ids: [channel.id] });
 			selectChannel(channel.id);
 			newChannelName = '';
 			newChannelType = 'text';
+			newChannelVisibility = 'public';
 			showCreateChannel = false;
 		} catch (err) {
 			console.error('Failed to create channel:', err);
@@ -4637,7 +4639,7 @@
 						bind:value={newChannelName}
 						placeholder="Channel name..."
 						maxlength="64"
-						onkeydown={(e) => { if (e.key === 'Escape') { showCreateChannel = false; newChannelName = ''; newChannelType = 'text'; } }}
+						onkeydown={(e) => { if (e.key === 'Escape') { showCreateChannel = false; newChannelName = ''; newChannelType = 'text'; newChannelVisibility = 'public'; } }}
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 					<div class="flex items-center gap-3">
@@ -4653,10 +4655,23 @@
 							</button>
 						</div>
 					</div>
+					<div class="flex items-center gap-3">
+						<span class="text-xs text-[var(--text-secondary)]">Visibility</span>
+						<div class="flex rounded-lg border border-white/10 overflow-hidden">
+							<button type="button" onclick={() => newChannelVisibility = 'public'}
+								class="px-3 py-1 text-xs font-medium transition {newChannelVisibility === 'public' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+								Public
+							</button>
+							<button type="button" onclick={() => newChannelVisibility = 'private'}
+								class="px-3 py-1 text-xs font-medium transition {newChannelVisibility === 'private' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+								Private
+							</button>
+						</div>
+					</div>
 					<div class="flex gap-2">
 						<button
 							type="button"
-							onclick={() => { showCreateChannel = false; newChannelName = ''; newChannelType = 'text'; }}
+							onclick={() => { showCreateChannel = false; newChannelName = ''; newChannelType = 'text'; newChannelVisibility = 'public'; }}
 							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						>
 							Cancel

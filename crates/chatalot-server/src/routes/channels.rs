@@ -86,6 +86,7 @@ async fn create_channel(
         topic,
         claims.sub,
         req.group_id,
+        req.discoverable,
     )
     .await?;
 

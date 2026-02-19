@@ -147,6 +147,8 @@ pub struct CreateChannelRequest {
     pub channel_type: String,
     pub topic: Option<String>,
     pub group_id: Option<Uuid>,
+    #[serde(default = "default_true")]
+    pub discoverable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

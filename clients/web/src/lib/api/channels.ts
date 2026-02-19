@@ -41,11 +41,12 @@ export async function listChannels(): Promise<Channel[]> {
 	return api.get<Channel[]>('/channels');
 }
 
-export async function createChannel(name: string, channelType: string, topic?: string): Promise<Channel> {
+export async function createChannel(name: string, channelType: string, topic?: string, discoverable?: boolean): Promise<Channel> {
 	return api.post<Channel>('/channels', {
 		name,
 		channel_type: channelType,
-		topic: topic ?? null
+		topic: topic ?? null,
+		discoverable: discoverable ?? true
 	});
 }
 
