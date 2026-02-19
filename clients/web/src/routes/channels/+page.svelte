@@ -4435,7 +4435,7 @@
 					</button>
 					{#if showSettingsDropdown}
 						<button class="fixed inset-0 z-30" onclick={() => showSettingsDropdown = false} aria-label="Close settings menu"></button>
-						<div class="absolute right-0 top-full z-40 mt-1 w-48 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl">
+						<div class="absolute right-0 top-full z-40 mt-1 w-48 max-w-[calc(100vw-1rem)] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl">
 							{#if authStore.user?.is_admin || authStore.user?.is_owner}
 								<button
 									onclick={() => { goto('/admin'); showSettingsDropdown = false; }}

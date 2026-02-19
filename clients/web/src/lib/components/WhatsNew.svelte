@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.68',
+			date: '2026-02-19',
+			changes: [
+				'Fix: WebRTC renegotiation now retries peers not in stable state (prevents stale video/screen share)',
+				'Fix: ICE candidates validated against current session ID (prevents cross-session interference)',
+				'Fix: remote stream tracks now properly stopped on call end (reduces CPU/memory usage)',
+				'Fix: audio analyser nodes auto-cleanup when stream tracks end (prevents memory leaks)',
+				'Fix: ICE/DTLS connection failures now detected and cleaned up (prevents zombie peers)',
+				'Fix: reaction rate limiting now per-user instead of per-connection (server-side)',
+			]
+		},
+		{
 			version: '0.18.67',
 			date: '2026-02-18',
 			changes: [

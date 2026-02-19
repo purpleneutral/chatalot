@@ -612,9 +612,15 @@ class WebRTCManager {
 	}
 
 	/// Renegotiate all peer connections (after adding/removing tracks).
+	/// Peers not in 'stable' state are queued and retried after a short delay
+	/// to handle cases where tracks are removed during an in-flight offer/answer.
 	private async renegotiateAll(): Promise<void> {
+		const deferred: string[] = [];
 		for (const [userId, pc] of this.peers) {
-			if (pc.signalingState !== 'stable') continue;
+			if (pc.signalingState !== 'stable') {
+				deferred.push(userId);
+				continue;
+			}
 			try {
 				const offer = await pc.createOffer();
 				await pc.setLocalDescription(offer);
@@ -627,6 +633,27 @@ class WebRTCManager {
 			} catch (err) {
 				console.error(`Renegotiation with ${userId} failed:`, err);
 			}
+		}
+		// Retry deferred peers after a short delay (wait for in-flight offer/answer to settle)
+		if (deferred.length > 0) {
+			setTimeout(async () => {
+				for (const userId of deferred) {
+					const pc = this.peers.get(userId);
+					if (!pc || pc.signalingState !== 'stable') continue;
+					try {
+						const offer = await pc.createOffer();
+						await pc.setLocalDescription(offer);
+						wsClient.send({
+							type: 'rtc_offer',
+							target_user_id: userId,
+							session_id: this.sessionId!,
+							sdp: JSON.stringify(offer)
+						});
+					} catch (err) {
+						console.error(`Deferred renegotiation with ${userId} failed:`, err);
+					}
+				}
+			}, 2000);
 		}
 	}
 
@@ -699,6 +726,16 @@ class WebRTCManager {
 		source.connect(analyser);
 
 		this.analysers.set(userId, { analyser, source });
+
+		// Auto-cleanup when all audio tracks end (prevents orphaned analyser nodes)
+		const cleanup = () => {
+			if (stream.getAudioTracks().every(t => t.readyState === 'ended')) {
+				this.stopMonitoringStream(userId);
+			}
+		};
+		for (const track of stream.getAudioTracks()) {
+			track.addEventListener('ended', cleanup);
+		}
 	}
 
 	/// Stop monitoring a specific stream.
@@ -871,7 +908,10 @@ class WebRTCManager {
 	}
 
 	/// Handle an incoming ICE candidate.
-	async handleIceCandidate(fromUserId: string, candidateJson: string): Promise<void> {
+	async handleIceCandidate(fromUserId: string, sessionId: string, candidateJson: string): Promise<void> {
+		// Discard candidates from a different session (e.g. stale messages after rejoin)
+		if (sessionId !== this.sessionId) return;
+
 		const candidate = JSON.parse(candidateJson) as RTCIceCandidateInit;
 		const pc = this.peers.get(fromUserId);
 
@@ -1113,6 +1153,16 @@ class WebRTCManager {
 				}, 10_000));
 			} else if (pc.connectionState === 'connected') {
 				this.clearDisconnectTimeout(userId);
+			}
+		};
+
+		// ICE connection state monitoring (catches DTLS failures that
+		// onconnectionstatechange may not report on all browsers)
+		pc.oniceconnectionstatechange = () => {
+			if (pc.iceConnectionState === 'failed') {
+				console.warn(`ICE connection to ${userId} failed (DTLS/ICE failure), cleaning up`);
+				this.clearDisconnectTimeout(userId);
+				this.onUserLeft(userId);
 			}
 		};
 

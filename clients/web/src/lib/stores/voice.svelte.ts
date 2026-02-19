@@ -59,6 +59,13 @@ class VoiceStore {
 		// Stop all local streams
 		this.activeCall?.localStream?.getTracks().forEach(t => t.stop());
 		this.activeCall?.screenStream?.getTracks().forEach(t => t.stop());
+		// Stop all remote stream tracks to release resources
+		for (const stream of this.remoteStreams.values()) {
+			stream.getTracks().forEach(t => t.stop());
+		}
+		for (const stream of this.remoteScreenStreams.values()) {
+			stream.getTracks().forEach(t => t.stop());
+		}
 		this.activeCall = null;
 		this.remoteStreams = new Map();
 		this.remoteScreenStreams = new Map();

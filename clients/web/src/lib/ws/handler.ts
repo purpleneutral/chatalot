@@ -336,7 +336,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 		}
 
 		case 'rtc_ice_candidate': {
-			void webrtcManager.handleIceCandidate(msg.from_user_id, msg.candidate).catch(err => console.error('[VOICE] handle ICE candidate failed:', err));
+			void webrtcManager.handleIceCandidate(msg.from_user_id, msg.session_id, msg.candidate).catch(err => console.error('[VOICE] handle ICE candidate failed:', err));
 			break;
 		}
 

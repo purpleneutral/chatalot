@@ -25,6 +25,9 @@ class AuthStore {
 	refreshToken = $state<string | null>(null);
 	user = $state<UserPublic | null>(null);
 
+	// Bound handler for cross-tab storage sync (stored so it can be removed to prevent duplicates)
+	private _boundStorageHandler: ((e: StorageEvent) => void) | null = null;
+
 	get isAuthenticated(): boolean {
 		return this.accessToken !== null;
 	}
@@ -46,7 +49,11 @@ class AuthStore {
 			}
 
 			// Detect cross-tab logout/login via storage events
-			window.addEventListener('storage', (e) => {
+			// Remove any existing listener first (prevents duplicates on HMR)
+			if (this._boundStorageHandler) {
+				window.removeEventListener('storage', this._boundStorageHandler);
+			}
+			this._boundStorageHandler = (e: StorageEvent) => {
 				if (e.key === TOKEN_KEY) {
 					if (e.newValue === null) {
 						// Another tab logged out — clear local state and redirect
@@ -62,7 +69,8 @@ class AuthStore {
 						if (u) try { this.user = JSON.parse(u); } catch { /* ignore */ }
 					}
 				}
-			});
+			};
+			window.addEventListener('storage', this._boundStorageHandler);
 		}
 	}
 

@@ -20,6 +20,8 @@ pub struct ConnectionManager {
     channel_senders: DashMap<Uuid, broadcast::Sender<ServerMessage>>,
     /// (channel_id, user_id) -> last typing timestamp (for timeout cleanup)
     typing_state: DashMap<(Uuid, Uuid), tokio::time::Instant>,
+    /// user_id -> last reaction timestamp (per-user, not per-connection)
+    reaction_cooldowns: DashMap<Uuid, tokio::time::Instant>,
 }
 
 /// Maximum concurrent WebSocket sessions per user (multi-device support).
@@ -31,7 +33,21 @@ impl ConnectionManager {
             connections: DashMap::new(),
             channel_senders: DashMap::new(),
             typing_state: DashMap::new(),
+            reaction_cooldowns: DashMap::new(),
         }
+    }
+
+    /// Check per-user reaction cooldown (200ms). Returns true if allowed.
+    pub fn check_reaction_cooldown(&self, user_id: Uuid) -> bool {
+        let now = tokio::time::Instant::now();
+        let mut entry = self.reaction_cooldowns.entry(user_id).or_insert_with(|| {
+            now - tokio::time::Duration::from_secs(1)
+        });
+        if now.duration_since(*entry) < tokio::time::Duration::from_millis(200) {
+            return false;
+        }
+        *entry = now;
+        true
     }
 
     /// Register a new WebSocket session.
