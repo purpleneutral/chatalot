@@ -6,12 +6,14 @@
 	import { webrtcManager } from '$lib/webrtc/manager';
 	import Avatar from '$lib/components/Avatar.svelte';
 
-	let { expanded = false, canKick = false, onKickFromVoice, channelVoiceBackground = null }: {
-		expanded?: boolean;
+	let { height = null, canKick = false, onKickFromVoice, channelVoiceBackground = null }: {
+		height?: number | null;
 		canKick?: boolean;
 		onKickFromVoice?: (userId: string) => void;
 		channelVoiceBackground?: string | null;
 	} = $props();
+
+	let expanded = $derived(height == null);
 
 	let localVideoEl: HTMLVideoElement | undefined = $state();
 	let screenVideoEl: HTMLVideoElement | undefined = $state();
@@ -221,12 +223,12 @@
 {/snippet}
 
 {#if voiceStore.isInCall}
-	<div class="{expanded ? 'flex-1 min-h-0' : 'max-h-[500px]'} overflow-hidden border-b border-white/10 {expanded ? 'flex flex-col' : ''}"
-		style="{channelAmbianceStyle || 'background: var(--bg-secondary);'}">
+	<div class="{expanded ? 'flex-1 min-h-0 flex flex-col' : 'shrink-0'} overflow-hidden"
+		style="{!expanded && height != null ? `height: ${height}px;` : ''} {channelAmbianceStyle || 'background: var(--bg-secondary);'}">
 
 		{#if hasAnyScreenShare && !focusStream}
 			<!-- ═══ TILED MODE: Stream as master pane + participant tiles stacked on right ═══ -->
-			<div class="relative flex gap-1 overflow-hidden p-2 {expanded ? 'flex-1 min-h-0' : ''}" style="{expanded ? '' : 'max-height: 500px;'}">
+			<div class="relative flex h-full gap-1 overflow-hidden p-2 {expanded ? 'flex-1 min-h-0' : ''}">
 				<!-- Master pane: screen shares -->
 				<div class="flex min-w-0 flex-1 flex-col gap-1 min-h-0">
 					{#if voiceStore.activeCall?.screenSharing}
@@ -366,7 +368,7 @@
 
 		{:else if hasAnyScreenShare && focusStream}
 			<!-- ═══ FOCUS MODE: Stream full-width, participant avatars in strip below ═══ -->
-			<div class="relative flex flex-col {expanded ? 'flex-1' : ''} p-2">
+			<div class="relative flex h-full flex-col {expanded ? 'flex-1' : ''} p-2">
 				<!-- Screen shares -->
 				<div class="flex-1">
 					{#if voiceStore.activeCall?.screenSharing}
@@ -481,12 +483,12 @@
 
 		{:else}
 			<!-- ═══ STANDARD MODE: No screen share — normal participant grid ═══ -->
-			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : ''}" style="{expanded ? '' : 'max-height: min(400px, 50vh);'}">
+			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : 'h-full'}">
 				<!-- Local video/avatar -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-					style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : totalParticipants > 9 ? 'clamp(40px, 8vh, 80px)' : 'clamp(80px, 15vh, 120px)'}; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
+					style="aspect-ratio: 16/9; min-height: {expanded ? '120px' : '40px'}; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
 					oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
 				>
 					{#if hasVideo}
@@ -518,7 +520,7 @@
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-						style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : totalParticipants > 9 ? 'clamp(40px, 8vh, 80px)' : 'clamp(80px, 15vh, 120px)'}; {remoteBg || 'background: var(--bg-tertiary);'}"
+						style="aspect-ratio: 16/9; min-height: {expanded ? '120px' : '40px'}; {remoteBg || 'background: var(--bg-tertiary);'}"
 						oncontextmenu={(e) => openVolumeMenu(e, userId)}
 					>
 						{#if !voiceStore.hasRemoteVideo(userId)}

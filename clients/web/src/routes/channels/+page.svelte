@@ -759,6 +759,30 @@
 	// Chat collapse state (during voice calls)
 	let chatCollapsed = $state(false);
 
+	// Draggable voice/chat divider
+	let voicePanelHeight = $state(parseInt(localStorage.getItem('chatalot-voice-panel-height') ?? '300', 10));
+	let isDraggingDivider = $state(false);
+	let videoGridEl: HTMLDivElement | undefined = $state();
+
+	function startDividerDrag(e: PointerEvent) {
+		isDraggingDivider = true;
+		(e.target as HTMLElement).setPointerCapture(e.pointerId);
+	}
+
+	function onDividerDrag(e: PointerEvent) {
+		if (!isDraggingDivider || !videoGridEl) return;
+		const gridTop = videoGridEl.getBoundingClientRect().top;
+		const newHeight = Math.round(e.clientY - gridTop);
+		const mainHeight = videoGridEl.parentElement?.clientHeight ?? 600;
+		voicePanelHeight = Math.max(80, Math.min(newHeight, Math.round(mainHeight * 0.8)));
+	}
+
+	function stopDividerDrag() {
+		if (!isDraggingDivider) return;
+		isDraggingDivider = false;
+		localStorage.setItem('chatalot-voice-panel-height', String(voicePanelHeight));
+	}
+
 	// Deferred update reload (don't interrupt voice calls)
 	let pendingUpdate = $state(false);
 
@@ -5383,7 +5407,7 @@
 
 		<!-- Main chat area -->
 		<main
-			class="relative flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)]"
+			class="relative flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] {isDraggingDivider ? 'select-none' : ''}"
 			ondragenter={handleDragEnter}
 			ondragleave={handleDragLeave}
 			ondragover={handleDragOver}
@@ -5805,15 +5829,32 @@
 				{/if}
 
 				<!-- Video grid (visible when in a call) -->
-				<VideoGrid
-					expanded={chatCollapsed}
-					canKick={canKickFromVoice}
-					channelVoiceBackground={voiceChannelBackground}
-					onKickFromVoice={(userId) => {
-						const channelId = voiceStore.activeCall?.channelId;
-						if (channelId) handleVoiceKick(userId, channelId);
-					}}
-				/>
+				<div bind:this={videoGridEl}>
+					<VideoGrid
+						height={chatCollapsed ? null : voicePanelHeight}
+						canKick={canKickFromVoice}
+						channelVoiceBackground={voiceChannelBackground}
+						onKickFromVoice={(userId) => {
+							const channelId = voiceStore.activeCall?.channelId;
+							if (channelId) handleVoiceKick(userId, channelId);
+						}}
+					/>
+				</div>
+
+				{#if voiceStore.isInCall && !chatCollapsed}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="group flex h-2 shrink-0 cursor-row-resize items-center justify-center border-b border-white/10 bg-[var(--bg-primary)] transition-colors hover:bg-white/5 active:bg-white/10"
+						role="separator"
+						aria-orientation="horizontal"
+						aria-label="Resize voice panel"
+						onpointerdown={startDividerDrag}
+						onpointermove={onDividerDrag}
+						onpointerup={stopDividerDrag}
+					>
+						<div class="h-0.5 w-10 rounded-full bg-white/20 transition-colors group-hover:bg-white/40"></div>
+					</div>
+				{/if}
 
 				{#if !chatCollapsed}
 				<!-- Announcement banners -->
