@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.53',
+			date: '2026-02-18',
+			changes: [
+				'Community sidebar "+" button now offers a choice: create a Group or a standalone Channel',
+				'Group creation form now includes a public/private visibility toggle',
+				'Standalone channels can be created as text or voice directly from the Community tab',
+			]
+		},
+		{
 			version: '0.18.52',
 			date: '2026-02-18',
 			changes: [

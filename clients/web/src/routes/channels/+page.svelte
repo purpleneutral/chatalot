@@ -102,7 +102,9 @@
 
 	let messageInput = $state('');
 	let newChannelName = $state('');
+	let newChannelType = $state('text');
 	let showCreateChannel = $state(false);
+	let showSidebarCreateMenu = $state(false);
 	let messageListEl: HTMLDivElement | undefined = $state();
 	let whatsNewRef: WhatsNew | undefined = $state();
 	let typingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -282,6 +284,7 @@
 	let showCreateGroup = $state(false);
 	let newGroupName = $state('');
 	let newGroupDescription = $state('');
+	let newGroupVisibility = $state('public');
 	let newGroupAssignMemberId = $state('');
 	let expandedGroupIds = $state<Set<string>>(new Set());
 	let groupChannelsMap = $state<Map<string, Channel[]>>(new Map());
@@ -2191,11 +2194,12 @@
 		if (!name || creatingChannel) return;
 		creatingChannel = true;
 		try {
-			const channel = await createChannel(name, 'text');
+			const channel = await createChannel(name, newChannelType);
 			channelStore.addChannel(channel);
 			wsClient.send({ type: 'subscribe', channel_ids: [channel.id] });
 			selectChannel(channel.id);
 			newChannelName = '';
+			newChannelType = 'text';
 			showCreateChannel = false;
 		} catch (err) {
 			console.error('Failed to create channel:', err);
@@ -3711,7 +3715,8 @@
 		creatingGroup = true;
 		try {
 			const assignId = newGroupAssignMemberId || undefined;
-			const group = await apiCreateGroup(communityStore.activeCommunityId, name, newGroupDescription.trim() || undefined, undefined, assignId);
+			const vis = assignId ? undefined : newGroupVisibility;
+			const group = await apiCreateGroup(communityStore.activeCommunityId, name, newGroupDescription.trim() || undefined, vis, assignId);
 			groupStore.addGroup(group);
 			// Load the auto-created #general channel (only visible if we're the assigned member or a group member)
 			try {
@@ -3731,6 +3736,7 @@
 			}
 			newGroupName = '';
 			newGroupDescription = '';
+			newGroupVisibility = 'public';
 			newGroupAssignMemberId = '';
 			showCreateGroup = false;
 			toastStore.success(`Group "${group.name}" created`);
@@ -4172,7 +4178,7 @@
 	});
 </script>
 
-<svelte:window onkeydown={handleGlobalKeydown} onkeyup={handleGlobalKeyup} onfocus={handleWindowFocus} onblur={(e) => { handleWindowBlur(); handleWindowBlurGifs(); }} />
+<svelte:window onkeydown={handleGlobalKeydown} onkeyup={handleGlobalKeyup} onfocus={handleWindowFocus} onblur={(e) => { handleWindowBlur(); handleWindowBlurGifs(); }} onmousedown={() => { showSidebarCreateMenu = false; }} />
 
 {#if authStore.isAuthenticated}
 	<div class="flex flex-col h-screen overflow-hidden">
@@ -4481,16 +4487,45 @@
 				<!-- Nav header with create button -->
 				<div class="flex items-center justify-between border-b border-white/10 px-3 py-2">
 					<span class="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Navigate</span>
-					<button
-						onclick={() => {
-							if (sidebarTab === 'groups') { showCreateGroup = !showCreateGroup; }
-							else { showNewDm = !showNewDm; }
-						}}
-						class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						title={sidebarTab === 'groups' ? 'Create group' : 'New DM'}
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-					</button>
+					{#if sidebarTab === 'groups'}
+						<div class="relative">
+							<button
+								onclick={() => { showSidebarCreateMenu = !showSidebarCreateMenu; }}
+								class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+								title="Create..."
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+							</button>
+							{#if showSidebarCreateMenu}
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div class="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
+									onmousedown={(e) => e.stopPropagation()}>
+									<button
+										onclick={() => { showSidebarCreateMenu = false; showCreateGroup = true; showCreateChannel = false; }}
+										class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+										Group
+									</button>
+									<button
+										onclick={() => { showSidebarCreateMenu = false; showCreateChannel = true; showCreateGroup = false; }}
+										class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+										Channel
+									</button>
+								</div>
+							{/if}
+						</div>
+					{:else}
+						<button
+							onclick={() => { showNewDm = !showNewDm; }}
+							class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+							title="New DM"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+						</button>
+					{/if}
 				</div>
 
 			<!-- Tab switcher -->
@@ -4520,12 +4555,13 @@
 
 			{#if showCreateGroup && sidebarTab === 'groups'}
 				<form onsubmit={handleCreateGroup} class="border-b border-white/10 p-3 space-y-2">
+					<p class="text-xs font-semibold text-[var(--text-secondary)]">New Group</p>
 					<input
 						type="text"
 						bind:value={newGroupName}
 						placeholder="Group name..."
 						maxlength="64"
-						onkeydown={(e) => { if (e.key === 'Escape') { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; } }}
+						onkeydown={(e) => { if (e.key === 'Escape') { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; newGroupVisibility = 'public'; } }}
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
 					<input
@@ -4535,6 +4571,21 @@
 						maxlength="2048"
 						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
 					/>
+					{#if !newGroupAssignMemberId}
+						<div class="flex items-center gap-3">
+							<span class="text-xs text-[var(--text-secondary)]">Visibility</span>
+							<div class="flex rounded-lg border border-white/10 overflow-hidden">
+								<button type="button" onclick={() => newGroupVisibility = 'public'}
+									class="px-3 py-1 text-xs font-medium transition {newGroupVisibility === 'public' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+									Public
+								</button>
+								<button type="button" onclick={() => newGroupVisibility = 'private'}
+									class="px-3 py-1 text-xs font-medium transition {newGroupVisibility === 'private' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+									Private
+								</button>
+							</div>
+						</div>
+					{/if}
 					{#if isCommunityModeratorOrAbove() && communityStore.activeCommunityId}
 						<select
 							bind:value={newGroupAssignMemberId}
@@ -4549,7 +4600,7 @@
 					<div class="flex gap-2">
 						<button
 							type="button"
-							onclick={() => { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; newGroupAssignMemberId = ''; }}
+							onclick={() => { showCreateGroup = false; newGroupName = ''; newGroupDescription = ''; newGroupVisibility = 'public'; newGroupAssignMemberId = ''; }}
 							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 						>
 							Cancel
@@ -4560,6 +4611,49 @@
 							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{creatingGroup ? 'Creating...' : newGroupAssignMemberId ? 'Create Personal Group' : 'Create Group'}
+						</button>
+					</div>
+				</form>
+			{/if}
+
+			{#if showCreateChannel && sidebarTab === 'groups'}
+				<form onsubmit={handleCreateChannel} class="border-b border-white/10 p-3 space-y-2">
+					<p class="text-xs font-semibold text-[var(--text-secondary)]">New Channel</p>
+					<input
+						type="text"
+						bind:value={newChannelName}
+						placeholder="Channel name..."
+						maxlength="64"
+						onkeydown={(e) => { if (e.key === 'Escape') { showCreateChannel = false; newChannelName = ''; newChannelType = 'text'; } }}
+						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+					/>
+					<div class="flex items-center gap-3">
+						<span class="text-xs text-[var(--text-secondary)]">Type</span>
+						<div class="flex rounded-lg border border-white/10 overflow-hidden">
+							<button type="button" onclick={() => newChannelType = 'text'}
+								class="px-3 py-1 text-xs font-medium transition {newChannelType === 'text' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+								Text
+							</button>
+							<button type="button" onclick={() => newChannelType = 'voice'}
+								class="px-3 py-1 text-xs font-medium transition {newChannelType === 'voice' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+								Voice
+							</button>
+						</div>
+					</div>
+					<div class="flex gap-2">
+						<button
+							type="button"
+							onclick={() => { showCreateChannel = false; newChannelName = ''; newChannelType = 'text'; }}
+							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
+						>
+							Cancel
+						</button>
+						<button
+							type="submit"
+							disabled={creatingChannel || !newChannelName.trim()}
+							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{creatingChannel ? 'Creating...' : 'Create Channel'}
 						</button>
 					</div>
 				</form>
