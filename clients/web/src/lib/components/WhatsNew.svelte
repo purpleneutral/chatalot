@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.67',
+			date: '2026-02-18',
+			changes: [
+				'Settings cog in the top bar now shows a dropdown for admins with Admin Panel, Community Settings, and Settings options',
+				'Community Settings link removed from the community picker sidebar (now accessible via settings cog dropdown)',
+			]
+		},
+		{
 			version: '0.18.66',
 			date: '2026-02-18',
 			changes: [

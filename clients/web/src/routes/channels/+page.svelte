@@ -323,6 +323,7 @@
 	let showCommunityPicker = $state(false);
 	let showNavDropdown = $state(false);
 	let showUserMenu = $state(false);
+	let showSettingsDropdown = $state(false);
 	let navCollapsed = $state(
 		typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:navCollapsed') === 'true'
 	);
@@ -338,6 +339,7 @@
 		showCommunityPicker = false;
 		showNavDropdown = false;
 		showUserMenu = false;
+		showSettingsDropdown = false;
 	}
 
 	// Reply state
@@ -4409,31 +4411,65 @@
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
 				</button>
 
-				<!-- Admin -->
-				{#if authStore.user?.is_admin || authStore.user?.is_owner}
+				<!-- Settings cog (dropdown for admins, direct link for members) -->
+				<div class="relative hidden md:block">
 					<button
-						onclick={() => goto('/admin')}
-						class="hidden md:block rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						title="Admin Panel"
-						aria-label="Admin Panel"
+						onclick={(e) => {
+							e.stopPropagation();
+							if (authStore.user?.is_admin || authStore.user?.is_owner || isCommunityModeratorOrAbove()) {
+								showSettingsDropdown = !showSettingsDropdown;
+								showCommunityPicker = false;
+								showNavDropdown = false;
+								showUserMenu = false;
+							} else {
+								goto('/settings');
+							}
+						}}
+						class="rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)] {showSettingsDropdown ? 'bg-white/5 text-[var(--text-primary)]' : ''}"
+						title="Settings"
+						aria-label="Settings"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+							<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
 						</svg>
 					</button>
-				{/if}
-
-				<!-- Settings -->
-				<button
-					onclick={() => goto('/settings')}
-					class="hidden md:block rounded-xl p-2 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-					title="Settings"
-					aria-label="Settings"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-					</svg>
-				</button>
+					{#if showSettingsDropdown}
+						<button class="fixed inset-0 z-30" onclick={() => showSettingsDropdown = false} aria-label="Close settings menu"></button>
+						<div class="absolute right-0 top-full z-40 mt-1 w-48 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl">
+							{#if authStore.user?.is_admin || authStore.user?.is_owner}
+								<button
+									onclick={() => { goto('/admin'); showSettingsDropdown = false; }}
+									class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+									</svg>
+									Admin Panel
+								</button>
+							{/if}
+							{#if communityStore.activeCommunityId && isCommunityModeratorOrAbove()}
+								<button
+									onclick={() => { goto('/community'); showSettingsDropdown = false; }}
+									class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+									</svg>
+									Community Settings
+								</button>
+							{/if}
+							<button
+								onclick={() => { goto('/settings'); showSettingsDropdown = false; }}
+								class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+								</svg>
+								Settings
+							</button>
+						</div>
+					{/if}
+				</div>
 
 				<!-- User Avatar + Menu Trigger -->
 				<button
@@ -4515,16 +4551,7 @@
 						Create a Community
 					</button>
 				{/if}
-				{#if communityStore.activeCommunityId}
-					<button
-						onclick={() => { goto('/community'); showCommunityPicker = false; }}
-						class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-						Community Settings
-					</button>
-				{/if}
-			</div>
+				</div>
 		{/if}
 
 		<!-- ═══ SIDEBAR NAV CONTENT SNIPPET ═══ -->
