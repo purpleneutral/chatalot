@@ -16,6 +16,57 @@
 		<meta name="apple-mobile-web-app-title" content="Chatalot" />
 		%sveltekit.head%
 	</head>
+	<script>
+		// Blocking theme script — prevents flash of default theme before Svelte loads
+		(function(){
+			var t=localStorage.getItem('chatalot-theme')||'system';
+			var r=t==='light'?'light':t==='dark'?'dark':
+				(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+			document.documentElement.setAttribute('data-theme',r);
+			try{
+				var p=JSON.parse(localStorage.getItem('chatalot:preferences')||'{}');
+				var el=document.documentElement;
+				var pr=p.presetTheme||'default';
+				var PT={
+					monokai:{dark:{b:'#272822',s:'#1e1f1c',t:'#3e3d32',tp:'#f8f8f2',ts:'#75715e',a:'#a6e22e',ah:'#c4f060'},light:{b:'#fafaf5',s:'#ffffff',t:'#f0f0e0',tp:'#272822',ts:'#75715e',a:'#669900',ah:'#7ab300'}},
+					dracula:{dark:{b:'#282a36',s:'#21222c',t:'#343746',tp:'#f8f8f2',ts:'#6272a4',a:'#bd93f9',ah:'#d4b0ff'},light:{b:'#f8f8f2',s:'#ffffff',t:'#e8e8e0',tp:'#282a36',ts:'#6272a4',a:'#7c3aed',ah:'#9d5cff'}},
+					nord:{dark:{b:'#2e3440',s:'#272c36',t:'#3b4252',tp:'#eceff4',ts:'#7b88a1',a:'#88c0d0',ah:'#a3d4e0'},light:{b:'#eceff4',s:'#ffffff',t:'#d8dee9',tp:'#2e3440',ts:'#4c566a',a:'#5e81ac',ah:'#7b9cc4'}},
+					solarized:{dark:{b:'#002b36',s:'#001e27',t:'#073642',tp:'#fdf6e3',ts:'#839496',a:'#268bd2',ah:'#4ea3e0'},light:{b:'#fdf6e3',s:'#ffffff',t:'#eee8d5',tp:'#002b36',ts:'#657b83',a:'#268bd2',ah:'#4ea3e0'}},
+					amoled:{dark:{b:'#000000',s:'#0a0a0a',t:'#141414',tp:'#ffffff',ts:'#666666',a:'#7c3aed',ah:'#9d5cff'},light:{b:'#f5f3ff',s:'#ffffff',t:'#ede9fe',tp:'#1a1035',ts:'#6b6190',a:'#6d28d9',ah:'#7c3aed'}},
+					catppuccin:{dark:{b:'#1e1e2e',s:'#181825',t:'#313244',tp:'#cdd6f4',ts:'#6c7086',a:'#cba6f7',ah:'#d9bcff'},light:{b:'#eff1f5',s:'#ffffff',t:'#dce0e8',tp:'#4c4f69',ts:'#6c6f85',a:'#8839ef',ah:'#a05cf5'}}
+				};
+				var AC={blue:{d:'#4e8fda',dh:'#6ba3e8',l:'#3574c2',lh:'#4e8fda'},purple:{d:'#9c7ae0',dh:'#b394ea',l:'#7c5ec4',lh:'#9c7ae0'},green:{d:'#57ab5a',dh:'#73c176',l:'#3d8c40',lh:'#57ab5a'},orange:{d:'#e07a4f',dh:'#eb9670',l:'#c75d35',lh:'#e07a4f'},red:{d:'#e5534b',dh:'#f08078',l:'#cc3d35',lh:'#e5534b'},pink:{d:'#d96ba0',dh:'#e88dbb',l:'#c44e87',lh:'#d96ba0'},teal:{d:'#4ecdc4',dh:'#70dbd4',l:'#2eb5ac',lh:'#4ecdc4'},cyan:{d:'#56b6c2',dh:'#78c8d2',l:'#3a9eab',lh:'#56b6c2'}};
+				if(pr!=='default'&&pr!=='custom'&&PT[pr]){
+					var c=PT[pr][r];
+					el.style.setProperty('--bg-primary',c.b);
+					el.style.setProperty('--bg-secondary',c.s);
+					el.style.setProperty('--bg-tertiary',c.t);
+					el.style.setProperty('--text-primary',c.tp);
+					el.style.setProperty('--text-secondary',c.ts);
+					el.style.setProperty('--accent',c.a);
+					el.style.setProperty('--accent-hover',c.ah);
+				}else if(pr==='custom'&&p.customThemeColors){
+					var cc=p.customThemeColors;
+					el.style.setProperty('--bg-primary',cc.bgPrimary);
+					el.style.setProperty('--bg-secondary',cc.bgSecondary);
+					el.style.setProperty('--bg-tertiary',cc.bgTertiary);
+					el.style.setProperty('--text-primary',cc.textPrimary);
+					el.style.setProperty('--text-secondary',cc.textSecondary);
+					el.style.setProperty('--accent',cc.accent);
+					el.style.setProperty('--accent-hover',cc.accentHover);
+				}else{
+					var ac=AC[p.accentColor||'orange'];
+					if(ac){
+						el.style.setProperty('--accent',r==='light'?ac.l:ac.d);
+						el.style.setProperty('--accent-hover',r==='light'?ac.lh:ac.dh);
+					}
+				}
+				var FS={small:'13px',medium:'14px',large:'16px'};
+				if(p.fontSize&&FS[p.fontSize])el.style.setProperty('--font-size-base',FS[p.fontSize]);
+				if(p.chatBubbleStyle)el.setAttribute('data-bubbles',p.chatBubbleStyle==='bubbles'?'true':'false');
+			}catch(e){}
+		})();
+	</script>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 		<script>

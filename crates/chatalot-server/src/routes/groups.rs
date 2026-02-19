@@ -1226,7 +1226,8 @@ async fn upload_group_icon(
     let file_path = asset_dir.join(&filename);
     write_asset_file(&file_path, &data).await?;
 
-    let icon_url = format!("/api/group-assets/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let icon_url = format!("/api/group-assets/{filename}?v={ts}");
     let group = group_repo::update_group(
         &state.db,
         id,
@@ -1276,7 +1277,8 @@ async fn upload_group_banner(
     let file_path = asset_dir.join(&filename);
     write_asset_file(&file_path, &data).await?;
 
-    let banner_url = format!("/api/group-assets/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let banner_url = format!("/api/group-assets/{filename}?v={ts}");
     let group = group_repo::update_group(
         &state.db,
         id,
@@ -1336,7 +1338,8 @@ async fn upload_channel_voice_background(
     let file_path = asset_dir.join(&filename);
     write_asset_file(&file_path, &data).await?;
 
-    let bg_url = format!("/api/group-assets/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let bg_url = format!("/api/group-assets/{filename}?v={ts}");
     let channel = channel_repo::update_channel(
         &state.db,
         path.channel_id,

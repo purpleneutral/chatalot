@@ -313,8 +313,9 @@ async fn upload_avatar(
         .await
         .map_err(|e| AppError::Internal(format!("flush avatar: {e}")))?;
 
-    // Update user's avatar_url to the public serving path
-    let avatar_url = format!("/api/avatars/{filename}");
+    // Update user's avatar_url to the public serving path (with cache-bust param)
+    let ts = chrono::Utc::now().timestamp();
+    let avatar_url = format!("/api/avatars/{filename}?v={ts}");
     let user = user_repo::update_profile(
         &state.db,
         claims.sub,
@@ -428,7 +429,8 @@ async fn upload_banner(
         .await
         .map_err(|e| AppError::Internal(format!("flush banner: {e}")))?;
 
-    let banner_url = format!("/api/avatars/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let banner_url = format!("/api/avatars/{filename}?v={ts}");
     let user = user_repo::update_profile(
         &state.db,
         claims.sub,
@@ -542,7 +544,8 @@ async fn upload_voice_background(
         .await
         .map_err(|e| AppError::Internal(format!("flush file: {e}")))?;
 
-    let url = format!("/api/avatars/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let url = format!("/api/avatars/{filename}?v={ts}");
     Ok(Json(serde_json::json!({ "url": url })))
 }
 

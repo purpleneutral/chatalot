@@ -44,6 +44,23 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
     // Broadcast presence: this user is online
     broadcast_presence(&state.db, conn_mgr, user_id, "online").await;
 
+    // Send initial presence state: which community mates are currently online
+    if let Ok(mates) = community_repo::get_community_mates(&state.db, user_id).await {
+        let statuses: Vec<_> = mates
+            .into_iter()
+            .filter(|uid| conn_mgr.is_online(uid))
+            .map(|uid| {
+                (
+                    uid,
+                    chatalot_common::ws_messages::PresenceStatus::Online,
+                )
+            })
+            .collect();
+        if !statuses.is_empty() {
+            let _ = tx.send(ServerMessage::PresenceBulk { statuses });
+        }
+    }
+
     tracing::info!(%user_id, %session_id, "WebSocket connected");
 
     // Writer task: forwards messages from the mpsc channel to the WebSocket

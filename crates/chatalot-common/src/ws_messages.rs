@@ -152,6 +152,9 @@ pub enum ServerMessage {
         user_id: Uuid,
         status: PresenceStatus,
     },
+    PresenceBulk {
+        statuses: Vec<(Uuid, PresenceStatus)>,
+    },
     UserTyping {
         channel_id: Uuid,
         user_id: Uuid,

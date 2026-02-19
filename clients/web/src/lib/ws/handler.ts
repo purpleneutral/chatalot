@@ -254,6 +254,13 @@ export async function handleServerMessage(msg: ServerMessage) {
 			break;
 		}
 
+		case 'presence_bulk': {
+			for (const [userId, status] of msg.statuses) {
+				presenceStore.setStatus(userId, status);
+			}
+			break;
+		}
+
 		case 'user_typing': {
 			presenceStore.setTyping(msg.channel_id, msg.user_id);
 			break;
@@ -289,7 +296,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 			// Peer connections are established solely via voice_state_update
 			// to avoid race conditions with concurrent offer creation.
 			if (msg.user_id !== authStore.user?.id) {
-				if (!alreadyIn) soundStore.playVoiceJoin();
+				if (!alreadyIn && voiceStore.activeCall?.channelId === msg.channel_id) soundStore.playVoiceJoin();
 				ensureUser(msg.user_id);
 			}
 			break;
@@ -298,7 +305,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 		case 'user_left_voice': {
 			voiceStore.removeChannelParticipant(msg.channel_id, msg.user_id);
 			webrtcManager.onUserLeft(msg.user_id);
-			if (msg.user_id !== authStore.user?.id) {
+			if (msg.user_id !== authStore.user?.id && voiceStore.activeCall?.channelId === msg.channel_id) {
 				soundStore.playVoiceLeave();
 			}
 			break;

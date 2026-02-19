@@ -244,33 +244,13 @@
 		return dm?.other_user.id ?? null;
 	}
 
-	/** Encrypt text for a channel (DM or group), with plaintext fallback on error. */
-	async function encryptContent(channelId: string, text: string): Promise<{ ciphertext: number[]; nonce: number[] }> {
-		const channel = channelStore.channels.find(c => c.id === channelId);
-		const isDm = channel?.channel_type === 'dm';
-
-		if (isDm) {
-			const peerUserId = getPeerUserIdForDm(channelId);
-			if (peerUserId) {
-				try {
-					await initCrypto();
-					return await getSessionManager().encryptForPeer(peerUserId, text);
-				} catch (err) {
-					console.error('Encryption failed, sending plaintext:', err);
-					toastStore.error('Encryption unavailable — message sent without E2E encryption');
-				}
-			}
-		} else {
-			try {
-				await initCrypto();
-				return await getSessionManager().encryptForGroup(channelId, text);
-			} catch (err) {
-				console.error('Group encryption failed, sending plaintext:', err);
-				toastStore.error('Encryption unavailable — message sent without E2E encryption');
-			}
-		}
-
-		// Fallback: plaintext
+	/**
+	 * Encode text for a channel.
+	 * E2E encryption is disabled until key backup & multi-device are implemented.
+	 * When re-enabled, this function should encrypt for DMs (Double Ratchet)
+	 * and groups (Sender Keys) via the SessionManager.
+	 */
+	function encryptContent(_channelId: string, text: string): { ciphertext: number[]; nonce: number[] } {
 		return {
 			ciphertext: Array.from(new TextEncoder().encode(text)),
 			nonce: Array.from(crypto.getRandomValues(new Uint8Array(12))),
@@ -2896,10 +2876,17 @@
 	}
 
 	function parseFileMessage(content: string): { file_id: string; filename: string; size: number } | null {
-		try { return JSON.parse(content); } catch { return null; }
+		try {
+			const parsed = JSON.parse(content);
+			if (parsed && typeof parsed.file_id === 'string' && typeof parsed.filename === 'string') {
+				return parsed;
+			}
+			return null;
+		} catch { return null; }
 	}
 
 	function formatFileSize(bytes: number): string {
+		if (!Number.isFinite(bytes) || bytes < 0) return 'Unknown size';
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 		if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -5120,6 +5107,16 @@
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
 						Send Feedback
 					</button>
+					{#if authStore.user?.is_admin || authStore.user?.is_owner}
+					<a
+						href="/admin"
+						onclick={() => { showUserMenu = false; }}
+						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--accent)] transition hover:bg-white/5"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+						Admin Panel
+					</a>
+					{/if}
 					<div class="my-1 h-px bg-white/10"></div>
 					<button
 						onclick={() => { webrtcManager.leaveCall(); authStore.logout(); goto('/login'); }}
@@ -5718,7 +5715,8 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-				<div bind:this={messageListEl} role="log" aria-live="polite" aria-label="Messages" class="min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6 md:py-4" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
+				<div bind:this={messageListEl} role="log" aria-live="polite" aria-label="Messages" class="min-h-0 flex-1 overflow-y-auto" onscroll={handleMessageScroll} onclick={handleCodeCopyClick}>
+				<div class="mx-auto max-w-5xl px-3 py-2 md:px-6 md:py-4">
 					{#if loadingOlderError}
 						<div class="mb-4 rounded-lg border border-[var(--danger)]/20 bg-[var(--danger)]/5 px-4 py-3 text-center">
 							<p class="text-sm text-[var(--danger)]">Failed to load older messages</p>
@@ -5932,6 +5930,12 @@
 											{/await}
 										</div>
 									{:else}
+										{#if isEncryptedMessage(msg.content)}
+										<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+											<svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+											<span class="text-sm italic text-amber-300/80">Encrypted file (E2E decryption not available)</span>
+										</div>
+										{:else}
 										<div class="mt-1 inline-flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-[var(--bg-secondary)] px-3 py-2">
 											<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 												<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -5939,6 +5943,7 @@
 											</svg>
 											<span class="truncate text-sm text-[var(--text-primary)]" title={msg.content}>{msg.content}</span>
 										</div>
+										{/if}
 									{/if}
 								{:else}
 									{#if msg.encryptionStatus === 'decryption_failed'}
@@ -6227,6 +6232,7 @@
 						</div>
 					{/if}
 				</div>
+				</div>
 
 				<!-- Context menu -->
 				{#if contextMenuMessageId}
@@ -6456,7 +6462,7 @@
 					</div>
 				{/if}
 				<!-- Message input -->
-				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative bg-[var(--bg-primary)] {isReadOnlyForMe ? 'hidden' : ''} px-2 py-2 md:p-4">
+				<form onsubmit={sendMessage} class="{replyingTo ? '' : 'border-t border-white/10'} relative mx-auto max-w-5xl bg-[var(--bg-primary)] {isReadOnlyForMe ? 'hidden' : ''} px-2 py-2 md:p-4">
 					<!-- Emoji autocomplete popup -->
 					{#if showEmojiPopup && emojiResults.length > 0}
 						<div class="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-white/10 bg-[var(--bg-secondary)] shadow-lg overflow-hidden z-10">
@@ -7084,6 +7090,11 @@
 											<span class="shrink-0 text-xs text-[var(--text-secondary)]">Download unavailable</span>
 										{/await}
 									</div>
+								{:else}
+									<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+										<svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+										<span class="text-sm italic text-amber-300/80">Encrypted file (E2E decryption not available)</span>
+									</div>
 								{/if}
 							{:else}
 								{@const imageUrls = extractImageUrls(activeThreadRoot.content)}
@@ -7223,6 +7234,11 @@
 													{:catch}
 														<span class="shrink-0 text-xs text-[var(--text-secondary)]">Download unavailable</span>
 													{/await}
+												</div>
+											{:else}
+												<div class="mt-1 inline-flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+													<svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+													<span class="text-sm italic text-amber-300/80">Encrypted file (E2E decryption not available)</span>
 												</div>
 											{/if}
 										{:else}

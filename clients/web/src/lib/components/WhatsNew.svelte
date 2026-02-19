@@ -16,6 +16,20 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.49',
+			date: '2026-02-19',
+			changes: [
+				'Fix: disabled E2E encryption until key backup is implemented — prevents unreadable messages',
+				'Fix: encrypted file messages now show a proper placeholder instead of "NaN GB"',
+				'Fix: theme flash on page load eliminated — colors apply instantly before render',
+				'Fix: online/offline presence now syncs correctly on connect',
+				'Fix: voice join/leave sounds only play for users in the same call',
+				'Fix: avatars and icons now update immediately after upload (cache-busting)',
+				'Improved: admin panel link added to mobile user menu for admin users',
+				'Improved: chat area width capped on ultrawide monitors for comfortable reading',
+			]
+		},
+		{
 			version: '0.18.48',
 			date: '2026-02-19',
 			changes: [

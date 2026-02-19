@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chatalot-v6';
+const CACHE_NAME = 'chatalot-v7';
 const STATIC_ASSETS = [
 	'/',
 	'/manifest.json',

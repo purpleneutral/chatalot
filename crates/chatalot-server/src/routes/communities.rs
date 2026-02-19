@@ -1243,7 +1243,8 @@ async fn upload_community_icon(
     let file_path = asset_dir.join(&filename);
     write_file(&file_path, &data).await?;
 
-    let icon_url = format!("/api/community-assets/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let icon_url = format!("/api/community-assets/{filename}?v={ts}");
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
@@ -1285,7 +1286,8 @@ async fn upload_community_banner(
     let file_path = asset_dir.join(&filename);
     write_file(&file_path, &data).await?;
 
-    let banner_url = format!("/api/community-assets/{filename}");
+    let ts = chrono::Utc::now().timestamp();
+    let banner_url = format!("/api/community-assets/{filename}?v={ts}");
     let community = community_repo::update_community(
         &state.db,
         ctx.community_id,
