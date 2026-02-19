@@ -830,15 +830,19 @@
 				const members = await getChannelMembers(channelStore.activeChannelId);
 				memberStore.setMembers(channelStore.activeChannelId, members);
 				// Populate user cache from member info
-				userStore.setUsers(members.map(m => ({
-					id: m.user_id,
-					username: m.username,
-					display_name: m.display_name,
-					avatar_url: m.avatar_url,
-					banner_url: null,
-					status: 'online',
-					custom_status: null
-				})));
+				userStore.setUsers(members.map(m => {
+					const existing = userStore.getUser(m.user_id);
+					return {
+						...existing,
+						id: m.user_id,
+						username: m.username,
+						display_name: m.display_name,
+						avatar_url: m.avatar_url,
+						banner_url: existing?.banner_url ?? null,
+						status: existing?.status ?? 'online',
+						custom_status: existing?.custom_status ?? null
+					};
+				}));
 			} catch (err) {
 				toastStore.error('Failed to load members');
 			} finally {
@@ -1846,15 +1850,19 @@
 			.then((members) => {
 				if (thisLoadId !== channelLoadId) return; // stale
 				memberStore.setMembers(channelId, members);
-				userStore.setUsers(members.map(m => ({
-					id: m.user_id,
-					username: m.username,
-					display_name: m.display_name,
-					avatar_url: m.avatar_url,
-					banner_url: null,
-					status: 'online',
-					custom_status: null
-				})));
+				userStore.setUsers(members.map(m => {
+					const existing = userStore.getUser(m.user_id);
+					return {
+						...existing,
+						id: m.user_id,
+						username: m.username,
+						display_name: m.display_name,
+						avatar_url: m.avatar_url,
+						banner_url: existing?.banner_url ?? null,
+						status: existing?.status ?? 'online',
+						custom_status: existing?.custom_status ?? null
+					};
+				}));
 			})
 			.catch((err) => console.warn('Failed to load channel members:', err));
 
@@ -1975,15 +1983,19 @@
 			getChannelMembers(channelId)
 				.then((members) => {
 					memberStore.setMembers(channelId, members);
-					userStore.setUsers(members.map(m => ({
-						id: m.user_id,
-						username: m.username,
-						display_name: m.display_name,
-						avatar_url: m.avatar_url,
-						banner_url: null,
-						status: 'online',
-						custom_status: null
-					})));
+					userStore.setUsers(members.map(m => {
+						const existing = userStore.getUser(m.user_id);
+						return {
+							...existing,
+							id: m.user_id,
+							username: m.username,
+							display_name: m.display_name,
+							avatar_url: m.avatar_url,
+							banner_url: existing?.banner_url ?? null,
+							status: existing?.status ?? 'online',
+							custom_status: existing?.custom_status ?? null
+						};
+					}));
 				})
 				.catch(console.error);
 		}

@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.55',
+			date: '2026-02-18',
+			changes: [
+				'Fix: "Remove banner" button now works correctly',
+				'Fix: uploaded profile banners now show on profile cards instead of solid color',
+			]
+		},
+		{
 			version: '0.18.54',
 			date: '2026-02-18',
 			changes: [

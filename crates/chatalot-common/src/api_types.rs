@@ -91,7 +91,7 @@ pub struct UserPublic {
     pub username: String,
     pub display_name: String,
     pub avatar_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub banner_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub voice_background_url: Option<String>,

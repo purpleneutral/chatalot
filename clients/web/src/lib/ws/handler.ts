@@ -382,14 +382,16 @@ export async function handleServerMessage(msg: ServerMessage) {
 			wsClient.send({ type: 'subscribe', channel_ids: [msg.channel_id] });
 
 			// Add the other user to the user cache
+			const existingDmUser = userStore.getUser(msg.other_user_id);
 			userStore.setUser({
+				...existingDmUser,
 				id: msg.other_user_id,
 				username: msg.other_user_username,
 				display_name: msg.other_user_display_name ?? msg.other_user_username,
 				avatar_url: msg.other_user_avatar_url,
-				banner_url: null,
-				status: 'online',
-				custom_status: null
+				banner_url: existingDmUser?.banner_url ?? null,
+				status: existingDmUser?.status ?? 'online',
+				custom_status: existingDmUser?.custom_status ?? null
 			});
 
 			// Notify the UI to add this DM to the sidebar

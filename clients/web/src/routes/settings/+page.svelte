@@ -433,7 +433,7 @@
 		profileSaving = true;
 		profileError = '';
 		try {
-			const updated = await updateProfile({ banner_url: null });
+			const updated = await updateProfile({ banner_url: '' });
 			authStore.updateUser(updated);
 			userStore.setUser(updated);
 			setProfileMessage('Banner removed.');
