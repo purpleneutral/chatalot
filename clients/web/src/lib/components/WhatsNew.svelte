@@ -16,10 +16,10 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.18.64',
+			version: '0.18.65',
 			date: '2026-02-18',
 			changes: [
-				'Voice channels in the sidebar now show a "Join Voice" button when you\'re not already in the call',
+				'Voice channels in the sidebar show an inline "Join" button on the same row as the channel name',
 			]
 		},
 		{
