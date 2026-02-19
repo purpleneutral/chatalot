@@ -16,11 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.63',
+			date: '2026-02-18',
+			changes: [
+				'Voice participant tiles now fill the entire panel — single user fills full area, tiles scale dynamically with divider drag',
+			]
+		},
+		{
 			version: '0.18.62',
 			date: '2026-02-18',
 			changes: [
 				'Voice/chat divider is now draggable — resize the voice panel by dragging the handle between voice and messages',
-				'Voice participant tiles auto-scale based on available space',
 			]
 		},
 		{

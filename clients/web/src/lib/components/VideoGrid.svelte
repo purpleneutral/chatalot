@@ -483,12 +483,12 @@
 
 		{:else}
 			<!-- ═══ STANDARD MODE: No screen share — normal participant grid ═══ -->
-			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : 'h-full'}">
+			<div class="grid {gridCols} gap-1 overflow-hidden p-2 {expanded ? 'flex-1' : 'h-full'}" style="grid-auto-rows: 1fr;">
 				<!-- Local video/avatar -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-					style="aspect-ratio: 16/9; min-height: {expanded ? '120px' : '40px'}; {!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
+					class="relative flex min-h-0 items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(authStore.user?.id ?? '') ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+					style="{!hasVideo && localBgStyle ? localBgStyle : 'background: var(--bg-tertiary);'}"
 					oncontextmenu={(e) => openVolumeMenu(e, authStore.user?.id ?? '')}
 				>
 					{#if hasVideo}
@@ -519,8 +519,8 @@
 					{@const remoteBg = remoteVoiceBgStyle(userId)}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
-						class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-						style="aspect-ratio: 16/9; min-height: {expanded ? '120px' : '40px'}; {remoteBg || 'background: var(--bg-tertiary);'}"
+						class="relative flex min-h-0 items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+						style="{remoteBg || 'background: var(--bg-tertiary);'}"
 						oncontextmenu={(e) => openVolumeMenu(e, userId)}
 					>
 						{#if !voiceStore.hasRemoteVideo(userId)}
