@@ -114,6 +114,11 @@ pub fn routes() -> Router<Arc<AppState>> {
             "/groups/{group_id}/channels/{channel_id}/voice-background",
             post(upload_channel_voice_background),
         )
+}
+
+/// Asset routes that need no auth (served via <img> tags in the browser).
+pub fn asset_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route("/group-assets/{filename}", get(serve_group_asset))
 }
 

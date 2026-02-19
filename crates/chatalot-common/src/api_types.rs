@@ -371,11 +371,11 @@ pub struct GroupResponse {
     pub discoverable: bool,
     pub assigned_member_id: Option<Uuid>,
     pub allow_invites: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub icon_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub banner_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub accent_color: Option<String>,
 }
 
@@ -733,9 +733,9 @@ pub struct CommunityResponse {
     pub who_can_create_groups: String,
     pub who_can_create_invites: String,
     pub discoverable: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub banner_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub community_theme: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub welcome_message: Option<String>,

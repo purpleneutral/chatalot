@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.59',
+			date: '2026-02-18',
+			changes: [
+				'Fix: community icons, banners, group icons/banners, and custom emojis now load correctly (were blocked by auth middleware)',
+			]
+		},
+		{
 			version: '0.18.58',
 			date: '2026-02-18',
 			changes: [

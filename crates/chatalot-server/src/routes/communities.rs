@@ -44,7 +44,7 @@ fn community_role_level(role: &str) -> u8 {
     }
 }
 
-/// Public routes (no community gate — user may not be member).
+/// Public routes (no community gate — user may not be member, but auth required).
 pub fn public_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route(
@@ -56,8 +56,13 @@ pub fn public_routes() -> Router<Arc<AppState>> {
             "/community-invites/{code}/accept",
             post(accept_community_invite),
         )
-        .route("/emojis/{id}", get(serve_emoji))
+}
+
+/// Asset routes that need no auth (served via <img> tags in the browser).
+pub fn asset_routes() -> Router<Arc<AppState>> {
+    Router::new()
         .route("/community-assets/{filename}", get(serve_community_asset))
+        .route("/emojis/{id}", get(serve_emoji))
 }
 
 /// Community-scoped routes (behind community_gate middleware).

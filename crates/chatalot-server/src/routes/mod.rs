@@ -55,7 +55,9 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(legal::routes())
         .merge(account::public_routes())
         .merge(webhooks::public_routes())
-        .merge(push::public_routes());
+        .merge(push::public_routes())
+        .merge(communities::asset_routes())
+        .merge(groups::asset_routes());
 
     // Community-gated routes (require auth + community membership)
     let community_gated_routes = Router::new().merge(communities::gated_routes()).layer(
