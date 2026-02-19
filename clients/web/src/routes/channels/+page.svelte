@@ -5090,6 +5090,57 @@
 						{/if}
 					{/each}
 
+					<!-- Standalone channels (not in any group) -->
+					{@const standaloneChannels = channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id && (!sidebarFilter || (c.name ?? '').toLowerCase().includes(sidebarFilter.toLowerCase())))}
+					{#if standaloneChannels.length > 0}
+						<div class="mt-2">
+							<p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Channels</p>
+							{#each standaloneChannels as channel (channel.id)}
+								{@const unreadCount = messageStore.getUnreadCount(channel.id)}
+								<div class="group/ch flex items-center">
+									<button
+										onclick={() => selectChannel(channel.id)}
+										class="flex flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition {channelStore.activeChannelId === channel.id ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
+									>
+										{#if channel.channel_type === 'voice'}
+											<span class="text-[var(--text-secondary)]" title="Voice channel">🔊</span>
+										{:else}
+											<span class="text-[var(--text-secondary)]">#</span>
+										{/if}
+										<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''}">{channel.name}</span>
+										{#if unreadCount > 0 && channelStore.activeChannelId !== channel.id}
+											<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
+												{unreadCount > 99 ? '99+' : unreadCount}
+											</span>
+										{/if}
+									</button>
+									{#if channel.channel_type === 'voice' && voiceStore.activeCall?.channelId !== channel.id}
+										<button
+											onclick={(e) => { e.stopPropagation(); selectChannel(channel.id); webrtcManager.joinCall(channel.id); }}
+											class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-[var(--success)] transition hover:bg-[var(--success)]/15"
+											title="Join voice channel"
+										>
+											Join
+										</button>
+									{/if}
+								</div>
+								{#if channel.channel_type === 'voice' && voiceStore.getChannelParticipants(channel.id).length > 0}
+									<div class="ml-8 space-y-0.5 pb-1">
+										{#each voiceStore.getChannelParticipants(channel.id) as uid (uid)}
+											<button
+												class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]"
+												onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}
+											>
+												<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
+												<span class="truncate">{userStore.getDisplayName(uid)}</span>
+											</button>
+										{/each}
+									</div>
+								{/if}
+							{/each}
+						</div>
+					{/if}
+
 					{#if !initialized}
 						<!-- Loading skeleton -->
 						<div class="space-y-2">
@@ -5097,7 +5148,7 @@
 								<div class="h-9 animate-pulse rounded-lg bg-[var(--bg-tertiary)]"></div>
 							{/each}
 						</div>
-					{:else if groupStore.groups.length === 0}
+					{:else if groupStore.groups.length === 0 && standaloneChannels.length === 0}
 						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
 							<p class="text-sm text-[var(--text-primary)]">No groups yet</p>
 							<p class="mt-1 text-xs text-[var(--text-secondary)]">Create a group, discover existing ones, or join via an invite link.</p>
@@ -5912,16 +5963,7 @@
 					{:else if loadingOlder}
 						<Skeleton variant="message" count={3} />
 					{/if}
-					{#if initialized && messages.length === 0 && !loadingOlder}
-						<div class="flex h-full items-center justify-center">
-							<div class="text-center">
-								<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-3 h-12 w-12 text-[var(--text-secondary)] opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-								<p class="text-sm text-[var(--text-primary)]">No messages yet</p>
-								<p class="mt-1 text-xs text-[var(--text-secondary)] opacity-70">Be the first to say something!</p>
-							</div>
-						</div>
-					{/if}
-					{#each messages as msg, idx (msg.id)}
+						{#each messages as msg, idx (msg.id)}
 						{@const grouped = isGroupedMessage(messages, idx) && !shouldShowDateSeparator(messages, idx)}
 						<!-- Unread separator -->
 						{#if unreadSeparatorMsgId && msg.id === unreadSeparatorMsgId}

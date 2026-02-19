@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.66',
+			date: '2026-02-18',
+			changes: [
+				'Standalone channels (not in a group) now appear in the sidebar under a "Channels" section',
+				'Fix: removed duplicate "No messages yet" empty state that appeared alongside the channel welcome message',
+			]
+		},
+		{
 			version: '0.18.65',
 			date: '2026-02-18',
 			changes: [
