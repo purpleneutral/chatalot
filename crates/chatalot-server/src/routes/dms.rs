@@ -107,6 +107,7 @@ fn user_to_public(u: &User) -> UserPublic {
         display_name: u.display_name.clone(),
         avatar_url: u.avatar_url.clone(),
         banner_url: u.banner_url.clone(),
+        voice_background_url: u.voice_background_url.clone(),
         status: u.status.clone(),
         custom_status: u.custom_status.clone(),
         bio: u.bio.clone(),

@@ -177,6 +177,16 @@
 		return `background: url("${channelVoiceBackground}") center/cover no-repeat;`;
 	});
 
+	// Compute CSS background style for a remote user's voice tile
+	function remoteVoiceBgStyle(userId: string): string {
+		const user = userStore.getUser(userId);
+		const url = user?.voice_background_url;
+		if (!url) return '';
+		// Block characters that can break out of url("...") or inject CSS
+		if (/[;'"\\(){}]/.test(url)) return '';
+		return `background: url("${url}") center/cover no-repeat;`;
+	}
+
 	// Context menu state
 	let menuUserId = $state<string | null>(null);
 	let menuPos = $state({ x: 0, y: 0 });
@@ -314,10 +324,11 @@
 
 					<!-- Remote participant tiles -->
 					{#each remoteEntries as [userId, _stream] (userId)}
+						{@const remoteBg = remoteVoiceBgStyle(userId)}
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div
-							class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-							style="aspect-ratio: 16/9;"
+							class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+							style="aspect-ratio: 16/9; {remoteBg || 'background: var(--bg-tertiary);'}"
 							oncontextmenu={(e) => openVolumeMenu(e, userId)}
 						>
 							{#if !voiceStore.hasRemoteVideo(userId)}
@@ -503,10 +514,11 @@
 
 				<!-- Remote participants -->
 				{#each remoteEntries as [userId, _stream] (userId)}
+					{@const remoteBg = remoteVoiceBgStyle(userId)}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
-						class="relative flex items-center justify-center rounded-lg bg-[var(--bg-tertiary)] overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
-						style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : totalParticipants > 9 ? 'clamp(40px, 8vh, 80px)' : 'clamp(80px, 15vh, 120px)'};"
+						class="relative flex items-center justify-center rounded-lg overflow-hidden transition-shadow duration-200 {voiceStore.isSpeaking(userId) ? 'ring-2 ring-[var(--success)] shadow-[0_0_8px_var(--success)]' : ''}"
+						style="aspect-ratio: 16/9; min-height: {expanded ? 'clamp(120px, 20vh, 200px)' : totalParticipants > 9 ? 'clamp(40px, 8vh, 80px)' : 'clamp(80px, 15vh, 120px)'}; {remoteBg || 'background: var(--bg-tertiary);'}"
 						oncontextmenu={(e) => openVolumeMenu(e, userId)}
 					>
 						{#if !voiceStore.hasRemoteVideo(userId)}

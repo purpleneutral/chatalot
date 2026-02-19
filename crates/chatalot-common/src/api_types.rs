@@ -93,6 +93,8 @@ pub struct UserPublic {
     pub avatar_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub banner_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub voice_background_url: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

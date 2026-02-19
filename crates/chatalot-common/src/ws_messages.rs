@@ -316,6 +316,7 @@ pub enum ServerMessage {
         display_name: String,
         avatar_url: Option<String>,
         banner_url: Option<String>,
+        voice_background_url: Option<String>,
         custom_status: Option<String>,
         bio: Option<String>,
         pronouns: Option<String>,

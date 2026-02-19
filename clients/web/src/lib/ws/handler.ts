@@ -542,6 +542,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 					display_name: msg.display_name,
 					avatar_url: msg.avatar_url,
 					banner_url: msg.banner_url,
+					voice_background_url: msg.voice_background_url,
 					custom_status: msg.custom_status,
 					bio: msg.bio,
 					pronouns: msg.pronouns,

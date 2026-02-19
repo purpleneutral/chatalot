@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.50',
+			date: '2026-02-18',
+			changes: [
+				'Voice backgrounds are now visible to other call participants (custom uploaded images)',
+				'Voice background images persist on the server — no longer lost when switching browsers',
+				'Switching away from custom image background correctly clears it for other users',
+			]
+		},
+		{
 			version: '0.18.49',
 			date: '2026-02-19',
 			changes: [

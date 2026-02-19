@@ -286,6 +286,7 @@ pub async fn update_profile(
     custom_status: Option<Option<&str>>,
     bio: Option<Option<&str>>,
     pronouns: Option<Option<&str>>,
+    voice_background_url: Option<Option<&str>>,
 ) -> Result<Option<User>, sqlx::Error> {
     // Build dynamic update to only touch provided fields
     let mut set_clauses = vec!["updated_at = NOW()".to_string()];
@@ -313,6 +314,10 @@ pub async fn update_profile(
     }
     if pronouns.is_some() {
         set_clauses.push(format!("pronouns = ${param_idx}"));
+        param_idx += 1;
+    }
+    if voice_background_url.is_some() {
+        set_clauses.push(format!("voice_background_url = ${param_idx}"));
         let _ = param_idx;
     }
 
@@ -339,6 +344,9 @@ pub async fn update_profile(
     }
     if let Some(p) = pronouns {
         q = q.bind(p);
+    }
+    if let Some(vb) = voice_background_url {
+        q = q.bind(vb);
     }
 
     q.fetch_optional(pool).await

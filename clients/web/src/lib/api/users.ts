@@ -6,6 +6,7 @@ export interface UserPublic {
 	display_name: string;
 	avatar_url: string | null;
 	banner_url: string | null;
+	voice_background_url?: string | null;
 	status: string;
 	custom_status: string | null;
 	bio?: string | null;

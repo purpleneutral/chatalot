@@ -28,7 +28,10 @@ pub fn routes() -> Router<Arc<AppState>> {
         .route("/account/profile", put(update_profile))
         .route("/account/avatar", post(upload_avatar))
         .route("/account/banner", post(upload_banner))
-        .route("/account/voice-background", post(upload_voice_background))
+        .route(
+            "/account/voice-background",
+            post(upload_voice_background).delete(clear_voice_background),
+        )
         .route("/account", delete(delete_account))
         .route("/account/logout-all", post(logout_all))
         .route("/account/sessions", get(list_sessions))
@@ -67,6 +70,7 @@ async fn get_me(
         display_name: user.display_name,
         avatar_url: user.avatar_url,
         banner_url: user.banner_url,
+        voice_background_url: user.voice_background_url,
         status: user.status,
         custom_status: user.custom_status,
         bio: user.bio,
@@ -206,6 +210,7 @@ async fn update_profile(
         custom_status.map(|s| if s.is_empty() { None } else { Some(s) }),
         bio.map(|s| if s.is_empty() { None } else { Some(s) }),
         pronouns.map(|s| if s.is_empty() { None } else { Some(s) }),
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
@@ -216,6 +221,7 @@ async fn update_profile(
         display_name: user.display_name.clone(),
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
+        voice_background_url: user.voice_background_url.clone(),
         custom_status: user.custom_status.clone(),
         bio: user.bio.clone(),
         pronouns: user.pronouns.clone(),
@@ -227,6 +233,7 @@ async fn update_profile(
         display_name: user.display_name,
         avatar_url: user.avatar_url,
         banner_url: user.banner_url,
+        voice_background_url: user.voice_background_url,
         status: user.status,
         custom_status: user.custom_status,
         bio: user.bio,
@@ -325,6 +332,7 @@ async fn upload_avatar(
         None,
         None,
         None,
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".into()))?;
@@ -335,6 +343,7 @@ async fn upload_avatar(
         display_name: user.display_name.clone(),
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
+        voice_background_url: user.voice_background_url.clone(),
         custom_status: user.custom_status.clone(),
         bio: user.bio.clone(),
         pronouns: user.pronouns.clone(),
@@ -346,6 +355,7 @@ async fn upload_avatar(
         display_name: user.display_name,
         avatar_url: user.avatar_url,
         banner_url: user.banner_url,
+        voice_background_url: user.voice_background_url,
         status: user.status,
         custom_status: user.custom_status,
         bio: user.bio,
@@ -440,6 +450,7 @@ async fn upload_banner(
         None,
         None,
         None,
+        None,
     )
     .await?
     .ok_or_else(|| AppError::NotFound("user not found".into()))?;
@@ -450,6 +461,7 @@ async fn upload_banner(
         display_name: user.display_name.clone(),
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
+        voice_background_url: user.voice_background_url.clone(),
         custom_status: user.custom_status.clone(),
         bio: user.bio.clone(),
         pronouns: user.pronouns.clone(),
@@ -461,6 +473,7 @@ async fn upload_banner(
         display_name: user.display_name,
         avatar_url: user.avatar_url,
         banner_url: user.banner_url,
+        voice_background_url: user.voice_background_url,
         status: user.status,
         custom_status: user.custom_status,
         bio: user.bio,
@@ -546,7 +559,67 @@ async fn upload_voice_background(
 
     let ts = chrono::Utc::now().timestamp();
     let url = format!("/api/avatars/{filename}?v={ts}");
+
+    // Persist voice background URL to user profile
+    let user = user_repo::update_profile(
+        &state.db,
+        claims.sub,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(Some(&url)),
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("user not found".into()))?;
+
+    // Broadcast so other users in voice calls see the updated background
+    state.connections.broadcast_all(ServerMessage::UserProfileUpdated {
+        user_id: user.id,
+        display_name: user.display_name.clone(),
+        avatar_url: user.avatar_url.clone(),
+        banner_url: user.banner_url.clone(),
+        voice_background_url: user.voice_background_url.clone(),
+        custom_status: user.custom_status.clone(),
+        bio: user.bio.clone(),
+        pronouns: user.pronouns.clone(),
+    });
+
     Ok(Json(serde_json::json!({ "url": url })))
+}
+
+async fn clear_voice_background(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<(), AppError> {
+    let user = user_repo::update_profile(
+        &state.db,
+        claims.sub,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(None), // Clear voice_background_url
+    )
+    .await?
+    .ok_or_else(|| AppError::NotFound("user not found".into()))?;
+
+    state.connections.broadcast_all(ServerMessage::UserProfileUpdated {
+        user_id: user.id,
+        display_name: user.display_name.clone(),
+        avatar_url: user.avatar_url.clone(),
+        banner_url: user.banner_url.clone(),
+        voice_background_url: user.voice_background_url.clone(),
+        custom_status: user.custom_status.clone(),
+        bio: user.bio.clone(),
+        pronouns: user.pronouns.clone(),
+    });
+
+    Ok(())
 }
 
 async fn serve_avatar(

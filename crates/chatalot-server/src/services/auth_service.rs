@@ -217,6 +217,7 @@ fn user_to_public(
         display_name: user.display_name.clone(),
         avatar_url: user.avatar_url.clone(),
         banner_url: user.banner_url.clone(),
+        voice_background_url: user.voice_background_url.clone(),
         status: user.status.clone(),
         custom_status: user.custom_status.clone(),
         bio: user.bio.clone(),

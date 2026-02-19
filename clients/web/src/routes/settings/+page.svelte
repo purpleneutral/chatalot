@@ -12,7 +12,7 @@
 	import { voiceStore } from '$lib/stores/voice.svelte';
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { setupTotp, verifyTotp, disableTotp, regenerateBackupCodes, type TotpSetup } from '$lib/api/totp';
-	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, regenerateRecoveryCode, type SessionInfo } from '$lib/api/account';
+	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, clearVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, regenerateRecoveryCode, type SessionInfo } from '$lib/api/account';
 	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
 	import { initCrypto, getKeyManager } from '$lib/crypto';
 	import { getCrypto } from '$lib/crypto/wasm-loader';
@@ -221,6 +221,10 @@
 			customUrl: voiceBgCustomUrl,
 		};
 		preferencesStore.set('voiceBackground', bg);
+		// Clear server-side voice background when switching away from custom image
+		if (voiceBgType !== 'custom') {
+			clearVoiceBackground().catch(() => {});
+		}
 	}
 
 	function handleVoiceBgUpload(e: Event) {
@@ -1732,7 +1736,7 @@
 					<section class="mb-6 rounded-2xl bg-[var(--bg-secondary)] p-6 shadow-sm">
 						<h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Call Background</h3>
 						<p class="mb-4 text-sm text-[var(--text-secondary)]">
-							Set a background for your video tile when your camera is off.
+							Set a background for your video tile when your camera is off. Custom images are visible to other call participants.
 						</p>
 
 						<!-- Live preview -->
@@ -1811,7 +1815,7 @@
 									<span class="text-xs text-[var(--text-secondary)]">Image set</span>
 								{/if}
 							</div>
-							<p class="mt-2 text-xs text-[var(--text-secondary)]">Max 2MB. PNG, JPEG, WebP, or GIF.</p>
+							<p class="mt-2 text-xs text-[var(--text-secondary)]">Max 10 MB. PNG, JPEG, WebP, or GIF.</p>
 						{/if}
 					</section>
 

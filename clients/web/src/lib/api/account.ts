@@ -62,6 +62,10 @@ export async function uploadVoiceBackground(file: File | Blob): Promise<{ url: s
 	return api.upload('/account/voice-background', 'background', file);
 }
 
+export async function clearVoiceBackground(): Promise<void> {
+	await api.delete('/account/voice-background');
+}
+
 export async function regenerateRecoveryCode(): Promise<{ recovery_code: string }> {
 	return api.post('/account/regenerate-recovery-code', {});
 }

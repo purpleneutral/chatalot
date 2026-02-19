@@ -11,6 +11,7 @@ pub struct User {
     pub password_hash: String,
     pub avatar_url: Option<String>,
     pub banner_url: Option<String>,
+    pub voice_background_url: Option<String>,
     pub status: String,
     pub custom_status: Option<String>,
     pub totp_secret: Option<Vec<u8>>,
