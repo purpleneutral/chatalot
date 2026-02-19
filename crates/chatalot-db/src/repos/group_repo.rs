@@ -421,6 +421,19 @@ pub async fn list_discoverable_groups(
     .await
 }
 
+/// List IDs of public groups in a community (for auto-joining new members).
+pub async fn list_public_group_ids(
+    pool: &PgPool,
+    community_id: Uuid,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM groups WHERE community_id = $1 AND visibility = 'public'",
+    )
+    .bind(community_id)
+    .fetch_all(pool)
+    .await
+}
+
 /// List groups in a community that the user is a member of.
 pub async fn list_community_groups(
     pool: &PgPool,

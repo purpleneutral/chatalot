@@ -131,17 +131,17 @@ export async function deleteChannel(groupId: string, channelId: string): Promise
 
 // ── Group Assets ──
 
-export async function uploadGroupIcon(id: string, file: File): Promise<Group> {
+export async function uploadGroupIcon(id: string, file: File | Blob): Promise<Group> {
 	return api.upload(`/groups/${id}/icon`, 'icon', file);
 }
 
-export async function uploadGroupBanner(id: string, file: File): Promise<Group> {
+export async function uploadGroupBanner(id: string, file: File | Blob): Promise<Group> {
 	return api.upload(`/groups/${id}/banner`, 'banner', file);
 }
 
 // ── Channel Voice Background ──
 
-export async function uploadChannelVoiceBackground(groupId: string, channelId: string, file: File): Promise<Channel> {
+export async function uploadChannelVoiceBackground(groupId: string, channelId: string, file: File | Blob): Promise<Channel> {
 	return api.upload(`/groups/${groupId}/channels/${channelId}/voice-background`, 'background', file);
 }
 

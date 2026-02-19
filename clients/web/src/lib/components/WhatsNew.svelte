@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.48',
+			date: '2026-02-19',
+			changes: [
+				'New: image cropper — crop and adjust images before uploading avatars, banners, and icons',
+				'New: public groups auto-join — new community members are automatically added to all public groups',
+				'Improved: upload size limits raised to 10 MB for all image uploads (avatars, banners, icons)',
+				'Improved: sidebar simplified to two tabs (Groups and DMs) — standalone Channels tab removed',
+				'Fix: logout now clears all service worker caches regardless of version',
+			]
+		},
+		{
 			version: '0.18.47',
 			date: '2026-02-18',
 			changes: [

@@ -91,11 +91,11 @@ export async function updateCommunity(
 	return api.patch<Community>(`/communities/${id}`, body);
 }
 
-export async function uploadCommunityIcon(id: string, file: File): Promise<Community> {
+export async function uploadCommunityIcon(id: string, file: File | Blob): Promise<Community> {
 	return api.upload(`/communities/${id}/icon`, 'icon', file);
 }
 
-export async function uploadCommunityBanner(id: string, file: File): Promise<Community> {
+export async function uploadCommunityBanner(id: string, file: File | Blob): Promise<Community> {
 	return api.upload(`/communities/${id}/banner`, 'banner', file);
 }
 

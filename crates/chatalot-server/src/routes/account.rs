@@ -237,7 +237,7 @@ async fn update_profile(
     }))
 }
 
-const MAX_AVATAR_SIZE: usize = 2 * 1024 * 1024; // 2MB
+const MAX_AVATAR_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 async fn upload_avatar(
@@ -260,7 +260,7 @@ async fn upload_avatar(
                 .await
                 .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
             if bytes.len() > MAX_AVATAR_SIZE {
-                return Err(AppError::Validation("avatar too large (max 2 MB)".into()));
+                return Err(AppError::Validation("avatar too large (max 10 MB)".into()));
             }
             file_data = Some(bytes.to_vec());
         }
@@ -355,7 +355,7 @@ async fn upload_avatar(
     }))
 }
 
-const MAX_BANNER_SIZE: usize = 5 * 1024 * 1024; // 5MB
+const MAX_BANNER_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
 async fn upload_banner(
     State(state): State<Arc<AppState>>,
@@ -377,7 +377,7 @@ async fn upload_banner(
                 .await
                 .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
             if bytes.len() > MAX_BANNER_SIZE {
-                return Err(AppError::Validation("banner too large (max 5 MB)".into()));
+                return Err(AppError::Validation("banner too large (max 10 MB)".into()));
             }
             file_data = Some(bytes.to_vec());
         }
@@ -469,7 +469,7 @@ async fn upload_banner(
     }))
 }
 
-const MAX_VOICE_BG_SIZE: usize = 2 * 1024 * 1024; // 2MB
+const MAX_VOICE_BG_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
 async fn upload_voice_background(
     State(state): State<Arc<AppState>>,
@@ -491,7 +491,7 @@ async fn upload_voice_background(
                 .await
                 .map_err(|e| AppError::Validation(format!("read error: {e}")))?;
             if bytes.len() > MAX_VOICE_BG_SIZE {
-                return Err(AppError::Validation("file too large (max 2 MB)".into()));
+                return Err(AppError::Validation("file too large (max 10 MB)".into()));
             }
             file_data = Some(bytes.to_vec());
         }

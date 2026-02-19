@@ -32,6 +32,7 @@
 	import { getPublicUrl } from '$lib/api/auth';
 	import { listCommunityEmojis, uploadEmoji, deleteEmoji, type CustomEmoji } from '$lib/api/custom-emoji';
 	import Avatar from '$lib/components/Avatar.svelte';
+	import ImageCropper from '$lib/components/ImageCropper.svelte';
 	import { onMount } from 'svelte';
 
 	let activeTab = $state<'overview' | 'members' | 'invites' | 'bans' | 'settings' | 'theme' | 'emoji'>('overview');
@@ -57,6 +58,8 @@
 	let bannerInputEl: HTMLInputElement | undefined = $state();
 	let iconUploading = $state(false);
 	let bannerUploading = $state(false);
+	let cropFile = $state<File | null>(null);
+	let cropTarget = $state<'icon' | 'banner' | null>(null);
 
 	// Welcome message
 	let editWelcomeMessage = $state('');
@@ -388,40 +391,59 @@
 		};
 	}
 
-	async function handleIconUpload(e: Event) {
+	function handleIconUpload(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file || !community) return;
-		iconUploading = true;
-		try {
-			const updated = await uploadCommunityIcon(community.id, file);
-			community = updated;
-			communityStore.updateCommunity(community.id, { icon_url: updated.icon_url });
-			toastStore.success('Icon updated');
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to upload icon');
-		} finally {
-			iconUploading = false;
-			if (iconInputEl) iconInputEl.value = '';
+		cropFile = file;
+		cropTarget = 'icon';
+		if (iconInputEl) iconInputEl.value = '';
+	}
+
+	function handleBannerUpload(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file || !community) return;
+		cropFile = file;
+		cropTarget = 'banner';
+		if (bannerInputEl) bannerInputEl.value = '';
+	}
+
+	async function uploadCroppedImage(blob: Blob) {
+		const target = cropTarget;
+		cropFile = null;
+		cropTarget = null;
+		if (!community) return;
+		if (target === 'icon') {
+			iconUploading = true;
+			try {
+				const updated = await uploadCommunityIcon(community.id, blob);
+				community = updated;
+				communityStore.updateCommunity(community.id, { icon_url: updated.icon_url });
+				toastStore.success('Icon updated');
+			} catch (err: any) {
+				toastStore.error(err?.message || 'Failed to upload icon');
+			} finally {
+				iconUploading = false;
+			}
+		} else if (target === 'banner') {
+			bannerUploading = true;
+			try {
+				const updated = await uploadCommunityBanner(community.id, blob);
+				community = updated;
+				communityStore.updateCommunity(community.id, { banner_url: updated.banner_url });
+				toastStore.success('Banner updated');
+			} catch (err: any) {
+				toastStore.error(err?.message || 'Failed to upload banner');
+			} finally {
+				bannerUploading = false;
+			}
 		}
 	}
 
-	async function handleBannerUpload(e: Event) {
-		const input = e.target as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file || !community) return;
-		bannerUploading = true;
-		try {
-			const updated = await uploadCommunityBanner(community.id, file);
-			community = updated;
-			communityStore.updateCommunity(community.id, { banner_url: updated.banner_url });
-			toastStore.success('Banner updated');
-		} catch (err: any) {
-			toastStore.error(err?.message || 'Failed to upload banner');
-		} finally {
-			bannerUploading = false;
-			if (bannerInputEl) bannerInputEl.value = '';
-		}
+	function cancelCrop() {
+		cropFile = null;
+		cropTarget = null;
 	}
 
 	async function handleSavePolicies() {
@@ -702,7 +724,7 @@
 									</button>
 									<input bind:this={iconInputEl} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onchange={handleIconUpload} class="hidden" />
 								</div>
-								<p class="mt-2 text-center text-xs text-[var(--text-secondary)]">Max 2 MB</p>
+								<p class="mt-2 text-center text-xs text-[var(--text-secondary)]">Max 10 MB</p>
 							</div>
 
 							<!-- Banner upload -->
@@ -728,7 +750,7 @@
 									</button>
 									<input bind:this={bannerInputEl} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onchange={handleBannerUpload} class="hidden" />
 								</div>
-								<p class="mt-2 text-xs text-[var(--text-secondary)]">Max 5 MB</p>
+								<p class="mt-2 text-xs text-[var(--text-secondary)]">Max 10 MB</p>
 							</div>
 						</div>
 
@@ -1240,6 +1262,16 @@
 				{/if}
 			</div>
 		</div>
+	{/if}
+
+	{#if cropFile && cropTarget}
+		<ImageCropper
+			imageFile={cropFile}
+			aspectRatio={cropTarget === 'icon' ? 1 : 3}
+			circular={cropTarget === 'icon'}
+			onConfirm={uploadCroppedImage}
+			onCancel={cancelCrop}
+		/>
 	{/if}
 
 	{#if confirmDialog}

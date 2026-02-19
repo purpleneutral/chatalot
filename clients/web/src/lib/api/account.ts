@@ -50,15 +50,15 @@ export async function revokeSession(sessionId: string): Promise<void> {
 	return api.delete(`/account/sessions/${sessionId}`);
 }
 
-export async function uploadAvatar(file: File): Promise<UserPublic> {
+export async function uploadAvatar(file: File | Blob): Promise<UserPublic> {
 	return api.upload('/account/avatar', 'avatar', file);
 }
 
-export async function uploadBanner(file: File): Promise<UserPublic> {
+export async function uploadBanner(file: File | Blob): Promise<UserPublic> {
 	return api.upload('/account/banner', 'banner', file);
 }
 
-export async function uploadVoiceBackground(file: File): Promise<{ url: string }> {
+export async function uploadVoiceBackground(file: File | Blob): Promise<{ url: string }> {
 	return api.upload('/account/voice-background', 'background', file);
 }
 

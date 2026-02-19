@@ -187,7 +187,6 @@
 					selectChannel(firstGroupChannels[0].id);
 				}
 			} else if (channels.length > 0) {
-				sidebarTab = 'channels';
 				selectChannel(channels[0].id);
 			}
 
@@ -290,9 +289,11 @@
 	let dragCounter = $state(0);
 
 	// Sidebar tab (restore from localStorage)
-	let sidebarTab = $state<'groups' | 'channels' | 'dms'>(
-		(typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:sidebarTab') as 'groups' | 'channels' | 'dms') || 'groups'
-	);
+	let sidebarTab = $state<'groups' | 'dms'>(() => {
+		if (typeof localStorage === 'undefined') return 'groups';
+		const saved = localStorage.getItem('chatalot:sidebarTab');
+		return saved === 'dms' ? 'dms' : 'groups';
+	});
 
 	// Sidebar search filter
 	let sidebarFilter = $state('');
@@ -4496,11 +4497,10 @@
 					<button
 						onclick={() => {
 							if (sidebarTab === 'groups') { showCreateGroup = !showCreateGroup; }
-							else if (sidebarTab === 'channels') { showCreateChannel = !showCreateChannel; }
 							else { showNewDm = !showNewDm; }
 						}}
 						class="rounded-lg p-1.5 text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						title={sidebarTab === 'groups' ? 'Create group' : sidebarTab === 'channels' ? 'Create channel' : 'New DM'}
+						title={sidebarTab === 'groups' ? 'Create group' : 'New DM'}
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 					</button>
@@ -4517,19 +4517,6 @@
 					Groups
 				</button>
 				<button
-					onclick={() => (sidebarTab = 'channels')}
-					role="tab"
-					aria-selected={sidebarTab === 'channels'}
-					class="flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium transition inline-flex {sidebarTab === 'channels' ? 'border-b-2 border-[var(--accent)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
-				>
-					Channels
-					{#if channelUnreadTotal > 0 && sidebarTab !== 'channels'}
-						<span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
-							{channelUnreadTotal > 99 ? '99+' : channelUnreadTotal}
-						</span>
-					{/if}
-				</button>
-				<button
 					onclick={() => (sidebarTab = 'dms')}
 					role="tab"
 					aria-selected={sidebarTab === 'dms'}
@@ -4543,35 +4530,6 @@
 					{/if}
 				</button>
 			</div>
-
-			{#if showCreateChannel && sidebarTab === 'channels'}
-				<form onsubmit={handleCreateChannel} class="border-b border-white/10 p-3">
-					<input
-						type="text"
-						bind:value={newChannelName}
-						placeholder="Channel name..."
-						maxlength="64"
-						onkeydown={(e) => { if (e.key === 'Escape') { showCreateChannel = false; newChannelName = ''; } }}
-						class="w-full rounded-lg border border-white/10 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-					/>
-					<div class="mt-2 flex gap-2">
-						<button
-							type="button"
-							onclick={() => { showCreateChannel = false; newChannelName = ''; }}
-							class="flex-1 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
-						>
-							Cancel
-						</button>
-						<button
-							type="submit"
-							disabled={creatingChannel || !newChannelName.trim()}
-							class="flex-1 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							{creatingChannel ? 'Creating...' : 'Create'}
-						</button>
-					</div>
-				</form>
-			{/if}
 
 			{#if showCreateGroup && sidebarTab === 'groups'}
 				<form onsubmit={handleCreateGroup} class="border-b border-white/10 p-3 space-y-2">
@@ -5025,65 +4983,6 @@
 							{#if discoverGroupsList.length === 0}
 								<p class="text-xs text-[var(--text-secondary)]">No groups to discover.</p>
 							{/if}
-						</div>
-					{/if}
-				{:else if sidebarTab === 'channels'}
-					<h2 class="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-						Channels
-					</h2>
-					{#each channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id && (!sidebarFilter || (c.name ?? '').toLowerCase().includes(sidebarFilter.toLowerCase()))) as channel (channel.id)}
-						{@const unreadCount = messageStore.getUnreadCount(channel.id)}
-						<button
-							onclick={() => selectChannel(channel.id)}
-							class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition {channelStore.activeChannelId === channel.id ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}"
-						>
-							{#if channel.channel_type === 'voice'}
-								<span class="text-[var(--text-secondary)]" title="Voice channel">🔊</span>
-							{:else}
-								<span class="text-[var(--text-secondary)]">#</span>
-							{/if}
-							<span class="flex-1 truncate {unreadCount > 0 ? 'font-semibold text-[var(--text-primary)]' : ''} {channel.archived ? 'opacity-50 italic' : ''}">{channel.name}</span>
-							{#if channel.archived}
-								<span title="Archived"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>
-							{/if}
-							{#if unreadCount > 0 && channelStore.activeChannelId !== channel.id}
-								<span class="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-xs font-bold text-white">
-									{unreadCount > 99 ? '99+' : unreadCount}
-								</span>
-							{/if}
-						</button>
-						<!-- Voice participants -->
-						{#if channel.channel_type === 'voice'}
-							{#if voiceStore.getChannelParticipants(channel.id).length > 0}
-								<div class="ml-6 space-y-0.5 pb-1">
-									{#each voiceStore.getChannelParticipants(channel.id) as uid (uid)}
-										<button
-											class="flex w-full items-center gap-1.5 rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]"
-											onclick={(e) => { e.stopPropagation(); openProfileCard(uid, e); }}
-											oncontextmenu={(e) => {
-												e.preventDefault();
-												e.stopPropagation();
-												voiceContextMenu = { userId: uid, channelId: channel.id, x: e.clientX, y: e.clientY };
-											}}
-										>
-											<div class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]"></div>
-											<span class="truncate" title={userStore.getDisplayName(uid)}>{userStore.getDisplayName(uid)}</span>
-										</button>
-									{/each}
-								</div>
-							{/if}
-						{/if}
-					{/each}
-					{#if !initialized}
-						<div class="space-y-2">
-							{#each [1, 2, 3] as _}
-								<div class="h-9 animate-pulse rounded-lg bg-[var(--bg-tertiary)]"></div>
-							{/each}
-						</div>
-					{:else if channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id).length === 0}
-						<div class="rounded-lg border border-dashed border-white/10 p-4 text-center">
-							<p class="text-sm text-[var(--text-primary)]">No standalone channels</p>
-							<p class="mt-1 text-xs text-[var(--text-secondary)]">Channels here are outside of groups. Try the Groups tab instead.</p>
 						</div>
 					{/if}
 				{:else}

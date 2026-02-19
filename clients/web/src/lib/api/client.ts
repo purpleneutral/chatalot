@@ -161,7 +161,7 @@ class ApiClient {
 	}
 
 	/** Upload a file via multipart/form-data. */
-	async upload<T>(path: string, fieldName: string, file: File, extraFields?: Record<string, string>): Promise<T> {
+	async upload<T>(path: string, fieldName: string, file: File | Blob, extraFields?: Record<string, string>): Promise<T> {
 		const buildFormData = () => {
 			const fd = new FormData();
 			if (extraFields) {
@@ -169,7 +169,7 @@ class ApiClient {
 					fd.append(key, value);
 				}
 			}
-			fd.append(fieldName, file);
+			fd.append(fieldName, file, file instanceof File ? file.name : 'cropped.webp');
 			return fd;
 		};
 

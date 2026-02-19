@@ -5,6 +5,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { updateGroup as apiUpdateGroup, leaveGroup, deleteGroup, createInvite, uploadGroupIcon, uploadGroupBanner } from '$lib/api/groups';
 	import type { Group } from '$lib/api/groups';
+	import ImageCropper from '$lib/components/ImageCropper.svelte';
 
 	let {
 		group,
@@ -48,6 +49,8 @@
 	let bannerInputEl = $state<HTMLInputElement | null>(null);
 	let iconUploading = $state(false);
 	let bannerUploading = $state(false);
+	let cropFile = $state<File | null>(null);
+	let cropTarget = $state<'icon' | 'banner' | null>(null);
 	let editingAccent = $state(false);
 	let editAccentColor = $state('#5865f2');
 	$effect(() => { editName = group.name; });
@@ -168,36 +171,56 @@
 		}
 	}
 
-	async function handleIconUpload(e: Event) {
+	function handleIconUpload(e: Event) {
 		const file = (e.target as HTMLInputElement).files?.[0];
 		if (!file) return;
-		iconUploading = true;
-		try {
-			const updated = await uploadGroupIcon(group.id, file);
-			groupStore.updateGroup(group.id, updated);
-			group = updated;
-			toastStore.success('Group icon updated');
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Failed to upload icon');
-		} finally {
-			iconUploading = false;
+		cropFile = file;
+		cropTarget = 'icon';
+		if (iconInputEl) iconInputEl.value = '';
+	}
+
+	function handleBannerUpload(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		cropFile = file;
+		cropTarget = 'banner';
+		if (bannerInputEl) bannerInputEl.value = '';
+	}
+
+	async function uploadCroppedImage(blob: Blob) {
+		const target = cropTarget;
+		cropFile = null;
+		cropTarget = null;
+		if (target === 'icon') {
+			iconUploading = true;
+			try {
+				const updated = await uploadGroupIcon(group.id, blob);
+				groupStore.updateGroup(group.id, updated);
+				group = updated;
+				toastStore.success('Group icon updated');
+			} catch (err: any) {
+				toastStore.error(err?.message ?? 'Failed to upload icon');
+			} finally {
+				iconUploading = false;
+			}
+		} else if (target === 'banner') {
+			bannerUploading = true;
+			try {
+				const updated = await uploadGroupBanner(group.id, blob);
+				groupStore.updateGroup(group.id, updated);
+				group = updated;
+				toastStore.success('Group banner updated');
+			} catch (err: any) {
+				toastStore.error(err?.message ?? 'Failed to upload banner');
+			} finally {
+				bannerUploading = false;
+			}
 		}
 	}
 
-	async function handleBannerUpload(e: Event) {
-		const file = (e.target as HTMLInputElement).files?.[0];
-		if (!file) return;
-		bannerUploading = true;
-		try {
-			const updated = await uploadGroupBanner(group.id, file);
-			groupStore.updateGroup(group.id, updated);
-			group = updated;
-			toastStore.success('Group banner updated');
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Failed to upload banner');
-		} finally {
-			bannerUploading = false;
-		}
+	function cancelCrop() {
+		cropFile = null;
+		cropTarget = null;
 	}
 
 	async function saveAccentColor() {
@@ -514,6 +537,16 @@
 		</div>
 	</div>
 </div>
+
+{#if cropFile && cropTarget}
+	<ImageCropper
+		imageFile={cropFile}
+		aspectRatio={cropTarget === 'icon' ? 1 : 3}
+		circular={cropTarget === 'icon'}
+		onConfirm={uploadCroppedImage}
+		onCancel={cancelCrop}
+	/>
+{/if}
 
 {#if confirmDialog}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->

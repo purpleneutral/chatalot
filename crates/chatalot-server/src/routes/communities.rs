@@ -22,7 +22,8 @@ use chatalot_common::api_types::{
 };
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::repos::{
-    channel_repo, community_repo, custom_emoji_repo, timeout_repo, user_repo, warning_repo,
+    channel_repo, community_repo, custom_emoji_repo, group_repo, timeout_repo, user_repo,
+    warning_repo,
 };
 use rand::Rng as _;
 
@@ -298,7 +299,19 @@ async fn accept_community_invite(
     }
     community_repo::join_community(&state.db, invite.community_id, claims.sub).await?;
 
-    // Groups are isolated — new members must be explicitly invited to groups
+    // Auto-join all public groups in this community
+    let public_group_ids =
+        group_repo::list_public_group_ids(&state.db, invite.community_id).await?;
+    for gid in public_group_ids {
+        if let Err(e) = group_repo::join_group(&state.db, gid, claims.sub).await {
+            tracing::warn!(
+                "Failed to auto-join user {} to public group {}: {}",
+                claims.sub,
+                gid,
+                e
+            );
+        }
+    }
 
     let community = community_repo::get_community(&state.db, invite.community_id)
         .await?
@@ -1205,8 +1218,8 @@ async fn list_warnings(
 
 // ── Community Assets (Icon / Banner) ──
 
-const MAX_COMMUNITY_ICON_SIZE: usize = 2 * 1024 * 1024; // 2MB
-const MAX_COMMUNITY_BANNER_SIZE: usize = 5 * 1024 * 1024; // 5MB
+const MAX_COMMUNITY_ICON_SIZE: usize = 10 * 1024 * 1024; // 10MB
+const MAX_COMMUNITY_BANNER_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 async fn upload_community_icon(

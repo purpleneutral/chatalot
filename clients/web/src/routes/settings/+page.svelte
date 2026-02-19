@@ -18,6 +18,7 @@
 	import { getCrypto } from '$lib/crypto/wasm-loader';
 	import QRCode from 'qrcode';
 	import Avatar from '$lib/components/Avatar.svelte';
+	import ImageCropper from '$lib/components/ImageCropper.svelte';
 	import { onMount, onDestroy } from 'svelte';
 
 	type Tab = 'profile' | 'appearance' | 'notifications' | 'chat' | 'voice' | 'security' | 'account';
@@ -69,6 +70,10 @@
 	// Banner upload
 	let bannerInputEl: HTMLInputElement | undefined = $state();
 	let bannerUploading = $state(false);
+
+	// Image cropper state
+	let cropFile = $state<File | null>(null);
+	let cropTarget = $state<'avatar' | 'banner' | 'voiceBg' | null>(null);
 
 	// Change password
 	let currentPassword = $state('');
@@ -218,22 +223,12 @@
 		preferencesStore.set('voiceBackground', bg);
 	}
 
-	async function handleVoiceBgUpload(e: Event) {
+	function handleVoiceBgUpload(e: Event) {
 		const file = (e.target as HTMLInputElement).files?.[0];
 		if (!file) return;
-		voiceBgUploading = true;
-		try {
-			const result = await uploadVoiceBackground(file);
-			voiceBgCustomUrl = result.url;
-			voiceBgType = 'custom';
-			applyVoiceBg();
-			toastStore.success('Background uploaded');
-		} catch (err: any) {
-			toastStore.error(err?.message ?? 'Upload failed');
-		} finally {
-			voiceBgUploading = false;
-			if (voiceBgInputEl) voiceBgInputEl.value = '';
-		}
+		cropFile = file;
+		cropTarget = 'voiceBg';
+		if (voiceBgInputEl) voiceBgInputEl.value = '';
 	}
 
 	async function startMicTest() {
@@ -344,23 +339,63 @@
 		}
 	}
 
-	async function handleAvatarUpload(e: Event) {
+	function handleAvatarUpload(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
+		cropFile = file;
+		cropTarget = 'avatar';
+		if (avatarInputEl) avatarInputEl.value = '';
+	}
 
-		avatarUploading = true;
-		profileError = '';
-		try {
-			const updated = await uploadAvatar(file);
-			authStore.updateUser(updated);
-			setProfileMessage('Avatar updated.');
-		} catch (err) {
-			profileError = err instanceof Error ? err.message : 'Failed to upload avatar';
-		} finally {
-			avatarUploading = false;
-			if (avatarInputEl) avatarInputEl.value = '';
+	async function uploadCroppedImage(blob: Blob) {
+		const target = cropTarget;
+		cropFile = null;
+		cropTarget = null;
+
+		if (target === 'avatar') {
+			avatarUploading = true;
+			profileError = '';
+			try {
+				const updated = await uploadAvatar(blob);
+				authStore.updateUser(updated);
+				setProfileMessage('Avatar updated.');
+			} catch (err) {
+				profileError = err instanceof Error ? err.message : 'Failed to upload avatar';
+			} finally {
+				avatarUploading = false;
+			}
+		} else if (target === 'banner') {
+			bannerUploading = true;
+			profileError = '';
+			try {
+				const updated = await uploadBanner(blob);
+				authStore.updateUser(updated);
+				setProfileMessage('Banner updated.');
+			} catch (err) {
+				profileError = err instanceof Error ? err.message : 'Failed to upload banner';
+			} finally {
+				bannerUploading = false;
+			}
+		} else if (target === 'voiceBg') {
+			voiceBgUploading = true;
+			try {
+				const result = await uploadVoiceBackground(blob);
+				voiceBgCustomUrl = result.url;
+				voiceBgType = 'custom';
+				applyVoiceBg();
+				toastStore.success('Background uploaded');
+			} catch (err: any) {
+				toastStore.error(err?.message ?? 'Upload failed');
+			} finally {
+				voiceBgUploading = false;
+			}
 		}
+	}
+
+	function cancelCrop() {
+		cropFile = null;
+		cropTarget = null;
 	}
 
 	async function handleRemoveAvatar() {
@@ -377,23 +412,13 @@
 		}
 	}
 
-	async function handleBannerUpload(e: Event) {
+	function handleBannerUpload(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
-
-		bannerUploading = true;
-		profileError = '';
-		try {
-			const updated = await uploadBanner(file);
-			authStore.updateUser(updated);
-			setProfileMessage('Banner updated.');
-		} catch (err) {
-			profileError = err instanceof Error ? err.message : 'Failed to upload banner';
-		} finally {
-			bannerUploading = false;
-			if (bannerInputEl) bannerInputEl.value = '';
-		}
+		cropFile = file;
+		cropTarget = 'banner';
+		if (bannerInputEl) bannerInputEl.value = '';
 	}
 
 	async function handleRemoveBanner() {
@@ -755,7 +780,7 @@
 							/>
 						</div>
 						<div class="mt-2 flex items-center justify-between">
-							<span class="text-xs text-[var(--text-secondary)]">Recommended: 1200x400, max 5 MB</span>
+							<span class="text-xs text-[var(--text-secondary)]">Recommended: 1200x400, max 10 MB</span>
 							{#if authStore.user?.banner_url}
 								<button
 									onclick={handleRemoveBanner}
@@ -2281,5 +2306,16 @@
 				</div>
 			</div>
 		</div>
+	{/if}
+
+	<!-- Image Cropper Modal -->
+	{#if cropFile && cropTarget}
+		<ImageCropper
+			imageFile={cropFile}
+			aspectRatio={cropTarget === 'avatar' ? 1 : cropTarget === 'banner' ? 3 : undefined}
+			circular={cropTarget === 'avatar'}
+			onConfirm={uploadCroppedImage}
+			onCancel={cancelCrop}
+		/>
 	{/if}
 {/if}

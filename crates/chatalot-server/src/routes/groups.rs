@@ -1192,8 +1192,8 @@ async fn accept_invite(
 
 // ── Group Assets (Icon / Banner) ──
 
-const MAX_GROUP_ICON_SIZE: usize = 2 * 1024 * 1024; // 2MB
-const MAX_GROUP_BANNER_SIZE: usize = 5 * 1024 * 1024; // 5MB
+const MAX_GROUP_ICON_SIZE: usize = 10 * 1024 * 1024; // 10MB
+const MAX_GROUP_BANNER_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/webp", "image/gif"];
 
 async fn upload_group_icon(
@@ -1296,7 +1296,7 @@ async fn upload_group_banner(
     Ok(Json(group_to_response(group, count)))
 }
 
-const MAX_VOICE_BG_SIZE: usize = 2 * 1024 * 1024; // 2MB
+const MAX_VOICE_BG_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
 async fn upload_channel_voice_background(
     State(state): State<Arc<AppState>>,
