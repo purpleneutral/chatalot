@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.56',
+			date: '2026-02-18',
+			changes: [
+				'Fix: typing indicator now clears immediately when a message is sent',
+			]
+		},
+		{
 			version: '0.18.55',
 			date: '2026-02-18',
 			changes: [

@@ -555,6 +555,16 @@ async fn handle_client_message(
             .await
             {
                 Ok(stored) => {
+                    // Clear typing indicator now that the message is sent
+                    conn_mgr.clear_typing(channel_id, user_id);
+                    conn_mgr.broadcast_to_channel(
+                        channel_id,
+                        ServerMessage::UserStoppedTyping {
+                            channel_id,
+                            user_id,
+                        },
+                    );
+
                     // Confirm to the sender
                     let _ = tx.send(ServerMessage::MessageSent {
                         id: message_id,

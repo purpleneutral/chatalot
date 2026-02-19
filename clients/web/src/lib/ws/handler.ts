@@ -85,6 +85,9 @@ export async function handleServerMessage(msg: ServerMessage) {
 			};
 			messageStore.addMessage(msg.channel_id, chatMsg);
 
+			// Clear typing indicator for this user since they just sent a message
+			presenceStore.clearTyping(msg.channel_id, msg.sender_id);
+
 			// If this is a thread reply, increment the reply count on the root message
 			if (msg.thread_id) {
 				messageStore.incrementThreadReplyCount(msg.thread_id, msg.created_at);

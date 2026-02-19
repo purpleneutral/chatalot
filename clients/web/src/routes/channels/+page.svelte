@@ -2112,6 +2112,7 @@
 		if (typingTimeout) {
 			clearTimeout(typingTimeout);
 			typingTimeout = null;
+			wsClient.send({ type: 'stop_typing', channel_id: channelStore.activeChannelId });
 		}
 
 		await tick();
