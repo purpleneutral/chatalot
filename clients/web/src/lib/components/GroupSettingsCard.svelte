@@ -174,17 +174,27 @@
 	function handleIconUpload(e: Event) {
 		const file = (e.target as HTMLInputElement).files?.[0];
 		if (!file) return;
+		if (iconInputEl) iconInputEl.value = '';
+		if (file.type === 'image/gif') {
+			cropTarget = 'icon';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'icon';
-		if (iconInputEl) iconInputEl.value = '';
 	}
 
 	function handleBannerUpload(e: Event) {
 		const file = (e.target as HTMLInputElement).files?.[0];
 		if (!file) return;
+		if (bannerInputEl) bannerInputEl.value = '';
+		if (file.type === 'image/gif') {
+			cropTarget = 'banner';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'banner';
-		if (bannerInputEl) bannerInputEl.value = '';
 	}
 
 	async function uploadCroppedImage(blob: Blob) {

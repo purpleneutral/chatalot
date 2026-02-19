@@ -231,9 +231,14 @@
 	function handleVoiceBgUpload(e: Event) {
 		const file = (e.target as HTMLInputElement).files?.[0];
 		if (!file) return;
+		if (voiceBgInputEl) voiceBgInputEl.value = '';
+		if (file.type === 'image/gif') {
+			cropTarget = 'voiceBg';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'voiceBg';
-		if (voiceBgInputEl) voiceBgInputEl.value = '';
 	}
 
 	async function startMicTest() {
@@ -348,9 +353,15 @@
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
+		if (avatarInputEl) avatarInputEl.value = '';
+		// GIFs lose animation when drawn to canvas — skip cropper
+		if (file.type === 'image/gif') {
+			cropTarget = 'avatar';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'avatar';
-		if (avatarInputEl) avatarInputEl.value = '';
 	}
 
 	async function uploadCroppedImage(blob: Blob) {
@@ -424,9 +435,14 @@
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
+		if (bannerInputEl) bannerInputEl.value = '';
+		if (file.type === 'image/gif') {
+			cropTarget = 'banner';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'banner';
-		if (bannerInputEl) bannerInputEl.value = '';
 	}
 
 	async function handleRemoveBanner() {

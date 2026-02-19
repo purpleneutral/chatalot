@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.60',
+			date: '2026-02-18',
+			changes: [
+				'Fix: animated GIFs now stay animated when uploaded as avatars, banners, and icons (cropper is bypassed for GIFs)',
+			]
+		},
+		{
 			version: '0.18.59',
 			date: '2026-02-18',
 			changes: [

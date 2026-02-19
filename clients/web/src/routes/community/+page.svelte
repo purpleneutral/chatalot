@@ -395,18 +395,28 @@
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file || !community) return;
+		if (iconInputEl) iconInputEl.value = '';
+		if (file.type === 'image/gif') {
+			cropTarget = 'icon';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'icon';
-		if (iconInputEl) iconInputEl.value = '';
 	}
 
 	function handleBannerUpload(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file || !community) return;
+		if (bannerInputEl) bannerInputEl.value = '';
+		if (file.type === 'image/gif') {
+			cropTarget = 'banner';
+			uploadCroppedImage(file);
+			return;
+		}
 		cropFile = file;
 		cropTarget = 'banner';
-		if (bannerInputEl) bannerInputEl.value = '';
 	}
 
 	async function uploadCroppedImage(blob: Blob) {
