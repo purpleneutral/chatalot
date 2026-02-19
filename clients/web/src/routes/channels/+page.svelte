@@ -2894,6 +2894,12 @@
 		return [...new Set(allUrls)].filter(u => !IMAGE_URL_TEST.test(u));
 	}
 
+	/** True when the message is just a bare image URL with no other text */
+	const IMAGE_ONLY_RE = /^https?:\/\/[^\s<>"']+\.(png|jpe?g|gif|webp|svg|bmp|ico)(\?[^\s<>"']*)?$/i;
+	function isImageOnly(text: string): boolean {
+		return IMAGE_ONLY_RE.test(text.trim());
+	}
+
 	function parseFileMessage(content: string): { file_id: string; filename: string; size: number } | null {
 		try {
 			const parsed = JSON.parse(content);
@@ -6084,7 +6090,7 @@
 									{:else}
 									{@const imageUrls = extractImageUrls(msg.content)}
 									{@const linkUrls = extractNonImageUrls(msg.content)}
-									<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(msg.content)}</div>
+									{#if !isImageOnly(msg.content)}<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(msg.content)}</div>{/if}
 									{#if imageUrls.length > 0}
 										<div class="mt-2 flex flex-col gap-2">
 											{#each imageUrls as imgUrl}
@@ -7229,7 +7235,7 @@
 							{:else}
 								{@const imageUrls = extractImageUrls(activeThreadRoot.content)}
 								{@const linkUrls = extractNonImageUrls(activeThreadRoot.content)}
-								<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(activeThreadRoot.content)}</div>
+								{#if !isImageOnly(activeThreadRoot.content)}<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(activeThreadRoot.content)}</div>{/if}
 								{#if imageUrls.length > 0}
 									<div class="mt-2 flex flex-col gap-2">
 										{#each imageUrls as imgUrl}
@@ -7374,7 +7380,7 @@
 										{:else}
 											{@const imageUrls = extractImageUrls(reply.content)}
 											{@const linkUrls = extractNonImageUrls(reply.content)}
-											<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(reply.content)}</div>
+											{#if !isImageOnly(reply.content)}<div class="markdown-content mt-0.5 text-sm text-[var(--text-primary)] leading-relaxed">{@html renderMarkdown(reply.content)}</div>{/if}
 											{#if imageUrls.length > 0}
 												<div class="mt-2 flex flex-col gap-2">
 													{#each imageUrls as imgUrl}

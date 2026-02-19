@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.61',
+			date: '2026-02-18',
+			changes: [
+				'GIF and image-only messages now hide the raw URL and show just the image',
+			]
+		},
+		{
 			version: '0.18.60',
 			date: '2026-02-18',
 			changes: [
