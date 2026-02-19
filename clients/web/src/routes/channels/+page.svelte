@@ -6161,7 +6161,7 @@
 											</div>
 										{/if}
 									{:else if activeChannel?.channel_type !== 'dm'}
-										{@const readers = readReceiptStore.getReadersAtMessage(channelStore.activeChannelId, msg.id, messages, authStore.user?.id ?? '')}
+										{@const readers = readReceiptStore.getReadersAtMessage(channelStore.activeChannelId, msg.id, messages, authStore.user?.id ?? '').filter(uid => uid !== msg.senderId)}
 										{#if readers.length > 0}
 											<div class="mt-1 flex items-center gap-0.5" title="{readers.map(uid => getDisplayNameForContext(uid)).join(', ')}">
 												<div class="flex -space-x-1.5">

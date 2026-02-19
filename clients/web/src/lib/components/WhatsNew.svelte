@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.57',
+			date: '2026-02-18',
+			changes: [
+				'Fix: read receipt avatars no longer show the message sender on their own message',
+			]
+		},
+		{
 			version: '0.18.56',
 			date: '2026-02-18',
 			changes: [
