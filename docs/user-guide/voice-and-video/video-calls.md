@@ -97,9 +97,9 @@ Chatalot supports customizable backgrounds for your voice tile (visible when you
   - **Solid color** -- A single color
   - **Gradient** -- Two colors with a configurable angle
   - **Preset** -- Six built-in presets: Fireplace, Aurora, Rain, Sunset, Space, Cozy
-  - **Custom image** -- Upload your own background image
+  - **Custom image** -- Upload your own background image (max 10 MB)
 
-Other participants see your custom background in your voice tile.
+Custom image backgrounds are stored on the server and visible to other call participants. When you upload a custom image, other users in the call see it as your tile background. Presets, solid colors, and gradients are applied locally and are only visible on your own screen.
 
 ## Performance Considerations
 

@@ -36,14 +36,14 @@ Group owners and admins can edit the following settings:
 Upload an icon image for the group.
 
 - **Formats:** PNG, JPEG, WebP, GIF
-- **Max size:** 2 MB
+- **Max size:** 10 MB
 
 ### Banner
 
 Upload a banner image for the group.
 
 - **Formats:** PNG, JPEG, WebP, GIF
-- **Max size:** 5 MB
+- **Max size:** 10 MB
 
 ### Accent Color
 
@@ -76,7 +76,7 @@ For details, see [Channels](../channels/README.md).
 | Channel name | 1--64 characters |
 | Channel topic | up to 512 characters |
 | Slow mode | 0--86,400 seconds (0 = off, max = 24 hours) |
-| Voice background size | 2 MB |
+| Voice background size | 10 MB |
 
 ## Managing Group Invites
 
@@ -181,8 +181,8 @@ Community members can browse discoverable groups using the group discovery featu
 | Visibility | `public` or `private` | `public` | Group Owner/Admin |
 | Discoverable | Boolean | Varies | Group Owner/Admin |
 | Allow invites | Boolean | `true` (regular) / `false` (personal) | Community Moderator+ |
-| Icon | Image (PNG/JPEG/WebP/GIF, 2 MB) | None | Group Owner/Admin |
-| Banner | Image (PNG/JPEG/WebP/GIF, 5 MB) | None | Group Owner/Admin |
+| Icon | Image (PNG/JPEG/WebP/GIF, 10 MB) | None | Group Owner/Admin |
+| Banner | Image (PNG/JPEG/WebP/GIF, 10 MB) | None | Group Owner/Admin |
 | Accent color | Hex color string | None | Group Owner/Admin |
 
 ## Next Steps

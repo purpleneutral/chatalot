@@ -63,7 +63,7 @@ Personal groups have special behavior:
 
 | Visibility | Behavior |
 |-----------|----------|
-| **Public** | All community members are auto-added on creation. Any community member can join freely afterward. Visible in group discovery (if discoverable). |
+| **Public** | All community members are auto-added on creation. New members who join the community later are also auto-added. Any community member can join freely. Visible in group discovery (if discoverable). |
 | **Private** | Only the creator is added. Other members must receive a group invite. Not visible in discovery by default. |
 
 You can change a group's visibility after creation (see [Managing Groups](./managing-groups.md)).

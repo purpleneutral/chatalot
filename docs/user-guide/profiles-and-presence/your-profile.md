@@ -33,7 +33,8 @@ Your avatar is the profile picture that appears next to your messages, in voice 
 1. In the **Avatar** section, hover over your current avatar.
 2. Click the camera icon that appears.
 3. Select an image file from your computer.
-4. The avatar uploads and updates immediately.
+4. An image cropper opens, letting you adjust the crop area and zoom. Click **Confirm** to upload.
+5. The avatar uploads and updates immediately.
 
 ### Supported Formats
 
@@ -56,11 +57,12 @@ The banner is a wide image displayed at the top of your profile card.
 1. In the **Profile Banner** section, hover over the banner area.
 2. Click the camera icon.
 3. Select an image file.
+4. An image cropper opens with a 3:1 aspect ratio. Adjust the crop area and zoom, then click **Confirm** to upload.
 
 ### Recommended Dimensions
 
 - **1200 x 400 pixels** (3:1 aspect ratio)
-- Maximum file size: **5 MB**
+- Maximum file size: **10 MB**
 - Supported formats: PNG, JPEG, WebP, GIF
 
 ### Removing Your Banner

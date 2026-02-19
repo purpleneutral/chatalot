@@ -216,8 +216,8 @@ If your instance is web-only (no desktop client), you can restrict CORS by modif
 
 The server also enforces:
 - A `DefaultBodyLimit` of 110 MB on all requests
-- Community icon uploads capped at 2 MB
-- Community banner uploads capped at 5 MB
+- Community/group icon uploads capped at 10 MB
+- Community/group banner uploads capped at 10 MB
 - Maximum 50 custom emojis per community
 
 Uploaded files are stored in a sharded directory structure under `FILE_STORAGE_PATH`.

@@ -29,7 +29,7 @@ When someone receives an invite link:
 
 Banned users cannot accept invites. Users who are already members will see a message indicating they have already joined.
 
-> **Tip:** Joining a community does not automatically add the new member to private groups. They will need a separate group invite for those. Public groups, however, auto-include all community members when created.
+> **Tip:** New members are automatically added to all **public** groups when they join a community. Private groups require a separate group invite.
 
 ### Managing Invites
 

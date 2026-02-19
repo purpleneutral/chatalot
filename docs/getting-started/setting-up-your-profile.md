@@ -39,7 +39,8 @@ Your avatar is the profile picture shown next to your messages and in the member
 
 1. On the **Profile** tab in Settings, click the avatar upload area or the **Upload** button.
 2. Select an image file from your device.
-3. The avatar updates immediately after upload.
+3. An image cropper opens, letting you adjust the crop area and zoom before uploading.
+4. Click **Confirm** and the avatar updates immediately.
 
 To remove your avatar, click the **Remove** option. A letter-based placeholder (the first letter of your display name) will be shown instead.
 

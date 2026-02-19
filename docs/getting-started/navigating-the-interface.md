@@ -34,10 +34,9 @@ Click the community name in the top-left to open the community picker. From here
 
 ![Navigation dropdown with groups and channels](../../screenshots/03-nav-dropdown.png)
 
-Click the channel name dropdown (next to the `#` icon) to open the navigation sidebar. It has three tabs:
+Click the channel name dropdown (next to the `#` icon) to open the navigation sidebar. It has two tabs:
 
-- **Groups** -- Shows all groups in the current community. Each group expands to reveal its text and voice channels. You can also discover new groups or join via invite code.
-- **Channels** -- A flat list of all channels you have access to.
+- **Community** -- Shows all groups in the current community. Each group expands to reveal its text and voice channels. Ungrouped channels (if any) appear at the bottom. You can also discover new groups or join via invite code.
 - **DMs** -- Your direct message conversations.
 
 The sidebar includes a **Filter** search box at the top for quickly finding channels by name.

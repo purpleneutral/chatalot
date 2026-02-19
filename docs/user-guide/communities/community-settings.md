@@ -31,14 +31,14 @@ An optional description shown in invite previews (when the community is discover
 The community icon appears in the community picker sidebar. Upload an image to personalize your community.
 
 - **Formats:** PNG, JPEG, WebP, GIF
-- **Max size:** 2 MB
+- **Max size:** 10 MB
 
 ### Banner
 
 A banner image displayed in the community header area.
 
 - **Formats:** PNG, JPEG, WebP, GIF
-- **Max size:** 5 MB
+- **Max size:** 10 MB
 
 ## Policy Settings
 
@@ -129,8 +129,8 @@ This action cannot be undone. Only the community Owner can delete a community.
 |---------|------|---------|-------------|
 | Name | String (1--64 chars) | Set at creation | Admin+ |
 | Description | String (up to 2,048 chars) | None | Admin+ |
-| Icon | Image (PNG/JPEG/WebP/GIF, 2 MB) | None | Admin+ |
-| Banner | Image (PNG/JPEG/WebP/GIF, 5 MB) | None | Admin+ |
+| Icon | Image (PNG/JPEG/WebP/GIF, 10 MB) | None | Admin+ |
+| Banner | Image (PNG/JPEG/WebP/GIF, 10 MB) | None | Admin+ |
 | Who can create groups | Policy (`everyone`/`moderator`/`admin`) | `everyone` | Admin+ |
 | Who can create invites | Policy (`everyone`/`moderator`/`admin`) | `everyone` | Admin+ |
 | Discoverable | Boolean | `true` | Admin+ |

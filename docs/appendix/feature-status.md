@@ -30,6 +30,7 @@ The definitive reference for all Chatalot features and their implementation stat
 | Channel Topics | Complete | Inline editing in channel header |
 | Invite System | Complete | Codes with optional usage limits and expiration (1-8760 hours) |
 | Privacy Controls | Complete | Visibility (public/private) and discoverable toggles per community, group, and channel |
+| Auto-Join Public Groups | Complete | New community members are automatically added to all public groups |
 
 ## Messaging
 
@@ -91,7 +92,7 @@ The definitive reference for all Chatalot features and their implementation stat
 | Tiling Layout | Complete | Stream takes main pane with participant tiles alongside |
 | Focus Mode | Complete | Hide tiles to watch stream full-width; auto-focus option |
 | Persistent Voice Controls | Complete | Stay in sidebar when browsing other channels |
-| Voice Call Backgrounds | Complete | 6 animated presets + solid color, gradient, or custom image |
+| Voice Call Backgrounds | Complete | 6 animated presets + solid color, gradient, or custom image; custom images are server-persisted and visible to other participants |
 | Per-Channel Ambiance | Complete | Admins set shared background for voice channels |
 | Admin Kick from Voice | Complete | Admins can remove participants from calls |
 
@@ -121,8 +122,8 @@ The definitive reference for all Chatalot features and their implementation stat
 | Feature | Status | Notes |
 |---------|--------|-------|
 | User Profile Cards | Complete | Avatar, name, status, role, nickname, join date, bio, pronouns |
-| Profile Banners | Complete | Upload banner image (max 5 MB); PNG, JPEG, WebP, GIF |
-| Avatars | Complete | User-uploaded with GIF support |
+| Profile Banners | Complete | Upload banner image (max 10 MB); PNG, JPEG, WebP, GIF |
+| Avatars | Complete | User-uploaded with GIF support; image cropper before upload |
 | Bio and Pronouns | Complete | Editable in settings; displayed on profile cards |
 | Online/Offline Presence | Complete | Online, idle, do not disturb, invisible |
 | Custom Status | Complete | Text status visible on profile |
@@ -134,7 +135,7 @@ The definitive reference for all Chatalot features and their implementation stat
 |---------|--------|-------|
 | Community Theme Editor | Complete | Override 7 CSS color variables per community |
 | Custom CSS | Complete | Server-side sanitized; allowlisted properties only |
-| Community Icon and Banner | Complete | Upload icon (2 MB) and banner (5 MB) |
+| Community Icon and Banner | Complete | Upload icon (10 MB) and banner (10 MB) |
 | Welcome Message | Complete | Splash screen for first-time visitors |
 | Group Icon and Banner | Complete | Per-group uploads |
 | Group Accent Color | Complete | Displayed on group names in sidebar |

@@ -324,7 +324,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (46 files)
+├── migrations/                # PostgreSQL migrations (47 files)
 ├── scripts/
 │   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
