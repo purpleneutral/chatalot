@@ -124,10 +124,9 @@ async fn update_channel(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateChannelRequest>,
 ) -> Result<Json<ChannelResponse>, AppError> {
-    // Must be channel owner or admin to update
-    let role = channel_repo::get_member_role(&state.db, id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    // Must be channel owner (or instance owner/admin) to update settings
+    let channel_role = channel_repo::get_member_role(&state.db, id, claims.sub).await?;
+    let role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
     if !permissions::can_manage_roles(&role) {
         return Err(AppError::Forbidden);
@@ -285,9 +284,8 @@ async fn update_member_role(
     Path((channel_id, target_user_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<UpdateRoleRequest>,
 ) -> Result<(), AppError> {
-    let actor_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let actor_role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
     if !permissions::can_manage_roles(&actor_role) {
         return Err(AppError::Forbidden);
@@ -299,9 +297,9 @@ async fn update_member_role(
         ));
     }
 
-    if req.role != "admin" && req.role != "member" {
+    if !matches!(req.role.as_str(), "admin" | "moderator" | "member") {
         return Err(AppError::Validation(
-            "role must be 'admin' or 'member'".to_string(),
+            "role must be 'admin', 'moderator', or 'member'".to_string(),
         ));
     }
 
@@ -326,9 +324,8 @@ async fn kick_member(
     Extension(claims): Extension<AccessClaims>,
     Path((channel_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
-    let actor_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let actor_role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
     let target_role = channel_repo::get_member_role(&state.db, channel_id, target_user_id)
         .await?
@@ -414,9 +411,8 @@ async fn ban_member(
         ));
     }
 
-    let actor_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let actor_role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
     let target_role = channel_repo::get_member_role(&state.db, channel_id, target_user_id)
         .await?
@@ -500,11 +496,10 @@ async fn unban_member(
     Extension(claims): Extension<AccessClaims>,
     Path((channel_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
-    let actor_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let actor_role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
-    // Admins and owners can unban
+    // Moderators and above can unban
     if !permissions::can_delete_others_messages(&actor_role) {
         return Err(AppError::Forbidden);
     }
@@ -536,12 +531,11 @@ async fn transfer_ownership(
     Path(channel_id): Path<Uuid>,
     Json(req): Json<TransferOwnershipRequest>,
 ) -> Result<(), AppError> {
-    // Only the current owner can transfer
-    let actor_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    // Only the channel owner (or instance owner/admin) can transfer
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let actor_role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
-    if actor_role != "owner" {
+    if !permissions::can_manage_roles(&actor_role) {
         return Err(AppError::Forbidden);
     }
 

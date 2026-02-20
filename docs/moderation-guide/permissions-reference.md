@@ -31,22 +31,22 @@ Actions that affect user participation.
 
 | Action | Instance Owner | Instance Admin | Community Owner | Community Admin | Community Moderator | Member |
 |--------|:-:|:-:|:-:|:-:|:-:|:-:|
-| Issue warning | Yes | -- | Yes | Yes | Yes | No |
-| View warning history | Yes | -- | Yes | Yes | Yes | No |
-| Delete warning | Yes | -- | Yes | Yes | Yes | No |
-| Apply timeout | Yes | -- | Yes | Yes | Yes | No |
-| Remove timeout | Yes | -- | Yes | Yes | Yes | No |
-| Kick member | Yes | -- | Yes | Yes | Yes* | No |
-| Ban member | Yes | -- | Yes | Yes | Yes* | No |
-| Unban member | Yes | -- | Yes | Yes | Yes | No |
-| View ban list | Yes | -- | Yes | Yes | Yes | No |
+| Issue warning | Yes | Yes | Yes | Yes | Yes | No |
+| View warning history | Yes | Yes | Yes | Yes | Yes | No |
+| Delete warning | Yes | Yes | Yes | Yes | Yes | No |
+| Apply timeout | Yes | Yes | Yes | Yes | Yes | No |
+| Remove timeout | Yes | Yes | Yes | Yes | Yes | No |
+| Kick member | Yes | Yes | Yes | Yes | Yes* | No |
+| Ban member | Yes | Yes | Yes | Yes | Yes* | No |
+| Unban member | Yes | Yes | Yes | Yes | Yes | No |
+| View ban list | Yes | Yes | Yes | Yes | Yes | No |
 | Suspend user (instance-wide) | Yes | Yes | No | No | No | No |
 | Unsuspend user | Yes | Yes | No | No | No | No |
 | Delete user account | Yes | Yes | No | No | No | No |
 
 *Moderators can only kick/ban users with the **Member** role. They cannot act on Admins, other Moderators, or the Owner.
 
-> **Note:** Instance Admin does not automatically grant community-level moderation powers. However, the Instance Owner bypasses all community checks and can moderate in any community.
+> **Note:** Both Instance Owner and Instance Admin bypass community membership checks and can moderate in any community. The Instance Owner receives the synthetic role `instance_owner` (level 5), and the Instance Admin receives `instance_admin` (level 4).
 
 ## Message Actions
 
@@ -55,8 +55,8 @@ Actions related to message content.
 | Action | Instance Owner | Instance Admin | Community Owner | Community Admin | Community Moderator | Member |
 |--------|:-:|:-:|:-:|:-:|:-:|:-:|
 | Delete own messages | Yes | Yes | Yes | Yes | Yes | Yes |
-| Delete others' messages | Yes | -- | Yes | Yes | No | No |
-| Pin/unpin messages | Yes | -- | Yes | Yes | No | No |
+| Delete others' messages | Yes | Yes | Yes | Yes | Yes | No |
+| Pin/unpin messages | Yes | Yes | Yes | Yes | Yes | No |
 | View edit history | Yes | Yes | Yes | Yes | Yes | Yes |
 | Quarantine message | Yes | Yes | No | No | No | No |
 | Unquarantine message | Yes | Yes | No | No | No | No |
@@ -64,7 +64,7 @@ Actions related to message content.
 | Purge user's messages | Yes | Yes | No | No | No | No |
 | Purge entire channel | Yes | Yes | No | No | No | No |
 
-> **Note:** "Delete others' messages" at the community level requires the **Admin** or **Owner** channel role (`role_level >= 1`). Community Moderators cannot delete others' messages.
+> **Note:** "Delete others' messages" requires a channel role of **Moderator** or above (`role_level >= 1`). Instance Owner and Instance Admin can delete messages in any channel, including DMs.
 
 ## Report Actions
 
@@ -85,13 +85,13 @@ Actions related to community settings and structure.
 
 | Action | Instance Owner | Instance Admin | Community Owner | Community Admin | Community Moderator | Member |
 |--------|:-:|:-:|:-:|:-:|:-:|:-:|
-| Edit community settings | Yes | -- | Yes | Yes | No | No |
-| Delete community | Yes | -- | Yes | No | No | No |
-| Transfer ownership | Yes | -- | Yes | No | No | No |
-| Set member role | Yes | -- | Yes | Yes** | No | No |
-| View/manage invites | Yes | -- | Yes | Yes | No | No |
-| Manage custom emoji | Yes | -- | Yes | Yes | No | No |
-| Set member nicknames | Yes | -- | Yes | Yes | No | Own only |
+| Edit community settings | Yes | Yes | Yes | Yes | No | No |
+| Delete community | Yes | Yes | Yes | No | No | No |
+| Transfer ownership | Yes | Yes | Yes | No | No | No |
+| Set member role | Yes | Yes | Yes | Yes** | No | No |
+| View/manage invites | Yes | Yes | Yes | Yes | No | No |
+| Manage custom emoji | Yes | Yes | Yes | Yes | No | No |
+| Set member nicknames | Yes | Yes | Yes | Yes | No | Own only |
 
 **Only the Owner can promote members to Admin. Admins can set roles to `member` or `moderator`.
 
@@ -120,24 +120,28 @@ Actions related to uploaded files and storage.
 
 ### `can_moderate()`
 
-The `can_moderate()` check is used for warnings, timeouts, kicks, and bans. It passes for:
-- Community Owner
-- Community Admin
-- Community Moderator
-- Instance Owner (via the `instance_admin` synthetic role)
+The `can_moderate()` check is used for warnings, timeouts, kicks, and bans. It passes when the actor's role level is strictly higher than the target's. Roles that can moderate:
+- Instance Owner (level 5, via `instance_owner` synthetic role)
+- Instance Admin (level 4, via `instance_admin` synthetic role)
+- Community Owner (level 3)
+- Community Admin (level 2)
+- Community Moderator (level 1, can only act on Members)
 
 ### `can_manage()`
 
 The `can_manage()` check is used for community settings, invites, emoji, and role management. It passes for:
+- Instance Owner (via the `instance_owner` synthetic role)
+- Instance Admin (via the `instance_admin` synthetic role)
 - Community Owner
 - Community Admin
-- Instance Owner (via the `instance_admin` synthetic role)
 
 ### `can_delete_others_messages()`
 
 This check is used for deleting other users' messages and pinning/unpinning. It passes for channel roles at level 1 or above:
-- Channel/group Admin
+- Instance Owner / Instance Admin (bypass all checks)
 - Channel/group Owner
+- Channel/group Admin
+- Channel/group Moderator
 
 ### Role Level Enforcement
 

@@ -22,7 +22,7 @@ async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
     // Wait for the first message which must be an Authenticate message
     let auth_timeout = tokio::time::Duration::from_secs(10);
 
-    let user_id = match tokio::time::timeout(auth_timeout, socket.next()).await {
+    let (user_id, is_owner, is_admin) = match tokio::time::timeout(auth_timeout, socket.next()).await {
         Ok(Some(Ok(Message::Text(text)))) => {
             match serde_json::from_str::<chatalot_common::ws_messages::ClientMessage>(&text) {
                 Ok(chatalot_common::ws_messages::ClientMessage::Authenticate { token }) => {
@@ -38,7 +38,7 @@ async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
                             if let Ok(json) = serde_json::to_string(&confirm) {
                                 let _ = socket.send(Message::Text(json.into())).await;
                             }
-                            claims.sub
+                            (claims.sub, claims.is_owner, claims.is_admin)
                         }
                         None => {
                             let err = chatalot_common::ws_messages::ServerMessage::Error {
@@ -77,7 +77,7 @@ async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
     };
 
     // Hand off to the main handler
-    handler::handle_socket(socket, user_id, state).await;
+    handler::handle_socket(socket, user_id, is_owner, is_admin, state).await;
 }
 
 fn validate_token(state: &AppState, token: &str) -> Option<AccessClaims> {

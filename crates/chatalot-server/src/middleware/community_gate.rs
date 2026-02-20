@@ -19,22 +19,28 @@ pub struct CommunityContext {
 }
 
 impl CommunityContext {
-    /// Owner, admin, or instance admin.
+    /// Owner, admin, or instance admin/owner.
     pub fn can_manage(&self) -> bool {
-        matches!(self.role.as_str(), "owner" | "admin" | "instance_admin")
-    }
-
-    /// Owner, admin, moderator, or instance admin.
-    pub fn can_moderate(&self) -> bool {
         matches!(
             self.role.as_str(),
-            "owner" | "admin" | "moderator" | "instance_admin"
+            "owner" | "admin" | "instance_admin" | "instance_owner"
         )
     }
 
-    /// Owner or instance admin.
+    /// Owner, admin, moderator, or instance admin/owner.
+    pub fn can_moderate(&self) -> bool {
+        matches!(
+            self.role.as_str(),
+            "owner" | "admin" | "moderator" | "instance_admin" | "instance_owner"
+        )
+    }
+
+    /// Owner or instance admin/owner.
     pub fn is_owner(&self) -> bool {
-        matches!(self.role.as_str(), "owner" | "instance_admin")
+        matches!(
+            self.role.as_str(),
+            "owner" | "instance_admin" | "instance_owner"
+        )
     }
 }
 
@@ -43,7 +49,7 @@ impl CommunityContext {
 /// Extracts `community_id` from the URL path, checks the caller's membership and ban status,
 /// then inserts a `CommunityContext` into request extensions.
 ///
-/// Instance admins bypass all checks.
+/// Instance owner and admins bypass all checks.
 pub async fn community_gate_middleware(
     State(state): State<Arc<AppState>>,
     mut request: Request,
@@ -62,6 +68,15 @@ pub async fn community_gate_middleware(
 
     // Instance owner bypasses all checks (god role)
     if claims.is_owner {
+        request.extensions_mut().insert(CommunityContext {
+            community_id,
+            role: "instance_owner".to_string(),
+        });
+        return Ok(next.run(request).await);
+    }
+
+    // Instance admin bypasses all checks (server admin)
+    if claims.is_admin {
         request.extensions_mut().insert(CommunityContext {
             community_id,
             role: "instance_admin".to_string(),

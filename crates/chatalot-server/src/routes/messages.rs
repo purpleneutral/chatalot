@@ -193,10 +193,9 @@ async fn pin_message(
     Extension(claims): Extension<AccessClaims>,
     Path((channel_id, msg_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
-    // Check channel membership and role
-    let role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    // Check channel membership and role (instance owner/admin bypass)
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
     if !permissions::can_delete_others_messages(&role) {
         return Err(AppError::Forbidden);
@@ -256,9 +255,8 @@ async fn unpin_message(
     Extension(claims): Extension<AccessClaims>,
     Path((channel_id, msg_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
-    let role = channel_repo::get_member_role(&state.db, channel_id, claims.sub)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let channel_role = channel_repo::get_member_role(&state.db, channel_id, claims.sub).await?;
+    let role = permissions::effective_role(channel_role.as_deref(), claims.is_owner, claims.is_admin);
 
     if !permissions::can_delete_others_messages(&role) {
         return Err(AppError::Forbidden);

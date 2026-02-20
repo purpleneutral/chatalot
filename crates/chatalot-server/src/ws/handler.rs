@@ -18,7 +18,13 @@ use crate::app_state::AppState;
 use crate::ws::connection_manager::SessionHandle;
 
 /// Handle an authenticated WebSocket connection.
-pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState>) {
+pub async fn handle_socket(
+    socket: WebSocket,
+    user_id: Uuid,
+    is_instance_owner: bool,
+    is_instance_admin: bool,
+    state: Arc<AppState>,
+) {
     let conn_mgr = &state.connections;
     let session_id = Uuid::new_v4();
     let (mut ws_sink, mut ws_stream) = socket.split();
@@ -142,6 +148,8 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
                         handle_client_message(
                             client_msg,
                             user_id,
+                            is_instance_owner,
+                            is_instance_admin,
                             &state,
                             &tx,
                             &mut subscription_tasks,
@@ -251,6 +259,8 @@ pub async fn handle_socket(socket: WebSocket, user_id: Uuid, state: Arc<AppState
 async fn handle_client_message(
     msg: ClientMessage,
     user_id: Uuid,
+    is_instance_owner: bool,
+    is_instance_admin: bool,
     state: &AppState,
     tx: &mpsc::UnboundedSender<ServerMessage>,
     subscription_tasks: &mut std::collections::HashMap<uuid::Uuid, tokio::task::JoinHandle<()>>,
@@ -321,18 +331,19 @@ async fn handle_client_message(
                 }
             };
 
-            // Check role for non-DM channels (admins/owners exempt from slow mode, read-only)
+            // Check role for non-DM channels (admins/owners/instance roles exempt from slow mode, read-only)
             let is_privileged = if channel.channel_type != ChannelType::Dm {
-                let role = match channel_repo::get_member_role(&state.db, channel_id, user_id).await {
-                    Ok(r) => r.unwrap_or_default(),
+                let channel_role = match channel_repo::get_member_role(&state.db, channel_id, user_id).await {
+                    Ok(r) => r,
                     Err(e) => {
                         tracing::warn!(%user_id, %channel_id, "Failed to fetch member role: {e}");
-                        String::new()
+                        None
                     }
                 };
-                matches!(role.as_str(), "owner" | "admin")
+                let effective = permissions::effective_role(channel_role.as_deref(), is_instance_owner, is_instance_admin);
+                permissions::can_delete_others_messages(&effective)
             } else {
-                false
+                is_instance_owner || is_instance_admin
             };
 
             if channel.channel_type != ChannelType::Dm {
@@ -692,25 +703,23 @@ async fn handle_client_message(
                 // Own message — no role check needed
                 message_repo::delete_message(&state.db, message_id, user_id).await
             } else {
-                // Not own message — check mod permissions
-                let role = match channel_repo::get_member_role(&state.db, msg_record.channel_id, user_id).await {
+                // Not own message — check mod permissions (considering instance roles)
+                let channel_role = match channel_repo::get_member_role(&state.db, msg_record.channel_id, user_id).await {
                     Ok(r) => r,
                     Err(e) => {
                         tracing::warn!(%user_id, "Failed to fetch role for delete check: {e}");
                         None
                     }
                 };
-                match role {
-                    Some(ref r) if permissions::can_delete_others_messages(r) => {
-                        message_repo::delete_message_as_mod(&state.db, message_id).await
-                    }
-                    _ => {
-                        let _ = tx.send(ServerMessage::Error {
-                            code: "forbidden".to_string(),
-                            message: "you don't have permission to delete this message".to_string(),
-                        });
-                        return;
-                    }
+                let effective = permissions::effective_role(channel_role.as_deref(), is_instance_owner, is_instance_admin);
+                if permissions::can_delete_others_messages(&effective) {
+                    message_repo::delete_message_as_mod(&state.db, message_id).await
+                } else {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "forbidden".to_string(),
+                        message: "you don't have permission to delete this message".to_string(),
+                    });
+                    return;
                 }
             };
 
@@ -1089,13 +1098,17 @@ async fn handle_client_message(
             channel_id,
             user_id: target_user_id,
         } => {
-            // Check permissions: actor must outrank target
-            let actor_role = channel_repo::get_member_role(&state.db, channel_id, user_id).await;
+            // Check permissions: actor must outrank target (considering instance roles)
+            let actor_channel_role = channel_repo::get_member_role(&state.db, channel_id, user_id).await;
             let target_role =
                 channel_repo::get_member_role(&state.db, channel_id, target_user_id).await;
 
-            let allowed = match (actor_role, target_role) {
-                (Ok(Some(a)), Ok(Some(t))) => permissions::can_moderate(&a, &t),
+            let allowed = match (&actor_channel_role, &target_role) {
+                (Ok(actor_r), Ok(Some(t))) => {
+                    let effective = permissions::effective_role(actor_r.as_deref(), is_instance_owner, is_instance_admin);
+                    permissions::can_moderate(&effective, t)
+                }
+                (Ok(_), Ok(None)) => is_instance_owner || is_instance_admin,
                 _ => false,
             };
 

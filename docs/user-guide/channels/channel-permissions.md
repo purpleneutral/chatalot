@@ -6,12 +6,13 @@ Chatalot uses a role hierarchy to control who can perform which actions in a cha
 
 ## Role Hierarchy
 
-There are three role levels at the channel/group level:
+There are four role levels at the channel/group level:
 
 | Role | Level | Description |
 |------|-------|-------------|
-| **Owner** | 2 | Full control over the channel and all its settings |
-| **Admin** | 1 | Can moderate members and manage most channel settings |
+| **Owner** | 3 | Full control over the channel and all its settings |
+| **Admin** | 2 | Can moderate members and manage most channel settings |
+| **Moderator** | 1 | Can delete messages, pin/unpin, kick/ban members (lower roles only) |
 | **Member** | 0 | Can send messages and use standard features |
 
 At the Community level, there are additional roles:
@@ -41,46 +42,46 @@ Community Role
 
 ### Message Permissions
 
-| Action | Member | Admin | Owner |
-|--------|--------|-------|-------|
-| Send messages | Yes | Yes | Yes |
-| Send messages (read-only channel) | No | Yes | Yes |
-| Send messages (slow mode active) | Rate-limited | Exempt | Exempt |
-| Send messages (archived channel) | No | No | No |
-| Edit own messages (within 15 min) | Yes | Yes | Yes |
-| Delete own messages | Yes | Yes | Yes |
-| Delete others' messages | No | Yes | Yes |
+| Action | Member | Moderator | Admin | Owner |
+|--------|--------|-----------|-------|-------|
+| Send messages | Yes | Yes | Yes | Yes |
+| Send messages (read-only channel) | No | Yes | Yes | Yes |
+| Send messages (slow mode active) | Rate-limited | Exempt | Exempt | Exempt |
+| Send messages (archived channel) | No | No | No | No |
+| Edit own messages (within 15 min) | Yes | Yes | Yes | Yes |
+| Delete own messages | Yes | Yes | Yes | Yes |
+| Delete others' messages | No | Yes | Yes | Yes |
 
 ### Channel Management
 
-| Action | Member | Admin | Owner |
-|--------|--------|-------|-------|
-| Edit channel topic | No | Yes | Yes |
-| Rename channel | No | No | Yes |
-| Toggle read-only | No | Yes | Yes |
-| Set slow mode | No | Yes | Yes |
-| Archive/unarchive | No | Yes | Yes |
-| Delete channel | No | No | Yes |
+| Action | Member | Moderator | Admin | Owner |
+|--------|--------|-----------|-------|-------|
+| Edit channel topic | No | No | Yes | Yes |
+| Rename channel | No | No | No | Yes |
+| Toggle read-only | No | No | Yes | Yes |
+| Set slow mode | No | No | Yes | Yes |
+| Archive/unarchive | No | No | Yes | Yes |
+| Delete channel | No | No | No | Yes |
 
 ### Moderation
 
-| Action | Member | Admin | Owner |
-|--------|--------|-------|-------|
-| Kick members | No | Members only | Admins and members |
-| Ban members | No | Members only | Admins and members |
-| Unban members | No | Yes | Yes |
-| Change member roles | No | No | Yes |
-| Pin/unpin messages | No | Yes | Yes |
-| Kick from voice | No | Members only | Admins and members |
+| Action | Member | Moderator | Admin | Owner |
+|--------|--------|-----------|-------|-------|
+| Kick members | No | Members only | Moderators and members | Admins, moderators, and members |
+| Ban members | No | Members only | Moderators and members | Admins, moderators, and members |
+| Unban members | No | Yes | Yes | Yes |
+| Change member roles | No | No | No | Yes (admin can set moderator/member) |
+| Pin/unpin messages | No | Yes | Yes | Yes |
+| Kick from voice | No | Members only | Moderators and members | Admins, moderators, and members |
 
-> **Important:** Moderation actions follow a strict hierarchy. You can only moderate users with a **strictly lower** role level than your own. An admin cannot kick another admin; only an owner can.
+> **Important:** Moderation actions follow a strict hierarchy. You can only moderate users with a **strictly lower** role level than your own. A moderator cannot kick another moderator; only an admin or owner can.
 
 ### Member Management
 
-| Action | Member | Admin | Owner |
-|--------|--------|-------|-------|
-| View member list | Yes | Yes | Yes |
-| Transfer ownership | No | No | Yes |
+| Action | Member | Moderator | Admin | Owner |
+|--------|--------|-----------|-------|-------|
+| View member list | Yes | Yes | Yes | Yes |
+| Transfer ownership | No | No | No | Yes |
 
 ## How Roles Are Determined
 

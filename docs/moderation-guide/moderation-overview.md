@@ -29,9 +29,10 @@ Moderation permissions are based on your **community role**. The following roles
 |------|:------------:|-------|
 | **Community Owner** | Yes | Full moderation power over all members |
 | **Community Admin** | Yes | Can moderate Members and Moderators; can delete others' messages |
-| **Community Moderator** | Yes | Can moderate Members only; can issue warnings and timeouts |
+| **Community Moderator** | Yes | Can moderate Members only; can delete others' messages, pin/unpin |
 | **Community Member** | No | Can report messages to admins, but cannot take moderation action |
-| **Instance Owner** | Yes | Bypasses all community checks (god role); can moderate in any community |
+| **Instance Owner** | Yes | Bypasses all community checks (god role); can moderate in any community including DMs |
+| **Instance Admin** | Yes | Bypasses community membership checks; can moderate in any community |
 
 ### Role Hierarchy Rules
 

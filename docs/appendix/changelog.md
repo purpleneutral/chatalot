@@ -4,6 +4,16 @@ All notable changes to Chatalot are documented here. Versions follow [Semantic V
 
 ---
 
+## v0.20.0
+
+- Permissions overhaul: unified 5-tier role hierarchy (Instance Owner > Instance Admin > Owner/Admin > Moderator > Member)
+- Instance Owner can now delete any message anywhere, including other users' DMs
+- Instance Admin now bypasses community membership checks (previously only Instance Owner could)
+- Channel moderator role: owners can promote members to moderator in channel member panels
+- Moderators can delete others' messages, pin/unpin messages, close polls, and kick/ban members
+- Role cycling in channel member panel for intuitive role management
+- Consolidated duplicate permission logic across server codebase
+
 ## v0.17.0
 
 - Add ARM64 support with multi-architecture Docker builds (amd64 + arm64)

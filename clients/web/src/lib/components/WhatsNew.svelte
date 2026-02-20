@@ -16,6 +16,19 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.20.0',
+			date: '2026-02-20',
+			changes: [
+				'Permissions overhaul: unified 5-tier role hierarchy (Instance Owner > Instance Admin > Owner/Admin > Moderator > Member)',
+				'Instance Owner can now delete any message anywhere, including other users\' DMs',
+				'Instance Admin now bypasses community membership checks (previously only Instance Owner could)',
+				'Channel moderator role: owners can promote members to moderator in channel member panels',
+				'Moderators can delete others\' messages, pin/unpin messages, close polls, and kick/ban members',
+				'Role cycling in channel member panel: click to cycle member/moderator/admin roles',
+				'Green diamond badge for moderators in channel member list',
+			]
+		},
+		{
 			version: '0.19.3',
 			date: '2026-02-20',
 			changes: [

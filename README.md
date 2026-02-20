@@ -64,7 +64,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Webhooks** — create incoming webhooks for channels, post messages from external services
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0, with auto-update and OS keychain integration
 - **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, rate limiting, invite-only registration, self-service account recovery
-- **Moderation** — message reports, user warnings, blocking, bans, timeouts, slow mode
+- **Moderation** — 5-tier role hierarchy (instance owner/admin, community owner/admin, moderator, member), message reports, user warnings, blocking, bans, timeouts, slow mode
 - **Admin panel** — user management, invite codes, announcements, report review, webhooks overview, instance settings, and system feedback
 - **Legal framework** — built-in privacy policy and terms of service, customizable per instance
 

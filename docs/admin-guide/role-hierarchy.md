@@ -2,7 +2,7 @@
 
 > **Status: Complete**
 
-Chatalot has a three-tier role system spanning the instance, community, and group levels. Each level has its own set of roles and permissions, and higher-level roles can override lower-level access in specific cases.
+Chatalot has a unified 5-tier role system spanning the instance, community, and channel levels. Each level has its own set of roles and permissions, and higher-level roles override lower-level access.
 
 ## Role Levels Overview
 
@@ -38,10 +38,10 @@ Instance roles apply server-wide and are managed through the [Admin Panel](./adm
 | View audit log | Yes | Yes | No |
 | Use purge/quarantine tools | Yes | Yes | No |
 | Manage announcements | Yes | Yes | No |
-| Bypass community membership checks | Yes | No | No |
+| Bypass community membership checks | Yes | Yes | No |
 | Cannot be suspended or deleted by other admins | N/A | Yes (must revoke admin first) | No |
 
-> **Note:** The Owner and Admin roles have identical access to the admin panel. The key difference is that the Owner role acts as a "god role" that bypasses community-level access restrictions.
+> **Note:** The Owner and Admin roles have identical access to the admin panel. Both bypass community membership checks and can moderate in any community. The key difference is that the Owner acts as the ultimate "god role" and cannot be suspended or deleted.
 
 ## Community Roles
 
@@ -99,17 +99,21 @@ Group roles apply within a specific group (a subcategory within a community) and
 
 Channels exist within groups and inherit the group's membership. There are no separate channel-level roles; access is determined by group membership and group-level roles. Channel-specific permissions (such as who can send messages in read-only channels) are controlled through channel settings.
 
-## Instance Admin Override
+## Instance-Level Override
 
-Instance owners have a special override that affects community-level access. When an instance owner accesses any community endpoint, the middleware assigns them the synthetic role `instance_admin`, which grants:
+Both Instance Owners and Instance Admins have a special override that affects community-level access. When they access any community endpoint, the middleware assigns them a synthetic role that grants full permissions:
 
+**Instance Owner** receives the `instance_owner` synthetic role (level 5):
 - `can_manage` -- Equivalent to community owner/admin
-- `can_moderate` -- Equivalent to community moderator
+- `can_moderate` -- Can moderate any user in any community
 - `is_owner` -- Equivalent to community owner
 
-This allows the instance owner to intervene in any community without needing to be a member.
+**Instance Admin** receives the `instance_admin` synthetic role (level 4):
+- `can_manage` -- Equivalent to community owner/admin
+- `can_moderate` -- Can moderate any user in any community
+- `is_owner` -- Equivalent to community owner
 
-Instance admins (non-owner) do **not** have this bypass. They must be explicit members of a community to access it, unless they are also the instance owner.
+This allows both instance-level roles to intervene in any community without needing to be a member. The same override applies to channel-level permissions: instance owners and admins can delete messages, pin/unpin, kick, and ban in any channel — including other users' DMs.
 
 ## Role Assignment Summary
 
@@ -128,25 +132,17 @@ Instance admins (non-owner) do **not** have this bypass. They must be explicit m
 ## Visual Role Hierarchy
 
 ```
-Instance Owner
+Instance Owner (level 5)  -- god role, bypasses everything
   |
-  +-- Instance Admin
-  |     |
-  |     +-- (No community override)
-  |
-  +-- Community Owner  <-- Instance Owner can act as this in any community
+  +-- Instance Admin (level 4)  -- bypasses community/channel checks
         |
-        +-- Community Admin
+        +-- Community/Channel Owner (level 3)
               |
-              +-- Community Moderator
+              +-- Community/Channel Admin (level 2)
                     |
-                    +-- Community Member
+                    +-- Community/Channel Moderator (level 1)
                           |
-                          +-- Group Owner
-                                |
-                                +-- Group Admin
-                                      |
-                                      +-- Group Member
+                          +-- Member (level 0)
 ```
 
 ## Safety Constraints

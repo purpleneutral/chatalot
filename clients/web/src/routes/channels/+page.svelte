@@ -2762,6 +2762,25 @@
 		return 'member';
 	}
 
+	function channelRoleLevel(role: string): number {
+		if (role === 'owner') return 3;
+		if (role === 'admin') return 2;
+		if (role === 'moderator') return 1;
+		return 0;
+	}
+
+	function nextRole(currentRole: string, actorRole: string): string {
+		// Owners can cycle: member → moderator → admin → member
+		if (actorRole === 'owner') {
+			if (currentRole === 'member') return 'moderator';
+			if (currentRole === 'moderator') return 'admin';
+			return 'member';
+		}
+		// Admins can cycle: member → moderator → member
+		if (currentRole === 'member') return 'moderator';
+		return 'member';
+	}
+
 	function isCommunityModeratorOrAbove(): boolean {
 		if (!communityStore.activeCommunityId || !authStore.user?.id) return false;
 		const cm = communityMemberStore.getMember(communityStore.activeCommunityId, authStore.user.id);
@@ -5954,7 +5973,7 @@
 											</div>
 											<p class="mt-0.5 text-sm text-[var(--text-secondary)] truncate" title={pin._decryptedContent ?? ''}>{pin._decryptedContent ?? '(encrypted message)'}</p>
 										</div>
-										{#if myRole === 'owner' || myRole === 'admin'}
+										{#if myRole === 'owner' || myRole === 'admin' || myRole === 'moderator'}
 											<button
 												onclick={() => handleUnpinMessage(pin.id)}
 												class="shrink-0 rounded p-1 text-[var(--text-secondary)] hover:text-[var(--danger)] transition"
@@ -6015,7 +6034,7 @@
 													{/if}
 												</div>
 											</div>
-											{#if !isClosed && (poll.created_by === myUserId || myRole === 'owner' || myRole === 'admin')}
+											{#if !isClosed && (poll.created_by === myUserId || myRole === 'owner' || myRole === 'admin' || myRole === 'moderator')}
 												<button
 													onclick={() => handleClosePoll(poll.id)}
 													disabled={closingPollId === poll.id}
@@ -6501,7 +6520,7 @@
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
 									</button>
-									{#if (myRole === 'owner' || myRole === 'admin') && channelStore.activeChannelId}
+									{#if (myRole === 'owner' || myRole === 'admin' || myRole === 'moderator') && channelStore.activeChannelId}
 										{#if messageStore.isPinned(channelStore.activeChannelId, msg.id)}
 											<button
 												onclick={() => handleUnpinMessage(msg.id)}
@@ -6547,7 +6566,7 @@
 												<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 											</svg>
 										</button>
-									{:else if myRole === 'owner' || myRole === 'admin'}
+									{:else if myRole === 'owner' || myRole === 'admin' || myRole === 'moderator'}
 										<button
 											onclick={() => handleDeleteMessage(msg.id)}
 											class="p-1.5 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
@@ -6705,7 +6724,7 @@
 									Bookmark
 								{/if}
 							</button>
-							{#if (myRole === 'owner' || myRole === 'admin') && channelStore.activeChannelId}
+							{#if (myRole === 'owner' || myRole === 'admin' || myRole === 'moderator') && channelStore.activeChannelId}
 								<div class="my-1 border-t border-white/10"></div>
 								{#if messageStore.isPinned(channelStore.activeChannelId, ctxMsg.id)}
 									<button
@@ -6743,7 +6762,7 @@
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 									Delete
 								</button>
-							{:else if myRole === 'owner' || myRole === 'admin'}
+							{:else if myRole === 'owner' || myRole === 'admin' || myRole === 'moderator'}
 								<div class="my-1 border-t border-white/10"></div>
 								<button
 									onclick={() => { handleDeleteMessage(ctxMsg.id); contextMenuMessageId = null; }}
@@ -7187,20 +7206,23 @@
 								<span class="text-xs text-yellow-400" title="Owner">&#9733;</span>
 							{:else if member.role === 'admin'}
 								<span class="text-xs text-blue-400" title="Admin">&#9830;</span>
+							{:else if member.role === 'moderator'}
+								<span class="text-xs text-green-400" title="Moderator">&#9670;</span>
 							{/if}
 						</div>
 					</div>
 					<!-- Mod actions (hover) -->
-					{#if member.user_id !== authStore.user?.id && (myRole === 'owner' || (myRole === 'admin' && member.role === 'member'))}
+					{#if member.user_id !== authStore.user?.id && channelRoleLevel(myRole) > channelRoleLevel(member.role)}
 						<div class="hidden gap-0.5 group-hover:flex">
-							{#if myRole === 'owner'}
+							{#if myRole === 'owner' || (myRole === 'admin' && channelRoleLevel(member.role) < 2)}
+								{@const next = nextRole(member.role, myRole)}
 								<button
-									onclick={() => handleRoleChange(member.user_id, member.role === 'admin' ? 'member' : 'admin')}
+									onclick={() => handleRoleChange(member.user_id, next)}
 									class="rounded p-1 text-xs text-[var(--text-secondary)] hover:text-[var(--accent)]"
-									title={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
-									aria-label={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+									title={`Change to ${next}`}
+									aria-label={`Change role to ${next}`}
 								>
-									{#if member.role === 'admin'}
+									{#if channelRoleLevel(member.role) > 0}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
 									{:else}
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
@@ -7710,7 +7732,7 @@
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 											</button>
-										{:else if myRole === 'owner' || myRole === 'admin'}
+										{:else if myRole === 'owner' || myRole === 'admin' || myRole === 'moderator'}
 											<button
 												onclick={() => handleDeleteMessage(reply.id)}
 												class="p-1 text-[var(--text-secondary)] transition hover:text-[var(--danger)]"
