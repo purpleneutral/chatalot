@@ -131,9 +131,13 @@ jobs:
           rm -rf squashfs-root/usr/lib/x86_64-linux-gnu
           rm -f squashfs-root/usr/lib/*.so*
 
-          # Replace the GTK hook script — don't override GTK paths, just set
-          # GDK_BACKEND=x11 (Wayland backend crashes in AppImage context).
-          printf '#!/usr/bin/env bash\nexport GDK_BACKEND=x11\n' > squashfs-root/apprun-hooks/linuxdeploy-plugin-gtk.sh
+          # Replace AppRun entirely — the linuxdeploy-generated AppRun.wrapped
+          # binary hardcodes LD_LIBRARY_PATH to the (now empty) bundled lib dirs,
+          # which shadows system libs and causes GTK init failures.
+          # We exec the binary directly, only setting GDK_BACKEND=x11
+          # (Wayland backend crashes in AppImage context).
+          printf '#!/usr/bin/env bash\nexport GDK_BACKEND=x11\nexec "$(dirname "$(readlink -f "$0")")"/usr/bin/chatalot-desktop "$@"\n' > squashfs-root/AppRun
+          chmod +x squashfs-root/AppRun
 
           # Repackage using appimagetool
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
