@@ -62,7 +62,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Web push notifications** — receive DM notifications even when the tab is closed (metadata only, never message content)
 - **Customization** — themes, 8 accent colors, message density, sidebar layout (expanded panel or compact dropdown), font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
 - **Webhooks** — create incoming webhooks for channels, post messages from external services
-- **Desktop app** — native Linux and Windows clients via Tauri 2.0
+- **Desktop app** — native Linux and Windows clients via Tauri 2.0, with auto-update and OS keychain integration
 - **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, rate limiting, invite-only registration, self-service account recovery
 - **Moderation** — message reports, user warnings, blocking, bans, timeouts, slow mode
 - **Admin panel** — user management, invite codes, announcements, report review, webhooks overview, instance settings, and system feedback

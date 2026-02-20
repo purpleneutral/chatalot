@@ -86,12 +86,21 @@ The desktop app opens with these default settings:
 
 In debug builds, the Tauri DevTools are available for inspecting the web content. This is useful for development and troubleshooting but is not included in release builds.
 
+## Auto-Update
+
+The desktop app checks for updates automatically on startup. When a new version is available, a banner appears at the top of the chat:
+
+1. Click the banner to download and install the update.
+2. The app restarts automatically after installation.
+3. Your login session, preferences, and encryption keys are preserved.
+
+Updates are signed with a dedicated key and verified before installation, ensuring only authentic releases are applied.
+
 ## What Is Not Yet Available
 
 The following features are planned but not yet implemented in the desktop app:
 
 - **System tray icon** -- Minimize to tray with unread badge
-- **Auto-update** -- Automatic download and installation of new versions
 - **Global keyboard shortcuts** -- System-wide hotkeys (e.g., push-to-talk)
 - **macOS support** -- Build infrastructure for macOS packages
 

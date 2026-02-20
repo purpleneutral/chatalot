@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.70',
+			date: '2026-02-19',
+			changes: [
+				'Desktop app: auto-update support (checks for updates on launch, one-click install & restart)',
+				'Desktop app: identity keys now stored in OS keychain (GNOME Keyring / Windows Credential Manager)',
+				'Desktop app: version aligned with web client',
+				'Desktop app: CI/CD pipeline for automated release builds (Linux + Windows)',
+			]
+		},
+		{
 			version: '0.18.69',
 			date: '2026-02-19',
 			changes: [

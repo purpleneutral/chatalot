@@ -193,12 +193,14 @@ To connect to a different server later, go to **Settings > Account** and use the
 
 ## Updating
 
-Currently, the desktop app does not include an auto-update mechanism. To update:
+The desktop app includes built-in auto-update support. When a new version is available, a banner appears at the top of the chat window. Click it to download, install, and restart the app automatically.
+
+If the auto-updater is unavailable (e.g., network issues), you can update manually:
 
 1. Download the latest release from the GitHub Releases page
 2. Install it over your existing installation (same process as initial install)
 
-Your login session and preferences are preserved across updates.
+Your login session, preferences, and encryption keys are preserved across updates.
 
 ---
 

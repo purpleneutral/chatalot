@@ -96,7 +96,7 @@ On the web client, all private key material is stored in IndexedDB:
 - **Clearable by the user**: Clearing browser data (cache, cookies, site data) will destroy your keys and all session state. There is no recovery mechanism.
 - **Per-browser isolation**: Keys are not synced between browsers or devices. Each browser has its own identity and sessions.
 
-The desktop app (planned) will use the OS keychain for key storage, providing stronger protection.
+The desktop app uses the OS keychain (GNOME Keyring / KWallet on Linux, Credential Manager on Windows) for identity key storage, providing stronger at-rest protection than IndexedDB.
 
 ## No Multi-Device Support (Yet)
 
@@ -131,7 +131,7 @@ As described in [Verification](./verification.md), Chatalot currently uses trust
 | Metadata visible to server | Server knows who, when, where -- just not what | Inherent to any server-mediated system |
 | No break-in recovery for groups | Compromised Sender Key exposes future messages until rotation | Keys rotate on membership changes |
 | WASM fallback to plaintext | Some messages may transit unencrypted during beta | Being resolved as integration completes |
-| Browser key storage (IndexedDB) | XSS could expose keys | CSP headers, input sanitization, planned OS keychain |
+| Browser key storage (IndexedDB) | XSS could expose keys | CSP headers, input sanitization, desktop app uses OS keychain |
 | No multi-device | Each browser is an independent identity | Planned feature |
 | TOFU without verification UI | First contact vulnerable to MITM | Safety numbers implemented, UI planned |
 | Reactions not encrypted | Server sees reaction data | Encryption of reactions is a design consideration |

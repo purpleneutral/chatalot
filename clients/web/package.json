@@ -1,7 +1,7 @@
 {
   "name": "chatalot-web",
   "private": true,
-  "version": "0.18.69",
+  "version": "0.18.70",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -23,6 +23,9 @@
   },
   "dependencies": {
     "@sapphi-red/web-noise-suppressor": "^0.3.5",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "@types/dompurify": "^3.0.5",
     "dompurify": "^3.3.1",
     "emoji-picker-element": "^1.29.0",

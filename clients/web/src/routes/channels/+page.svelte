@@ -98,6 +98,7 @@
 	import { decryptMessage } from '$lib/crypto/decrypt';
 	import { getSenderKeys } from '$lib/api/sender-keys';
 	import { pushStore } from '$lib/stores/push.svelte';
+	import { checkForDesktopUpdate } from '$lib/utils/updater';
 	import { encryptionStore } from '$lib/stores/encryption.svelte';
 
 	let messageInput = $state('');
@@ -811,6 +812,11 @@
 
 	// Deferred update reload (don't interrupt voice calls)
 	let pendingUpdate = $state(false);
+	// Desktop app update (via Tauri updater plugin)
+	let desktopUpdateAvailable = $state(false);
+	let desktopUpdateVersion = $state('');
+	let desktopUpdateInstall: (() => Promise<void>) | null = $state(null);
+	let desktopUpdateInstalling = $state(false);
 
 	// Feedback modal state
 	let showFeedback = $state(false);
@@ -1361,7 +1367,11 @@
 
 		// Listen for version update events BEFORE connecting WS to avoid race
 		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
+		window.addEventListener('chatalot:desktop-update-available', handleDesktopUpdateAvailable);
 		window.addEventListener('chatalot:connection', handleConnectionChange as EventListener);
+
+		// Check for desktop app updates (no-op in browser)
+		checkForDesktopUpdate();
 
 		// Connect WebSocket (or re-register handler if already connected)
 		unsubWs = wsClient.onMessage(handleServerMessage);
@@ -1460,6 +1470,7 @@
 		window.removeEventListener('chatalot:navigate-channel', handleNotifNavigate as EventListener);
 		window.removeEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
 		window.removeEventListener('chatalot:update-available', handleUpdateAvailable);
+		window.removeEventListener('chatalot:desktop-update-available', handleDesktopUpdateAvailable);
 		window.removeEventListener('chatalot:connection', handleConnectionChange as EventListener);
 		window.removeEventListener('chatalot:blocks-changed', handleBlocksChanged);
 		window.removeEventListener('chatalot:identity-key-changed', handleIdentityKeyChanged as EventListener);
@@ -1541,6 +1552,13 @@
 
 	function handleUpdateAvailable() {
 		pendingUpdate = true;
+	}
+
+	function handleDesktopUpdateAvailable(e: Event) {
+		const detail = (e as CustomEvent).detail;
+		desktopUpdateAvailable = true;
+		desktopUpdateVersion = detail.version;
+		desktopUpdateInstall = detail.install;
 	}
 
 	async function handleBlocksChanged() {
@@ -5553,7 +5571,32 @@
 					</div>
 				</div>
 			{/if}
-			{#if pendingUpdate}
+			{#if desktopUpdateAvailable}
+				<button
+					onclick={async () => {
+						if (desktopUpdateInstall && !desktopUpdateInstalling) {
+							desktopUpdateInstalling = true;
+							try {
+								await desktopUpdateInstall();
+							} catch (err) {
+								console.error('[updater] Install failed:', err);
+								desktopUpdateInstalling = false;
+								toastStore.error('Update failed — please try again');
+							}
+						}
+					}}
+					class="flex w-full items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 cursor-pointer"
+					disabled={desktopUpdateInstalling}
+				>
+					{#if desktopUpdateInstalling}
+						<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="60" stroke-dashoffset="20" /></svg>
+						Downloading update...
+					{:else}
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+						Update v{desktopUpdateVersion} available — click to install & restart
+					{/if}
+				</button>
+			{:else if pendingUpdate}
 				<button
 					onclick={async () => {
 						if ('caches' in window) {

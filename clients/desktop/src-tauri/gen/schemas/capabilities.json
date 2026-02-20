@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capabilities for Chatalot desktop","local":true,"windows":["main"],"permissions":["core:default","notification:default","notification:allow-request-permission","notification:allow-notify","shell:allow-open"]}}
+{"default":{"identifier":"default","description":"Default capabilities for Chatalot desktop","local":true,"windows":["main"],"permissions":["core:default","notification:default","notification:allow-request-permission","notification:allow-notify","shell:allow-open","updater:default","process:allow-restart"]}}

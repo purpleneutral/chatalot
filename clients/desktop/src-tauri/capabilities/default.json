@@ -8,6 +8,8 @@
     "notification:default",
     "notification:allow-request-permission",
     "notification:allow-notify",
-    "shell:allow-open"
+    "shell:allow-open",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

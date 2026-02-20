@@ -1,5 +1,56 @@
+import { isTauri } from '$lib/env';
+
 const DB_NAME = 'chatalot-crypto';
 const DB_VERSION = 2;
+
+// ─── OS Keychain helpers (Tauri desktop only) ────────────────────
+// Stores the identity signing key in the OS keychain for stronger
+// at-rest protection. Falls back gracefully if keychain is unavailable.
+
+async function keychainStore(name: string, value: string): Promise<boolean> {
+	if (!isTauri()) return false;
+	try {
+		const { invoke } = await import('@tauri-apps/api/core');
+		await invoke('store_key', { keyName: name, value });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function keychainGet(name: string): Promise<string | null> {
+	if (!isTauri()) return null;
+	try {
+		const { invoke } = await import('@tauri-apps/api/core');
+		return await invoke<string | null>('get_key', { keyName: name });
+	} catch {
+		return null;
+	}
+}
+
+async function keychainDelete(name: string): Promise<void> {
+	if (!isTauri()) return;
+	try {
+		const { invoke } = await import('@tauri-apps/api/core');
+		await invoke('delete_key', { keyName: name });
+	} catch { /* best-effort */ }
+}
+
+const KEYCHAIN_SIGNING_KEY = 'identity-signing-key';
+const KEYCHAIN_VERIFYING_KEY = 'identity-verifying-key';
+
+function uint8ToBase64(bytes: Uint8Array): string {
+	let binary = '';
+	for (const b of bytes) binary += String.fromCharCode(b);
+	return btoa(binary);
+}
+
+function base64ToUint8(b64: string): Uint8Array {
+	const binary = atob(b64);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+	return bytes;
+}
 
 export interface IdentityKeys {
 	signingKey: Uint8Array;
@@ -74,10 +125,30 @@ export class CryptoStorage {
 	// ─── Identity ─────────────────────────────────────────────────
 
 	async getIdentity(): Promise<IdentityKeys | null> {
-		return this.get('identity', 'self');
+		// In Tauri, try OS keychain first (stronger at-rest protection)
+		const sigB64 = await keychainGet(KEYCHAIN_SIGNING_KEY);
+		const verB64 = await keychainGet(KEYCHAIN_VERIFYING_KEY);
+		if (sigB64 && verB64) {
+			return {
+				signingKey: base64ToUint8(sigB64),
+				verifyingKey: base64ToUint8(verB64),
+			};
+		}
+		// Fall back to IndexedDB
+		const idbKeys: IdentityKeys | null = await this.get('identity', 'self');
+		// If found in IDB but not keychain (e.g. first run after upgrade), migrate
+		if (idbKeys && isTauri()) {
+			await keychainStore(KEYCHAIN_SIGNING_KEY, uint8ToBase64(idbKeys.signingKey));
+			await keychainStore(KEYCHAIN_VERIFYING_KEY, uint8ToBase64(idbKeys.verifyingKey));
+		}
+		return idbKeys;
 	}
 
 	async setIdentity(keys: IdentityKeys): Promise<void> {
+		// Store in OS keychain if available (Tauri desktop)
+		await keychainStore(KEYCHAIN_SIGNING_KEY, uint8ToBase64(keys.signingKey));
+		await keychainStore(KEYCHAIN_VERIFYING_KEY, uint8ToBase64(keys.verifyingKey));
+		// Always also store in IndexedDB as fallback
 		return this.put('identity', 'self', keys);
 	}
 
@@ -230,6 +301,10 @@ export class CryptoStorage {
 	// ─── Wipe ─────────────────────────────────────────────────────
 
 	async clear(): Promise<void> {
+		// Clear OS keychain identity keys
+		await keychainDelete(KEYCHAIN_SIGNING_KEY);
+		await keychainDelete(KEYCHAIN_VERIFYING_KEY);
+
 		if (!this.db) return;
 		const storeNames = Array.from(this.db.objectStoreNames);
 		return new Promise((resolve, reject) => {
