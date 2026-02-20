@@ -147,7 +147,9 @@ class WebSocketClient {
 				window.dispatchEvent(new CustomEvent('chatalot:connection', { detail: 'connected' }));
 			}
 
-			// Auto-reload if the server was updated with a new client build
+			// Notify if the server was updated with a new client build.
+			// In the desktop app, a page reload can't update bundled assets,
+			// so skip the web update banner — the Tauri updater handles it.
 			if (
 				msg.server_version &&
 				msg.server_version !== 'unknown' &&
@@ -156,7 +158,9 @@ class WebSocketClient {
 				console.info(
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
-				window.dispatchEvent(new CustomEvent('chatalot:update-available'));
+				if (!('__TAURI_INTERNALS__' in window)) {
+					window.dispatchEvent(new CustomEvent('chatalot:update-available'));
+				}
 			}
 		}
 
