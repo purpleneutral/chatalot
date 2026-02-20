@@ -1065,7 +1065,7 @@
 											: 'border-white/10 hover:border-white/20'}"
 								>
 									<div class="mb-1 text-sm font-medium">Flat</div>
-									<div class="text-xs text-[var(--text-secondary)]">Discord-style with color border</div>
+									<div class="text-xs text-[var(--text-secondary)]">Flat style with color border</div>
 								</button>
 								<button
 									onclick={() => preferencesStore.set('chatBubbleStyle', 'bubbles')}

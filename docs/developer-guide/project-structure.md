@@ -80,7 +80,7 @@ crates/chatalot-server/
     |   +-- scheduled.rs        Schedule, list, cancel scheduled messages
     |   +-- bookmarks.rs        Add/remove/list message bookmarks
     |   +-- announcements.rs    List announcements, dismiss
-    |   +-- feedback.rs         POST feedback (Forgejo issue integration)
+    |   +-- feedback.rs         POST feedback (GitHub Issues integration)
     |   +-- gifs.rs             GIF search proxy (Giphy API)
     |   +-- link_preview.rs     Link preview metadata fetching
     |   +-- account.rs          GET /account/me, PATCH profile, change password, sessions

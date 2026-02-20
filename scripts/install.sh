@@ -227,11 +227,11 @@ esac
 
 echo ""
 echo -e "  ${BOLD}GIF search (optional)${NC}"
-echo -e "  Chatalot supports inline GIF search via Google Tenor API."
-echo -e "  Get a free API key at: https://developers.google.com/tenor/guides/quickstart"
+echo -e "  Chatalot supports inline GIF search via Giphy API."
+echo -e "  Get a free API key at: https://developers.giphy.com/dashboard/"
 echo ""
 
-TENOR_KEY=$(prompt "Tenor API key (leave blank to skip)" "")
+GIPHY_KEY=$(prompt "Giphy API key (leave blank to skip)" "")
 
 # ──────────────────────────────────────────────────────────────
 # Step 3: Generate secrets
@@ -295,8 +295,8 @@ ADMIN_USERNAME=${ADMIN_USERNAME}
 # Cloudflare Tunnel (leave empty if not using)
 CLOUDFLARE_TUNNEL_TOKEN=${CF_TOKEN}
 
-# GIF search (optional — https://developers.google.com/tenor/guides/quickstart)
-TENOR_API_KEY=${TENOR_KEY}
+# GIF search (optional — https://developers.giphy.com/dashboard/)
+GIPHY_API_KEY=${GIPHY_KEY}
 EOF
 
     chmod 600 "$ENV_FILE"

@@ -981,7 +981,7 @@
 			changes: [
 				'Preset themes: Monokai, Dracula, Nord, Solarized, AMOLED, and Catppuccin color palettes',
 				'Custom theme creator: pick your own colors for backgrounds, text, and accents',
-				'Chat bubble style: switch between flat (Discord-style) and rounded bubbles (iMessage-style)',
+				'Chat bubble style: switch between flat and rounded chat bubbles',
 				'Relative timestamps: show "5m ago" instead of exact times (toggle in Settings > Appearance)',
 				'Animated accent: subtle color shift effect on accent elements',
 				'Reduce motion: disable all animations for accessibility',

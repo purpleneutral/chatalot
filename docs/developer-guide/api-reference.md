@@ -326,7 +326,7 @@ Files are encrypted client-side before upload. The server stores opaque cipherte
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/feedback` | Submit feedback (creates Forgejo issue if configured) |
+| `POST` | `/feedback` | Submit feedback (creates GitHub issue if configured) |
 | `GET` | `/gifs/search?q=hello` | Search GIFs (Giphy API proxy) |
 | `GET` | `/gifs/trending` | Get trending GIFs |
 | `POST` | `/link-preview` | Fetch link preview metadata (title, description, image) |

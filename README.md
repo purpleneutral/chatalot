@@ -356,7 +356,7 @@ chatalot/
 | `VAPID_PRIVATE_KEY` | *optional* | Base64-encoded ECDSA P-256 private key for web push notifications |
 | `VAPID_PUBLIC_KEY` | *optional* | Base64-encoded ECDSA P-256 public key for web push notifications |
 | `CLOUDFLARE_TUNNEL_TOKEN` | *optional* | For production Cloudflare Tunnel profile |
-| `TENOR_API_KEY` | *optional* | Google API key for GIF search ([get one free](https://developers.google.com/tenor/guides/quickstart)) |
+| `GIPHY_API_KEY` | *optional* | Giphy API key for GIF search ([get one free](https://developers.giphy.com/dashboard/)) |
 
 ## Development
 
