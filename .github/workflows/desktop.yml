@@ -132,6 +132,7 @@ jobs:
           rm -f libgdk_pixbuf* libharfbuzz* libfontconfig* libfreetype*
           rm -f libwayland* libXi* libXrandr* libXcursor* libXcomposite*
           rm -f libXdamage* libXext* libXfixes* libXinerama*
+          rm -f libpcre2* libmount* libblkid* libselinux*
           cd ../../..
 
           # Repackage using appimagetool
