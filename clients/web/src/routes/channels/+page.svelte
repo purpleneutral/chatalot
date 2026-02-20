@@ -2558,6 +2558,12 @@
 			return;
 		}
 		messageStore.editMessage(messageId, text, new Date().toISOString());
+		// Update the decrypted message cache so the edit survives page reloads
+		// (sender can't decrypt their own Double Ratchet ciphertext).
+		try {
+			const storage = getCryptoStorage();
+			await storage.setDecryptedMessage(messageId, text, channelStore.activeChannelId!);
+		} catch { /* non-critical */ }
 		editingMessageId = null;
 		editInput = '';
 	}

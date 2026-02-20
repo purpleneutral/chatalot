@@ -16,7 +16,7 @@ import { detectMentions } from '$lib/utils/mentions';
 import { getUser } from '$lib/api/users';
 import { wsClient } from './connection';
 import type { ServerMessage } from './types';
-import { initCrypto, getSessionManager, getKeyManager } from '$lib/crypto';
+import { initCrypto, getSessionManager, getKeyManager, getCryptoStorage } from '$lib/crypto';
 import { decryptMessage } from '$lib/crypto/decrypt';
 
 // Debounced mark-read for incoming messages while viewing a channel
@@ -165,6 +165,13 @@ export async function handleServerMessage(msg: ServerMessage) {
 				.find((m) => m.pending);
 			if (pending) {
 				messageStore.confirmMessage(msg.channel_id, pending.id, msg.id, msg.created_at);
+				// Cache the sender's plaintext so it survives page reloads.
+				// Double Ratchet is asymmetric — the sender cannot decrypt their
+				// own ciphertext, so we must cache at send time.
+				try {
+					const storage = getCryptoStorage();
+					await storage.setDecryptedMessage(msg.id, pending.content, msg.channel_id);
+				} catch { /* crypto not initialized or IDB error — non-critical */ }
 			}
 			// Notify thread panel of confirmed thread messages
 			if (msg.thread_id) {

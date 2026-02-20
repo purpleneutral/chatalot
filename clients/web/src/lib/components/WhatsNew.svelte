@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.19.2',
+			date: '2026-02-19',
+			changes: [
+				'Fix: sender can now see their own encrypted DM messages after page reload (plaintext cached at send time)',
+				'Fix: message edits in encrypted DMs preserved correctly across reloads',
+			]
+		},
+		{
 			version: '0.19.1',
 			date: '2026-02-19',
 			changes: [
