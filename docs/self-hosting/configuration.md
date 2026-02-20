@@ -56,10 +56,9 @@ Access tokens are valid for **15 minutes**. Refresh tokens are valid for **30 da
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `GIPHY_API_KEY` | API key for GIF search via Giphy | *(none -- GIF search disabled)* |
-| `FORGEJO_API_URL` | URL of your Gitea/Forgejo instance for feedback integration | *(none)* |
-| `FORGEJO_API_TOKEN` | API token for the Forgejo feedback integration | *(none)* |
-| `FORGEJO_REPO_OWNER` | Repository owner for feedback issues | *(none)* |
-| `FORGEJO_REPO_NAME` | Repository name for feedback issues | *(none)* |
+| `GITHUB_API_TOKEN` | GitHub personal access token for feedback issue creation | *(none)* |
+| `GITHUB_REPO_OWNER` | GitHub repository owner for feedback issues | *(none)* |
+| `GITHUB_REPO_NAME` | GitHub repository name for feedback issues | *(none)* |
 
 ### Web Push Notifications (Optional)
 

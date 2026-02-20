@@ -92,14 +92,13 @@ async fn submit_feedback(
         ));
     }
 
-    // Check Forgejo config
-    let (api_url, api_token, repo_owner, repo_name) = match (
-        &state.config.forgejo_api_url,
-        &state.config.forgejo_api_token,
-        &state.config.forgejo_repo_owner,
-        &state.config.forgejo_repo_name,
+    // Check GitHub config
+    let (api_token, repo_owner, repo_name) = match (
+        &state.config.github_api_token,
+        &state.config.github_repo_owner,
+        &state.config.github_repo_name,
     ) {
-        (Some(url), Some(token), Some(owner), Some(name)) => (url, token, owner, name),
+        (Some(token), Some(owner), Some(name)) => (token, owner, name),
         _ => {
             return Err(AppError::Internal(
                 "Feedback is not configured on this server".to_string(),
@@ -114,45 +113,14 @@ async fn submit_feedback(
         "ui" => "UI/UX",
         _ => "Other",
     };
-    let body = format!(
+
+    let mut body = format!(
         "**Category:** {}\n**Submitted by:** {}\n\n---\n\n{}",
         category_label, claims.username, description
     );
 
-    // Create Forgejo issue via API
-    let base_url = api_url.trim_end_matches('/');
-    let issues_url = format!("{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues");
-
-    let response = state.http_client
-        .post(&issues_url)
-        .header("Authorization", format!("token {api_token}"))
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({
-            "title": format!("[{}] {}", category_label, title),
-            "body": body,
-        }))
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to contact issue tracker: {e}")))?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        tracing::error!("Forgejo API error: {} - {}", status, body);
-        return Err(AppError::Internal(
-            "Failed to create feedback issue".to_string(),
-        ));
-    }
-
-    let issue: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| AppError::Internal(format!("Invalid response from issue tracker: {e}")))?;
-
-    let issue_number = issue["number"].as_u64();
-
-    // Upload screenshot as issue attachment if provided
-    if let (Some((filename, data)), Some(issue_idx)) = (screenshot, issue_number) {
+    // Embed screenshot as base64 in a collapsible section
+    if let Some((filename, data)) = &screenshot {
         let mime = if filename.ends_with(".png") {
             "image/png"
         } else if filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
@@ -162,38 +130,55 @@ async fn submit_feedback(
         } else {
             "image/png"
         };
-
-        let part = reqwest::multipart::Part::bytes(data)
-            .file_name(filename)
-            .mime_str(mime)
-            .map_err(|e| AppError::Validation(format!("invalid mime type: {e}")))?;
-
-        let form = reqwest::multipart::Form::new().part("attachment", part);
-
-        let attach_url =
-            format!("{base_url}/api/v1/repos/{repo_owner}/{repo_name}/issues/{issue_idx}/assets");
-
-        let attach_resp = state.http_client
-            .post(&attach_url)
-            .header("Authorization", format!("token {api_token}"))
-            .multipart(form)
-            .send()
-            .await;
-
-        match attach_resp {
-            Ok(resp) if !resp.status().is_success() => {
-                tracing::warn!(
-                    "Failed to attach screenshot to issue #{}: {}",
-                    issue_idx,
-                    resp.status()
-                );
-            }
-            Err(e) => {
-                tracing::warn!("Failed to attach screenshot to issue: {e}");
-            }
-            _ => {}
-        }
+        let b64 = base64::encode(data);
+        body.push_str(&format!(
+            "\n\n<details>\n<summary>Screenshot</summary>\n\n![screenshot](data:{mime};base64,{b64})\n\n</details>"
+        ));
     }
+
+    // Map category to GitHub label
+    let label = match category {
+        "bug" => "bug",
+        "feature" => "enhancement",
+        "ui" => "ui",
+        _ => "feedback",
+    };
+
+    // Create GitHub issue via API
+    let issues_url =
+        format!("https://api.github.com/repos/{repo_owner}/{repo_name}/issues");
+
+    let response = state
+        .http_client
+        .post(&issues_url)
+        .header("Authorization", format!("Bearer {api_token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "chatalot-server")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .json(&serde_json::json!({
+            "title": format!("[{}] {}", category_label, title),
+            "body": body,
+            "labels": [label],
+        }))
+        .send()
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to contact GitHub: {e}")))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        tracing::error!("GitHub API error: {} - {}", status, body);
+        return Err(AppError::Internal(
+            "Failed to create feedback issue".to_string(),
+        ));
+    }
+
+    let issue: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| AppError::Internal(format!("Invalid response from GitHub: {e}")))?;
+
+    let issue_number = issue["number"].as_u64();
 
     Ok(Json(FeedbackResponse {
         success: true,
