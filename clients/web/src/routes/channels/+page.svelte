@@ -13,7 +13,7 @@
 	import { getServerConfig, getPublicUrl } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { channelStore } from '$lib/stores/channels.svelte';
-	import { messageStore, type ChatMessage } from '$lib/stores/messages.svelte';
+	import { messageStore, setMaxMessagesPerChannel, type ChatMessage } from '$lib/stores/messages.svelte';
 	import { presenceStore } from '$lib/stores/presence.svelte';
 	import { wsClient } from '$lib/ws/connection';
 	import { handleServerMessage } from '$lib/ws/handler';
@@ -340,6 +340,30 @@
 		showNavDropdown = false;
 		showUserMenu = false;
 		showSettingsDropdown = false;
+	}
+
+	/** Handle keyboard navigation inside a dropdown menu (ArrowUp/Down, Escape, Home/End). */
+	function handleMenuKeydown(e: KeyboardEvent, closeMenu: () => void) {
+		const menu = (e.currentTarget as HTMLElement);
+		const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+		if (items.length === 0) return;
+		const current = items.indexOf(document.activeElement as HTMLElement);
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			items[(current + 1) % items.length]?.focus();
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			items[(current - 1 + items.length) % items.length]?.focus();
+		} else if (e.key === 'Home') {
+			e.preventDefault();
+			items[0]?.focus();
+		} else if (e.key === 'End') {
+			e.preventDefault();
+			items[items.length - 1]?.focus();
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			closeMenu();
+		}
 	}
 
 	// Reply state
@@ -1298,8 +1322,12 @@
 			return;
 		}
 
-		// Fetch server config (caches public URL for invite links)
-		getServerConfig().catch((err) => console.warn('Failed to load server config:', err));
+		// Fetch server config (caches public URL for invite links, sets message cache limit)
+		getServerConfig()
+			.then((cfg) => {
+				if (cfg.max_messages_cache) setMaxMessagesPerChannel(cfg.max_messages_cache);
+			})
+			.catch((err) => console.warn('Failed to load server config:', err));
 
 		// Refresh user data from server (keeps is_admin, avatar_url etc. current)
 		try {
@@ -4435,9 +4463,11 @@
 					</button>
 					{#if showSettingsDropdown}
 						<button class="fixed inset-0 z-30" onclick={() => showSettingsDropdown = false} aria-label="Close settings menu"></button>
-						<div class="absolute right-0 top-full z-40 mt-1 w-48 max-w-[calc(100vw-1rem)] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl">
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<div role="menu" aria-label="Settings" class="absolute right-0 top-full z-40 mt-1 w-48 max-w-[calc(100vw-1rem)] rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl" onkeydown={(e) => handleMenuKeydown(e, () => showSettingsDropdown = false)}>
 							{#if authStore.user?.is_admin || authStore.user?.is_owner}
 								<button
+									role="menuitem"
 									onclick={() => { goto('/admin'); showSettingsDropdown = false; }}
 									class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 								>
@@ -4449,6 +4479,7 @@
 							{/if}
 							{#if communityStore.activeCommunityId && isCommunityModeratorOrAbove()}
 								<button
+									role="menuitem"
 									onclick={() => { goto('/community'); showSettingsDropdown = false; }}
 									class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 								>
@@ -4459,6 +4490,7 @@
 								</button>
 							{/if}
 							<button
+								role="menuitem"
 								onclick={() => { goto('/settings'); showSettingsDropdown = false; }}
 								class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 							>
@@ -4569,10 +4601,12 @@
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 							</button>
 							{#if showSidebarCreateMenu}
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div class="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
-									onmousedown={(e) => e.stopPropagation()}>
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<div role="menu" aria-label="Create" class="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-white/10 bg-[var(--bg-secondary)] py-1 shadow-xl"
+									onmousedown={(e) => e.stopPropagation()}
+									onkeydown={(e) => handleMenuKeydown(e, () => showSidebarCreateMenu = false)}>
 									<button
+										role="menuitem"
 										onclick={() => { showSidebarCreateMenu = false; showCreateGroup = true; showCreateChannel = false; }}
 										class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 									>
@@ -4580,6 +4614,7 @@
 										Group
 									</button>
 									<button
+										role="menuitem"
 										onclick={() => { showSidebarCreateMenu = false; showCreateChannel = true; showCreateGroup = false; }}
 										class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] transition hover:bg-white/5"
 									>
@@ -5270,7 +5305,8 @@
 		<!-- ═══ USER MENU DROPDOWN ═══ -->
 		{#if showUserMenu}
 			<button class="fixed inset-0 z-30" onclick={() => showUserMenu = false} aria-label="Close user menu"></button>
-			<div class="absolute right-2 top-12 md:top-14 z-40 w-64 rounded-2xl border border-white/10 bg-[var(--bg-secondary)] shadow-xl" transition:fly={{ y: -10, duration: 150 }}>
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+			<div role="menu" aria-label="User menu" class="absolute right-2 top-12 md:top-14 z-40 w-64 rounded-2xl border border-white/10 bg-[var(--bg-secondary)] shadow-xl" transition:fly={{ y: -10, duration: 150 }} onkeydown={(e) => { if (e.key === 'Escape') showUserMenu = false; }}>
 				<!-- User info -->
 				{#if authStore.user}
 					<div class="flex items-center gap-3 border-b border-white/10 p-4">
@@ -5334,6 +5370,7 @@
 				<!-- Actions -->
 				<div class="p-2">
 					<button
+						role="menuitem"
 						onclick={() => { whatsNewRef?.open(); showUserMenu = false; }}
 						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 					>
@@ -5341,6 +5378,7 @@
 						Changelog <span class="ml-auto text-[10px] text-[var(--text-secondary)]">v{__APP_VERSION__}</span>
 					</button>
 					<button
+						role="menuitem"
 						onclick={() => { showFeedback = true; showUserMenu = false; }}
 						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]"
 					>
@@ -5349,6 +5387,7 @@
 					</button>
 					{#if authStore.user?.is_admin || authStore.user?.is_owner}
 					<a
+						role="menuitem"
 						href="/admin"
 						onclick={() => { showUserMenu = false; }}
 						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--accent)] transition hover:bg-white/5"
@@ -5359,6 +5398,7 @@
 					{/if}
 					<div class="my-1 h-px bg-white/10"></div>
 					<button
+						role="menuitem"
 						onclick={() => { webrtcManager.leaveCall(); authStore.logout(); goto('/login'); }}
 						class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-[var(--danger)] transition hover:bg-white/5"
 					>
@@ -6500,6 +6540,7 @@
 						oncontextmenu={(e) => { e.preventDefault(); contextMenuMessageId = null; }}
 						onkeydown={(e) => { if (e.key === 'Escape') contextMenuMessageId = null; }}
 					></div>
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					<div
 						role="menu"
 						aria-label="Message actions"
@@ -6508,6 +6549,7 @@
 						transition:scale={{ start: 0.9, duration: 100 }}
 						onclick={(e) => e.stopPropagation()}
 						oncontextmenu={(e) => e.stopPropagation()}
+						onkeydown={(e) => handleMenuKeydown(e, () => contextMenuMessageId = null)}
 					>
 						{#if ctxMsg}
 							<button

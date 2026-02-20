@@ -21,6 +21,7 @@ pub mod registration_invite_repo;
 pub mod report_repo;
 pub mod scheduled_message_repo;
 pub mod sender_key_repo;
+pub mod settings_repo;
 pub mod timeout_repo;
 pub mod unread_repo;
 pub mod user_repo;

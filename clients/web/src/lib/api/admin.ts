@@ -302,3 +302,40 @@ export async function reviewReport(
 		admin_notes: adminNotes ?? null
 	});
 }
+
+// ── Instance Settings ──
+
+export async function getInstanceSettings(): Promise<Record<string, string>> {
+	return api.get('/admin/settings');
+}
+
+export async function updateInstanceSettings(updates: Record<string, string>): Promise<Record<string, string>> {
+	return api.put('/admin/settings', updates);
+}
+
+// ── Webhooks Overview ──
+
+export interface AdminWebhook {
+	id: string;
+	channel_id: string;
+	name: string;
+	active: boolean;
+	created_by: string;
+	created_at: string;
+}
+
+export interface AdminWebhooksResponse {
+	webhooks: AdminWebhook[];
+	total: number;
+}
+
+export async function listAllWebhooks(params?: {
+	page?: number;
+	per_page?: number;
+}): Promise<AdminWebhooksResponse> {
+	const query = new URLSearchParams();
+	if (params?.page) query.set('page', String(params.page));
+	if (params?.per_page) query.set('per_page', String(params.per_page));
+	const qs = query.toString();
+	return api.get(`/admin/webhooks${qs ? `?${qs}` : ''}`);
+}

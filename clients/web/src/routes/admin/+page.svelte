@@ -12,12 +12,14 @@
 		quarantineMessage, unquarantineMessage,
 		listBlockedHashes, addBlockedHash, removeBlockedHash, type BlockedHash,
 		getAuditLog, type AuditLogEntry, type AuditLogResponse,
-		listReports, reviewReport, type Report, type ReportsResponse
+		listReports, reviewReport, type Report, type ReportsResponse,
+		getInstanceSettings, updateInstanceSettings,
+		listAllWebhooks, type AdminWebhook, type AdminWebhooksResponse
 	} from '$lib/api/admin';
 	import { createAnnouncement, listAllAnnouncements, type Announcement } from '$lib/api/announcements';
 	import { onMount, onDestroy } from 'svelte';
 
-	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security' | 'announcements';
+	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security' | 'announcements' | 'webhooks' | 'settings';
 	let activeTab = $state<Tab>('users');
 
 	// ── Users ──
@@ -67,6 +69,17 @@
 	let newAnnouncementBody = $state('');
 	let creatingAnnouncement = $state(false);
 
+	// ── Webhooks ──
+	let webhooksResponse = $state<AdminWebhooksResponse | null>(null);
+	let webhooksLoading = $state(false);
+
+	// ── Instance Settings ──
+	let instanceSettings = $state<Record<string, string>>({});
+	let settingsLoading = $state(false);
+	let savingSettings = $state(false);
+	let settingsMaxCache = $state('500');
+	let settingsMaxPins = $state('50');
+
 	// ── Security (Blocked Hashes + Purge) ──
 	let blockedHashes = $state<BlockedHash[]>([]);
 	let hashesLoading = $state(false);
@@ -99,6 +112,8 @@
 		if (tab === 'audit' && !auditResponse) loadAuditLog();
 		if (tab === 'security' && blockedHashes.length === 0) loadBlockedHashes();
 		if (tab === 'announcements' && adminAnnouncements.length === 0) loadAnnouncements();
+		if (tab === 'webhooks' && !webhooksResponse) loadWebhooks();
+		if (tab === 'settings' && Object.keys(instanceSettings).length === 0) loadSettings();
 	}
 
 	// ── Confirm dialog ──
@@ -527,6 +542,47 @@
 		}
 	}
 
+	async function loadWebhooks() {
+		webhooksLoading = true;
+		try {
+			webhooksResponse = await listAllWebhooks({ per_page: 50 });
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load webhooks');
+		} finally {
+			webhooksLoading = false;
+		}
+	}
+
+	async function loadSettings() {
+		settingsLoading = true;
+		try {
+			instanceSettings = await getInstanceSettings();
+			settingsMaxCache = instanceSettings.max_messages_cache ?? '500';
+			settingsMaxPins = instanceSettings.max_pins_per_channel ?? '50';
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load settings');
+		} finally {
+			settingsLoading = false;
+		}
+	}
+
+	async function saveSettings() {
+		savingSettings = true;
+		try {
+			instanceSettings = await updateInstanceSettings({
+				max_messages_cache: settingsMaxCache,
+				max_pins_per_channel: settingsMaxPins
+			});
+			settingsMaxCache = instanceSettings.max_messages_cache ?? '500';
+			settingsMaxPins = instanceSettings.max_pins_per_channel ?? '50';
+			toastStore.success('Settings saved');
+		} catch (err) {
+			toastStore.error(err instanceof Error ? err.message : 'Failed to save settings');
+		} finally {
+			savingSettings = false;
+		}
+	}
+
 	const tabs: { id: Tab; label: string }[] = [
 		{ id: 'users', label: 'Users' },
 		{ id: 'invites', label: 'Invites' },
@@ -534,7 +590,9 @@
 		{ id: 'reports', label: 'Reports' },
 		{ id: 'audit', label: 'Audit Log' },
 		{ id: 'security', label: 'Security' },
-		{ id: 'announcements', label: 'Announcements' }
+		{ id: 'announcements', label: 'Announcements' },
+		{ id: 'webhooks', label: 'Webhooks' },
+		{ id: 'settings', label: 'Settings' }
 	];
 </script>
 
@@ -1134,6 +1192,70 @@
 									<p class="text-sm text-[var(--text-secondary)]">{ann.body}</p>
 								</div>
 							{/each}
+						</div>
+					{/if}
+				</section>
+			{:else if activeTab === 'webhooks'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<h2 class="mb-1 text-lg font-semibold">Webhooks Overview</h2>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">All webhooks across all channels. Manage individual webhooks from the channel settings.</p>
+
+					{#if webhooksLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading webhooks...</p>
+					{:else if !webhooksResponse || webhooksResponse.webhooks.length === 0}
+						<p class="text-sm text-[var(--text-secondary)]">No webhooks configured.</p>
+					{:else}
+						<p class="mb-3 text-xs text-[var(--text-secondary)]">{webhooksResponse.total} webhook{webhooksResponse.total === 1 ? '' : 's'}</p>
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-white/10 text-left text-xs text-[var(--text-secondary)]">
+										<th class="pb-2 pr-4">Name</th>
+										<th class="pb-2 pr-4">Channel</th>
+										<th class="pb-2 pr-4">Status</th>
+										<th class="pb-2">Created</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each webhooksResponse.webhooks as wh (wh.id)}
+										<tr class="border-b border-white/5">
+											<td class="py-2 pr-4 font-medium text-[var(--text-primary)]">{wh.name}</td>
+											<td class="py-2 pr-4 font-mono text-xs text-[var(--text-secondary)]">{wh.channel_id.slice(0, 8)}...</td>
+											<td class="py-2 pr-4">
+												<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {wh.active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}">
+													{wh.active ? 'Active' : 'Inactive'}
+												</span>
+											</td>
+											<td class="py-2 text-xs text-[var(--text-secondary)]">{new Date(wh.created_at).toLocaleDateString()}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</section>
+			{:else if activeTab === 'settings'}
+				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<h2 class="mb-1 text-lg font-semibold">Instance Settings</h2>
+					<p class="mb-4 text-xs text-[var(--text-secondary)]">Configure server-wide limits and defaults. Changes take effect immediately for new connections.</p>
+
+					{#if settingsLoading}
+						<p class="text-sm text-[var(--text-secondary)]">Loading settings...</p>
+					{:else}
+						<div class="space-y-4">
+							<div>
+								<label for="setting-cache" class="mb-1 block text-sm font-medium text-[var(--text-primary)]">Message cache per channel</label>
+								<p class="mb-2 text-xs text-[var(--text-secondary)]">Max messages kept in memory per channel on each client. Pinned messages are always preserved. Range: 50-10,000.</p>
+								<input id="setting-cache" type="number" bind:value={settingsMaxCache} min="50" max="10000" class="w-40 rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+							</div>
+							<div>
+								<label for="setting-pins" class="mb-1 block text-sm font-medium text-[var(--text-primary)]">Max pins per channel</label>
+								<p class="mb-2 text-xs text-[var(--text-secondary)]">Maximum number of pinned messages allowed per channel. Range: 1-200.</p>
+								<input id="setting-pins" type="number" bind:value={settingsMaxPins} min="1" max="200" class="w-40 rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+							</div>
+							<button onclick={saveSettings} disabled={savingSettings} class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+								{savingSettings ? 'Saving...' : 'Save Settings'}
+							</button>
 						</div>
 					{/if}
 				</section>

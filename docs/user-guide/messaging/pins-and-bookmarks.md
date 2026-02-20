@@ -32,10 +32,11 @@ Alternatively, right-click a pinned message in the channel and select **Unpin**.
 
 ### Pin Limits
 
-- Each channel can have a maximum of **50 pinned messages**.
+- Each channel has a configurable maximum number of pinned messages (default: **50**).
+- Instance admins can change this limit (1–200) from the admin panel **Settings** tab.
 - The current pin count is displayed in the pinned messages panel header (e.g., "12/50").
-- When approaching the limit (45+ pins), a warning is included in the success toast.
-- If you try to pin a 51st message, you will receive an error asking you to unpin a message first.
+- When approaching the limit (within 5 of the max), a warning is included in the success toast.
+- If you try to exceed the limit, you will receive an error asking you to unpin a message first.
 
 ### Pin Rules
 
@@ -74,7 +75,7 @@ Alternatively, right-click a bookmarked message in the channel and select **Remo
 |---------|-----|----------|
 | Visibility | All channel members | Only you |
 | Who can create | Admins and owners | Any member |
-| Limit | 50 per channel | No limit |
+| Limit | Configurable (default 50) | No limit |
 | Notes | No | Yes (up to 500 characters) |
 | Location | Channel-specific | Global (all your bookmarks) |
 

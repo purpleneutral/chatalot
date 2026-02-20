@@ -23,7 +23,12 @@ export interface UnreadCount {
 	count: number;
 }
 
-const MAX_MESSAGES_PER_CHANNEL = 500;
+let maxMessagesPerChannel = 500;
+
+/** Set the per-channel message cache limit (called when server config is loaded). */
+export function setMaxMessagesPerChannel(limit: number) {
+	maxMessagesPerChannel = Math.max(50, Math.min(limit, 10_000));
+}
 
 class MessageStore {
 	// channelId -> messages (sorted by time ascending)
@@ -90,9 +95,21 @@ class MessageStore {
 		// Don't add duplicates
 		if (existing.some(m => m.id === message.id)) return;
 		let updated = [...existing, message];
-		// Trim oldest messages if cache exceeds limit
-		if (updated.length > MAX_MESSAGES_PER_CHANNEL) {
-			updated = updated.slice(updated.length - MAX_MESSAGES_PER_CHANNEL);
+		// Trim oldest non-pinned messages if cache exceeds limit
+		if (updated.length > maxMessagesPerChannel) {
+			const pinned = this.pinnedIds.get(channelId);
+			if (pinned && pinned.size > 0) {
+				// Keep pinned messages, trim from non-pinned oldest
+				const pinnedMsgs = updated.filter(m => pinned.has(m.id));
+				const nonPinned = updated.filter(m => !pinned.has(m.id));
+				const keep = maxMessagesPerChannel - pinnedMsgs.length;
+				if (keep > 0 && nonPinned.length > keep) {
+					updated = [...nonPinned.slice(nonPinned.length - keep), ...pinnedMsgs]
+						.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+				}
+			} else {
+				updated = updated.slice(updated.length - maxMessagesPerChannel);
+			}
 			// Allow scroll-up to re-fetch trimmed messages
 			this.noMoreMessages.delete(channelId);
 		}

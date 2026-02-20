@@ -112,24 +112,36 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     );
 
     // SPA fallback: serve static files, or index.html for client-side routes.
+    // Prefer precompressed (.gz, .br) assets when available (built by SvelteKit).
     // We use a custom service_fn instead of ServeFile because ServeDir's
     // not_found_service preserves a 404 status code even when content is served.
     let index_html_path = format!("{static_dir}/index.html");
-    let spa_fallback = ServeDir::new(&static_dir).fallback(tower::service_fn(
-        move |_req: axum::http::Request<axum::body::Body>| {
-            let path = index_html_path.clone();
-            async move {
-                let bytes = tokio::fs::read(&path).await.unwrap_or_default();
-                Ok::<_, std::convert::Infallible>(
-                    axum::http::Response::builder()
-                        .status(StatusCode::OK)
-                        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-                        .body(axum::body::Body::from(bytes))
-                        .unwrap(),
-                )
-            }
-        },
-    ));
+    let spa_fallback = ServeDir::new(&static_dir)
+        .precompressed_gzip()
+        .precompressed_br()
+        .fallback(tower::service_fn(
+            move |_req: axum::http::Request<axum::body::Body>| {
+                let path = index_html_path.clone();
+                async move {
+                    match tokio::fs::read(&path).await {
+                        Ok(bytes) => Ok::<_, std::convert::Infallible>(
+                            axum::http::Response::builder()
+                                .status(StatusCode::OK)
+                                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                                .body(axum::body::Body::from(bytes))
+                                .unwrap(),
+                        ),
+                        Err(_) => Ok(
+                            axum::http::Response::builder()
+                                .status(StatusCode::NOT_FOUND)
+                                .header(header::CONTENT_TYPE, "text/plain")
+                                .body(axum::body::Body::from("404 Not Found"))
+                                .unwrap(),
+                        ),
+                    }
+                }
+            },
+        ));
 
     // CORS is permissive because the desktop client (Tauri) makes cross-origin
     // requests from a local file:// origin. All endpoints require JWT auth,

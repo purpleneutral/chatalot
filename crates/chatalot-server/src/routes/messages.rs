@@ -19,7 +19,7 @@ use crate::permissions;
 
 use message_repo::SearchFilters;
 
-const MAX_PINS_PER_CHANNEL: i64 = 50;
+const DEFAULT_MAX_PINS: i64 = 50;
 
 fn build_search_filters(query: &SearchQuery) -> SearchFilters {
     SearchFilters {
@@ -220,10 +220,13 @@ async fn pin_message(
     }
 
     // Check pin limit
+    let max_pins = state.instance_settings.read()
+        .map(|s| s.max_pins_per_channel)
+        .unwrap_or(DEFAULT_MAX_PINS);
     let count = pin_repo::count_pins(&state.db, channel_id).await?;
-    if count >= MAX_PINS_PER_CHANNEL {
+    if count >= max_pins {
         return Err(AppError::Validation(format!(
-            "maximum of {MAX_PINS_PER_CHANNEL} pins per channel"
+            "maximum of {max_pins} pins per channel"
         )));
     }
 

@@ -29,6 +29,49 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
+        let max_file_size_mb = std::env::var("MAX_FILE_SIZE_MB")
+            .unwrap_or_else(|_| "100".to_string())
+            .parse()
+            .unwrap_or(100u64)
+            .clamp(1, 10_000);
+
+        let registration_mode = std::env::var("REGISTRATION_MODE")
+            .unwrap_or_else(|_| "invite_only".to_string());
+        let registration_mode = match registration_mode.as_str() {
+            "open" | "invite_only" | "closed" => registration_mode,
+            other => {
+                tracing::warn!(
+                    "Invalid REGISTRATION_MODE '{other}', falling back to 'invite_only'"
+                );
+                "invite_only".to_string()
+            }
+        };
+
+        let community_creation_mode = std::env::var("COMMUNITY_CREATION_MODE")
+            .unwrap_or_else(|_| "admin_only".to_string());
+        let community_creation_mode = match community_creation_mode.as_str() {
+            "open" | "admin_only" => community_creation_mode,
+            other => {
+                tracing::warn!(
+                    "Invalid COMMUNITY_CREATION_MODE '{other}', falling back to 'admin_only'"
+                );
+                "admin_only".to_string()
+            }
+        };
+
+        let ice_servers_json = std::env::var("ICE_SERVERS").ok();
+        if let Some(ref json) = ice_servers_json
+            && serde_json::from_str::<serde_json::Value>(json).is_err()
+        {
+            tracing::warn!("ICE_SERVERS is not valid JSON, will be ignored");
+        }
+
+        let upload_quota_mb = std::env::var("UPLOAD_QUOTA_MB")
+            .unwrap_or_else(|_| "500".to_string())
+            .parse()
+            .unwrap_or(500u64)
+            .clamp(0, 100_000);
+
         Ok(Self {
             database_url: std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?,
             listen_addr: std::env::var("LISTEN_ADDR")
@@ -40,27 +83,19 @@ impl Config {
             totp_encryption_key: std::env::var("TOTP_ENCRYPTION_KEY").ok(),
             file_storage_path: std::env::var("FILE_STORAGE_PATH")
                 .unwrap_or_else(|_| "./data/files".to_string()),
-            max_file_size_mb: std::env::var("MAX_FILE_SIZE_MB")
-                .unwrap_or_else(|_| "100".to_string())
-                .parse()
-                .unwrap_or(100),
+            max_file_size_mb,
             forgejo_api_url: std::env::var("FORGEJO_API_URL").ok(),
             forgejo_api_token: std::env::var("FORGEJO_API_TOKEN").ok(),
             forgejo_repo_owner: std::env::var("FORGEJO_REPO_OWNER").ok(),
             forgejo_repo_name: std::env::var("FORGEJO_REPO_NAME").ok(),
             admin_username: std::env::var("ADMIN_USERNAME").ok(),
-            registration_mode: std::env::var("REGISTRATION_MODE")
-                .unwrap_or_else(|_| "invite_only".to_string()),
-            community_creation_mode: std::env::var("COMMUNITY_CREATION_MODE")
-                .unwrap_or_else(|_| "admin_only".to_string()),
+            registration_mode,
+            community_creation_mode,
             public_url: std::env::var("PUBLIC_URL").ok(),
-            ice_servers_json: std::env::var("ICE_SERVERS").ok(),
+            ice_servers_json,
             vapid_private_key: std::env::var("VAPID_PRIVATE_KEY").ok(),
             vapid_public_key: std::env::var("VAPID_PUBLIC_KEY").ok(),
-            upload_quota_mb: std::env::var("UPLOAD_QUOTA_MB")
-                .unwrap_or_else(|_| "500".to_string())
-                .parse()
-                .unwrap_or(500),
+            upload_quota_mb,
         })
     }
 }

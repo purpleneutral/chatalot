@@ -32,10 +32,13 @@ async fn server_config(State(state): State<Arc<AppState>>) -> Json<ServerConfigR
     let ice_servers = state.config.ice_servers_json.as_ref()
         .and_then(|json| serde_json::from_str(json).ok())
         .unwrap_or_default();
+    let settings = state.instance_settings.read().unwrap();
     Json(ServerConfigResponse {
         registration_mode: state.config.registration_mode.clone(),
         public_url: state.config.public_url.clone(),
         ice_servers,
+        max_messages_cache: settings.max_messages_cache,
+        max_pins_per_channel: settings.max_pins_per_channel,
     })
 }
 

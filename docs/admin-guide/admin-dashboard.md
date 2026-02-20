@@ -24,7 +24,7 @@ The admin panel consists of:
 
 ## Tabs
 
-The admin panel is organized into seven tabs:
+The admin panel is organized into nine tabs:
 
 | Tab | Description |
 |-----|-------------|
@@ -35,6 +35,8 @@ The admin panel is organized into seven tabs:
 | **Audit Log** | View a time-ordered log of admin and security events |
 | **Security** | Purge tools, message quarantine, and file hash blocklist |
 | **Announcements** | Publish server-wide announcements |
+| **Webhooks** | Overview of all webhooks across all channels |
+| **Settings** | Configure instance-wide settings (message cache limit, max pins per channel) |
 
 Each tab loads its data on first access and caches it for the duration of the session. Switching between tabs does not reload data unless you explicitly refresh.
 

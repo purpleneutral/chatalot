@@ -532,6 +532,34 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Load instance settings from DB into memory
+    match chatalot_db::repos::settings_repo::list_all(&state.db).await {
+        Ok(rows) => {
+            let mut settings = state.instance_settings.write().unwrap();
+            for row in &rows {
+                match row.key.as_str() {
+                    "max_messages_cache" => {
+                        if let Ok(v) = row.value.parse::<u32>() {
+                            settings.max_messages_cache = v.clamp(50, 10_000);
+                        }
+                    }
+                    "max_pins_per_channel" => {
+                        if let Ok(v) = row.value.parse::<i64>() {
+                            settings.max_pins_per_channel = v.clamp(1, 200);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            tracing::info!(
+                "Instance settings: max_messages_cache={}, max_pins_per_channel={}",
+                settings.max_messages_cache,
+                settings.max_pins_per_channel
+            );
+        }
+        Err(e) => tracing::warn!("Failed to load instance settings: {e}"),
+    }
+
     // Populate the in-memory suspended users set
     match chatalot_db::repos::user_repo::get_suspended_user_ids(&state.db).await {
         Ok(ids) => {

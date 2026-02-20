@@ -36,16 +36,20 @@ export function clearMarkReadTimer() {
 	}
 }
 
-/** Fetch and cache user info if not already in the store. */
+/** Fetch and cache user info if not already in the store.
+ *  Deduplicates concurrent fetches for the same user ID. */
+const pendingUserFetches = new Map<string, Promise<void>>();
 async function ensureUser(userId: string | null) {
 	if (!userId) return;
 	if (userStore.getUser(userId)) return;
-	try {
-		const user = await getUser(userId);
-		userStore.setUser(user);
-	} catch {
-		// User lookup failed — display will fall back to truncated ID
-	}
+	const existing = pendingUserFetches.get(userId);
+	if (existing) return existing;
+	const promise = getUser(userId)
+		.then(user => userStore.setUser(user))
+		.catch(() => { /* User lookup failed — display will fall back to truncated ID */ })
+		.finally(() => pendingUserFetches.delete(userId));
+	pendingUserFetches.set(userId, promise);
+	return promise;
 }
 
 /// Handle incoming server WebSocket messages, updating the appropriate stores.

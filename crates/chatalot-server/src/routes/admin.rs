@@ -16,11 +16,12 @@ use chatalot_common::api_types::{
     ResetPasswordRequest, ReviewReportRequest, SetAdminRequest, StorageStatsResponse,
     SuspendUserRequest, UserStorageStatResponse,
 };
+use std::collections::HashMap;
 use chatalot_common::ws_messages::ServerMessage;
 use chatalot_db::models::file::FileRecord;
 use chatalot_db::repos::{
     announcement_repo, audit_repo, blocked_hash_repo, file_repo, message_repo,
-    registration_invite_repo, report_repo, user_repo,
+    registration_invite_repo, report_repo, settings_repo, user_repo, webhook_repo,
 };
 
 use crate::app_state::AppState;
@@ -107,6 +108,13 @@ pub fn routes() -> Router<Arc<AppState>> {
             "/admin/announcements",
             post(create_announcement).get(list_announcements),
         )
+        // Instance settings
+        .route(
+            "/admin/settings",
+            get(get_instance_settings).put(update_instance_settings),
+        )
+        // Webhooks overview
+        .route("/admin/webhooks", get(list_all_webhooks))
 }
 
 // ── User Management (existing) ──
@@ -1303,4 +1311,137 @@ async fn list_announcements(
             })
             .collect(),
     ))
+}
+
+// ── Instance Settings ──
+
+async fn get_instance_settings(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+) -> Result<Json<HashMap<String, String>>, AppError> {
+    require_admin(&claims)?;
+
+    let rows = settings_repo::list_all(&state.db).await?;
+    let map: HashMap<String, String> = rows.into_iter().map(|r| (r.key, r.value)).collect();
+    Ok(Json(map))
+}
+
+async fn update_instance_settings(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Json(updates): Json<HashMap<String, String>>,
+) -> Result<Json<HashMap<String, String>>, AppError> {
+    require_admin(&claims)?;
+
+    const ALLOWED_KEYS: &[&str] = &["max_messages_cache", "max_pins_per_channel"];
+
+    for (key, value) in &updates {
+        if !ALLOWED_KEYS.contains(&key.as_str()) {
+            return Err(AppError::Validation(format!("unknown setting: {key}")));
+        }
+        // Validate numeric values
+        match key.as_str() {
+            "max_messages_cache" => {
+                let v: u32 = value
+                    .parse()
+                    .map_err(|_| AppError::Validation("max_messages_cache must be a number".into()))?;
+                if !(50..=10_000).contains(&v) {
+                    return Err(AppError::Validation(
+                        "max_messages_cache must be between 50 and 10000".into(),
+                    ));
+                }
+            }
+            "max_pins_per_channel" => {
+                let v: i64 = value
+                    .parse()
+                    .map_err(|_| AppError::Validation("max_pins_per_channel must be a number".into()))?;
+                if !(1..=200).contains(&v) {
+                    return Err(AppError::Validation(
+                        "max_pins_per_channel must be between 1 and 200".into(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Persist to DB
+    for (key, value) in &updates {
+        settings_repo::set(&state.db, key, value).await?;
+    }
+
+    // Update in-memory cache
+    {
+        let mut settings = state.instance_settings.write().unwrap();
+        for (key, value) in &updates {
+            match key.as_str() {
+                "max_messages_cache" => {
+                    if let Ok(v) = value.parse::<u32>() {
+                        settings.max_messages_cache = v;
+                    }
+                }
+                "max_pins_per_channel" => {
+                    if let Ok(v) = value.parse::<i64>() {
+                        settings.max_pins_per_channel = v;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Return updated settings
+    let rows = settings_repo::list_all(&state.db).await?;
+    let map: HashMap<String, String> = rows.into_iter().map(|r| (r.key, r.value)).collect();
+    Ok(Json(map))
+}
+
+// ── Webhooks Overview ──
+
+#[derive(Debug, serde::Serialize)]
+struct AdminWebhookEntry {
+    id: Uuid,
+    channel_id: Uuid,
+    name: String,
+    active: bool,
+    created_by: Uuid,
+    created_at: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct AdminWebhooksResponse {
+    webhooks: Vec<AdminWebhookEntry>,
+    total: i64,
+}
+
+async fn list_all_webhooks(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Query(query): Query<AdminFilesQuery>,
+) -> Result<Json<AdminWebhooksResponse>, AppError> {
+    require_admin(&claims)?;
+
+    let per_page = query.per_page.unwrap_or(50).min(100);
+    let page = query.page.unwrap_or(1).clamp(1, 10_000);
+    let offset = (page - 1) * per_page;
+
+    let total = webhook_repo::count_all(&state.db).await?;
+    let webhooks = webhook_repo::list_all(&state.db, per_page, offset).await?;
+
+    let entries = webhooks
+        .into_iter()
+        .map(|w| AdminWebhookEntry {
+            id: w.id,
+            channel_id: w.channel_id,
+            name: w.name,
+            active: w.active,
+            created_by: w.created_by,
+            created_at: w.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(AdminWebhooksResponse {
+        webhooks: entries,
+        total,
+    }))
 }

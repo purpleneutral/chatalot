@@ -9,6 +9,22 @@ use crate::config::Config;
 use crate::services::push_service::PushService;
 use crate::ws::connection_manager::ConnectionManager;
 
+/// Admin-configurable instance settings (loaded from DB, cached in memory).
+#[derive(Debug, Clone)]
+pub struct InstanceSettings {
+    pub max_messages_cache: u32,
+    pub max_pins_per_channel: i64,
+}
+
+impl Default for InstanceSettings {
+    fn default() -> Self {
+        Self {
+            max_messages_cache: 500,
+            max_pins_per_channel: 50,
+        }
+    }
+}
+
 pub struct AppState {
     pub config: Config,
     pub db: PgPool,
@@ -22,6 +38,8 @@ pub struct AppState {
     pub suspended_users: dashmap::DashSet<uuid::Uuid>,
     /// Web Push notification service (None if VAPID keys not configured).
     pub push_service: Option<Arc<PushService>>,
+    /// Admin-configurable instance settings (cached in memory).
+    pub instance_settings: std::sync::RwLock<InstanceSettings>,
 }
 
 impl AppState {
@@ -77,6 +95,7 @@ impl AppState {
             http_client,
             suspended_users: dashmap::DashSet::new(),
             push_service,
+            instance_settings: std::sync::RwLock::new(InstanceSettings::default()),
         })
     }
 }

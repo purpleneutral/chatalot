@@ -47,8 +47,13 @@ totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 base32 = "0.5"
 data-encoding = "2"
 reqwest = { version = "0.12", features = ["json", "multipart"] }
-
 # Shared crates
 chatalot-db = { path = "crates/chatalot-db" }
 chatalot-crypto = { path = "crates/chatalot-crypto" }
 chatalot-common = { path = "crates/chatalot-common" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

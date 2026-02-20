@@ -16,6 +16,23 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.18.69',
+			date: '2026-02-19',
+			changes: [
+				'Admin panel: new Settings tab for configuring message cache limit and max pins per channel',
+				'Admin panel: new Webhooks tab showing all webhooks across all channels',
+				'Message cache limit now configurable (default 500, range 50-10000) via admin settings',
+				'Pinned messages are now protected from cache trimming (never evicted)',
+				'Max pins per channel configurable (default 50, range 1-200) via admin settings',
+				'Precompressed assets: SvelteKit builds .gz/.br files, server serves them automatically',
+				'Deduplicated user profile fetches (prevents redundant API calls on message bursts)',
+				'Config validation: env vars now validated with sensible clamping and warnings',
+				'Client-side CSS defense-in-depth: rejects community CSS containing url(), @import, or script patterns',
+				'Improved accessibility: ARIA roles and keyboard navigation on dropdown menus',
+				'Optimized release builds: LTO, single codegen unit, stripped symbols',
+			]
+		},
+		{
 			version: '0.18.68',
 			date: '2026-02-19',
 			changes: [

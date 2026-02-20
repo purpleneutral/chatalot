@@ -65,7 +65,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0
 - **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, rate limiting, invite-only registration, self-service account recovery
 - **Moderation** — message reports, user warnings, blocking, bans, timeouts, slow mode
-- **Admin panel** — user management, invite codes, announcements, report review, and system feedback
+- **Admin panel** — user management, invite codes, announcements, report review, webhooks overview, instance settings, and system feedback
 - **Legal framework** — built-in privacy policy and terms of service, customizable per instance
 
 For a complete feature list, see [Feature Status](docs/appendix/feature-status.md). For full documentation, see the [Chatalot Documentation](docs/README.md).
@@ -324,7 +324,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (47 files)
+├── migrations/                # PostgreSQL migrations (48 files)
 ├── scripts/
 │   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
@@ -348,7 +348,10 @@ chatalot/
 | `ADMIN_USERNAME` | *optional* | Username that gets admin privileges |
 | `LISTEN_ADDR` | `0.0.0.0:8080` | Server bind address |
 | `FILE_STORAGE_PATH` | `./data/files` | Encrypted file storage directory |
-| `MAX_FILE_SIZE_MB` | `100` | Max upload size in MB |
+| `MAX_FILE_SIZE_MB` | `100` | Max upload size in MB (1–10,000) |
+| `UPLOAD_QUOTA_MB` | `500` | Per-user upload quota in MB (0 = unlimited) |
+| `COMMUNITY_CREATION_MODE` | `admin_only` | `open` or `admin_only` |
+| `ICE_SERVERS` | *optional* | JSON array of STUN/TURN servers for WebRTC |
 | `RUST_LOG` | `info` | Log level |
 | `VAPID_PRIVATE_KEY` | *optional* | Base64-encoded ECDSA P-256 private key for web push notifications |
 | `VAPID_PUBLIC_KEY` | *optional* | Base64-encoded ECDSA P-256 public key for web push notifications |

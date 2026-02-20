@@ -688,6 +688,17 @@ pub struct ServerConfigResponse {
     pub public_url: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub ice_servers: Vec<IceServer>,
+    #[serde(default = "default_max_messages_cache")]
+    pub max_messages_cache: u32,
+    #[serde(default = "default_max_pins_per_channel")]
+    pub max_pins_per_channel: i64,
+}
+
+fn default_max_messages_cache() -> u32 {
+    500
+}
+fn default_max_pins_per_channel() -> i64 {
+    50
 }
 
 // ── Health ──

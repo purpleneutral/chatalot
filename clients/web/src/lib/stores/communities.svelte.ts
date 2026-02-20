@@ -88,12 +88,17 @@ class CommunityStore {
 			}
 		}
 
-		// Inject custom CSS
+		// Inject custom CSS (defense-in-depth: server already sanitizes, but reject
+		// obviously dangerous patterns client-side too)
 		if (theme.customCss) {
-			const style = document.createElement('style');
-			style.id = 'community-custom-css';
-			style.textContent = theme.customCss;
-			document.head.appendChild(style);
+			const css = theme.customCss;
+			const dangerous = /url\s*\(|@import|expression\s*\(|javascript:|behavior\s*:|binding\s*:|moz-binding/i;
+			if (!dangerous.test(css)) {
+				const style = document.createElement('style');
+				style.id = 'community-custom-css';
+				style.textContent = css;
+				document.head.appendChild(style);
+			}
 		}
 	}
 

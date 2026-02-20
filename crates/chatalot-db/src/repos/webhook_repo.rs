@@ -87,3 +87,26 @@ pub async fn get_by_id(pool: &PgPool, id: Uuid) -> Result<Option<Webhook>, sqlx:
         .fetch_optional(pool)
         .await
 }
+
+/// List all webhooks across all channels (for admin overview).
+pub async fn list_all(
+    pool: &PgPool,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Webhook>, sqlx::Error> {
+    sqlx::query_as::<_, Webhook>(
+        "SELECT * FROM webhooks ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+}
+
+/// Count all webhooks (for admin pagination).
+pub async fn count_all(pool: &PgPool) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM webhooks")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
