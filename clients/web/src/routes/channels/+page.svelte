@@ -249,16 +249,36 @@
 	}
 
 	/**
-	 * Encode text for a channel.
-	 * E2E encryption is disabled until key backup & multi-device are implemented.
-	 * When re-enabled, this function should encrypt for DMs (Double Ratchet)
-	 * and groups (Sender Keys) via the SessionManager.
+	 * Encrypt text for a channel.
+	 * DMs use X3DH + Double Ratchet. Groups use Sender Keys.
+	 * Falls back to plaintext encoding if E2E is disabled or crypto unavailable.
 	 */
-	function encryptContent(_channelId: string, text: string): { ciphertext: number[]; nonce: number[] } {
-		return {
-			ciphertext: Array.from(new TextEncoder().encode(text)),
-			nonce: Array.from(crypto.getRandomValues(new Uint8Array(12))),
-		};
+	async function encryptContent(channelId: string, text: string): Promise<{ ciphertext: number[]; nonce: number[] }> {
+		if (!encryptionStore.enabled) {
+			return {
+				ciphertext: Array.from(new TextEncoder().encode(text)),
+				nonce: Array.from(crypto.getRandomValues(new Uint8Array(12))),
+			};
+		}
+
+		const channel = channelStore.channels.find(c => c.id === channelId);
+		const isDm = channel?.channel_type === 'dm';
+
+		try {
+			await initCrypto();
+			const sm = getSessionManager();
+
+			if (isDm) {
+				const peerUserId = getPeerUserIdForDm(channelId);
+				if (!peerUserId) throw new Error('Cannot determine DM peer');
+				return await sm.encryptForPeer(peerUserId, text);
+			} else {
+				return await sm.encryptForGroup(channelId, text);
+			}
+		} catch (err) {
+			console.error('[E2E] Encryption failed:', err);
+			throw new Error(`Encryption failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+		}
 	}
 
 	// Platform detection for keyboard shortcut display
@@ -1103,7 +1123,14 @@
 
 		const channelId = channelStore.activeChannelId;
 		const threadId = activeThreadRootId;
-		const { ciphertext, nonce } = await encryptContent(channelId, text);
+		let ciphertext: number[];
+		let nonce: number[];
+		try {
+			({ ciphertext, nonce } = await encryptContent(channelId, text));
+		} catch (err) {
+			toastStore.error(`Failed to encrypt message: ${err instanceof Error ? err.message : 'unknown error'}`);
+			return;
+		}
 
 		// Optimistic add to thread panel
 		const tempId = crypto.randomUUID();
@@ -1328,10 +1355,11 @@
 			return;
 		}
 
-		// Fetch server config (caches public URL for invite links, sets message cache limit)
+		// Fetch server config (caches public URL for invite links, sets message cache limit, E2E flag)
 		getServerConfig()
 			.then((cfg) => {
 				if (cfg.max_messages_cache) setMaxMessagesPerChannel(cfg.max_messages_cache);
+				if (cfg.e2e_enabled !== undefined) encryptionStore.enabled = cfg.e2e_enabled;
 			})
 			.catch((err) => console.warn('Failed to load server config:', err));
 
@@ -2134,7 +2162,14 @@
 		text = processSlashCommands(text);
 
 		// Encrypt for DM (Double Ratchet) or group (Sender Keys)
-		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
+		let ciphertext: number[];
+		let nonce: number[];
+		try {
+			({ ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text));
+		} catch (err) {
+			toastStore.error(`Failed to encrypt message: ${err instanceof Error ? err.message : 'unknown error'}`);
+			return;
+		}
 
 		// Optimistic add
 		const tempId = `temp-${Date.now()}`;
@@ -2374,7 +2409,14 @@
 				size: result.size_bytes
 			});
 
-			const { ciphertext, nonce } = await encryptContent(channelId, fileMsg);
+			let ciphertext: number[];
+			let nonce: number[];
+			try {
+				({ ciphertext, nonce } = await encryptContent(channelId, fileMsg));
+			} catch (err) {
+				toastStore.error(`Failed to encrypt file message: ${err instanceof Error ? err.message : 'unknown error'}`);
+				return;
+			}
 
 			// Optimistic add BEFORE WS send to prevent race with server echo
 			const tempId = `temp-${Date.now()}`;
@@ -2499,7 +2541,14 @@
 		const text = editInput.trim();
 		if (!text || !channelStore.activeChannelId) return;
 
-		const { ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text);
+		let ciphertext: number[];
+		let nonce: number[];
+		try {
+			({ ciphertext, nonce } = await encryptContent(channelStore.activeChannelId, text));
+		} catch (err) {
+			toastStore.error(`Failed to encrypt edit: ${err instanceof Error ? err.message : 'unknown error'}`);
+			return;
+		}
 
 		const sent = wsClient.send({ type: 'edit_message', message_id: messageId, ciphertext, nonce });
 		if (!sent) {
@@ -3179,7 +3228,14 @@
 		const channelId = channelStore.activeChannelId;
 		if (!channelId) return;
 
-		const { ciphertext, nonce } = await encryptContent(channelId, gif.url);
+		let ciphertext: number[];
+		let nonce: number[];
+		try {
+			({ ciphertext, nonce } = await encryptContent(channelId, gif.url));
+		} catch (err) {
+			toastStore.error(`Failed to encrypt message: ${err instanceof Error ? err.message : 'unknown error'}`);
+			return;
+		}
 
 		// Optimistic add
 		const tempId = `temp-${Date.now()}`;
@@ -4355,8 +4411,8 @@
 					</button>
 				{/if}
 
-				<!-- E2E Encryption Badge -->
-				{#if activeChannel?.channel_type === 'dm'}
+				<!-- E2E Encryption Badge (only when E2E is enabled) -->
+				{#if encryptionStore.enabled && activeChannel?.channel_type === 'dm'}
 					<button
 						onclick={loadEncryptionInfo}
 						class="hidden md:flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-400 transition hover:bg-green-500/25"
@@ -4366,7 +4422,7 @@
 						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 						E2E
 					</button>
-				{:else if activeChannel}
+				{:else if encryptionStore.enabled && activeChannel}
 					<span class="hidden md:flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400/60" title="Messages are encrypted">
 						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
 						E2E

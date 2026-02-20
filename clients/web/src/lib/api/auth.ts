@@ -51,6 +51,7 @@ export interface ServerConfig {
 	ice_servers?: IceServer[];
 	max_messages_cache?: number;
 	max_pins_per_channel?: number;
+	e2e_enabled?: boolean;
 }
 
 /** Cached public URL from server config, populated on first getServerConfig() call. */

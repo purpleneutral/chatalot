@@ -79,6 +79,7 @@
 	let savingSettings = $state(false);
 	let settingsMaxCache = $state('500');
 	let settingsMaxPins = $state('50');
+	let settingsE2eEnabled = $state('true');
 
 	// ── Security (Blocked Hashes + Purge) ──
 	let blockedHashes = $state<BlockedHash[]>([]);
@@ -559,6 +560,7 @@
 			instanceSettings = await getInstanceSettings();
 			settingsMaxCache = instanceSettings.max_messages_cache ?? '500';
 			settingsMaxPins = instanceSettings.max_pins_per_channel ?? '50';
+			settingsE2eEnabled = instanceSettings.e2e_enabled ?? 'true';
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to load settings');
 		} finally {
@@ -571,10 +573,12 @@
 		try {
 			instanceSettings = await updateInstanceSettings({
 				max_messages_cache: settingsMaxCache,
-				max_pins_per_channel: settingsMaxPins
+				max_pins_per_channel: settingsMaxPins,
+				e2e_enabled: settingsE2eEnabled,
 			});
 			settingsMaxCache = instanceSettings.max_messages_cache ?? '500';
 			settingsMaxPins = instanceSettings.max_pins_per_channel ?? '50';
+			settingsE2eEnabled = instanceSettings.e2e_enabled ?? 'true';
 			toastStore.success('Settings saved');
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to save settings');
@@ -1252,6 +1256,14 @@
 								<label for="setting-pins" class="mb-1 block text-sm font-medium text-[var(--text-primary)]">Max pins per channel</label>
 								<p class="mb-2 text-xs text-[var(--text-secondary)]">Maximum number of pinned messages allowed per channel. Range: 1-200.</p>
 								<input id="setting-pins" type="number" bind:value={settingsMaxPins} min="1" max="200" class="w-40 rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" />
+							</div>
+							<div>
+								<label for="setting-e2e" class="mb-1 block text-sm font-medium text-[var(--text-primary)]">End-to-end encryption</label>
+								<p class="mb-2 text-xs text-[var(--text-secondary)]">When enabled, new messages are encrypted client-side using the Signal protocol (X3DH + Double Ratchet for DMs, Sender Keys for groups). Old plaintext messages remain readable.</p>
+								<label class="inline-flex cursor-pointer items-center gap-2">
+									<input id="setting-e2e" type="checkbox" checked={settingsE2eEnabled === 'true'} onchange={(e) => { settingsE2eEnabled = (e.target as HTMLInputElement).checked ? 'true' : 'false'; }} class="h-4 w-4 rounded border-white/20 bg-[var(--bg-primary)] accent-[var(--accent)]" />
+									<span class="text-sm text-[var(--text-primary)]">{settingsE2eEnabled === 'true' ? 'Enabled' : 'Disabled'}</span>
+								</label>
 							</div>
 							<button onclick={saveSettings} disabled={savingSettings} class="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">
 								{savingSettings ? 'Saving...' : 'Save Settings'}

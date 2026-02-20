@@ -14,6 +14,7 @@ use crate::ws::connection_manager::ConnectionManager;
 pub struct InstanceSettings {
     pub max_messages_cache: u32,
     pub max_pins_per_channel: i64,
+    pub e2e_enabled: bool,
 }
 
 impl Default for InstanceSettings {
@@ -21,6 +22,7 @@ impl Default for InstanceSettings {
         Self {
             max_messages_cache: 500,
             max_pins_per_channel: 50,
+            e2e_enabled: true,
         }
     }
 }

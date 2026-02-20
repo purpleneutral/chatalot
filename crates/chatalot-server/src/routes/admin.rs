@@ -1333,7 +1333,7 @@ async fn update_instance_settings(
 ) -> Result<Json<HashMap<String, String>>, AppError> {
     require_admin(&claims)?;
 
-    const ALLOWED_KEYS: &[&str] = &["max_messages_cache", "max_pins_per_channel"];
+    const ALLOWED_KEYS: &[&str] = &["max_messages_cache", "max_pins_per_channel", "e2e_enabled"];
 
     for (key, value) in &updates {
         if !ALLOWED_KEYS.contains(&key.as_str()) {
@@ -1361,6 +1361,13 @@ async fn update_instance_settings(
                     ));
                 }
             }
+            "e2e_enabled" => {
+                if value != "true" && value != "false" {
+                    return Err(AppError::Validation(
+                        "e2e_enabled must be 'true' or 'false'".into(),
+                    ));
+                }
+            }
             _ => {}
         }
     }
@@ -1384,6 +1391,9 @@ async fn update_instance_settings(
                     if let Ok(v) = value.parse::<i64>() {
                         settings.max_pins_per_channel = v;
                     }
+                }
+                "e2e_enabled" => {
+                    settings.e2e_enabled = value == "true";
                 }
                 _ => {}
             }

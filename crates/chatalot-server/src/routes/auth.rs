@@ -39,6 +39,7 @@ async fn server_config(State(state): State<Arc<AppState>>) -> Json<ServerConfigR
         ice_servers,
         max_messages_cache: settings.max_messages_cache,
         max_pins_per_channel: settings.max_pins_per_channel,
+        e2e_enabled: settings.e2e_enabled,
     })
 }
 

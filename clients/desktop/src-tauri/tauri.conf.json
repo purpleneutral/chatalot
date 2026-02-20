@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicegui/tauri/refs/heads/dev/tooling/cli/schema.json",
   "productName": "Chatalot",
-  "version": "0.18.70",
+  "version": "0.19.0",
   "identifier": "com.chatalot.desktop",
   "build": {
     "frontendDist": "../../web/build",

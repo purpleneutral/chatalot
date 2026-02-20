@@ -1,6 +1,8 @@
-/** Tracks unacknowledged identity key changes (TOFU violations). */
+/** Tracks E2E encryption state: feature flag and unacknowledged identity key changes. */
 class EncryptionStore {
 	private keyChangedUsers = $state<Set<string>>(new Set());
+	/** Whether the server has E2E encryption enabled. */
+	enabled = $state(false);
 
 	hasKeyChanged(userId: string): boolean {
 		return this.keyChangedUsers.has(userId);

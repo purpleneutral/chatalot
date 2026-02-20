@@ -548,13 +548,17 @@ async fn main() -> anyhow::Result<()> {
                             settings.max_pins_per_channel = v.clamp(1, 200);
                         }
                     }
+                    "e2e_enabled" => {
+                        settings.e2e_enabled = row.value == "true";
+                    }
                     _ => {}
                 }
             }
             tracing::info!(
-                "Instance settings: max_messages_cache={}, max_pins_per_channel={}",
+                "Instance settings: max_messages_cache={}, max_pins_per_channel={}, e2e_enabled={}",
                 settings.max_messages_cache,
-                settings.max_pins_per_channel
+                settings.max_pins_per_channel,
+                settings.e2e_enabled
             );
         }
         Err(e) => tracing::warn!("Failed to load instance settings: {e}"),

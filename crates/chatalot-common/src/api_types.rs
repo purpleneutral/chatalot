@@ -692,6 +692,8 @@ pub struct ServerConfigResponse {
     pub max_messages_cache: u32,
     #[serde(default = "default_max_pins_per_channel")]
     pub max_pins_per_channel: i64,
+    #[serde(default = "default_e2e_enabled")]
+    pub e2e_enabled: bool,
 }
 
 fn default_max_messages_cache() -> u32 {
@@ -699,6 +701,9 @@ fn default_max_messages_cache() -> u32 {
 }
 fn default_max_pins_per_channel() -> i64 {
     50
+}
+fn default_e2e_enabled() -> bool {
+    true
 }
 
 // ── Health ──

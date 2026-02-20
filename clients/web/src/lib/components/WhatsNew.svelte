@@ -16,6 +16,17 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.19.0',
+			date: '2026-02-19',
+			changes: [
+				'End-to-end encryption activated: DMs use X3DH + Double Ratchet, group channels use Sender Keys (Signal protocol)',
+				'Encryption is transparent — old plaintext messages remain readable, new messages are encrypted automatically',
+				'Per-message lock icon shows which messages are end-to-end encrypted',
+				'Admin toggle: E2E encryption can be enabled/disabled from the admin panel under Instance Settings',
+				'Safety number verification: click the E2E badge in DM channels to verify your contact\'s identity',
+			]
+		},
+		{
 			version: '0.18.70',
 			date: '2026-02-19',
 			changes: [
