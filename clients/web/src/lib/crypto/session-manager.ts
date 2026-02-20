@@ -202,6 +202,9 @@ export class SessionManager {
 		return new TextDecoder().decode(new Uint8Array(decResult.plaintext));
 	}
 
+	// Track peers that have already logged a decryption error (avoid console spam)
+	private _decryptErrorLogged = new Set<string>();
+
 	/**
 	 * Try to decrypt as a WireMessage; fall back to UTF-8 for legacy messages.
 	 */
@@ -237,7 +240,10 @@ export class SessionManager {
 				return plaintext;
 			}
 		} catch (err) {
-			console.error('[E2E] decryptOrFallback failed for peer', peerUserId, ':', err);
+			if (!this._decryptErrorLogged.has(peerUserId)) {
+				this._decryptErrorLogged.add(peerUserId);
+				console.warn('[E2E] Decryption failed for peer', peerUserId, '(further errors for this peer suppressed):', err);
+			}
 		}
 
 		// Legacy message: raw UTF-8 plaintext

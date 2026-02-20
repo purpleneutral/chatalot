@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.19.3',
+			date: '2026-02-20',
+			changes: [
+				'Fix: avatar images now load correctly in desktop app (CSP policy updated)',
+				'Fix: E2E decryption errors for old messages no longer flood the console (logged once per peer)',
+			]
+		},
+		{
 			version: '0.19.2',
 			date: '2026-02-19',
 			changes: [
