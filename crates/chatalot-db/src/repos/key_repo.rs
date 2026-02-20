@@ -136,6 +136,15 @@ pub async fn fetch_key_bundle(
     }))
 }
 
+/// Delete ALL one-time prekeys for a user (used during full key re-registration).
+pub async fn delete_all_prekeys(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM one_time_prekeys WHERE user_id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 /// Count remaining unused one-time prekeys for a user.
 pub async fn count_unused_prekeys(pool: &PgPool, user_id: Uuid) -> Result<i64, sqlx::Error> {
     let row: (i64,) =

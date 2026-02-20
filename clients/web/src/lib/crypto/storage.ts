@@ -152,6 +152,17 @@ export class CryptoStorage {
 		return this.put('identity', 'self', keys);
 	}
 
+	// ─── Key Version ──────────────────────────────────────────────
+
+	async getKeyVersion(): Promise<number> {
+		const v: number | null = await this.get('identity', 'keyVersion');
+		return v ?? 0;
+	}
+
+	async setKeyVersion(version: number): Promise<void> {
+		return this.put('identity', 'keyVersion', version);
+	}
+
 	// ─── Personal Key ─────────────────────────────────────────────
 
 	async getPersonalKey(): Promise<Uint8Array | null> {

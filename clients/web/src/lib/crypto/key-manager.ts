@@ -6,6 +6,12 @@ const INITIAL_OTP_COUNT = 100;
 const OTP_REPLENISH_THRESHOLD = 25;
 const OTP_REPLENISH_BATCH = 100;
 
+/**
+ * Bumped when E2E key registration changes require re-registration.
+ * v2: Fix stale OTP key mismatch after re-registration.
+ */
+const KEY_VERSION = 2;
+
 export class KeyManager {
 	constructor(private storage: CryptoStorage) {}
 
@@ -77,20 +83,32 @@ export class KeyManager {
 	/**
 	 * For users who registered before E2E was active: generate keys,
 	 * upload them to the server, and store them locally.
-	 * No-op if keys already exist.
+	 * Also re-registers if the key version has changed (e.g., to fix
+	 * stale OTPs from a previous key generation).
 	 */
 	async ensureKeysRegistered(): Promise<void> {
 		const existing = await this.storage.getIdentity();
-		if (existing) return; // Already have keys
+		const storedVersion = await this.storage.getKeyVersion();
 
-		console.info('No E2E keys found — generating and registering...');
+		if (existing && storedVersion === KEY_VERSION) return; // Up to date
+
+		if (existing && storedVersion !== KEY_VERSION) {
+			console.info(`E2E key version mismatch (have ${storedVersion}, need ${KEY_VERSION}) — re-registering...`);
+			// Wipe all crypto state so we start fresh.
+			// This also clears stale sessions that used the old keys.
+			await this.storage.clear();
+		} else {
+			console.info('No E2E keys found — generating and registering...');
+		}
+
 		const keys = await this.generateRegistrationKeys();
 		await registerKeys({
 			identity_key: keys.identityKey,
 			signed_prekey: keys.signedPrekey,
 			one_time_prekeys: keys.oneTimePrekeys,
 		});
-		console.info('E2E key registration complete');
+		await this.storage.setKeyVersion(KEY_VERSION);
+		console.info('E2E key registration complete (version', KEY_VERSION, ')');
 	}
 
 	/**

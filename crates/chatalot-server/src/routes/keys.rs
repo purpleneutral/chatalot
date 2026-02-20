@@ -175,8 +175,10 @@ async fn register_keys(
     )
     .await?;
 
-    // Upload one-time prekeys
+    // Full re-registration: delete stale OTPs first to avoid key_id collisions
+    // with old key material, then insert fresh ones.
     if !req.one_time_prekeys.is_empty() {
+        key_repo::delete_all_prekeys(&state.db, claims.sub).await?;
         let pairs: Vec<(i32, Vec<u8>)> = req
             .one_time_prekeys
             .into_iter()

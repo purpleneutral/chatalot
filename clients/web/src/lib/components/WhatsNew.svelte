@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.19.1',
+			date: '2026-02-19',
+			changes: [
+				'Fix: E2E decryption now works correctly (stale one-time prekeys caused key mismatch after re-registration)',
+				'Fix: key version migration forces all clients to re-register with fresh keys on next load',
+				'Fix: decryption errors now logged to console instead of being silently swallowed',
+			]
+		},
+		{
 			version: '0.19.0',
 			date: '2026-02-19',
 			changes: [

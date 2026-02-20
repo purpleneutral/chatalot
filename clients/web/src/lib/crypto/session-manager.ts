@@ -236,8 +236,8 @@ export class SessionManager {
 
 				return plaintext;
 			}
-		} catch {
-			// Not a WireMessage — fall through to UTF-8 decode
+		} catch (err) {
+			console.error('[E2E] decryptOrFallback failed for peer', peerUserId, ':', err);
 		}
 
 		// Legacy message: raw UTF-8 plaintext
