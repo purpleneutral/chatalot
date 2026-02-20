@@ -124,16 +124,16 @@ jobs:
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
 
-          # Remove bundled GTK/GLib/GIO/Pango/Cairo that conflict with newer distros.
-          # WebKitGTK requires these as system deps anyway.
-          cd squashfs-root/usr/lib
-          rm -f libgtk-3* libgdk-3* libglib-2* libgio-2* libgobject-2* libgmodule-2*
-          rm -f libpango* libcairo* libatk* libatspi* libepoxy* libfribidi*
-          rm -f libgdk_pixbuf* libharfbuzz* libfontconfig* libfreetype*
-          rm -f libwayland* libXi* libXrandr* libXcursor* libXcomposite*
-          rm -f libXdamage* libXext* libXfixes* libXinerama*
-          rm -f libpcre2* libmount* libblkid* libselinux*
-          cd ../../..
+          # Remove ALL bundled libs and GTK modules that conflict with newer distros.
+          # On modern distros (Arch, Fedora 40+, Ubuntu 24.04+), system libs are
+          # newer than the Ubuntu 22.04 ones bundled here. Mixing versions causes
+          # GTK init failures. WebKitGTK is a runtime dep anyway.
+          rm -rf squashfs-root/usr/lib/x86_64-linux-gnu
+          rm -f squashfs-root/usr/lib/*.so*
+
+          # Replace the GTK hook script — don't override GTK paths, just set
+          # GDK_BACKEND=x11 (Wayland backend crashes in AppImage context).
+          printf '#!/usr/bin/env bash\nexport GDK_BACKEND=x11\n' > squashfs-root/apprun-hooks/linuxdeploy-plugin-gtk.sh
 
           # Repackage using appimagetool
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
