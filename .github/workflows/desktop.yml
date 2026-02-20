@@ -40,11 +40,21 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: clients/desktop/src-tauri -> target
+          workspaces: |
+            clients/desktop/src-tauri -> target
+            . -> target
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build WASM crypto module
+        run: wasm-pack build crates/chatalot-crypto-wasm --target web --out-dir ../../clients/web/src/lib/crypto/wasm --out-name chatalot_crypto_wasm
 
       - name: Install web dependencies
         working-directory: clients/web
