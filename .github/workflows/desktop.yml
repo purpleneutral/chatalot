@@ -7,29 +7,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-desktop:
+  # ── Windows: use tauri-action (straightforward) ──────────────
+  build-windows:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: ubuntu-24.04
-            args: ''
-          - platform: windows-latest
-            args: ''
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsecret-1-dev
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -76,5 +62,113 @@ jobs:
             - **Windows**: NSIS installer (.exe)
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
           includeUpdaterJson: true
+
+  # ── Linux: manual build + strip bundled GTK from AppImage ────
+  build-linux:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsecret-1-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: clients/web/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            clients/desktop/src-tauri -> target
+            . -> target
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build WASM crypto module
+        run: wasm-pack build crates/chatalot-crypto-wasm --target web --out-dir ../../clients/web/src/lib/crypto/wasm --out-name chatalot_crypto_wasm
+
+      - name: Install web dependencies
+        working-directory: clients/web
+        run: npm ci
+
+      - name: Build Tauri app
+        working-directory: clients/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build
+
+      - name: Strip bundled GTK/GLib from AppImage
+        run: |
+          APPIMAGE=$(find clients/desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
+          echo "Found AppImage: $APPIMAGE"
+
+          # Extract
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract
+
+          # Remove bundled GTK/GLib/GIO/Pango/Cairo that conflict with newer distros.
+          # WebKitGTK requires these as system deps anyway.
+          cd squashfs-root/usr/lib
+          rm -f libgtk-3* libgdk-3* libglib-2* libgio-2* libgobject-2* libgmodule-2*
+          rm -f libpango* libcairo* libatk* libatspi* libepoxy* libfribidi*
+          rm -f libgdk_pixbuf* libharfbuzz* libfontconfig* libfreetype*
+          rm -f libwayland* libXi* libXrandr* libXcursor* libXcomposite*
+          rm -f libXdamage* libXext* libXfixes* libXinerama*
+          cd ../../..
+
+          # Repackage using appimagetool
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "$APPIMAGE"
+          rm -rf squashfs-root appimagetool
+
+      - name: Sign AppImage for updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          APPIMAGE=$(find clients/desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
+          npx --yes @tauri-apps/cli signer sign "$APPIMAGE"
+
+      - name: Get version from tauri.conf.json
+        id: version
+        run: echo "version=$(jq -r .version clients/desktop/src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          # Create release if it doesn't exist (Windows job may have created it)
+          gh release view "$TAG" > /dev/null 2>&1 || \
+            gh release create "$TAG" --draft --title "Chatalot v${VERSION}" --notes "Desktop app release."
+
+          # Upload AppImage, deb, rpm + signatures
+          for f in clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage \
+                   clients/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig \
+                   clients/desktop/src-tauri/target/release/bundle/deb/*.deb \
+                   clients/desktop/src-tauri/target/release/bundle/deb/*.deb.sig \
+                   clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm \
+                   clients/desktop/src-tauri/target/release/bundle/rpm/*.rpm.sig; do
+            [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber
+          done
