@@ -36,12 +36,14 @@ export function apiBase(): string {
 export function wsUrl(): string {
 	if (isTauri()) {
 		const server = getServerUrl();
-		if (!server) return '';
-		const url = new URL(server);
-		const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-		return `${protocol}//${url.host}/ws`;
+		if (server) {
+			const url = new URL(server);
+			const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+			return `${protocol}//${url.host}/ws`;
+		}
+		// Direct navigation mode: already on the server origin, fall through
 	}
-	// In iframe mode or regular web, use current host
+	// In iframe mode, regular web, or direct navigation: use current host
 	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 	return `${protocol}//${window.location.host}/ws`;
 }
