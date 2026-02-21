@@ -1,5 +1,5 @@
 import { getPreferences, updatePreferences } from '$lib/api/preferences';
-import { themeStore } from '$lib/stores/theme.svelte';
+import { themeStore, type Theme } from '$lib/stores/theme.svelte';
 
 export type AccentColor =
 	| 'blue'
@@ -97,6 +97,7 @@ export interface UserPreferences {
 	voiceActivationMode: VoiceActivationMode;
 	pttKey: string;
 	toggleMuteKey: string;
+	theme: Theme;
 }
 
 const DEFAULT_CUSTOM_COLORS: CustomThemeColors = {
@@ -137,7 +138,8 @@ const DEFAULTS: UserPreferences = {
 	sidebarLayout: 'expanded',
 	voiceActivationMode: 'open-mic',
 	pttKey: ' ',
-	toggleMuteKey: 'm'
+	toggleMuteKey: 'm',
+	theme: 'system'
 };
 
 export const PRESET_THEMES: Record<PresetTheme, { label: string; colors: { dark: CustomThemeColors; light: CustomThemeColors } }> = {
@@ -236,6 +238,10 @@ class PreferencesStore {
 				}
 			}
 		}
+		// Sync saved theme preference to ThemeStore
+		if (this.preferences.theme && this.preferences.theme !== 'system') {
+			themeStore.set(this.preferences.theme);
+		}
 		this.applyToDOM();
 
 		// Re-apply when dark/light mode changes
@@ -245,6 +251,8 @@ class PreferencesStore {
 	/** Update a single preference and persist. */
 	set<K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) {
 		this.preferences = { ...this.preferences, [key]: value };
+		// Keep ThemeStore in sync when theme preference changes
+		if (key === 'theme') themeStore.set(value as Theme);
 		this.saveLocal();
 		this.applyToDOM();
 		this.debounceSyncToServer();
@@ -264,6 +272,10 @@ class PreferencesStore {
 			if (serverPrefs && typeof serverPrefs === 'object') {
 				this.preferences = { ...this.preferences, ...serverPrefs } as UserPreferences;
 				this.saveLocal();
+				// Sync theme preference to ThemeStore (server is source of truth)
+				if (this.preferences.theme) {
+					themeStore.set(this.preferences.theme);
+				}
 				this.applyToDOM();
 			}
 		} catch {

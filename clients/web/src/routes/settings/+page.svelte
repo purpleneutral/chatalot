@@ -894,7 +894,7 @@
 							</div>
 							<div class="flex overflow-hidden rounded-lg border border-white/10">
 								<button
-									onclick={() => themeStore.set('dark')}
+									onclick={() => preferencesStore.set('theme', 'dark')}
 									class="px-3 py-1.5 text-sm transition {themeStore.current === 'dark' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
 									title="Dark"
 									aria-label="Dark theme"
@@ -904,7 +904,7 @@
 									</svg>
 								</button>
 								<button
-									onclick={() => themeStore.set('light')}
+									onclick={() => preferencesStore.set('theme', 'light')}
 									class="border-x border-white/10 px-3 py-1.5 text-sm transition {themeStore.current === 'light' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
 									title="Light"
 									aria-label="Light theme"
@@ -914,7 +914,7 @@
 									</svg>
 								</button>
 								<button
-									onclick={() => themeStore.set('system')}
+									onclick={() => preferencesStore.set('theme', 'system')}
 									class="px-3 py-1.5 text-sm transition {themeStore.current === 'system' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
 									title="System"
 									aria-label="System theme"

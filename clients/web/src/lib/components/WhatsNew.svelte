@@ -16,9 +16,10 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.22.2',
+			version: '0.22.3',
 			date: '2026-02-21',
 			changes: [
+				'Theme preference (dark/light/system) now syncs across devices via server',
 				'Fix: desktop app now loads avatars, user preferences, and applies theme correctly',
 				'Fix: silent auto-update works in desktop app (reloads for new server builds)',
 				'Fix: eliminated WebKitGTK crash from AudioWorkletNode and circular chunk dependencies',
