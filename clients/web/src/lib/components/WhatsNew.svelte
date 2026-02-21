@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.22.2',
+			date: '2026-02-21',
+			changes: [
+				'Fix: desktop app now loads avatars, user preferences, and applies theme correctly',
+				'Fix: silent auto-update works in desktop app (reloads for new server builds)',
+				'Fix: eliminated WebKitGTK crash from AudioWorkletNode and circular chunk dependencies',
+				'Desktop: accept self-signed TLS certificates for self-hosted servers',
+			]
+		},
+		{
 			version: '0.22.1',
 			date: '2026-02-21',
 			changes: [
