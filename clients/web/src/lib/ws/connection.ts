@@ -1,4 +1,5 @@
 import { authStore } from '$lib/stores/auth.svelte';
+import { refreshToken } from '$lib/api/auth';
 import { wsUrl } from '$lib/env';
 import type { ClientMessage, ServerMessage } from './types';
 
@@ -131,6 +132,27 @@ class WebSocketClient {
 	private dispatch(msg: ServerMessage) {
 		if (msg.type === 'pong') {
 			this.lastPongTime = Date.now();
+		}
+
+		// Token rejected — refresh before the next reconnect attempt
+		if (msg.type === 'error' && msg.code === 'unauthorized') {
+			const rt = authStore.refreshToken;
+			if (rt) {
+				refreshToken(rt)
+					.then((data) => {
+						authStore.setTokens(data.access_token, data.refresh_token);
+						console.info('Token refreshed after WS auth failure');
+					})
+					.catch(() => {
+						// Refresh also failed — force re-login
+						authStore.logout();
+						window.location.href = '/login';
+					});
+			} else {
+				authStore.logout();
+				window.location.href = '/login';
+			}
+			return; // Don't dispatch to handlers (suppresses toast)
 		}
 
 		if (msg.type === 'authenticated') {
