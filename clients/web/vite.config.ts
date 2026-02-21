@@ -14,8 +14,7 @@ export default defineConfig({
 		__APP_VERSION__: JSON.stringify(pkg.version)
 	},
 	build: {
-		target: ['es2020', 'safari13'],
-		modulePreload: { polyfill: false }
+		target: ['es2020', 'safari14']
 	},
 	plugins: [tailwindcss(), sveltekit()],
 	optimizeDeps: {
