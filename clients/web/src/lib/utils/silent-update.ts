@@ -14,22 +14,18 @@ export function markTyping(): void {
 
 /** Trigger the silent update flow: precache → wait for idle → reload. */
 export function startSilentUpdate(): void {
-	console.info('[silent-update] startSilentUpdate called, sw.controller=', !!navigator.serviceWorker?.controller);
 	if (!navigator.serviceWorker?.controller) {
-		// No SW — fall back to banner
-		console.info('[silent-update] No SW controller, falling back to toast');
-		window.dispatchEvent(new CustomEvent('chatalot:update-show-toast'));
+		// No SW (e.g. Tauri webview, HTTP) — skip precache, just wait for idle and reload
+		waitForIdleThenReload();
 		return;
 	}
 
 	// Ask SW to precache new assets
-	console.info('[silent-update] Sending precache-update to SW');
 	navigator.serviceWorker.controller.postMessage({ type: 'precache-update' });
 
 	// Listen for SW response
 	const onMessage = (event: MessageEvent) => {
 		if (event.data?.type !== 'update-ready') return;
-		console.info('[silent-update] Received update-ready from SW');
 		navigator.serviceWorker.removeEventListener('message', onMessage);
 		waitForIdleThenReload();
 	};

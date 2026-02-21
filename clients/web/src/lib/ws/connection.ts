@@ -170,8 +170,8 @@ class WebSocketClient {
 			}
 
 			// Notify if the server was updated with a new client build.
-			// In the desktop app, a page reload can't update bundled assets,
-			// so skip the web update banner — the Tauri updater handles it.
+			// Only suppress in native Tauri (top-level window with bundled assets).
+			// In the iframe shell, the web app loads from the server, so reload works.
 			if (
 				msg.server_version &&
 				msg.server_version !== 'unknown' &&
@@ -180,7 +180,8 @@ class WebSocketClient {
 				console.info(
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
-				if (!('__TAURI_INTERNALS__' in window)) {
+				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
+				if (!isNativeTauri) {
 					window.dispatchEvent(new CustomEvent('chatalot:update-available'));
 				}
 			}
