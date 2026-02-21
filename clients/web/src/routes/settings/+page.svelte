@@ -14,7 +14,7 @@
 	import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 	import { setupTotp, verifyTotp, disableTotp, regenerateBackupCodes, type TotpSetup } from '$lib/api/totp';
 	import { changePassword, updateProfile, uploadAvatar, uploadBanner, uploadVoiceBackground, clearVoiceBackground, deleteAccount, logoutAll, listSessions, revokeSession, regenerateRecoveryCode, type SessionInfo } from '$lib/api/account';
-	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
+	import { isTauri, isTauriEnv, getServerUrl, clearServerUrl } from '$lib/env';
 	import { initCrypto, getKeyManager } from '$lib/crypto';
 	import { getCrypto } from '$lib/crypto/wasm-loader';
 	import QRCode from 'qrcode';
@@ -25,7 +25,7 @@
 	type Tab = 'profile' | 'appearance' | 'notifications' | 'chat' | 'voice' | 'security' | 'account';
 	let activeTab = $state<Tab>('profile');
 
-	let isDesktop = $derived(isTauri());
+	let isDesktop = $derived(isTauriEnv());
 	let serverUrl = $derived(isDesktop ? getServerUrl() : null);
 
 	let totpSetup = $state<TotpSetup | null>(null);

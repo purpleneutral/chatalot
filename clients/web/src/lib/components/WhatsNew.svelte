@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.21.0',
+			date: '2026-02-20',
+			changes: [
+				'Silent auto-reload: web clients now seamlessly reload when a new version is deployed (waits for idle, preserves drafts)',
+				'Hybrid Tauri desktop: desktop app loads frontend from server via iframe shell, getting instant web-style updates without binary reinstalls',
+				'First-user bootstrap: instance owner can register without invite code on a fresh invite-only deployment',
+			]
+		},
+		{
 			version: '0.20.1',
 			date: '2026-02-20',
 			changes: [

@@ -1,4 +1,5 @@
 import { isTauri } from '$lib/env';
+import { isTauriIframe, bridgeInvoke } from '$lib/utils/tauri-bridge';
 
 const DB_NAME = 'chatalot-crypto';
 const DB_VERSION = 2;
@@ -6,34 +7,52 @@ const DB_VERSION = 2;
 // ─── OS Keychain helpers (Tauri desktop only) ────────────────────
 // Stores the identity signing key in the OS keychain for stronger
 // at-rest protection. Falls back gracefully if keychain is unavailable.
+// In iframe mode, uses postMessage bridge to reach the Tauri shell.
 
 async function keychainStore(name: string, value: string): Promise<boolean> {
-	if (!isTauri()) return false;
-	try {
-		const { invoke } = await import('@tauri-apps/api/core');
-		await invoke('store_key', { keyName: name, value });
-		return true;
-	} catch {
-		return false;
+	if (isTauri()) {
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			await invoke('store_key', { keyName: name, value });
+			return true;
+		} catch { return false; }
 	}
+	if (isTauriIframe()) {
+		try {
+			await bridgeInvoke('store_key', { keyName: name, value });
+			return true;
+		} catch { return false; }
+	}
+	return false;
 }
 
 async function keychainGet(name: string): Promise<string | null> {
-	if (!isTauri()) return null;
-	try {
-		const { invoke } = await import('@tauri-apps/api/core');
-		return await invoke<string | null>('get_key', { keyName: name });
-	} catch {
-		return null;
+	if (isTauri()) {
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			return await invoke<string | null>('get_key', { keyName: name });
+		} catch { return null; }
 	}
+	if (isTauriIframe()) {
+		try {
+			return (await bridgeInvoke('get_key', { keyName: name })) as string | null;
+		} catch { return null; }
+	}
+	return null;
 }
 
 async function keychainDelete(name: string): Promise<void> {
-	if (!isTauri()) return;
-	try {
-		const { invoke } = await import('@tauri-apps/api/core');
-		await invoke('delete_key', { keyName: name });
-	} catch { /* best-effort */ }
+	if (isTauri()) {
+		try {
+			const { invoke } = await import('@tauri-apps/api/core');
+			await invoke('delete_key', { keyName: name });
+		} catch { /* best-effort */ }
+		return;
+	}
+	if (isTauriIframe()) {
+		try { await bridgeInvoke('delete_key', { keyName: name }); } catch { /* best-effort */ }
+		return;
+	}
 }
 
 const KEYCHAIN_SIGNING_KEY = 'identity-signing-key';
@@ -137,7 +156,7 @@ export class CryptoStorage {
 		// Fall back to IndexedDB
 		const idbKeys: IdentityKeys | null = await this.get('identity', 'self');
 		// If found in IDB but not keychain (e.g. first run after upgrade), migrate
-		if (idbKeys && isTauri()) {
+		if (idbKeys && (isTauri() || isTauriIframe())) {
 			await keychainStore(KEYCHAIN_SIGNING_KEY, uint8ToBase64(idbKeys.signingKey));
 			await keychainStore(KEYCHAIN_VERIFYING_KEY, uint8ToBase64(idbKeys.verifyingKey));
 		}

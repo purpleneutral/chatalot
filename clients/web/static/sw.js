@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chatalot-v9';
+const CACHE_NAME = 'chatalot-v10';
 const STATIC_ASSETS = [
 	'/',
 	'/manifest.json',
@@ -49,6 +49,55 @@ self.addEventListener('fetch', (event) => {
 					return cached || caches.match('/');
 				});
 			})
+	);
+});
+
+// ── Precache Update (silent reload) ──
+
+self.addEventListener('message', (event) => {
+	if (event.data?.type !== 'precache-update') return;
+
+	event.waitUntil(
+		(async () => {
+			try {
+				// Fetch fresh index.html
+				const response = await fetch('/', { cache: 'no-cache' });
+				if (!response.ok) throw new Error(`fetch / returned ${response.status}`);
+
+				const html = await response.text();
+
+				// Parse immutable asset URLs from the HTML
+				const urls = [];
+				const pattern = /(?:src|href)=["']((\/_app\/immutable\/[^"']+))["']/g;
+				let match;
+				while ((match = pattern.exec(html)) !== null) {
+					urls.push(match[1]);
+				}
+
+				// Prefetch all immutable assets
+				await Promise.all(
+					urls.map((url) =>
+						fetch(url, { cache: 'no-cache' }).catch(() => {
+							/* best-effort */
+						})
+					)
+				);
+
+				// Update cached index.html
+				const cache = await caches.open(CACHE_NAME);
+				await cache.put('/', new Response(html, {
+					headers: response.headers
+				}));
+			} catch (err) {
+				console.warn('[SW] Precache update error:', err);
+			}
+
+			// Signal all clients that update is ready (even on error — reload still works)
+			const clients = await self.clients.matchAll({ type: 'window' });
+			for (const client of clients) {
+				client.postMessage({ type: 'update-ready' });
+			}
+		})()
 	);
 });
 

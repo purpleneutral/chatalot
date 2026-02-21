@@ -99,6 +99,7 @@
 	import { getSenderKeys } from '$lib/api/sender-keys';
 	import { pushStore } from '$lib/stores/push.svelte';
 	import { checkForDesktopUpdate } from '$lib/utils/updater';
+	import { startSilentUpdate, markTyping, restoreAfterSilentReload } from '$lib/utils/silent-update';
 	import { encryptionStore } from '$lib/stores/encryption.svelte';
 
 	let messageInput = $state('');
@@ -1393,8 +1394,12 @@
 		// Listen for SW postMessage from notification clicks
 		navigator.serviceWorker?.addEventListener('message', handleSwMessage);
 
+		// Restore draft after a silent auto-reload
+		restoreAfterSilentReload();
+
 		// Listen for version update events BEFORE connecting WS to avoid race
 		window.addEventListener('chatalot:update-available', handleUpdateAvailable);
+		window.addEventListener('chatalot:update-show-toast', handleUpdateShowToast);
 		window.addEventListener('chatalot:desktop-update-available', handleDesktopUpdateAvailable);
 		window.addEventListener('chatalot:connection', handleConnectionChange as EventListener);
 
@@ -1498,6 +1503,7 @@
 		window.removeEventListener('chatalot:navigate-channel', handleNotifNavigate as EventListener);
 		window.removeEventListener('chatalot:new-dm-channel', handleNewDmChannel as EventListener);
 		window.removeEventListener('chatalot:update-available', handleUpdateAvailable);
+		window.removeEventListener('chatalot:update-show-toast', handleUpdateShowToast);
 		window.removeEventListener('chatalot:desktop-update-available', handleDesktopUpdateAvailable);
 		window.removeEventListener('chatalot:connection', handleConnectionChange as EventListener);
 		window.removeEventListener('chatalot:blocks-changed', handleBlocksChanged);
@@ -1579,6 +1585,14 @@
 	}
 
 	function handleUpdateAvailable() {
+		if (navigator.serviceWorker) {
+			startSilentUpdate();
+		} else {
+			pendingUpdate = true;
+		}
+	}
+
+	function handleUpdateShowToast() {
 		pendingUpdate = true;
 	}
 
@@ -2272,6 +2286,7 @@
 		}
 
 		// Typing indicator
+		markTyping();
 		if (!typingTimeout) {
 			wsClient.send({ type: 'typing', channel_id: channelStore.activeChannelId });
 			typingTimeout = setTimeout(() => {
@@ -7035,6 +7050,7 @@
 						<textarea
 							bind:this={messageInputEl}
 							bind:value={messageInput}
+							data-message-input
 							oninput={(e) => { handleMentionInput(); autoResizeTextarea(); }}
 							onkeydown={(e) => { handleMentionKeydown(e); if (!showMentionPopup) handleInputKeydown(e); }}
 							onpaste={handlePaste}

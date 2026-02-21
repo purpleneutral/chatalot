@@ -2,11 +2,11 @@
 	import { goto } from '$app/navigation';
 	import { register, getServerConfig } from '$lib/api/auth';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { isTauri, getServerUrl, clearServerUrl } from '$lib/env';
+	import { isTauriEnv, getServerUrl, clearServerUrl } from '$lib/env';
 	import { onMount } from 'svelte';
 	import { initCrypto, getKeyManager } from '$lib/crypto';
 
-	let serverUrl = $derived(isTauri() ? getServerUrl() : null);
+	let serverUrl = $derived(isTauriEnv() ? getServerUrl() : null);
 
 	function changeServer() {
 		clearServerUrl();

@@ -324,15 +324,22 @@ pub async fn register(
             ));
         }
         "invite_only" => {
-            let code = req.invite_code.as_deref().ok_or_else(|| {
-                AppError::Validation("an invite code is required to register".to_string())
-            })?;
-            if code.is_empty() {
-                return Err(AppError::Validation(
-                    "an invite code is required to register".to_string(),
-                ));
+            // Allow first user to register without invite (bootstrap)
+            let user_count = user_repo::count_users(&state.db).await.unwrap_or(1);
+            if user_count == 0 {
+                tracing::info!("First-user bootstrap: skipping invite requirement");
+                None
+            } else {
+                let code = req.invite_code.as_deref().ok_or_else(|| {
+                    AppError::Validation("an invite code is required to register".to_string())
+                })?;
+                if code.is_empty() {
+                    return Err(AppError::Validation(
+                        "an invite code is required to register".to_string(),
+                    ));
+                }
+                Some(code.to_string())
             }
-            Some(code.to_string())
         }
         _ => None, // "open" or anything else — allow registration
     };
