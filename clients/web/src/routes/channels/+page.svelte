@@ -4576,7 +4576,7 @@
 									Admin Panel
 								</button>
 							{/if}
-							{#if communityStore.activeCommunityId && isCommunityModeratorOrAbove()}
+							{#if communityStore.activeCommunityId && (authStore.user?.is_admin || authStore.user?.is_owner || isCommunityModeratorOrAbove())}
 								<button
 									role="menuitem"
 									onclick={() => { goto('/community'); showSettingsDropdown = false; }}
