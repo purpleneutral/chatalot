@@ -1585,14 +1585,17 @@
 	}
 
 	function handleUpdateAvailable() {
+		console.info('[update] handleUpdateAvailable fired, navigator.serviceWorker=', !!navigator.serviceWorker);
 		if (navigator.serviceWorker) {
 			startSilentUpdate();
 		} else {
+			console.info('[update] No serviceWorker, setting pendingUpdate banner');
 			pendingUpdate = true;
 		}
 	}
 
 	function handleUpdateShowToast() {
+		console.info('[update] handleUpdateShowToast fired, showing banner');
 		pendingUpdate = true;
 	}
 
