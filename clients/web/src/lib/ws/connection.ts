@@ -181,10 +181,13 @@ class WebSocketClient {
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
 				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
-				// DEBUG: visible alert to confirm version check fires
-				alert(`Version mismatch detected!\nclient=${__APP_VERSION__} server=${msg.server_version}\nnativeTauri=${isNativeTauri} parent===window: ${window.parent === window}`);
 				if (!isNativeTauri) {
-					window.dispatchEvent(new CustomEvent('chatalot:update-available'));
+					// Direct reload with cache-busting — bypass event/SW chain entirely
+					setTimeout(() => {
+						const url = new URL(window.location.href);
+						url.searchParams.set('_v', Date.now().toString());
+						window.location.replace(url.toString());
+					}, 3000);
 				}
 			}
 		}
