@@ -16,6 +16,14 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.21.1',
+			date: '2026-02-20',
+			changes: [
+				'Fix: public/discoverable channels now show all group members in the member list, not just explicitly joined users',
+				'Fix: video grid now expands to fill available space when chat is collapsed during voice calls',
+			]
+		},
+		{
 			version: '0.21.0',
 			date: '2026-02-20',
 			changes: [
