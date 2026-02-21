@@ -14,7 +14,17 @@ export default defineConfig({
 		__APP_VERSION__: JSON.stringify(pkg.version)
 	},
 	build: {
-		target: ['es2020', 'safari14']
+		target: ['es2020', 'safari14'],
+		rollupOptions: {
+			output: {
+				// Reduce chunk count to avoid WebKitGTK JSC module loading bugs
+				manualChunks(id) {
+					if (id.includes('node_modules/svelte')) return 'svelte-runtime';
+					if (id.includes('node_modules')) return 'vendor';
+					if (id.includes('/src/lib/')) return 'app-lib';
+				}
+			}
+		}
 	},
 	plugins: [tailwindcss(), sveltekit()],
 	optimizeDeps: {
