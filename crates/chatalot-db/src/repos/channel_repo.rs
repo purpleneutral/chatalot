@@ -197,13 +197,66 @@ pub async fn list_members_with_users(
             CASE cm.role
                 WHEN 'owner' THEN 0
                 WHEN 'admin' THEN 1
-                ELSE 2
+                WHEN 'moderator' THEN 2
+                ELSE 3
             END,
             cm.joined_at ASC
         LIMIT $2 OFFSET $3
         "#,
     )
     .bind(channel_id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+}
+
+/// List members of a discoverable channel: explicit channel members + group members
+/// who haven't explicitly joined. Channel members keep their stored role; group-only
+/// members appear as "member".
+pub async fn list_discoverable_channel_members(
+    pool: &PgPool,
+    channel_id: Uuid,
+    group_id: Uuid,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<ChannelMemberInfo>, sqlx::Error> {
+    sqlx::query_as::<_, ChannelMemberInfo>(
+        r#"
+        SELECT * FROM (
+            -- Explicit channel members (keep their stored role)
+            SELECT cm.channel_id, cm.user_id, cm.role, cm.joined_at,
+                   u.username, u.display_name, u.avatar_url
+            FROM channel_members cm
+            INNER JOIN users u ON u.id = cm.user_id
+            WHERE cm.channel_id = $1
+
+            UNION ALL
+
+            -- Group members who haven't explicitly joined (shown as "member")
+            SELECT $1 AS channel_id, gm.user_id, 'member' AS role, gm.joined_at,
+                   u.username, u.display_name, u.avatar_url
+            FROM group_members gm
+            INNER JOIN users u ON u.id = gm.user_id
+            WHERE gm.group_id = $2
+              AND NOT EXISTS (
+                  SELECT 1 FROM channel_members cm2
+                  WHERE cm2.channel_id = $1 AND cm2.user_id = gm.user_id
+              )
+        ) combined
+        ORDER BY
+            CASE role
+                WHEN 'owner' THEN 0
+                WHEN 'admin' THEN 1
+                WHEN 'moderator' THEN 2
+                ELSE 3
+            END,
+            joined_at ASC
+        LIMIT $3 OFFSET $4
+        "#,
+    )
+    .bind(channel_id)
+    .bind(group_id)
     .bind(limit)
     .bind(offset)
     .fetch_all(pool)

@@ -6096,7 +6096,7 @@
 				{/if}
 
 				<!-- Video grid (visible when in a call) -->
-				<div bind:this={videoGridEl}>
+				<div bind:this={videoGridEl} class="{chatCollapsed ? 'flex-1 min-h-0 flex flex-col' : ''}">
 					<VideoGrid
 						height={chatCollapsed ? null : voicePanelHeight}
 						canKick={canKickFromVoice}

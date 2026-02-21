@@ -256,13 +256,35 @@ async fn list_channel_members(
     Path(id): Path<Uuid>,
     Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<ChannelMemberResponse>>, AppError> {
-    if !channel_repo::is_member(&state.db, id, claims.sub).await? {
-        return Err(AppError::Forbidden);
+    let channel = channel_repo::get_channel(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound("channel not found".into()))?;
+
+    // For discoverable channels, group members can also view the member list.
+    let is_channel_member = channel_repo::is_member(&state.db, id, claims.sub).await?;
+    if !is_channel_member {
+        let allowed = channel.discoverable
+            && channel.group_id.is_some()
+            && group_repo::is_member(&state.db, channel.group_id.unwrap(), claims.sub).await?;
+        if !allowed {
+            return Err(AppError::Forbidden);
+        }
     }
 
     let limit = pagination.limit.unwrap_or(200).clamp(1, 500);
     let offset = pagination.offset.unwrap_or(0).max(0);
-    let members = channel_repo::list_members_with_users(&state.db, id, limit, offset).await?;
+
+    let members = if channel.discoverable {
+        if let Some(group_id) = channel.group_id {
+            channel_repo::list_discoverable_channel_members(&state.db, id, group_id, limit, offset)
+                .await?
+        } else {
+            channel_repo::list_members_with_users(&state.db, id, limit, offset).await?
+        }
+    } else {
+        channel_repo::list_members_with_users(&state.db, id, limit, offset).await?
+    };
+
     let response: Vec<ChannelMemberResponse> = members
         .into_iter()
         .map(|m| ChannelMemberResponse {
