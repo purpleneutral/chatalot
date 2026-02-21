@@ -1,6 +1,7 @@
 import { authStore } from '$lib/stores/auth.svelte';
 import { refreshToken } from '$lib/api/auth';
 import { wsUrl } from '$lib/env';
+import { startSilentUpdate } from '$lib/utils/silent-update';
 import type { ClientMessage, ServerMessage } from './types';
 
 declare const __APP_VERSION__: string;
@@ -170,8 +171,6 @@ class WebSocketClient {
 			}
 
 			// Notify if the server was updated with a new client build.
-			// Only suppress in native Tauri (top-level window with bundled assets).
-			// In the iframe shell, the web app loads from the server, so reload works.
 			if (
 				msg.server_version &&
 				msg.server_version !== 'unknown' &&
@@ -180,14 +179,11 @@ class WebSocketClient {
 				console.info(
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
+				// Native Tauri top-level: bundled assets, can't reload to update.
+				// Iframe shell + regular web: silent update (waits for idle + not in call).
 				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
 				if (!isNativeTauri) {
-					// Direct reload with cache-busting — bypass event/SW chain entirely
-					setTimeout(() => {
-						const url = new URL(window.location.href);
-						url.searchParams.set('_v', Date.now().toString());
-						window.location.replace(url.toString());
-					}, 3000);
+					startSilentUpdate();
 				}
 			}
 		}

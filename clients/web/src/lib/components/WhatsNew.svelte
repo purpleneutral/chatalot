@@ -16,25 +16,21 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
-			version: '0.21.2',
+			version: '0.22.0',
 			date: '2026-02-20',
 			changes: [
-				'Fix: WebSocket reconnect now silently refreshes expired tokens instead of showing "invalid token" error',
-			]
-		},
-		{
-			version: '0.21.1',
-			date: '2026-02-20',
-			changes: [
-				'Fix: public/discoverable channels now show all group members in the member list, not just explicitly joined users',
-				'Fix: video grid now expands to fill available space when chat is collapsed during voice calls',
+				'Silent auto-update now waits until idle and not in a voice call before reloading',
+				'Fix: WebSocket reconnect silently refreshes expired tokens instead of showing "invalid token" error',
+				'Fix: public/discoverable channels now show all group members in the member list',
+				'Fix: video grid expands to fill available space when chat is collapsed during voice calls',
+				'Fix: desktop app iframe now properly reloads via shell bridge on server updates',
 			]
 		},
 		{
 			version: '0.21.0',
 			date: '2026-02-20',
 			changes: [
-				'Silent auto-reload: web clients now seamlessly reload when a new version is deployed (waits for idle, preserves drafts)',
+				'Silent auto-reload: web clients seamlessly reload when a new version is deployed (waits for idle, preserves drafts)',
 				'Hybrid Tauri desktop: desktop app loads frontend from server via iframe shell, getting instant web-style updates without binary reinstalls',
 				'First-user bootstrap: instance owner can register without invite code on a fresh invite-only deployment',
 			]
