@@ -120,28 +120,23 @@
 		}
 
 		try {
+			var invoke = window.__TAURI_INTERNALS__?.invoke;
 			let result = null;
 
 			switch (msg.action) {
 				case 'store_key': {
-					const { invoke } = await import('/node_modules/.vite/@tauri-apps/api/core.js').catch(() =>
-						window.__TAURI_INTERNALS__ ? { invoke: window.__TAURI_INTERNALS__.invoke } : Promise.reject('No Tauri')
-					);
+					if (!invoke) throw new Error('Tauri IPC not available');
 					await invoke('store_key', { keyName: msg.payload.keyName, value: msg.payload.value });
 					result = true;
 					break;
 				}
 				case 'get_key': {
-					const { invoke } = await import('/node_modules/.vite/@tauri-apps/api/core.js').catch(() =>
-						window.__TAURI_INTERNALS__ ? { invoke: window.__TAURI_INTERNALS__.invoke } : Promise.reject('No Tauri')
-					);
+					if (!invoke) throw new Error('Tauri IPC not available');
 					result = await invoke('get_key', { keyName: msg.payload.keyName });
 					break;
 				}
 				case 'delete_key': {
-					const { invoke } = await import('/node_modules/.vite/@tauri-apps/api/core.js').catch(() =>
-						window.__TAURI_INTERNALS__ ? { invoke: window.__TAURI_INTERNALS__.invoke } : Promise.reject('No Tauri')
-					);
+					if (!invoke) throw new Error('Tauri IPC not available');
 					await invoke('delete_key', { keyName: msg.payload.keyName });
 					result = true;
 					break;
