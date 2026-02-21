@@ -17,9 +17,9 @@ export default defineConfig({
 		target: ['es2020', 'safari14'],
 		rollupOptions: {
 			output: {
-				// Reduce chunk count to avoid WebKitGTK JSC module loading bugs
+				// Merge all dependencies into one chunk to avoid circular imports
+				// that trigger WebKitGTK's JSC "uninitialized variable" bug
 				manualChunks(id) {
-					if (id.includes('node_modules/svelte')) return 'svelte-runtime';
 					if (id.includes('node_modules')) return 'vendor';
 					if (id.includes('/src/lib/')) return 'app-lib';
 				}
