@@ -20,6 +20,11 @@ export default defineConfig({
 				// Merge all dependencies into one chunk to avoid circular imports
 				// that trigger WebKitGTK's JSC "uninitialized variable" bug
 				manualChunks(id) {
+					// Keep web-noise-suppressor out of the eager vendor chunk — it
+					// references AudioWorkletNode at class-definition time which
+					// crashes WebKitGTK (no AudioWorklet API). The dynamic import()
+					// in noise-suppression.ts will create a lazy chunk for it.
+					if (id.includes('web-noise-suppressor') && !id.includes('?url')) return;
 					if (id.includes('node_modules')) return 'vendor';
 					if (id.includes('/src/lib/')) return 'app-lib';
 				}

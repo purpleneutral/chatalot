@@ -1,22 +1,24 @@
 /// Noise suppression pipeline using @sapphi-red/web-noise-suppressor.
 /// Provides three suppression tiers via AudioWorklet: NoiseGate, Speex (DSP), RNNoise (ML).
+/// All imports from the library are lazy (dynamic import) because it references AudioWorkletNode
+/// at class-definition time, and WebKitGTK doesn't have that API.
 
 import type { NoiseSuppression } from '$lib/stores/preferences.svelte';
-import {
-	NoiseGateWorkletNode,
-	RnnoiseWorkletNode,
-	SpeexWorkletNode,
-	loadRnnoise,
-	loadSpeex
-} from '@sapphi-red/web-noise-suppressor';
 
-// Vite ?url imports for worklet processors and WASM binaries
+// Vite ?url imports for worklet processors and WASM binaries (these are just strings, safe)
 import noiseGateWorkletUrl from '@sapphi-red/web-noise-suppressor/noiseGateWorklet.js?url';
 import rnnoiseWorkletUrl from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url';
 import rnnoiseWasmUrl from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url';
 import rnnoiseWasmSimdUrl from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url';
 import speexWorkletUrl from '@sapphi-red/web-noise-suppressor/speexWorklet.js?url';
 import speexWasmUrl from '@sapphi-red/web-noise-suppressor/speex.wasm?url';
+
+// Lazy-load the library to avoid referencing AudioWorkletNode at module evaluation time
+let _lib: typeof import('@sapphi-red/web-noise-suppressor') | null = null;
+async function getLib() {
+	if (!_lib) _lib = await import('@sapphi-red/web-noise-suppressor');
+	return _lib;
+}
 
 // Cache loaded WASM binaries so we only fetch once
 let rnnoiseWasm: ArrayBuffer | null = null;
@@ -60,9 +62,10 @@ async function createWorkletNode(
 	ctx: AudioContext,
 	level: NoiseSuppression
 ): Promise<AudioWorkletNode> {
+	const lib = await getLib();
 	switch (level) {
 		case 'noise-gate':
-			return new NoiseGateWorkletNode(ctx, {
+			return new lib.NoiseGateWorkletNode(ctx, {
 				openThreshold: -50,
 				closeThreshold: -55,
 				holdMs: 250,
@@ -70,15 +73,15 @@ async function createWorkletNode(
 			});
 		case 'standard': {
 			if (!speexWasm) {
-				speexWasm = await loadSpeex({ url: speexWasmUrl });
+				speexWasm = await lib.loadSpeex({ url: speexWasmUrl });
 			}
-			return new SpeexWorkletNode(ctx, { maxChannels: 1, wasmBinary: speexWasm });
+			return new lib.SpeexWorkletNode(ctx, { maxChannels: 1, wasmBinary: speexWasm });
 		}
 		case 'maximum': {
 			if (!rnnoiseWasm) {
-				rnnoiseWasm = await loadRnnoise({ url: rnnoiseWasmUrl, simdUrl: rnnoiseWasmSimdUrl });
+				rnnoiseWasm = await lib.loadRnnoise({ url: rnnoiseWasmUrl, simdUrl: rnnoiseWasmSimdUrl });
 			}
-			return new RnnoiseWorkletNode(ctx, { maxChannels: 1, wasmBinary: rnnoiseWasm });
+			return new lib.RnnoiseWorkletNode(ctx, { maxChannels: 1, wasmBinary: rnnoiseWasm });
 		}
 		default:
 			throw new Error(`Invalid suppression level: ${level}`);
@@ -126,7 +129,7 @@ export function removeNoiseSuppression(): void {
 	currentState.workletNode.disconnect();
 	currentState.destination.disconnect();
 	if ('destroy' in currentState.workletNode) {
-		(currentState.workletNode as RnnoiseWorkletNode | SpeexWorkletNode).destroy();
+		(currentState.workletNode as { destroy(): void }).destroy();
 	}
 	currentState = null;
 }
