@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.21.2',
+			date: '2026-02-20',
+			changes: [
+				'Fix: WebSocket reconnect now silently refreshes expired tokens instead of showing "invalid token" error',
+			]
+		},
+		{
 			version: '0.21.1',
 			date: '2026-02-20',
 			changes: [
