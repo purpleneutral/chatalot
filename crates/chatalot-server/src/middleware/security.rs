@@ -24,7 +24,10 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
         "X-Content-Type-Options",
         HeaderValue::from_static("nosniff"),
     );
-    headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
+    // Allow framing only from Tauri desktop shell (tauri://localhost).
+    // X-Frame-Options doesn't support custom schemes, so we omit it and
+    // rely on the CSP frame-ancestors directive (supported by all modern browsers).
+    headers.remove("X-Frame-Options");
     headers.insert(
         "X-XSS-Protection",
         HeaderValue::from_static("1; mode=block"),
@@ -50,7 +53,7 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
              img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
              media-src 'self' blob:; \
              worker-src 'self' blob:; \
-             frame-ancestors 'none'; \
+             frame-ancestors 'self' tauri://localhost; \
              base-uri 'self'; \
              form-action 'self'; \
              object-src 'none'",
