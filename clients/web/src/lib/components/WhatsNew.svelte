@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.22.1',
+			date: '2026-02-21',
+			changes: [
+				'Fix: desktop app compatibility with WebKitGTK (target ES2020 for broader engine support)',
+			]
+		},
+		{
 			version: '0.22.0',
 			date: '2026-02-20',
 			changes: [
