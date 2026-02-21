@@ -181,6 +181,8 @@ class WebSocketClient {
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
 				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
+				// DEBUG: show what's happening in the title bar
+				document.title = `UPDATE: ${__APP_VERSION__}→${msg.server_version} native=${isNativeTauri} parent=${window.parent === window}`;
 				if (!isNativeTauri) {
 					window.dispatchEvent(new CustomEvent('chatalot:update-available'));
 				}
