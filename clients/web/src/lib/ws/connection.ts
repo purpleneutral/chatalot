@@ -1,6 +1,6 @@
 import { authStore } from '$lib/stores/auth.svelte';
 import { refreshToken } from '$lib/api/auth';
-import { wsUrl } from '$lib/env';
+import { wsUrl, isTauriDirectNav } from '$lib/env';
 import { startSilentUpdate } from '$lib/utils/silent-update';
 import type { ClientMessage, ServerMessage } from './types';
 
@@ -179,10 +179,12 @@ class WebSocketClient {
 				console.info(
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
-				// Native Tauri top-level: bundled assets, can't reload to update.
-				// Iframe shell + regular web: silent update (waits for idle + not in call).
-				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
-				if (!isNativeTauri) {
+				// Bundled Tauri: can't reload to update (assets are in the binary).
+				// Direct nav, iframe, or regular web: silent update (waits for idle).
+				const isBundledTauri = '__TAURI_INTERNALS__' in window
+					&& window.parent === window
+					&& !isTauriDirectNav();
+				if (!isBundledTauri) {
 					startSilentUpdate();
 				}
 			}

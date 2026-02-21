@@ -11,6 +11,13 @@ export function isTauriEnv(): boolean {
 	return isTauri() || isTauriIframe();
 }
 
+/** True if inside Tauri but navigated directly to the server origin.
+ *  In this mode, relative URLs work (same as regular web) and the page
+ *  can reload to pick up new assets (unlike bundled Tauri mode). */
+export function isTauriDirectNav(): boolean {
+	return isTauri() && typeof window !== 'undefined' && window.location.protocol.startsWith('http');
+}
+
 export function getServerUrl(): string | null {
 	return localStorage.getItem(SERVER_URL_KEY);
 }
@@ -24,12 +31,11 @@ export function clearServerUrl() {
 }
 
 export function apiBase(): string {
-	if (isTauri()) {
+	if (isTauri() && !isTauriDirectNav()) {
 		const server = getServerUrl();
-		if (!server) return '/api';
-		return `${server}/api`;
+		if (server) return `${server}/api`;
 	}
-	// In iframe mode or regular web, API is relative (same origin)
+	// Direct nav, iframe, or regular web: relative URL (same origin)
 	return '/api';
 }
 
