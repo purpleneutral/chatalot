@@ -1,4 +1,5 @@
 import type { Community } from '$lib/api/communities';
+import { preferencesStore } from './preferences.svelte';
 
 const ACTIVE_KEY = 'chatalot:activeCommunity';
 
@@ -78,6 +79,10 @@ class CommunityStore {
 		}
 		// Remove custom CSS
 		document.getElementById('community-custom-css')?.remove();
+
+		// Re-apply user preference colors as baseline (the removal above
+		// also wipes user-set CSS vars since they share the same element)
+		preferencesStore.applyToDOM();
 
 		if (!theme) return;
 

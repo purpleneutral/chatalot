@@ -16,6 +16,13 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.20.1',
+			date: '2026-02-20',
+			changes: [
+				'Fix: user color scheme no longer resets when switching communities (community theme cleanup was wiping user preferences)',
+			]
+		},
+		{
 			version: '0.20.0',
 			date: '2026-02-20',
 			changes: [
