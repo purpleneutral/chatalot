@@ -71,13 +71,17 @@ export function restoreAfterSilentReload(): void {
 	const draft = sessionStorage.getItem(DRAFT_KEY);
 	if (draft) {
 		sessionStorage.removeItem(DRAFT_KEY);
-		// Restore draft once the textarea mounts
-		requestAnimationFrame(() => {
+		// Retry until the textarea mounts (channel data loads async after onMount)
+		let attempts = 0;
+		const tryRestore = () => {
 			const textarea = document.querySelector<HTMLTextAreaElement>('[data-message-input]');
 			if (textarea) {
 				textarea.value = draft;
 				textarea.dispatchEvent(new Event('input', { bubbles: true }));
+				return;
 			}
-		});
+			if (++attempts < 50) setTimeout(tryRestore, 100); // up to 5s
+		};
+		tryRestore();
 	}
 }
