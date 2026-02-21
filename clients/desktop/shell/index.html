@@ -44,7 +44,8 @@
 	const STORAGE_KEY = 'chatalot_server_url';
 	const ALLOWED_ACTIONS = new Set([
 		'store_key', 'get_key', 'delete_key',
-		'check-update', 'set-server-url', 'clear-server-url'
+		'check-update', 'set-server-url', 'clear-server-url',
+		'reload-app'
 	]);
 
 	const form = document.getElementById('connect-form');
@@ -159,6 +160,12 @@
 					serverUrl = null;
 					iframe.style.display = 'none';
 					form.style.display = 'flex';
+					result = true;
+					break;
+				}
+				case 'reload-app': {
+					// Force-reload the iframe with a cache-busting URL
+					iframe.src = serverUrl + '?_v=' + Date.now();
 					result = true;
 					break;
 				}

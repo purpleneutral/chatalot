@@ -182,11 +182,15 @@ class WebSocketClient {
 				);
 				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
 				if (!isNativeTauri) {
-					// In an iframe (Tauri shell), reload directly after a brief delay.
-					// The event/SW chain doesn't work reliably in webview iframes.
 					if (window.parent !== window) {
+						// In iframe (Tauri shell) — ask parent to reload us
 						setTimeout(() => {
-							window.location.href = window.location.pathname + '?_update=' + Date.now();
+							window.parent.postMessage({
+								source: 'chatalot-bridge',
+								id: Date.now(),
+								action: 'reload-app',
+								payload: {}
+							}, '*');
 						}, 3000);
 					} else {
 						window.dispatchEvent(new CustomEvent('chatalot:update-available'));
