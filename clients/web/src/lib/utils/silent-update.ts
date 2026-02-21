@@ -60,7 +60,11 @@ function saveDraftAndReload(): void {
 		sessionStorage.setItem(DRAFT_KEY, textarea.value);
 	}
 	sessionStorage.setItem(RELOAD_FLAG, '1');
-	location.reload();
+	// Use cache-busting navigation instead of reload() — some webviews
+	// (e.g. Tauri/WebKitGTK iframe) may serve stale content on reload().
+	const url = new URL(window.location.href);
+	url.searchParams.set('_v', Date.now().toString());
+	window.location.replace(url.toString());
 }
 
 /** Call in onMount to restore state after a silent reload. */

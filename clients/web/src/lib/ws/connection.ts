@@ -182,19 +182,7 @@ class WebSocketClient {
 				);
 				const isNativeTauri = window.parent === window && '__TAURI_INTERNALS__' in window;
 				if (!isNativeTauri) {
-					if (window.parent !== window) {
-						// In iframe (Tauri shell) — ask parent to reload us
-						setTimeout(() => {
-							window.parent.postMessage({
-								source: 'chatalot-bridge',
-								id: Date.now(),
-								action: 'reload-app',
-								payload: {}
-							}, '*');
-						}, 3000);
-					} else {
-						window.dispatchEvent(new CustomEvent('chatalot:update-available'));
-					}
+					window.dispatchEvent(new CustomEvent('chatalot:update-available'));
 				}
 			}
 		}
