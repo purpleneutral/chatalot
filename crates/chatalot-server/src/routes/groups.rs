@@ -231,6 +231,7 @@ async fn create_group(
     .await?;
 
     // Auto-add all community members to public groups; private/personal groups only have the owner member
+    // Community owners are always auto-added so they have visibility into all groups in their community
     let mut member_count: i64 = 1;
     if visibility == "public" && !is_personal {
         let member_ids =
@@ -246,6 +247,16 @@ async fn create_group(
             .collect();
         let added = group_repo::join_group_batch(&state.db, group_id, &other_ids).await?;
         member_count += added as i64;
+    } else if !is_personal {
+        // For private groups, auto-add the community owner so they retain oversight
+        if let Some(community) =
+            community_repo::get_community(&state.db, req.community_id).await?
+        {
+            if community.owner_id != claims.sub {
+                group_repo::join_group(&state.db, group_id, community.owner_id).await?;
+                member_count += 1;
+            }
+        }
     }
 
     Ok(Json(GroupResponse {
@@ -594,8 +605,8 @@ async fn join_group(
         .await?
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
 
-    // Private groups cannot be joined directly — must use an invite
-    if group.visibility == "private" {
+    // Non-discoverable private groups cannot be joined directly — must use an invite
+    if group.visibility == "private" && !group.discoverable {
         return Err(AppError::Forbidden);
     }
 
