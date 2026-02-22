@@ -1379,7 +1379,7 @@ async fn update_instance_settings(
 
     // Update in-memory cache
     {
-        let mut settings = state.instance_settings.write().unwrap();
+        let mut settings = state.instance_settings.write().await;
         for (key, value) in &updates {
             match key.as_str() {
                 "max_messages_cache" => {

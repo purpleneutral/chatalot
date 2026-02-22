@@ -219,9 +219,7 @@ async fn pin_message(
     }
 
     // Check pin limit
-    let max_pins = state.instance_settings.read()
-        .map(|s| s.max_pins_per_channel)
-        .unwrap_or(DEFAULT_MAX_PINS);
+    let max_pins = state.instance_settings.read().await.max_pins_per_channel;
     let count = pin_repo::count_pins(&state.db, channel_id).await?;
     if count >= max_pins {
         return Err(AppError::Validation(format!(

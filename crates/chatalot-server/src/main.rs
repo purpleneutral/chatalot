@@ -535,7 +535,7 @@ async fn main() -> anyhow::Result<()> {
     // Load instance settings from DB into memory
     match chatalot_db::repos::settings_repo::list_all(&state.db).await {
         Ok(rows) => {
-            let mut settings = state.instance_settings.write().unwrap();
+            let mut settings = state.instance_settings.write().await;
             for row in &rows {
                 match row.key.as_str() {
                     "max_messages_cache" => {

@@ -41,7 +41,7 @@ pub struct AppState {
     /// Web Push notification service (None if VAPID keys not configured).
     pub push_service: Option<Arc<PushService>>,
     /// Admin-configurable instance settings (cached in memory).
-    pub instance_settings: std::sync::RwLock<InstanceSettings>,
+    pub instance_settings: tokio::sync::RwLock<InstanceSettings>,
 }
 
 impl AppState {
@@ -97,7 +97,7 @@ impl AppState {
             http_client,
             suspended_users: dashmap::DashSet::new(),
             push_service,
-            instance_settings: std::sync::RwLock::new(InstanceSettings::default()),
+            instance_settings: tokio::sync::RwLock::new(InstanceSettings::default()),
         })
     }
 }
