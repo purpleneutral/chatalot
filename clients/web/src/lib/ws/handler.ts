@@ -287,15 +287,16 @@ export async function handleServerMessage(msg: ServerMessage) {
 
 		// Voice/Video
 		case 'voice_state_update': {
-			// If the server shows us as a participant but we have no active call
-			// (e.g. page was refreshed), leave the stale session immediately.
-			// Still update the store so other participants appear in the sidebar.
+			// If the server lists us as a participant but we're not in a call on this
+			// tab, just filter ourselves out of the displayed list. Do NOT auto-leave —
+			// another tab/device may have legitimately joined, and sending leave_voice
+			// here would kill their session. The server's 15-second disconnect grace
+			// period handles real stale sessions (page refresh, crash, etc.).
 			const myId = authStore.user?.id;
-			console.info(`[VOICE-WS] voice_state_update ch=${msg.channel_id.slice(0,8)} participants=[${msg.participants.map((p: string) => p.slice(0,8)).join(',')}] isInCall=${voiceStore.isInCall} myInList=${msg.participants.includes(myId ?? '')}`);
-			if (myId && msg.participants.includes(myId) && !voiceStore.isInCall) {
-				console.warn(`[VOICE-WS] Auto-leaving stale voice session (not in call but listed as participant)`);
-				wsClient.send({ type: 'leave_voice', channel_id: msg.channel_id });
-				// Update store with other participants (exclude ourselves since we're leaving)
+			const inCallOnThisChannel = voiceStore.activeCall?.channelId === msg.channel_id;
+			console.info(`[VOICE-WS] voice_state_update ch=${msg.channel_id.slice(0,8)} participants=[${msg.participants.map((p: string) => p.slice(0,8)).join(',')}] inCallOnThisChannel=${inCallOnThisChannel}`);
+			if (myId && msg.participants.includes(myId) && !inCallOnThisChannel) {
+				// Show other participants in sidebar, but not ourselves (we're not in the call on this tab)
 				const others = msg.participants.filter((p: string) => p !== myId);
 				voiceStore.setChannelParticipants(msg.channel_id, others);
 				for (const uid of others) ensureUser(uid);
