@@ -108,9 +108,14 @@ services:
     container_name: chatalot-turn
     restart: unless-stopped
     network_mode: host
+    # TURN_EXTERNAL_IP must be set to the server's public IP for relay to work.
+    # Without it, COTURN advertises Docker bridge IPs that clients can't reach.
     command: >
       -n
       --listening-port=3478
+      --listening-ip=${TURN_EXTERNAL_IP:-0.0.0.0}
+      --external-ip=${TURN_EXTERNAL_IP:-0.0.0.0}
+      --relay-ip=${TURN_EXTERNAL_IP:-0.0.0.0}
       --fingerprint
       --lt-cred-mech
       --user=${TURN_USER:-chatalot}:${TURN_PASSWORD:-}
@@ -122,7 +127,7 @@ services:
       --log-file=stdout
       --no-cli
     profiles:
-      - turn  # docker compose --profile turn up -d
+      - turn  # TURN_EXTERNAL_IP=<public-ip> docker compose --profile turn up -d
 
   cloudflared-quick:
     image: cloudflare/cloudflared:latest
