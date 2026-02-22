@@ -36,7 +36,7 @@ export async function derivePersonalKey(password: string, userId: string): Promi
 
 /** Encrypt plaintext with a personal key. Returns base64(iv + ciphertext). */
 export async function personalEncrypt(keyBytes: Uint8Array, plaintext: string): Promise<string> {
-	const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt']);
+	const key = await crypto.subtle.importKey('raw', keyBytes as BufferSource, 'AES-GCM', false, ['encrypt']);
 	const iv = crypto.getRandomValues(new Uint8Array(12));
 	const enc = new TextEncoder();
 	const ciphertext = await crypto.subtle.encrypt(
@@ -54,7 +54,7 @@ export async function personalEncrypt(keyBytes: Uint8Array, plaintext: string): 
 /** Decrypt base64(iv + ciphertext) with a personal key. Returns plaintext or null on failure. */
 export async function personalDecrypt(keyBytes: Uint8Array, encoded: string): Promise<string | null> {
 	try {
-		const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt']);
+		const key = await crypto.subtle.importKey('raw', keyBytes as BufferSource, 'AES-GCM', false, ['decrypt']);
 		const combined = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
 		const iv = combined.slice(0, 12);
 		const ciphertext = combined.slice(12);

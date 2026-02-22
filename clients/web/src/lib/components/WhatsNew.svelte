@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.22.5',
+			date: '2026-02-22',
+			changes: [
+				'Fix: voice calls now work reliably with 3+ participants (ICE candidate routing, mesh stability)',
+				'Fix: video toggle and screen sharing are protected against double-click races',
+				'Fix: video quality adapts to participant count from the start of a call',
+				'Fix: screen share audio auto-unmutes when a new share starts',
+				'Hardened server: voice join/leave rate limiting, larger broadcast buffer, bounded queries',
+				'Fixed all TypeScript type errors',
+			]
+		},
+		{
 			version: '0.22.4',
 			date: '2026-02-22',
 			changes: [

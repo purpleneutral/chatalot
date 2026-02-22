@@ -62,7 +62,7 @@ class PushStore {
 			const reg = await navigator.serviceWorker.ready;
 			const sub = await reg.pushManager.subscribe({
 				userVisibleOnly: true,
-				applicationServerKey: urlBase64ToUint8Array(this.vapidKey)
+				applicationServerKey: urlBase64ToUint8Array(this.vapidKey) as BufferSource
 			});
 
 			const p256dh = sub.getKey('p256dh');

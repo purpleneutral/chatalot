@@ -61,7 +61,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 			try {
 				const result = await decryptMessage(
 					msg.channel_id,
-					msg.sender_id,
+					msg.sender_id ?? '',
 					msg.ciphertext,
 					msg.id,
 				);
@@ -90,7 +90,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 			messageStore.addMessage(msg.channel_id, chatMsg);
 
 			// Clear typing indicator for this user since they just sent a message
-			presenceStore.clearTyping(msg.channel_id, msg.sender_id);
+			if (msg.sender_id) presenceStore.clearTyping(msg.channel_id, msg.sender_id);
 
 			// If this is a thread reply, increment the reply count on the root message
 			if (msg.thread_id) {
@@ -198,7 +198,7 @@ export async function handleServerMessage(msg: ServerMessage) {
 				}
 				const editResult = await decryptMessage(
 					msg.channel_id,
-					msg.sender_id,
+					msg.sender_id ?? '',
 					msg.ciphertext,
 					msg.message_id,
 					peerOverride,
