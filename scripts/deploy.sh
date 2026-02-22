@@ -64,12 +64,13 @@ fi
 # --- Step 2: Pull & restart on server ---
 info "Deploying to $REMOTE_HOST:$REMOTE_DIR..."
 
-ssh "$REMOTE_HOST" bash -s "$REMOTE_DIR" "$GIT_REMOTE_URL" "$BRANCH" "$DOMAIN" "$NETWORK" <<'REMOTE_SCRIPT'
+ssh "$REMOTE_HOST" bash -s "$REMOTE_DIR" "$GIT_REMOTE_URL" "$BRANCH" "${DOMAIN:-__NONE__}" "$NETWORK" <<'REMOTE_SCRIPT'
 set -euo pipefail
 REMOTE_DIR="$1"
 GIT_URL="$2"
 BRANCH="$3"
 DOMAIN="${4:-}"
+[ "$DOMAIN" = "__NONE__" ] && DOMAIN=""
 NETWORK="${5:-web}"
 
 echo "[server] Starting deploy..."
