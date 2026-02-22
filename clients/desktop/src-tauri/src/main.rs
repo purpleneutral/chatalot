@@ -54,8 +54,7 @@ fn main() {
                             });
                         });
                     }
-                    // Open devtools in debug builds
-                    #[cfg(debug_assertions)]
+                    // TODO: remove after debugging voice calls
                     window.open_devtools();
                 }
             }

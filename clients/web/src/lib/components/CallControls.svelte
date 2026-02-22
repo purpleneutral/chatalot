@@ -33,11 +33,12 @@
 			await webrtcManager.joinCall(channelId, withVideo);
 		} catch (err) {
 			console.error('Failed to join call:', err);
+			const detail = err instanceof Error ? err.message : String(err);
 			const msg = err instanceof DOMException && err.name === 'NotAllowedError'
 				? 'Microphone access denied'
 				: err instanceof DOMException && err.name === 'NotFoundError'
 				? 'No microphone found'
-				: 'Failed to join call';
+				: `Failed to join call: ${detail}`;
 			toastStore.error(msg);
 		} finally {
 			joining = false;
