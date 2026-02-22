@@ -46,14 +46,20 @@ async fn get_effective_group_role(
     user_id: Uuid,
     is_instance_owner: bool,
 ) -> Result<Option<String>, AppError> {
-    // Check direct group membership first
-    if let Some(role) = group_repo::get_member_role(db, group.id, user_id).await? {
-        return Ok(Some(role));
+    // Instance owner is always at least admin in every group
+    if is_instance_owner {
+        // If they're also the group owner, preserve that higher role
+        if let Some(role) = group_repo::get_member_role(db, group.id, user_id).await?
+            && role == "owner"
+        {
+            return Ok(Some(role));
+        }
+        return Ok(Some("admin".to_string()));
     }
 
-    // Instance owner gets implicit admin access to all groups
-    if is_instance_owner {
-        return Ok(Some("admin".to_string()));
+    // Check direct group membership
+    if let Some(role) = group_repo::get_member_role(db, group.id, user_id).await? {
+        return Ok(Some(role));
     }
 
     // For personal groups, community moderators+ get admin access
