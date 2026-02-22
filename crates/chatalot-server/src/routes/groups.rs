@@ -995,9 +995,15 @@ async fn create_invite(
         .await?
         .ok_or_else(|| AppError::NotFound("group not found".to_string()))?;
 
-    let role = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner)
-        .await?
-        .ok_or(AppError::Forbidden)?;
+    let role_opt = get_effective_group_role(&state.db, &group, claims.sub, claims.is_owner).await?;
+    tracing::info!(
+        user_id = %claims.sub,
+        is_owner = claims.is_owner,
+        %group_id,
+        ?role_opt,
+        "create_invite: permission check"
+    );
+    let role = role_opt.ok_or(AppError::Forbidden)?;
 
     if role != "owner" && role != "admin" {
         return Err(AppError::Forbidden);
