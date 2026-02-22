@@ -26,6 +26,16 @@ use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
 use crate::permissions;
 
+/// Add a user to all existing channels in a group.
+async fn add_user_to_group_channels(db: &PgPool, group_id: Uuid, user_id: Uuid) -> Result<(), AppError> {
+    let channels = group_repo::list_group_channels(db, group_id).await?;
+    for ch in &channels {
+        // Ignore duplicate key errors (user already in channel)
+        let _ = channel_repo::join_channel(db, ch.id, user_id).await;
+    }
+    Ok(())
+}
+
 /// Get the effective role for a user in a group.
 /// For regular groups, returns the group_members role.
 /// For personal groups, community moderators+ get implicit 'admin' access.
@@ -246,6 +256,7 @@ async fn create_group(
             .filter(|uid| *uid != claims.sub) // Creator already added as owner
             .collect();
         let added = group_repo::join_group_batch(&state.db, group_id, &other_ids).await?;
+        channel_repo::join_channel_batch(&state.db, channel_id, &other_ids).await?;
         member_count += added as i64;
     } else if !is_personal {
         // For private groups, auto-add the community owner so they retain oversight
@@ -254,6 +265,7 @@ async fn create_group(
         {
             if community.owner_id != claims.sub {
                 group_repo::join_group(&state.db, group_id, community.owner_id).await?;
+                add_user_to_group_channels(&state.db, group_id, community.owner_id).await?;
                 member_count += 1;
             }
         }
@@ -618,6 +630,7 @@ async fn join_group(
     }
 
     group_repo::join_group(&state.db, id, claims.sub).await?;
+    add_user_to_group_channels(&state.db, id, claims.sub).await?;
     Ok(())
 }
 
@@ -1199,8 +1212,9 @@ async fn accept_invite(
         return Err(AppError::Validation("invite fully used".to_string()));
     }
 
-    // Join the group
+    // Join the group and all its channels
     group_repo::join_group(&state.db, invite.group_id, claims.sub).await?;
+    add_user_to_group_channels(&state.db, invite.group_id, claims.sub).await?;
 
     Ok(Json(AcceptInviteResponse {
         group_id: group.id,
