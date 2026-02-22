@@ -4092,9 +4092,10 @@
 		showDiscoverGroups = true;
 		try {
 			const all = await discoverGroups();
-			// Filter out groups user is already in
+			// Filter to current community and exclude groups user is already in
 			const myIds = new Set(groupStore.groups.map(g => g.id));
-			discoverGroupsList = all.filter(g => !myIds.has(g.id));
+			const activeCid = communityStore.activeCommunityId;
+			discoverGroupsList = all.filter(g => !myIds.has(g.id) && g.community_id === activeCid);
 		} catch (err: any) {
 			toastStore.error(err?.message || 'Failed to load groups');
 		}
