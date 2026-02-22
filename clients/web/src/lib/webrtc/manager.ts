@@ -995,6 +995,16 @@ class WebRTCManager {
 			return;
 		}
 
+		// Don't tear down a healthy/in-progress connection (prevents destroying
+		// one peer's connection while creating an offer to another in a loop)
+		const existing = this.peers.get(userId);
+		if (existing) {
+			const state = existing.connectionState ?? existing.iceConnectionState;
+			if (state !== 'failed' && state !== 'closed') {
+				return;
+			}
+		}
+
 		const pc = this.createPeerConnection(userId);
 
 		// Add our local tracks

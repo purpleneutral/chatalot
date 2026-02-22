@@ -38,6 +38,7 @@ async fn add_user_to_group_channels(db: &PgPool, group_id: Uuid, user_id: Uuid) 
 
 /// Get the effective role for a user in a group.
 /// For regular groups, returns the group_members role.
+/// Instance owner gets implicit 'admin' access to all groups.
 /// For personal groups, community moderators+ get implicit 'admin' access.
 async fn get_effective_group_role(
     db: &PgPool,
@@ -50,11 +51,13 @@ async fn get_effective_group_role(
         return Ok(Some(role));
     }
 
+    // Instance owner gets implicit admin access to all groups
+    if is_instance_owner {
+        return Ok(Some("admin".to_string()));
+    }
+
     // For personal groups, community moderators+ get admin access
     if group.assigned_member_id.is_some() {
-        if is_instance_owner {
-            return Ok(Some("admin".to_string()));
-        }
         if let Some(community_role) =
             community_repo::get_community_member_role(db, group.community_id, user_id).await?
             && matches!(community_role.as_str(), "owner" | "admin" | "moderator")

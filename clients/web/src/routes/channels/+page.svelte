@@ -5233,33 +5233,6 @@
 									{/if}
 								{/if}
 
-								<!-- Group actions -->
-								<div class="mt-1 flex items-center gap-1 px-3">
-									<button
-										onclick={() => handleCreateInvite(group.id)}
-										class="rounded px-2 py-0.5 text-xs text-[var(--accent)] transition hover:bg-[var(--accent)]/10"
-										title="Create invite link"
-									>
-										Invite
-									</button>
-									{#if group.owner_id === authStore.user?.id}
-										<button
-											onclick={() => handleDeleteGroup(group)}
-											class="rounded px-2 py-0.5 text-xs text-[var(--danger)] transition hover:bg-[var(--danger)]/10"
-											title="Delete group"
-										>
-											Delete
-										</button>
-									{:else}
-										<button
-											onclick={() => handleLeaveGroup(group)}
-											class="rounded px-2 py-0.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--danger)]"
-											title="Leave group"
-										>
-											Leave
-										</button>
-									{/if}
-								</div>
 							</div>
 						{/if}
 					{/each}
