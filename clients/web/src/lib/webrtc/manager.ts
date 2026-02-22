@@ -909,9 +909,12 @@ class WebRTCManager {
 	}
 
 	/// Handle an incoming ICE candidate.
-	async handleIceCandidate(fromUserId: string, sessionId: string, candidateJson: string): Promise<void> {
-		// Discard candidates from a different session (e.g. stale messages after rejoin)
-		if (sessionId !== this.sessionId) return;
+	async handleIceCandidate(fromUserId: string, _sessionId: string, candidateJson: string): Promise<void> {
+		// Note: session_id check was removed — the incoming session_id is the
+		// *sender's* session, not ours, so comparing it to this.sessionId would
+		// drop every candidate.  Stale candidates are already harmless: they're
+		// either queued in pendingCandidates or rejected by pc.connectionState.
+		if (!this.sessionId) return; // not in a call
 
 		const candidate = JSON.parse(candidateJson) as RTCIceCandidateInit;
 		const pc = this.peers.get(fromUserId);

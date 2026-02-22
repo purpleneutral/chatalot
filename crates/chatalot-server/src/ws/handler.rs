@@ -109,9 +109,10 @@ pub async fn handle_socket(
     // Maximum incoming WebSocket message size (1 MB)
     const MAX_WS_MESSAGE_SIZE: usize = 1_048_576;
 
-    // Per-connection message rate limiter (token bucket: 10 msg/s burst, refills at 5/s)
-    const RATE_LIMIT_BURST: f64 = 10.0;
-    const RATE_LIMIT_REFILL: f64 = 5.0;
+    // Per-connection message rate limiter (token bucket).
+    // Burst of 30 accommodates WebRTC signaling (offer + ~15 ICE candidates per peer).
+    const RATE_LIMIT_BURST: f64 = 30.0;
+    const RATE_LIMIT_REFILL: f64 = 10.0;
     let mut tokens: f64 = RATE_LIMIT_BURST;
     let mut last_refill = tokio::time::Instant::now();
 
