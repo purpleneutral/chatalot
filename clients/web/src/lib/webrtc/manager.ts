@@ -4,6 +4,7 @@ import { preferencesStore, type NoiseSuppression } from '$lib/stores/preferences
 import { audioDeviceStore } from '$lib/stores/audioDevices.svelte';
 import { wsClient } from '$lib/ws/connection';
 import { getServerConfig } from '$lib/api/auth';
+import { randomUUID } from '$lib/env';
 import {
 	applyNoiseSuppression,
 	removeNoiseSuppression,
@@ -136,7 +137,7 @@ class WebRTCManager {
 		}
 
 		this.channelId = channelId;
-		this.sessionId = crypto.randomUUID();
+		this.sessionId = randomUUID();
 
 		// Fetch ICE servers from server config (includes TURN if configured)
 		try {

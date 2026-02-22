@@ -11,6 +11,7 @@
 	import { uploadFile, getAuthenticatedBlobUrl, type FileUploadResponse } from '$lib/api/files';
 	import { fetchLinkPreview } from '$lib/api/link-preview';
 	import { getServerConfig, getPublicUrl } from '$lib/api/auth';
+	import { randomUUID } from '$lib/env';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { channelStore } from '$lib/stores/channels.svelte';
 	import { messageStore, setMaxMessagesPerChannel, type ChatMessage } from '$lib/stores/messages.svelte';
@@ -1134,7 +1135,7 @@
 		}
 
 		// Optimistic add to thread panel
-		const tempId = crypto.randomUUID();
+		const tempId = randomUUID();
 		const optimisticMsg: ChatMessage = {
 			id: tempId,
 			channelId,
