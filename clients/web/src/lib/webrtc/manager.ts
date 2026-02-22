@@ -58,6 +58,9 @@ class WebRTCManager {
 	// Guard against concurrent audio pipeline rebuilds
 	private rebuildingPipeline = false;
 
+	// Guard against concurrent video/screen toggles
+	private togglingVideo = false;
+	private togglingScreen = false;
 
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
@@ -163,9 +166,10 @@ class WebRTCManager {
 		if (selectedInput) {
 			audioConstraints.deviceId = { exact: selectedInput };
 		}
+		const videoConstraints = withVideo ? this.getVideoConstraints() : null;
 		const constraints: MediaStreamConstraints = {
 			audio: audioConstraints,
-			video: withVideo ? { width: 640, height: 480 } : false
+			video: videoConstraints ? { width: videoConstraints.width, height: videoConstraints.height, frameRate: videoConstraints.frameRate } : false
 		};
 
 		let rawStream: MediaStream;
@@ -180,7 +184,7 @@ class WebRTCManager {
 				try {
 					rawStream = await navigator.mediaDevices.getUserMedia({
 						audio: audioConstraints,
-						video: withVideo ? { width: 640, height: 480 } : false
+						video: constraints.video
 					});
 				} catch (fallbackErr) {
 					console.error('Failed to access media devices:', fallbackErr);
@@ -432,54 +436,64 @@ class WebRTCManager {
 	/// Toggle video.
 	async toggleVideo(): Promise<void> {
 		if (!voiceStore.activeCall) return;
-		const stream = voiceStore.activeCall.localStream;
-		if (!stream) return;
+		if (this.togglingVideo) return;
+		this.togglingVideo = true;
+		try {
+			const stream = voiceStore.activeCall.localStream;
+			if (!stream) return;
 
-		if (voiceStore.activeCall.videoEnabled) {
-			// Turn off video — remove tracks from peers, renegotiate, THEN stop
-			const videoTracks = stream.getVideoTracks();
-			for (const pc of this.peers.values()) {
-				for (const sender of pc.getSenders()) {
-					if (sender.track && sender.track.kind === 'video'
-						&& videoTracks.includes(sender.track)) {
-						pc.removeTrack(sender);
+			if (voiceStore.activeCall.videoEnabled) {
+				// Turn off video — remove tracks from peers, renegotiate, THEN stop
+				const videoTracks = stream.getVideoTracks();
+				for (const pc of this.peers.values()) {
+					for (const sender of pc.getSenders()) {
+						if (sender.track && sender.track.kind === 'video'
+							&& videoTracks.includes(sender.track)) {
+							pc.removeTrack(sender);
+						}
 					}
 				}
-			}
-			for (const t of videoTracks) {
-				stream.removeTrack(t);
-			}
-			voiceStore.setVideoEnabled(false);
-			await this.renegotiateAll();
-			// Stop tracks after renegotiation so the removal is properly signaled
-			videoTracks.forEach(t => t.stop());
-		} else {
-			// Turn on video
-			let videoStream: MediaStream | null = null;
-			try {
-				videoStream = await navigator.mediaDevices.getUserMedia({
-					video: { width: 640, height: 480 }
-				});
-				const videoTrack = videoStream.getVideoTracks()[0];
-				stream.addTrack(videoTrack);
-				voiceStore.setVideoEnabled(true);
-
-				// Add the video track to all existing peer connections
-				for (const pc of this.peers.values()) {
-					pc.addTrack(videoTrack, stream);
+				for (const t of videoTracks) {
+					stream.removeTrack(t);
 				}
+				voiceStore.setVideoEnabled(false);
 				await this.renegotiateAll();
-			} catch (err) {
-				console.error('Failed to enable video:', err);
-				// Clean up any acquired tracks to release camera hardware
-				videoStream?.getTracks().forEach(t => t.stop());
+				// Stop tracks after renegotiation so the removal is properly signaled
+				videoTracks.forEach(t => t.stop());
+			} else {
+				// Turn on video — use quality tier based on current participant count
+				const { width, height, frameRate } = this.getVideoConstraints();
+				let videoStream: MediaStream | null = null;
+				try {
+					videoStream = await navigator.mediaDevices.getUserMedia({
+						video: { width, height, frameRate }
+					});
+					const videoTrack = videoStream.getVideoTracks()[0];
+					stream.addTrack(videoTrack);
+					voiceStore.setVideoEnabled(true);
+
+					// Add the video track to all existing peer connections
+					for (const pc of this.peers.values()) {
+						pc.addTrack(videoTrack, stream);
+					}
+					await this.renegotiateAll();
+				} catch (err) {
+					console.error('Failed to enable video:', err);
+					// Clean up any acquired tracks to release camera hardware
+					videoStream?.getTracks().forEach(t => t.stop());
+				}
 			}
+		} finally {
+			this.togglingVideo = false;
 		}
 	}
 
 	/// Toggle screen sharing.
 	async toggleScreenShare(): Promise<void> {
 		if (!voiceStore.activeCall) return;
+		if (this.togglingScreen) return;
+		this.togglingScreen = true;
+		try {
 
 		if (voiceStore.activeCall.screenSharing) {
 			// Stop sharing — remove screen tracks from peers, renegotiate, THEN stop tracks
@@ -533,6 +547,10 @@ class WebRTCManager {
 			} catch (err) {
 				console.error('Failed to share screen:', err);
 			}
+		}
+
+		} finally {
+			this.togglingScreen = false;
 		}
 	}
 
@@ -659,16 +677,23 @@ class WebRTCManager {
 	}
 
 	/// Check if a remote screen share stream has gone stale (all tracks ended/muted)
-	/// and clean it up. Called after renegotiation since track events are unreliable.
+	/// and clean it up. Called after renegotiation and on connection state changes
+	/// since track events (onended/onmute) don't fire reliably across browsers.
 	private cleanupStaleScreenShares(userId: string): void {
 		const screenStream = voiceStore.remoteScreenStreams.get(userId);
 		if (!screenStream) return;
 
-		const activeTracks = screenStream.getTracks().filter(
-			t => t.readyState === 'live' && !t.muted
-		);
-		if (activeTracks.length === 0) {
+		const tracks = screenStream.getTracks();
+		// Stream has no tracks left, or all tracks are ended/muted
+		if (tracks.length === 0 || tracks.every(t => t.readyState === 'ended' || t.muted)) {
 			voiceStore.removeRemoteScreenStream(userId);
+		}
+	}
+
+	/// Check all remote screen shares for staleness (e.g. after peer disconnect).
+	private cleanupAllStaleScreenShares(): void {
+		for (const userId of voiceStore.remoteScreenStreams.keys()) {
+			this.cleanupStaleScreenShares(userId);
 		}
 	}
 
@@ -873,13 +898,24 @@ class WebRTCManager {
 			return;
 		}
 
-		// After renegotiation, check for stale screen shares. Track events
-		// (onended/onmute) don't fire reliably across browsers when the sender
-		// removes tracks, so we actively check after a short delay.
 		if (isRenegotiation) {
+			// After renegotiation, check for stale screen shares. Track events
+			// (onended/onmute) don't fire reliably across browsers when the sender
+			// removes tracks, so we actively check after a short delay.
 			setTimeout(() => {
 				this.cleanupStaleScreenShares(fromUserId);
 			}, 1000);
+		} else {
+			// For new connections: if we sent an answer but the connection never
+			// establishes (ICE/DTLS failure without triggering state events),
+			// clean up after 15s to match the offerer's answer timeout.
+			setTimeout(() => {
+				const current = this.peers.get(fromUserId);
+				if (current === pc && pc.connectionState !== 'connected') {
+					console.warn(`Connection to ${fromUserId} never established after answering, cleaning up`);
+					this.onUserLeft(fromUserId);
+				}
+			}, 15_000);
 		}
 	}
 
@@ -1170,6 +1206,8 @@ class WebRTCManager {
 				}, 10_000));
 			} else if (pc.connectionState === 'connected') {
 				this.clearDisconnectTimeout(userId);
+				// After (re)connection, check for stale screen shares from this peer
+				this.cleanupStaleScreenShares(userId);
 			}
 		};
 

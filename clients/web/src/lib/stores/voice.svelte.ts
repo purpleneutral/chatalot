@@ -121,6 +121,13 @@ class VoiceStore {
 		const next = new Map(this.remoteScreenStreams);
 		next.set(userId, stream);
 		this.remoteScreenStreams = next;
+
+		// Auto-unmute audio for new screen shares so the user hears it immediately
+		if (this.screenShareMuted.has(userId)) {
+			const nextMuted = new Set(this.screenShareMuted);
+			nextMuted.delete(userId);
+			this.screenShareMuted = nextMuted;
+		}
 	}
 
 	removeRemoteScreenStream(userId: string) {
