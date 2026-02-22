@@ -4,9 +4,10 @@
   "version": "0.19.3",
   "identifier": "com.chatalot.desktop",
   "build": {
-    "frontendDist": "../shell",
+    "frontendDist": "../../web/build",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../web && npm run dev"
+    "beforeDevCommand": "cd ../web && npm run dev",
+    "beforeBuildCommand": "cd ../web && npm run build"
   },
   "app": {
     "withGlobalTauri": true,

@@ -16,10 +16,6 @@
 	#connect-form button:hover { background: #5b4bd5; }
 	#connect-form button:disabled { opacity: 0.5; cursor: not-allowed; }
 	#connect-error { color: #ff6b6b; font-size: 13px; max-width: 360px; text-align: center; min-height: 20px; }
-	#app-frame { display: none; width: 100%; height: 100%; border: none; }
-	#loading { display: none; position: fixed; inset: 0; background: #1a1a2e; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
-	.spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #6c5ce7; border-radius: 50%; animation: spin 0.8s linear infinite; }
-	@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -30,14 +26,50 @@
 	<div id="connect-error"></div>
 	<button id="connect-btn" type="button">Connect</button>
 </div>
-<div id="loading">
-	<div class="spinner"></div>
-</div>
-<iframe id="app-frame"
-	sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-	allow="microphone; camera; notifications; clipboard-write"
-></iframe>
 
-<script src="app.js"></script>
+<script>
+(function() {
+	var STORAGE_KEY = 'chatalot_server_url';
+	var form = document.getElementById('connect-form');
+	var input = document.getElementById('server-input');
+	var btn = document.getElementById('connect-btn');
+	var errorEl = document.getElementById('connect-error');
+	var serverUrl = localStorage.getItem(STORAGE_KEY);
+
+	function handleConnect() {
+		errorEl.textContent = '';
+		var url = input.value.trim().replace(/\/+$/, '');
+		if (!url) { errorEl.textContent = 'Please enter a server URL.'; return; }
+		if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+		btn.disabled = true;
+		btn.textContent = 'Connecting...';
+
+		fetch(url + '/api/auth/config', { mode: 'cors' })
+			.then(function(resp) {
+				if (!resp.ok) throw new Error('Server returned ' + resp.status);
+				return resp.json();
+			})
+			.then(function(data) {
+				if (!data.registration_mode) throw new Error('Not a Chatalot server');
+				localStorage.setItem(STORAGE_KEY, url);
+				window.location.href = url;
+			})
+			.catch(function(err) {
+				errorEl.textContent = 'Could not reach server: ' + (err.message || err);
+				btn.disabled = false;
+				btn.textContent = 'Connect';
+			});
+	}
+
+	if (serverUrl) {
+		window.location.href = serverUrl;
+	} else {
+		btn.addEventListener('click', handleConnect);
+		input.addEventListener('keydown', function(e) {
+			if (e.key === 'Enter') handleConnect();
+		});
+	}
+})();
+</script>
 </body>
 </html>

@@ -16,6 +16,15 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.22.4',
+			date: '2026-02-22',
+			changes: [
+				'Desktop app: switched to bundled mode for reliable voice calls and WebRTC on all self-hosted servers',
+				'Desktop app: devtools no longer open in release builds',
+				'Added deployment configuration example for self-hosters',
+			]
+		},
+		{
 			version: '0.22.3',
 			date: '2026-02-21',
 			changes: [

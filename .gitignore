@@ -35,6 +35,9 @@ clients/web/src/lib/crypto/wasm/
 .DS_Store
 Thumbs.db
 
+# Deploy config (contains server addresses)
+scripts/deploy.env
+
 # Logs
 *.log
 

@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { isTauri, isTauriDirectNav, getServerUrl } from '$lib/env';
+	import { isTauri, getServerUrl } from '$lib/env';
 	import { onMount } from 'svelte';
 
 	onMount(() => {
-		// Desktop mode (not direct nav): need a server URL first
-		if (isTauri() && !isTauriDirectNav() && !getServerUrl()) {
+		// Desktop mode: need a server URL first
+		if (isTauri() && !getServerUrl()) {
 			goto('/connect');
 			return;
 		}

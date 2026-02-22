@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { userStore } from '$lib/stores/users.svelte';
 	import { presenceStore } from '$lib/stores/presence.svelte';
-	import { isTauri, isTauriDirectNav, getServerUrl } from '$lib/env';
+	import { isTauri, getServerUrl } from '$lib/env';
 
 	type Size = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -63,8 +63,8 @@
 	let displayName = $derived(name ?? user?.display_name ?? userId?.slice(0, 8) ?? '?');
 	let initial = $derived(displayName[0]?.toUpperCase() ?? '?');
 	let rawUrl = $derived(avatarUrl !== undefined ? avatarUrl : (user?.avatar_url ?? null));
-	// Resolve relative avatar URLs for Tauri desktop mode (not needed in direct nav — already on server)
-	let url = $derived(rawUrl && rawUrl.startsWith('/') && isTauri() && !isTauriDirectNav()
+	// Resolve relative avatar URLs for Tauri desktop mode (bundled SPA is on tauri:// origin)
+	let url = $derived(rawUrl && rawUrl.startsWith('/') && isTauri()
 		? `${getServerUrl() ?? ''}${rawUrl}` : rawUrl);
 	let status = $derived(userId ? presenceStore.getStatus(userId) : 'offline');
 	let customStatus = $derived(user?.custom_status ?? null);
