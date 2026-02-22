@@ -266,7 +266,7 @@ pub async fn list_community_member_user_ids(
     community_id: Uuid,
 ) -> Result<Vec<Uuid>, sqlx::Error> {
     let rows: Vec<(Uuid,)> =
-        sqlx::query_as("SELECT user_id FROM community_members WHERE community_id = $1")
+        sqlx::query_as("SELECT user_id FROM community_members WHERE community_id = $1 LIMIT 5000")
             .bind(community_id)
             .fetch_all(pool)
             .await?;

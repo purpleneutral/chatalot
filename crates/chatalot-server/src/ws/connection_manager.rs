@@ -22,6 +22,8 @@ pub struct ConnectionManager {
     typing_state: DashMap<(Uuid, Uuid), tokio::time::Instant>,
     /// user_id -> last reaction timestamp (per-user, not per-connection)
     reaction_cooldowns: DashMap<Uuid, tokio::time::Instant>,
+    /// user_id -> last voice join/leave timestamp (2s cooldown)
+    voice_cooldowns: DashMap<Uuid, tokio::time::Instant>,
 }
 
 /// Maximum concurrent WebSocket sessions per user (multi-device support).
@@ -34,6 +36,7 @@ impl ConnectionManager {
             channel_senders: DashMap::new(),
             typing_state: DashMap::new(),
             reaction_cooldowns: DashMap::new(),
+            voice_cooldowns: DashMap::new(),
         }
     }
 
@@ -44,6 +47,19 @@ impl ConnectionManager {
             now - tokio::time::Duration::from_secs(1)
         });
         if now.duration_since(*entry) < tokio::time::Duration::from_millis(200) {
+            return false;
+        }
+        *entry = now;
+        true
+    }
+
+    /// Check per-user voice join/leave cooldown (2s). Returns true if allowed.
+    pub fn check_voice_cooldown(&self, user_id: Uuid) -> bool {
+        let now = tokio::time::Instant::now();
+        let mut entry = self.voice_cooldowns.entry(user_id).or_insert_with(|| {
+            now - tokio::time::Duration::from_secs(5)
+        });
+        if now.duration_since(*entry) < tokio::time::Duration::from_secs(2) {
             return false;
         }
         *entry = now;
@@ -91,7 +107,7 @@ impl ConnectionManager {
         self.channel_senders
             .entry(channel_id)
             .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(256);
+                let (tx, _) = broadcast::channel(1024);
                 tx
             })
             .clone()
@@ -105,8 +121,11 @@ impl ConnectionManager {
     /// Broadcast a message to all subscribers of a channel.
     pub fn broadcast_to_channel(&self, channel_id: Uuid, message: ServerMessage) {
         let sender = self.get_channel_sender(channel_id);
-        // Ignore error if no receivers (no one subscribed)
-        let _ = sender.send(message);
+        if let Err(e) = sender.send(message) {
+            // Only log if there were actually receivers (lagged = capacity exhausted)
+            // SendError means no receivers at all, which is normal
+            tracing::trace!(%channel_id, "broadcast_to_channel: no receivers — {e}");
+        }
     }
 
     /// Broadcast a message to a specific set of users (e.g. community members).

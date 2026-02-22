@@ -966,6 +966,15 @@ async fn handle_client_message(
         }
 
         ClientMessage::JoinVoice { channel_id } => {
+            // Rate-limit voice join/leave (2s cooldown)
+            if !conn_mgr.check_voice_cooldown(user_id) {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "rate_limited".to_string(),
+                    message: "please wait before joining/leaving voice again".to_string(),
+                });
+                return;
+            }
+
             // Verify membership
             match channel_repo::is_member(&state.db, channel_id, user_id).await {
                 Ok(true) => {}
@@ -1064,6 +1073,15 @@ async fn handle_client_message(
         }
 
         ClientMessage::LeaveVoice { channel_id } => {
+            // Rate-limit voice join/leave (shared 2s cooldown with JoinVoice)
+            if !conn_mgr.check_voice_cooldown(user_id) {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "rate_limited".to_string(),
+                    message: "please wait before joining/leaving voice again".to_string(),
+                });
+                return;
+            }
+
             if let Ok(Some(session)) = voice_repo::get_active_session(&state.db, channel_id).await {
                 let _ = voice_repo::leave_session(&state.db, session.id, user_id).await;
 

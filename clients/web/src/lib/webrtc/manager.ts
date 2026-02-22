@@ -61,7 +61,7 @@ class WebRTCManager {
 
 	// Audio level monitoring
 	private audioContext: AudioContext | null = null;
-	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode }>();
+	private analysers = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode; cleanups: Array<() => void> }>();
 	private levelCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 	private clearDisconnectTimeout(userId: string): void {
@@ -726,23 +726,26 @@ class WebRTCManager {
 		analyser.smoothingTimeConstant = 0.3;
 		source.connect(analyser);
 
-		this.analysers.set(userId, { analyser, source });
-
 		// Auto-cleanup when all audio tracks end (prevents orphaned analyser nodes)
-		const cleanup = () => {
+		const cleanups: Array<() => void> = [];
+		const onEnded = () => {
 			if (stream.getAudioTracks().every(t => t.readyState === 'ended')) {
 				this.stopMonitoringStream(userId);
 			}
 		};
 		for (const track of stream.getAudioTracks()) {
-			track.addEventListener('ended', cleanup);
+			track.addEventListener('ended', onEnded);
+			cleanups.push(() => track.removeEventListener('ended', onEnded));
 		}
+
+		this.analysers.set(userId, { analyser, source, cleanups });
 	}
 
 	/// Stop monitoring a specific stream.
 	private stopMonitoringStream(userId: string): void {
 		const existing = this.analysers.get(userId);
 		if (existing) {
+			for (const fn of existing.cleanups) fn();
 			existing.source.disconnect();
 			this.analysers.delete(userId);
 		}
