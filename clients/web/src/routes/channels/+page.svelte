@@ -295,11 +295,9 @@
 	let dragCounter = $state(0);
 
 	// Sidebar tab (restore from localStorage)
-	let sidebarTab = $state<'groups' | 'dms'>(() => {
-		if (typeof localStorage === 'undefined') return 'groups';
-		const saved = localStorage.getItem('chatalot:sidebarTab');
-		return saved === 'dms' ? 'dms' : 'groups';
-	});
+	let sidebarTab = $state<'groups' | 'dms'>(
+		typeof localStorage !== 'undefined' && localStorage.getItem('chatalot:sidebarTab') === 'dms' ? 'dms' : 'groups'
+	);
 
 	// Sidebar search filter
 	let sidebarFilter = $state('');
