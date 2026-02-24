@@ -1,15 +1,11 @@
-import { isTauriIframe } from '$lib/utils/tauri-bridge';
-
 const SERVER_URL_KEY = 'chatalot_server_url';
 
 export function isTauri(): boolean {
 	return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-/** True if running in Tauri (bundled SPA) OR inside Tauri's iframe shell. */
-export function isTauriEnv(): boolean {
-	return isTauri() || isTauriIframe();
-}
+/** Alias for isTauri() — kept for call-site readability where "env" context matters. */
+export const isTauriEnv = isTauri;
 
 export function getServerUrl(): string | null {
 	return localStorage.getItem(SERVER_URL_KEY);
