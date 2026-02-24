@@ -16,6 +16,16 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.22.6',
+			date: '2026-02-23',
+			changes: [
+				'New: UI zoom — scale the entire interface from 75% to 150% (Settings > Appearance)',
+				'New: keyboard shortcuts Ctrl+/- to zoom in/out, Ctrl+0 to reset',
+				'Fix: sidebar tab now remembers your last selection (Groups/DMs)',
+				'Cleaned up dead iframe bridge code',
+			]
+		},
+		{
 			version: '0.22.5',
 			date: '2026-02-22',
 			changes: [
