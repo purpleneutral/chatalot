@@ -63,6 +63,7 @@
 				}
 				var FS={small:'13px',medium:'14px',large:'16px'};
 				if(p.fontSize&&FS[p.fontSize])el.style.setProperty('--font-size-base',FS[p.fontSize]);
+				if(p.uiZoom&&p.uiZoom!==100)el.style.zoom=p.uiZoom/100;
 				if(p.chatBubbleStyle)el.setAttribute('data-bubbles',p.chatBubbleStyle==='bubbles'?'true':'false');
 			}catch(e){}
 		})();

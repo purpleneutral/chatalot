@@ -3425,6 +3425,25 @@
 			}
 		}
 
+		// Ctrl+=/- for UI zoom, Ctrl+0 to reset
+		if ((e.key === '=' || e.key === '+') && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			const current = preferencesStore.preferences.uiZoom;
+			preferencesStore.set('uiZoom', Math.min(200, current + 10));
+			return;
+		}
+		if (e.key === '-' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			const current = preferencesStore.preferences.uiZoom;
+			preferencesStore.set('uiZoom', Math.max(50, current - 10));
+			return;
+		}
+		if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			preferencesStore.set('uiZoom', 100);
+			return;
+		}
+
 		// Shift+Escape to mark all channels as read
 		if (e.key === 'Escape' && e.shiftKey && !isTextInput(e)) {
 			e.preventDefault();

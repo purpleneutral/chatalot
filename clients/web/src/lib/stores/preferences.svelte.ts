@@ -93,6 +93,7 @@ export interface UserPreferences {
 	customThemeColors: CustomThemeColors;
 	voiceBackground: VoiceBackground;
 	sendReadReceipts: boolean;
+	uiZoom: number;
 	sidebarLayout: SidebarLayout;
 	voiceActivationMode: VoiceActivationMode;
 	pttKey: string;
@@ -135,6 +136,7 @@ const DEFAULTS: UserPreferences = {
 	customThemeColors: { ...DEFAULT_CUSTOM_COLORS },
 	voiceBackground: { type: 'none' },
 	sendReadReceipts: true,
+	uiZoom: 100,
 	sidebarLayout: 'expanded',
 	voiceActivationMode: 'open-mic',
 	pttKey: ' ',
@@ -332,6 +334,13 @@ class PreferencesStore {
 		}
 
 		el.style.setProperty('--font-size-base', FONT_SIZES[prefs.fontSize]);
+
+		// UI zoom
+		if (prefs.uiZoom && prefs.uiZoom !== 100) {
+			el.style.setProperty('zoom', `${prefs.uiZoom / 100}`);
+		} else {
+			el.style.removeProperty('zoom');
+		}
 
 		// Reduce motion
 		el.classList.toggle('reduce-motion', prefs.reduceMotion);

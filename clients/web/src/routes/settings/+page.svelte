@@ -1146,6 +1146,36 @@
 							</button>
 						</div>
 
+						<!-- UI Zoom -->
+						<div class="mb-4 flex items-center justify-between">
+							<div>
+								<div class="font-medium">UI zoom</div>
+								<div class="text-sm text-[var(--text-secondary)]">{preferencesStore.preferences.uiZoom}%</div>
+							</div>
+							<div class="flex items-center gap-2">
+								<div class="flex overflow-hidden rounded-lg border border-white/10">
+									{#each [75, 90, 100, 110, 125, 150] as zoom}
+										<button
+											onclick={() => preferencesStore.set('uiZoom', zoom)}
+											class="px-2.5 py-1.5 text-xs transition {zoom !== 75 ? 'border-l border-white/10' : ''}
+												{preferencesStore.preferences.uiZoom === zoom ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}"
+										>
+											{zoom}%
+										</button>
+									{/each}
+								</div>
+								{#if preferencesStore.preferences.uiZoom !== 100}
+									<button
+										onclick={() => preferencesStore.set('uiZoom', 100)}
+										class="rounded-lg px-2 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)] transition"
+										title="Reset to 100%"
+									>
+										Reset
+									</button>
+								{/if}
+							</div>
+						</div>
+
 						<!-- Font Size -->
 						<div class="flex items-center justify-between">
 							<div>
