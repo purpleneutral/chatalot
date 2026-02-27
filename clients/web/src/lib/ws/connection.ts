@@ -1,6 +1,6 @@
 import { authStore } from '$lib/stores/auth.svelte';
 import { refreshToken } from '$lib/api/auth';
-import { wsUrl } from '$lib/env';
+import { wsUrl, getServerUrl } from '$lib/env';
 import { startSilentUpdate } from '$lib/utils/silent-update';
 import type { ClientMessage, ServerMessage } from './types';
 
@@ -179,11 +179,17 @@ class WebSocketClient {
 				console.info(
 					`Version mismatch: client=${__APP_VERSION__}, server=${msg.server_version}`,
 				);
-				// Bundled Tauri: can't reload to update (assets are in the binary).
+				// Bundled Tauri: navigate to server-hosted SPA for live updates.
 				// Iframe or regular web: silent update (waits for idle).
 				const isBundledTauri = '__TAURI_INTERNALS__' in window
 					&& window.parent === window;
-				if (!isBundledTauri) {
+				if (isBundledTauri) {
+					const serverUrl = getServerUrl();
+					if (serverUrl) {
+						console.info('Bundled Tauri: navigating to server-hosted client for update');
+						window.location.href = serverUrl;
+					}
+				} else {
 					startSilentUpdate();
 				}
 			}
