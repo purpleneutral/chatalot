@@ -1,0 +1,107 @@
+name: Update AUR Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.22.6)'
+        required: true
+
+jobs:
+  update-aur:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.release.tag_name, 'v')
+
+    steps:
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION="${{ github.event.release.tag_name }}"
+            echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download .deb and compute sha256
+        id: checksum
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release download "v${VERSION}" \
+            --repo "${{ github.repository }}" \
+            --pattern "Chatalot_${VERSION}_amd64.deb" \
+            --dir .
+          SHA=$(sha256sum "Chatalot_${VERSION}_amd64.deb" | cut -d' ' -f1)
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host aur.archlinux.org
+            IdentityFile ~/.ssh/aur
+            User aur
+          EOF
+
+      - name: Clone AUR repo
+        run: git clone ssh://aur@aur.archlinux.org/chatalot.git aur
+
+      - name: Update PKGBUILD
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA="${{ steps.checksum.outputs.sha256 }}"
+          cd aur
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${SHA}')/" PKGBUILD
+
+      - name: Generate .SRCINFO
+        run: |
+          cd aur
+          # Generate .SRCINFO without makepkg (not available on Ubuntu)
+          cat > .SRCINFO <<SRCINFO
+          pkgbase = chatalot
+          	pkgdesc = Self-hosted end-to-end encrypted chat platform — desktop client
+          	pkgver = ${{ steps.version.outputs.version }}
+          	pkgrel = 1
+          	url = https://github.com/purpleneutral/chatalot
+          	install = chatalot.install
+          	arch = x86_64
+          	license = GPL-3.0-only
+          	depends = gtk3
+          	depends = libsoup3
+          	depends = openssl
+          	depends = webkit2gtk-4.1
+          	optdepends = libsecret: OS keychain storage for identity keys
+          	optdepends = libappindicator-gtk3: system tray support
+          	conflicts = chatalot-bin
+          	conflicts = chatalot-git
+          	options = !strip
+          	options = !debug
+          	source = chatalot-${{ steps.version.outputs.version }}.deb::https://github.com/purpleneutral/chatalot/releases/download/v${{ steps.version.outputs.version }}/Chatalot_${{ steps.version.outputs.version }}_amd64.deb
+          	sha256sums = ${{ steps.checksum.outputs.sha256 }}
+
+          pkgname = chatalot
+          SRCINFO
+          # Remove leading whitespace (heredoc indentation)
+          sed -i 's/^          //' .SRCINFO
+
+      - name: Push to AUR
+        run: |
+          cd aur
+          git config user.name "purpleneutral"
+          git config user.email "purpleneutral@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          if git diff --cached --quiet; then
+            echo "No changes to push"
+          else
+            git commit -m "Update to ${{ steps.version.outputs.version }}"
+            git push
+          fi
