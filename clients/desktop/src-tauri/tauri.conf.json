@@ -40,7 +40,8 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["libwebkit2gtk-4.1-0", "libssl3"]
+        "depends": ["libwebkit2gtk-4.1-0", "libssl3"],
+        "desktopTemplate": "desktop-template.desktop"
       },
       "appimage": {
         "bundleMediaFramework": false

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories=Network;InstantMessaging;Chat;
+Comment=Self-hosted end-to-end encrypted chat platform
+Exec={{{exec}}}
+Icon={{{icon}}}
+Name={{{name}}}
+StartupWMClass=chatalot-desktop
+Terminal=false
+Type=Application
+Keywords=chat;messaging;encrypted;e2e;voice;
