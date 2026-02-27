@@ -761,8 +761,27 @@ async fn list_all_files(
     let offset = (page - 1) * per_page;
     let sort = query.sort.as_deref().unwrap_or("date");
 
-    let total = file_repo::count_files(&state.db, query.user_id).await?;
-    let files = file_repo::list_all_files(&state.db, query.user_id, sort, per_page, offset).await?;
+    let date_from = query
+        .date_from
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    let date_to = query
+        .date_to
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    let filter = file_repo::FileFilter {
+        user_id: query.user_id,
+        search: query.search.as_deref(),
+        content_type: query.content_type.as_deref(),
+        date_from,
+        date_to,
+    };
+
+    let total = file_repo::count_files(&state.db, &filter).await?;
+    let files = file_repo::list_all_files(&state.db, &filter, sort, per_page, offset).await?;
 
     let entries = files
         .into_iter()
@@ -777,6 +796,7 @@ async fn list_all_files(
             quarantined_at: f.quarantined_at.map(|t| t.to_rfc3339()),
             quarantined_by: f.quarantined_by,
             created_at: f.created_at.to_rfc3339(),
+            has_thumbnail: f.thumbnail_path.is_some(),
         })
         .collect();
 

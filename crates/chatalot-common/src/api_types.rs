@@ -230,6 +230,9 @@ pub struct MessagesQuery {
     pub before: Option<Uuid>,
     /// Number of messages to return (max 100)
     pub limit: Option<i64>,
+    /// Only return root-level messages (thread_id IS NULL). Used by gallery channels.
+    #[serde(default)]
+    pub root_only: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -571,6 +574,14 @@ pub struct AdminFilesQuery {
     pub per_page: Option<i64>,
     pub user_id: Option<Uuid>,
     pub sort: Option<String>,
+    /// Search by filename (ILIKE)
+    pub search: Option<String>,
+    /// Filter by content type prefix (e.g. "image/", "video/", "audio/")
+    pub content_type: Option<String>,
+    /// Filter files created on or after this date (RFC3339)
+    pub date_from: Option<String>,
+    /// Filter files created on or before this date (RFC3339)
+    pub date_to: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -585,6 +596,7 @@ pub struct AdminFileEntry {
     pub quarantined_at: Option<String>,
     pub quarantined_by: Option<Uuid>,
     pub created_at: String,
+    pub has_thumbnail: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

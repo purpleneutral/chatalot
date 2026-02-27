@@ -74,43 +74,51 @@ pub async fn get_messages(
     channel_id: Uuid,
     before: Option<Uuid>,
     limit: i64,
+    root_only: bool,
 ) -> Result<Vec<Message>, sqlx::Error> {
     let limit = limit.min(100);
+    let thread_filter = if root_only {
+        " AND thread_id IS NULL"
+    } else {
+        ""
+    };
 
     if let Some(before_id) = before {
-        sqlx::query_as::<_, Message>(
+        let sql = format!(
             r#"
             SELECT * FROM messages
             WHERE channel_id = $1
               AND created_at < (SELECT created_at FROM messages WHERE id = $2)
               AND deleted_at IS NULL
               AND quarantined_at IS NULL
-              AND (expires_at IS NULL OR expires_at > NOW())
+              AND (expires_at IS NULL OR expires_at > NOW()){thread_filter}
             ORDER BY created_at DESC
             LIMIT $3
             "#,
-        )
-        .bind(channel_id)
-        .bind(before_id)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
+        );
+        sqlx::query_as::<_, Message>(&sql)
+            .bind(channel_id)
+            .bind(before_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
     } else {
-        sqlx::query_as::<_, Message>(
+        let sql = format!(
             r#"
             SELECT * FROM messages
             WHERE channel_id = $1
               AND deleted_at IS NULL
               AND quarantined_at IS NULL
-              AND (expires_at IS NULL OR expires_at > NOW())
+              AND (expires_at IS NULL OR expires_at > NOW()){thread_filter}
             ORDER BY created_at DESC
             LIMIT $2
             "#,
-        )
-        .bind(channel_id)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
+        );
+        sqlx::query_as::<_, Message>(&sql)
+            .bind(channel_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
     }
 }
 

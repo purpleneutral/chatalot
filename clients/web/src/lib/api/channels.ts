@@ -103,10 +103,11 @@ export async function unbanMember(channelId: string, userId: string): Promise<vo
 	await api.post(`/channels/${channelId}/members/${userId}/unban`, {});
 }
 
-export async function getMessages(channelId: string, before?: string, limit?: number): Promise<Message[]> {
+export async function getMessages(channelId: string, before?: string, limit?: number, rootOnly?: boolean): Promise<Message[]> {
 	const params = new URLSearchParams();
 	if (before) params.set('before', before);
 	if (limit) params.set('limit', String(limit));
+	if (rootOnly) params.set('root_only', 'true');
 	const query = params.toString();
 	return api.get<Message[]>(`/channels/${channelId}/messages${query ? '?' + query : ''}`);
 }

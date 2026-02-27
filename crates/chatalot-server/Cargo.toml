@@ -41,6 +41,7 @@ reqwest = { workspace = true }
 regex = "1"
 url = "2"
 html-escape = "0.2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 chacha20poly1305 = { workspace = true }
 web-push = "0.10"
 base64 = "0.13"

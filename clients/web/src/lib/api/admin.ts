@@ -106,6 +106,7 @@ export interface AdminFileEntry {
 	quarantined_at: string | null;
 	quarantined_by: string | null;
 	created_at: string;
+	has_thumbnail: boolean;
 }
 
 export interface AdminFilesResponse {
@@ -120,12 +121,20 @@ export async function listFiles(params?: {
 	per_page?: number;
 	user_id?: string;
 	sort?: string;
+	search?: string;
+	content_type?: string;
+	date_from?: string;
+	date_to?: string;
 }): Promise<AdminFilesResponse> {
 	const query = new URLSearchParams();
 	if (params?.page) query.set('page', String(params.page));
 	if (params?.per_page) query.set('per_page', String(params.per_page));
 	if (params?.user_id) query.set('user_id', params.user_id);
 	if (params?.sort) query.set('sort', params.sort);
+	if (params?.search) query.set('search', params.search);
+	if (params?.content_type) query.set('content_type', params.content_type);
+	if (params?.date_from) query.set('date_from', params.date_from);
+	if (params?.date_to) query.set('date_to', params.date_to);
 	const qs = query.toString();
 	return api.get(`/admin/files${qs ? `?${qs}` : ''}`);
 }

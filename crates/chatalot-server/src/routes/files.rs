@@ -1,10 +1,12 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::header;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
+use dashmap::DashMap;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
@@ -15,7 +17,13 @@ use chatalot_db::repos::{blocked_hash_repo, channel_repo, file_repo, user_repo};
 use crate::app_state::AppState;
 use crate::error::AppError;
 use crate::middleware::auth::AccessClaims;
-use crate::services::file_security;
+use crate::services::{file_security, thumbnail_service};
+
+/// Per-user upload rate limiter: max 10 uploads per 60 seconds.
+static UPLOAD_RATE: std::sync::LazyLock<DashMap<Uuid, (Instant, u32)>> =
+    std::sync::LazyLock::new(DashMap::new);
+const UPLOAD_RATE_WINDOW: u64 = 60;
+const UPLOAD_RATE_MAX: u32 = 10;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
@@ -25,6 +33,7 @@ pub fn routes() -> Router<Arc<AppState>> {
             get(download_file).delete(delete_own_file),
         )
         .route("/files/{file_id}/meta", get(get_file_meta))
+        .route("/files/{file_id}/thumb", get(download_thumbnail))
 }
 
 /// Upload an encrypted file.
@@ -84,6 +93,22 @@ async fn upload_file(
 
     let data = file_data.ok_or_else(|| AppError::Validation("no file field".to_string()))?;
 
+    // Rate limiting: max 10 uploads per minute per user
+    {
+        let mut entry = UPLOAD_RATE.entry(claims.sub).or_insert((Instant::now(), 0));
+        let (window_start, count) = entry.value_mut();
+        if window_start.elapsed().as_secs() >= UPLOAD_RATE_WINDOW {
+            *window_start = Instant::now();
+            *count = 1;
+        } else if *count >= UPLOAD_RATE_MAX {
+            return Err(AppError::Validation(
+                "upload rate limit exceeded (max 10 per minute)".to_string(),
+            ));
+        } else {
+            *count += 1;
+        }
+    }
+
     // Verify channel membership if a channel_id was provided
     if let Some(cid) = channel_id
         && !channel_repo::is_member(&state.db, cid, claims.sub).await?
@@ -138,6 +163,33 @@ async fn upload_file(
         .await
         .map_err(|e| AppError::Internal(format!("create dir: {e}")))?;
 
+    // Security: strip EXIF metadata and sanitize SVGs before storing
+    let mut data = data;
+    let mut exif_stripped = false;
+
+    if let Some(ref ct) = content_type {
+        // Strip EXIF from images (removes GPS coordinates, camera info, etc.)
+        if matches!(ct.as_str(), "image/jpeg" | "image/png" | "image/webp") {
+            if let Some(clean) = thumbnail_service::strip_exif(&data, ct).await {
+                data = clean;
+                exif_stripped = true;
+            }
+        }
+
+        // Sanitize SVG files (strip scripts, event handlers, etc.)
+        if ct == "image/svg+xml" {
+            match file_security::sanitize_svg(&data) {
+                Ok(clean) => data = clean,
+                Err(reason) => {
+                    return Err(AppError::Validation(format!("invalid SVG: {reason}")));
+                }
+            }
+        }
+    }
+
+    // Update size after potential re-encoding
+    let size_bytes = data.len() as i64;
+
     let file_path = shard_dir.join(&id_str);
     let mut f = tokio::fs::File::create(&file_path)
         .await
@@ -148,6 +200,22 @@ async fn upload_file(
     f.flush()
         .await
         .map_err(|e| AppError::Internal(format!("flush file: {e}")))?;
+
+    // Generate thumbnail for image files
+    let mut thumbnail_path: Option<String> = None;
+    if let Some(ref ct) = content_type {
+        let thumb_file = shard_dir.join(format!("{id_str}_thumb"));
+        match thumbnail_service::generate_thumbnail(&data, ct, &thumb_file).await {
+            Ok(true) => {
+                thumbnail_path = Some(thumb_file.to_string_lossy().to_string());
+            }
+            Ok(false) => {} // not an image type
+            Err(e) => {
+                tracing::warn!("thumbnail generation failed for {id_str}: {e}");
+                // Non-fatal — upload still succeeds without thumbnail
+            }
+        }
+    }
 
     // Record metadata in DB (clean up orphaned file on failure)
     let record = match file_repo::create_file(
@@ -160,12 +228,17 @@ async fn upload_file(
         &file_path.to_string_lossy(),
         &checksum,
         channel_id,
+        thumbnail_path.as_deref(),
+        exif_stripped,
     )
     .await
     {
         Ok(r) => r,
         Err(e) => {
             let _ = tokio::fs::remove_file(&file_path).await;
+            if let Some(ref tp) = thumbnail_path {
+                let _ = tokio::fs::remove_file(tp).await;
+            }
             return Err(e.into());
         }
     };
@@ -262,6 +335,57 @@ async fn get_file_meta(
     }))
 }
 
+/// Download the thumbnail for a file.
+async fn download_thumbnail(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<AccessClaims>,
+    Path(file_id): Path<Uuid>,
+) -> Result<([(header::HeaderName, String); 3], Body), AppError> {
+    let record = file_repo::get_file(&state.db, file_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("file not found".to_string()))?;
+
+    let thumb_path = record
+        .thumbnail_path
+        .as_ref()
+        .ok_or_else(|| AppError::NotFound("no thumbnail available".to_string()))?;
+
+    // Same access control as file download
+    if record.quarantined_at.is_some() && !claims.is_admin && !claims.is_owner {
+        return Err(AppError::Forbidden);
+    }
+    if let Some(cid) = record.channel_id {
+        if !channel_repo::is_member(&state.db, cid, claims.sub).await? {
+            return Err(AppError::Forbidden);
+        }
+    } else if record.uploader_id != claims.sub && !claims.is_admin && !claims.is_owner {
+        return Err(AppError::Forbidden);
+    }
+
+    let file = tokio::fs::File::open(thumb_path)
+        .await
+        .map_err(|e| AppError::Internal(format!("open thumbnail: {e}")))?;
+
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    // Thumbnails are always JPEG (except sanitized SVGs)
+    let ct = if record.content_type.as_deref() == Some("image/svg+xml") {
+        "image/svg+xml".to_string()
+    } else {
+        "image/jpeg".to_string()
+    };
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, ct),
+            (header::CACHE_CONTROL, "private, max-age=3600".to_string()),
+            (header::CONTENT_DISPOSITION, "inline".to_string()),
+        ],
+        body,
+    ))
+}
+
 /// Delete a file. Owner can delete own files; admins can delete any file.
 async fn delete_own_file(
     State(state): State<Arc<AppState>>,
@@ -285,6 +409,10 @@ async fn delete_own_file(
             "Failed to delete file from disk {}: {e}",
             record.storage_path
         );
+    }
+    // Delete thumbnail if present
+    if let Some(ref tp) = record.thumbnail_path {
+        let _ = tokio::fs::remove_file(tp).await;
     }
 
     // Delete from DB

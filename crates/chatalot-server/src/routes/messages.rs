@@ -70,7 +70,8 @@ async fn get_messages(
     }
 
     let limit = query.limit.unwrap_or(50).min(100);
-    let messages = message_repo::get_messages(&state.db, channel_id, query.before, limit).await?;
+    let root_only = query.root_only.unwrap_or(false);
+    let messages = message_repo::get_messages(&state.db, channel_id, query.before, limit, root_only).await?;
 
     let reactions_map = fetch_reactions_map(&state.db, &messages).await?;
     let thread_map = fetch_thread_map(&state.db, &messages).await?;

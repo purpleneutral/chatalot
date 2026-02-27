@@ -22,6 +22,10 @@ pub fn validate_file_type(data: &[u8]) -> Result<&'static str, &'static str> {
     // Check a reasonable prefix to avoid scanning huge binary blobs
     let check_len = data.len().min(8192);
     if std::str::from_utf8(&data[..check_len]).is_ok() && !data[..check_len].contains(&0) {
+        // Detect SVG specifically (text-based image format)
+        if is_svg(&data[..check_len]) {
+            return Ok("image/svg+xml");
+        }
         return Ok("text/plain");
     }
 
@@ -156,6 +160,59 @@ fn check_whitelist(data: &[u8]) -> Option<&'static str> {
 
 fn starts(data: &[u8], prefix: &[u8]) -> bool {
     data.len() >= prefix.len() && &data[..prefix.len()] == prefix
+}
+
+/// Check if UTF-8 text looks like an SVG file.
+fn is_svg(text: &[u8]) -> bool {
+    let s = match std::str::from_utf8(text) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let trimmed = s.trim_start();
+    // SVG files start with <svg or <?xml (then contain <svg)
+    trimmed.starts_with("<svg")
+        || (trimmed.starts_with("<?xml") && trimmed.contains("<svg"))
+}
+
+/// Sanitize SVG content by removing dangerous elements and attributes.
+/// Returns the sanitized SVG bytes, or an error if the input is not valid UTF-8.
+pub fn sanitize_svg(data: &[u8]) -> Result<Vec<u8>, &'static str> {
+    let text = std::str::from_utf8(data).map_err(|_| "SVG is not valid UTF-8")?;
+
+    use regex::Regex;
+
+    // Remove <script>...</script> tags (case-insensitive, including multiline)
+    let re_script = Regex::new(r"(?is)<script[\s>].*?</script\s*>").unwrap();
+    let text = re_script.replace_all(&text, "");
+
+    // Remove <script .../> self-closing
+    let re_script_self = Regex::new(r"(?i)<script[^>]*/\s*>").unwrap();
+    let text = re_script_self.replace_all(&text, "");
+
+    // Remove <foreignObject>...</foreignObject>
+    let re_foreign = Regex::new(r"(?is)<foreignObject[\s>].*?</foreignObject\s*>").unwrap();
+    let text = re_foreign.replace_all(&text, "");
+
+    // Remove on* event handler attributes (onclick, onload, onerror, etc.)
+    let re_on_event = Regex::new(r#"(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)"#).unwrap();
+    let text = re_on_event.replace_all(&text, "");
+
+    // Remove javascript: in href/xlink:href attributes
+    let re_js_href =
+        Regex::new(r#"(?i)(href\s*=\s*["'])\s*javascript:[^"']*"#).unwrap();
+    let text = re_js_href.replace_all(&text, "${1}#");
+
+    // Remove xlink:href pointing to external URLs (keep internal # references)
+    let re_xlink_ext =
+        Regex::new(r#"(?i)xlink:href\s*=\s*["']https?://[^"']*["']"#).unwrap();
+    let text = re_xlink_ext.replace_all(&text, "");
+
+    // Remove <use> elements with external href
+    let re_use_ext =
+        Regex::new(r#"(?i)<use[^>]+href\s*=\s*["']https?://[^"']*["'][^>]*/?\s*>"#).unwrap();
+    let text = re_use_ext.replace_all(&text, "");
+
+    Ok(text.into_owned().into_bytes())
 }
 
 #[cfg(test)]
@@ -298,5 +355,52 @@ mod tests {
     fn test_7z_accepted() {
         let data = b"7z\xBC\xAF\x27\x1C\x00\x04";
         assert_eq!(validate_file_type(data), Ok("application/x-7z-compressed"));
+    }
+
+    #[test]
+    fn test_svg_detected() {
+        let data = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><rect/></svg>";
+        assert_eq!(validate_file_type(data), Ok("image/svg+xml"));
+    }
+
+    #[test]
+    fn test_svg_with_xml_decl() {
+        let data = b"<?xml version=\"1.0\"?><svg><circle/></svg>";
+        assert_eq!(validate_file_type(data), Ok("image/svg+xml"));
+    }
+
+    #[test]
+    fn test_sanitize_svg_removes_script() {
+        let svg = b"<svg><script>alert('xss')</script><rect/></svg>";
+        let clean = sanitize_svg(svg).unwrap();
+        let text = std::str::from_utf8(&clean).unwrap();
+        assert!(!text.contains("<script"));
+        assert!(text.contains("<rect"));
+    }
+
+    #[test]
+    fn test_sanitize_svg_removes_on_events() {
+        let svg = b"<svg><rect onclick=\"alert(1)\" fill=\"red\"/></svg>";
+        let clean = sanitize_svg(svg).unwrap();
+        let text = std::str::from_utf8(&clean).unwrap();
+        assert!(!text.contains("onclick"));
+        assert!(text.contains("fill=\"red\""));
+    }
+
+    #[test]
+    fn test_sanitize_svg_removes_javascript_href() {
+        let svg = b"<svg><a href=\"javascript:alert(1)\"><text>click</text></a></svg>";
+        let clean = sanitize_svg(svg).unwrap();
+        let text = std::str::from_utf8(&clean).unwrap();
+        assert!(!text.contains("javascript:"));
+    }
+
+    #[test]
+    fn test_sanitize_svg_removes_foreign_object() {
+        let svg = b"<svg><foreignObject><div>html</div></foreignObject><rect/></svg>";
+        let clean = sanitize_svg(svg).unwrap();
+        let text = std::str::from_utf8(&clean).unwrap();
+        assert!(!text.contains("<foreignObject"));
+        assert!(text.contains("<rect"));
     }
 }

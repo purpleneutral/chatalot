@@ -26,6 +26,7 @@ pub enum ChannelType {
     Text,
     Voice,
     Dm,
+    Gallery,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

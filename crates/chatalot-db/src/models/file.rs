@@ -15,6 +15,8 @@ pub struct FileRecord {
     pub quarantined_at: Option<DateTime<Utc>>,
     pub quarantined_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
+    pub thumbnail_path: Option<String>,
+    pub exif_stripped: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

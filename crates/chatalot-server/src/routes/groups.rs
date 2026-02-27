@@ -768,6 +768,7 @@ async fn create_group_channel(
     let channel_type = match req.channel_type.as_str() {
         "text" => ChannelType::Text,
         "voice" => ChannelType::Voice,
+        "gallery" => ChannelType::Gallery,
         _ => return Err(AppError::Validation("invalid channel type".to_string())),
     };
 

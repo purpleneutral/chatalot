@@ -17,6 +17,7 @@
 		listAllWebhooks, type AdminWebhook, type AdminWebhooksResponse
 	} from '$lib/api/admin';
 	import { createAnnouncement, listAllAnnouncements, type Announcement } from '$lib/api/announcements';
+	import { getAuthenticatedThumbUrl } from '$lib/api/files';
 	import { onMount, onDestroy } from 'svelte';
 
 	type Tab = 'users' | 'invites' | 'files' | 'reports' | 'audit' | 'security' | 'announcements' | 'webhooks' | 'settings';
@@ -45,6 +46,12 @@
 	let filesPage = $state(1);
 	let filesSort = $state('date');
 	let storageStats = $state<StorageStats | null>(null);
+	let filesViewMode = $state<'table' | 'grid'>('table');
+	let filesSearch = $state('');
+	let filesSearchTimeout: ReturnType<typeof setTimeout>;
+	let filesContentType = $state('');
+	let filesDateFrom = $state('');
+	let filesDateTo = $state('');
 
 	// ── Reports ──
 	let reportsResponse = $state<ReportsResponse | null>(null);
@@ -324,12 +331,34 @@
 	async function loadFiles() {
 		filesLoading = true;
 		try {
-			filesResponse = await listFiles({ page: filesPage, per_page: 25, sort: filesSort });
+			filesResponse = await listFiles({
+				page: filesPage,
+				per_page: filesViewMode === 'grid' ? 40 : 25,
+				sort: filesSort,
+				search: filesSearch || undefined,
+				content_type: filesContentType || undefined,
+				date_from: filesDateFrom ? new Date(filesDateFrom).toISOString() : undefined,
+				date_to: filesDateTo ? new Date(filesDateTo + 'T23:59:59').toISOString() : undefined
+			});
 		} catch (err) {
 			toastStore.error(err instanceof Error ? err.message : 'Failed to load files');
 		} finally {
 			filesLoading = false;
 		}
+	}
+
+	function handleFilesSearch() {
+		clearTimeout(filesSearchTimeout);
+		filesSearchTimeout = setTimeout(() => { filesPage = 1; loadFiles(); }, 300);
+	}
+
+	function resetFilesFilters() {
+		filesSearch = '';
+		filesContentType = '';
+		filesDateFrom = '';
+		filesDateTo = '';
+		filesPage = 1;
+		loadFiles();
 	}
 
 	async function loadStorageStats() {
@@ -807,9 +836,19 @@
 				{/if}
 
 				<section class="rounded-xl border border-white/10 bg-[var(--bg-secondary)] p-6">
+					<!-- Header with view toggle -->
 					<div class="mb-4 flex items-center justify-between">
 						<h2 class="text-lg font-semibold">File Browser</h2>
-						<div class="flex items-center gap-2">
+						<div class="flex items-center gap-3">
+							<!-- View toggle -->
+							<div class="flex rounded border border-white/10">
+								<button onclick={() => { filesViewMode = 'table'; filesPage = 1; loadFiles(); }} class="px-2.5 py-1.5 text-xs transition {filesViewMode === 'table' ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}" title="Table view">
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+								</button>
+								<button onclick={() => { filesViewMode = 'grid'; filesPage = 1; loadFiles(); }} class="px-2.5 py-1.5 text-xs transition {filesViewMode === 'grid' ? 'bg-white/10 text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}" title="Grid view">
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+								</button>
+							</div>
 							<label for="files-sort" class="text-xs text-[var(--text-secondary)]">Sort:</label>
 							<select id="files-sort" bind:value={filesSort} onchange={() => { filesPage = 1; loadFiles(); }} class="rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)]">
 								<option value="date">Newest</option>
@@ -818,11 +857,93 @@
 						</div>
 					</div>
 
+					<!-- Search & Filters -->
+					<div class="mb-4 flex flex-wrap items-end gap-3">
+						<div class="flex-1" style="min-width: 180px;">
+							<label for="files-search" class="mb-1 block text-xs text-[var(--text-secondary)]">Search filename</label>
+							<input id="files-search" type="text" bind:value={filesSearch} oninput={handleFilesSearch} placeholder="Search..." class="w-full rounded border border-white/10 bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/50 focus:border-blue-500/50 focus:outline-none" />
+						</div>
+						<div>
+							<label for="files-type" class="mb-1 block text-xs text-[var(--text-secondary)]">Type</label>
+							<select id="files-type" bind:value={filesContentType} onchange={() => { filesPage = 1; loadFiles(); }} class="rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]">
+								<option value="">All</option>
+								<option value="image/">Images</option>
+								<option value="video/">Video</option>
+								<option value="audio/">Audio</option>
+								<option value="application/pdf">PDF</option>
+								<option value="application/">Documents</option>
+								<option value="text/">Text</option>
+							</select>
+						</div>
+						<div>
+							<label for="files-date-from" class="mb-1 block text-xs text-[var(--text-secondary)]">From</label>
+							<input id="files-date-from" type="date" bind:value={filesDateFrom} onchange={() => { filesPage = 1; loadFiles(); }} class="rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] focus:border-blue-500/50 focus:outline-none" />
+						</div>
+						<div>
+							<label for="files-date-to" class="mb-1 block text-xs text-[var(--text-secondary)]">To</label>
+							<input id="files-date-to" type="date" bind:value={filesDateTo} onchange={() => { filesPage = 1; loadFiles(); }} class="rounded border border-white/10 bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] focus:border-blue-500/50 focus:outline-none" />
+						</div>
+						{#if filesSearch || filesContentType || filesDateFrom || filesDateTo}
+							<button onclick={resetFilesFilters} class="rounded px-2 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/5 hover:text-[var(--text-primary)]">Clear filters</button>
+						{/if}
+					</div>
+
 					{#if filesLoading}
 						<p class="text-sm text-[var(--text-secondary)]">Loading files...</p>
 					{:else if !filesResponse || filesResponse.files.length === 0}
 						<p class="text-sm text-[var(--text-secondary)]">No files found.</p>
+					{:else if filesViewMode === 'grid'}
+						<!-- Grid View -->
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+							{#each filesResponse.files as file}
+								<div class="group relative overflow-hidden rounded-lg border border-white/10 bg-[var(--bg-primary)] transition hover:border-white/20">
+									<!-- Thumbnail / Icon -->
+									<div class="flex aspect-square items-center justify-center overflow-hidden bg-black/20">
+										{#if file.has_thumbnail}
+											{#await getAuthenticatedThumbUrl(file.id)}
+												<div class="h-8 w-8 animate-pulse rounded bg-white/10"></div>
+											{:then thumbUrl}
+												<img src={thumbUrl} alt="" class="h-full w-full object-cover" />
+											{:catch}
+												<svg class="h-10 w-10 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+											{/await}
+										{:else}
+											<!-- File type icon -->
+											{#if file.content_type?.startsWith('video/')}
+												<svg class="h-10 w-10 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+											{:else if file.content_type?.startsWith('audio/')}
+												<svg class="h-10 w-10 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+											{:else if file.content_type === 'application/pdf'}
+												<svg class="h-10 w-10 text-red-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+											{:else}
+												<svg class="h-10 w-10 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+											{/if}
+										{/if}
+										<!-- Quarantine badge -->
+										{#if file.quarantined_at}
+											<div class="absolute left-1.5 top-1.5 rounded bg-orange-500/80 px-1.5 py-0.5 text-[10px] font-medium text-white">Quarantined</div>
+										{/if}
+									</div>
+									<!-- Info -->
+									<div class="p-2">
+										<div class="truncate text-xs text-[var(--text-primary)]" title={file.encrypted_name}>{file.encrypted_name || '—'}</div>
+										<div class="mt-0.5 flex items-center justify-between text-[10px] text-[var(--text-secondary)]">
+											<span>{formatBytes(file.size_bytes)}</span>
+											<span>{new Date(file.created_at).toLocaleDateString()}</span>
+										</div>
+										<div class="mt-0.5 text-[10px] text-[var(--text-secondary)]">{file.content_type ?? 'unknown'}</div>
+									</div>
+									<!-- Hover actions -->
+									<div class="absolute inset-x-0 bottom-0 flex translate-y-full gap-1 border-t border-white/10 bg-[var(--bg-primary)]/95 p-1.5 backdrop-blur transition-transform group-hover:translate-y-0">
+										<button onclick={() => copyText(file.id)} class="flex-1 rounded px-1.5 py-1 text-[10px] text-[var(--text-secondary)] transition hover:bg-white/10 hover:text-[var(--text-primary)]">Copy ID</button>
+										<button onclick={() => handleQuarantineFile(file)} class="flex-1 rounded px-1.5 py-1 text-[10px] text-orange-400 transition hover:bg-orange-500/10">{file.quarantined_at ? 'Restore' : 'Quarantine'}</button>
+										<button onclick={() => handleDeleteFile(file)} class="flex-1 rounded px-1.5 py-1 text-[10px] text-red-400 transition hover:bg-red-500/10">Delete</button>
+									</div>
+								</div>
+							{/each}
+						</div>
 					{:else}
+						<!-- Table View -->
 						<div class="overflow-x-auto">
 							<table class="w-full text-sm">
 								<thead>
@@ -870,16 +991,16 @@
 								</tbody>
 							</table>
 						</div>
-						<!-- Pagination -->
-						{#if filesResponse.total > filesResponse.per_page}
-							<div class="mt-4 flex items-center justify-between text-xs text-[var(--text-secondary)]">
-								<span>Page {filesResponse.page} of {Math.ceil(filesResponse.total / filesResponse.per_page)} ({filesResponse.total} files)</span>
-								<div class="flex gap-2">
-									<button disabled={filesPage <= 1} onclick={() => { filesPage--; loadFiles(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Prev</button>
-									<button disabled={filesPage >= Math.ceil(filesResponse.total / filesResponse.per_page)} onclick={() => { filesPage++; loadFiles(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Next</button>
-								</div>
+					{/if}
+					<!-- Pagination -->
+					{#if filesResponse && filesResponse.total > filesResponse.per_page}
+						<div class="mt-4 flex items-center justify-between text-xs text-[var(--text-secondary)]">
+							<span>Page {filesResponse.page} of {Math.ceil(filesResponse.total / filesResponse.per_page)} ({filesResponse.total} files)</span>
+							<div class="flex gap-2">
+								<button disabled={filesPage <= 1} onclick={() => { filesPage--; loadFiles(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Prev</button>
+								<button disabled={filesPage >= Math.ceil(filesResponse.total / filesResponse.per_page)} onclick={() => { filesPage++; loadFiles(); }} class="rounded border border-white/10 px-3 py-1 transition hover:bg-white/5 disabled:opacity-30">Next</button>
 							</div>
-						{/if}
+						</div>
 					{/if}
 				</section>
 

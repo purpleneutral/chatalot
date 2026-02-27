@@ -528,6 +528,19 @@ async fn handle_client_message(
                 }
             };
 
+            // Gallery channels: root-level messages must be file type.
+            // Thread replies (comments) can be any type.
+            if channel.channel_type == ChannelType::Gallery
+                && resolved_thread_id.is_none()
+                && message_type != MessageType::File
+            {
+                let _ = tx.send(ServerMessage::Error {
+                    code: "validation_error".to_string(),
+                    message: "gallery channels only accept file posts at the root level".to_string(),
+                });
+                return;
+            }
+
             let message_id = Uuid::now_v7();
 
             // Defensive: prevent a message from referencing itself as its own thread root

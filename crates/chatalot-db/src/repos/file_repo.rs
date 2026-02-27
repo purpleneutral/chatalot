@@ -14,11 +14,13 @@ pub async fn create_file(
     storage_path: &str,
     checksum: &str,
     channel_id: Option<Uuid>,
+    thumbnail_path: Option<&str>,
+    exif_stripped: bool,
 ) -> Result<FileRecord, sqlx::Error> {
     sqlx::query_as::<_, FileRecord>(
         r#"
-        INSERT INTO files (id, uploader_id, encrypted_name, size_bytes, content_type, storage_path, checksum, channel_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO files (id, uploader_id, encrypted_name, size_bytes, content_type, storage_path, checksum, channel_id, thumbnail_path, exif_stripped)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
         "#,
     )
@@ -30,6 +32,8 @@ pub async fn create_file(
     .bind(storage_path)
     .bind(checksum)
     .bind(channel_id)
+    .bind(thumbnail_path)
+    .bind(exif_stripped)
     .fetch_one(pool)
     .await
 }
@@ -76,60 +80,128 @@ pub async fn delete_file_admin(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Er
     Ok(result.rows_affected() > 0)
 }
 
-/// List all files with pagination and sorting (admin browser).
+/// File filter parameters for admin queries.
+pub struct FileFilter<'a> {
+    pub user_id: Option<Uuid>,
+    pub search: Option<&'a str>,
+    pub content_type: Option<&'a str>,
+    pub date_from: Option<chrono::DateTime<chrono::Utc>>,
+    pub date_to: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// List all files with pagination, sorting, and filters (admin browser).
 pub async fn list_all_files(
     pool: &PgPool,
-    user_id: Option<Uuid>,
+    filter: &FileFilter<'_>,
     sort_by: &str,
     limit: i64,
     offset: i64,
 ) -> Result<Vec<FileRecord>, sqlx::Error> {
-    let by_size = sort_by == "size";
+    let mut sql = String::from("SELECT * FROM files WHERE TRUE");
+    let mut param_idx = 0u32;
 
-    if let Some(uid) = user_id {
-        if by_size {
-            sqlx::query_as::<_, FileRecord>(
-                "SELECT * FROM files WHERE uploader_id = $1 ORDER BY size_bytes DESC LIMIT $2 OFFSET $3",
-            )
-        } else {
-            sqlx::query_as::<_, FileRecord>(
-                "SELECT * FROM files WHERE uploader_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-            )
-        }
-        .bind(uid)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
-    } else {
-        if by_size {
-            sqlx::query_as::<_, FileRecord>(
-                "SELECT * FROM files ORDER BY size_bytes DESC LIMIT $1 OFFSET $2",
-            )
-        } else {
-            sqlx::query_as::<_, FileRecord>(
-                "SELECT * FROM files ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            )
-        }
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
+    // Build dynamic WHERE clauses (we bind params below in the same order)
+    if filter.user_id.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND uploader_id = ${param_idx}"));
     }
+    if filter.search.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND encrypted_name ILIKE ${param_idx}"));
+    }
+    if filter.content_type.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND content_type LIKE ${param_idx}"));
+    }
+    if filter.date_from.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND created_at >= ${param_idx}"));
+    }
+    if filter.date_to.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND created_at <= ${param_idx}"));
+    }
+
+    if sort_by == "size" {
+        sql.push_str(" ORDER BY size_bytes DESC");
+    } else {
+        sql.push_str(" ORDER BY created_at DESC");
+    }
+
+    param_idx += 1;
+    sql.push_str(&format!(" LIMIT ${param_idx}"));
+    param_idx += 1;
+    sql.push_str(&format!(" OFFSET ${param_idx}"));
+
+    let mut q = sqlx::query_as::<_, FileRecord>(&sql);
+
+    // Bind params in the same order as above
+    if let Some(uid) = filter.user_id {
+        q = q.bind(uid);
+    }
+    if let Some(search) = filter.search {
+        q = q.bind(format!("%{search}%"));
+    }
+    if let Some(ct) = filter.content_type {
+        q = q.bind(format!("{ct}%"));
+    }
+    if let Some(from) = filter.date_from {
+        q = q.bind(from);
+    }
+    if let Some(to) = filter.date_to {
+        q = q.bind(to);
+    }
+    q = q.bind(limit);
+    q = q.bind(offset);
+
+    q.fetch_all(pool).await
 }
 
-/// Count files with optional user filter.
-pub async fn count_files(pool: &PgPool, user_id: Option<Uuid>) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = if let Some(uid) = user_id {
-        sqlx::query_as("SELECT COUNT(*) FROM files WHERE uploader_id = $1")
-            .bind(uid)
-            .fetch_one(pool)
-            .await?
-    } else {
-        sqlx::query_as("SELECT COUNT(*) FROM files")
-            .fetch_one(pool)
-            .await?
-    };
+/// Count files with optional filters.
+pub async fn count_files(pool: &PgPool, filter: &FileFilter<'_>) -> Result<i64, sqlx::Error> {
+    let mut sql = String::from("SELECT COUNT(*) FROM files WHERE TRUE");
+    let mut param_idx = 0u32;
+
+    if filter.user_id.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND uploader_id = ${param_idx}"));
+    }
+    if filter.search.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND encrypted_name ILIKE ${param_idx}"));
+    }
+    if filter.content_type.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND content_type LIKE ${param_idx}"));
+    }
+    if filter.date_from.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND created_at >= ${param_idx}"));
+    }
+    if filter.date_to.is_some() {
+        param_idx += 1;
+        sql.push_str(&format!(" AND created_at <= ${param_idx}"));
+    }
+
+    let mut q = sqlx::query_as::<_, (i64,)>(&sql);
+
+    if let Some(uid) = filter.user_id {
+        q = q.bind(uid);
+    }
+    if let Some(search) = filter.search {
+        q = q.bind(format!("%{search}%"));
+    }
+    if let Some(ct) = filter.content_type {
+        q = q.bind(format!("{ct}%"));
+    }
+    if let Some(from) = filter.date_from {
+        q = q.bind(from);
+    }
+    if let Some(to) = filter.date_to {
+        q = q.bind(to);
+    }
+
+    let row: (i64,) = q.fetch_one(pool).await?;
     Ok(row.0)
 }
 

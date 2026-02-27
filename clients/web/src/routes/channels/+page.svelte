@@ -594,12 +594,12 @@
 		// Group channels
 		for (const group of groupStore.groups) {
 			for (const ch of (groupChannelsMap.get(group.id) ?? [])) {
-				items.push({ id: ch.id, name: ch.name ?? '', type: 'group-channel', groupName: group.name, icon: ch.channel_type === 'voice' ? '🔊' : '#' });
+				items.push({ id: ch.id, name: ch.name ?? '', type: 'group-channel', groupName: group.name, icon: ch.channel_type === 'voice' ? '🔊' : ch.channel_type === 'gallery' ? '🖼' : '#' });
 			}
 		}
 		// Standalone channels
 		for (const ch of channelStore.channels.filter(c => c.channel_type !== 'dm' && !c.group_id)) {
-			items.push({ id: ch.id, name: ch.name ?? '', type: 'channel', icon: ch.channel_type === 'voice' ? '🔊' : '#' });
+			items.push({ id: ch.id, name: ch.name ?? '', type: 'channel', icon: ch.channel_type === 'voice' ? '🔊' : ch.channel_type === 'gallery' ? '🖼' : '#' });
 		}
 		// DMs
 		for (const dm of dmChannels) {
@@ -1788,7 +1788,8 @@
 			// Reload messages for the active channel to catch anything missed
 			const activeId = channelStore.activeChannelId;
 			if (activeId) {
-				getMessages(activeId, undefined, FETCH_LIMIT).then(async rawMessages => {
+				const reconnGallery = channelStore.channels.find(c => c.id === activeId)?.channel_type === 'gallery';
+				getMessages(activeId, undefined, FETCH_LIMIT, reconnGallery || undefined).then(async rawMessages => {
 					// Guard: channel may have changed during the fetch
 					if (channelStore.activeChannelId !== activeId) return;
 					const reversed = rawMessages.reverse();
@@ -1980,11 +1981,12 @@
 		if (!messageStore.hasLoadedHistory(channelId)) {
 			messageStore.setLoading(channelId, true);
 			try {
-				const rawMessages = await getMessages(channelId, undefined, FETCH_LIMIT);
+				const ch = channelStore.channels.find(c => c.id === channelId);
+				const isGallery = ch?.channel_type === 'gallery';
+				const rawMessages = await getMessages(channelId, undefined, FETCH_LIMIT, isGallery || undefined);
 				// Discard if user switched channels during fetch
 				if (thisLoadId !== channelLoadId) return;
 				const reversed = rawMessages.reverse();
-				const ch = channelStore.channels.find(c => c.id === channelId);
 				const isDmChannel = ch?.channel_type === 'dm';
 
 				let chatMessages: ChatMessage[];
@@ -4268,7 +4270,8 @@
 		loadingOlderError = false;
 		const prevHeight = el.scrollHeight;
 		try {
-			const raw = await getMessages(activeId, oldestMsg.id, FETCH_LIMIT);
+			const scrollGallery = channelStore.channels.find(c => c.id === activeId)?.channel_type === 'gallery';
+			const raw = await getMessages(activeId, oldestMsg.id, FETCH_LIMIT, scrollGallery || undefined);
 			if (channelStore.activeChannelId !== activeId) return; // channel switched during fetch
 			const olderMessages: ChatMessage[] = await Promise.all(raw.reverse().map(async (m) => {
 				const { content, encrypted } = await decryptMessage(
@@ -4431,6 +4434,8 @@
 								<span class="text-[var(--text-secondary)]">@</span>
 							{:else if activeChannel.channel_type === 'voice'}
 								<span>🔊</span>
+							{:else if activeChannel.channel_type === 'gallery'}
+								<span>🖼</span>
 							{:else}
 								<span class="text-[var(--text-secondary)]">#</span>
 							{/if}
@@ -4450,6 +4455,8 @@
 								<span class="text-[var(--text-secondary)]">@</span>
 							{:else if activeChannel.channel_type === 'voice'}
 								<span>🔊</span>
+							{:else if activeChannel.channel_type === 'gallery'}
+								<span>🖼</span>
 							{:else}
 								<span class="text-[var(--text-secondary)]">#</span>
 							{/if}
@@ -4874,6 +4881,10 @@
 								class="px-3 py-1 text-xs font-medium transition {newChannelType === 'voice' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
 								Voice
 							</button>
+							<button type="button" onclick={() => newChannelType = 'gallery'}
+								class="px-3 py-1 text-xs font-medium transition {newChannelType === 'gallery' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:bg-white/5'}">
+								Gallery
+							</button>
 						</div>
 					</div>
 					<div class="flex items-center gap-3">
@@ -5110,6 +5121,8 @@
 											>
 												{#if channel.channel_type === 'voice'}
 													<span class="text-[var(--text-secondary)]">🔊</span>
+												{:else if channel.channel_type === 'gallery'}
+													<span class="text-[var(--text-secondary)]">🖼</span>
 												{:else}
 													<span class="text-[var(--text-secondary)]">#</span>
 												{/if}
@@ -5133,6 +5146,8 @@
 											>
 												{#if channel.channel_type === 'voice'}
 													<span class="text-[var(--text-secondary)]" title="Voice channel">🔊</span>
+												{:else if channel.channel_type === 'gallery'}
+													<span class="text-[var(--text-secondary)]" title="Gallery channel">🖼</span>
 												{:else}
 													<span class="text-[var(--text-secondary)]">#</span>
 												{/if}
@@ -5268,6 +5283,8 @@
 									>
 										{#if channel.channel_type === 'voice'}
 											<span class="text-[var(--text-secondary)]" title="Voice channel">🔊</span>
+										{:else if channel.channel_type === 'gallery'}
+											<span class="text-[var(--text-secondary)]" title="Gallery channel">🖼</span>
 										{:else}
 											<span class="text-[var(--text-secondary)]">#</span>
 										{/if}
@@ -5705,6 +5722,8 @@
 							<span class="mr-2 text-[var(--text-secondary)]">@</span>
 						{:else if activeChannel.channel_type === 'voice'}
 							<span class="mr-2">🔊</span>
+						{:else if activeChannel.channel_type === 'gallery'}
+							<span class="mr-2">🖼</span>
 						{:else}
 							<span class="mr-2 text-[var(--text-secondary)]">#</span>
 						{/if}
@@ -6157,6 +6176,66 @@
 					{:else if loadingOlder}
 						<Skeleton variant="message" count={3} />
 					{/if}
+					{#if activeChannel?.channel_type === 'gallery'}
+						<!-- Gallery Grid View -->
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+							{#each messages as msg (msg.id)}
+								{@const fileData = msg.messageType === 'file' ? parseFileMessage(msg.content) : null}
+								{@const sender = msg.senderId ? userStore.getUser(msg.senderId) : null}
+								{#if fileData}
+									<div class="group relative overflow-hidden rounded-xl border border-white/10 bg-[var(--bg-secondary)] transition hover:border-white/20">
+										<!-- Thumbnail -->
+										<button type="button" onclick={async () => { if (fileData) { try { const url = await getAuthenticatedBlobUrl(fileData.file_id); openLightbox(url, fileData.filename); } catch {} } }} class="flex aspect-[4/3] w-full cursor-pointer items-center justify-center overflow-hidden bg-black/20">
+											{#if fileData.filename && /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(fileData.filename)}
+												{#await getAuthenticatedThumbUrl(fileData.file_id)}
+													<div class="h-8 w-8 animate-pulse rounded bg-white/10"></div>
+												{:then thumbUrl}
+													<img src={thumbUrl} alt={fileData.filename} class="h-full w-full object-cover" loading="lazy" />
+												{:catch}
+													<svg class="h-12 w-12 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+												{/await}
+											{:else if fileData.filename && /\.(mp4|webm|mov|avi)$/i.test(fileData.filename)}
+												<svg class="h-12 w-12 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+											{:else}
+												<svg class="h-12 w-12 text-[var(--text-secondary)]/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+											{/if}
+										</button>
+										<!-- Info bar -->
+										<div class="p-2.5">
+											<div class="truncate text-sm text-[var(--text-primary)]" title={fileData.filename}>{fileData.filename}</div>
+											<div class="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+												{#if sender}
+													<span class="truncate">{sender.display_name || sender.username}</span>
+													<span>·</span>
+												{/if}
+												<span>{new Date(msg.createdAt).toLocaleDateString()}</span>
+												<span>·</span>
+												<span>{formatFileSize(fileData.size)}</span>
+											</div>
+											{#if msg.threadReplyCount && msg.threadReplyCount > 0}
+												<button onclick={() => openThread(msg.id)} class="mt-1.5 flex items-center gap-1 text-xs text-[var(--accent)] transition hover:underline">
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+													{msg.threadReplyCount} {msg.threadReplyCount === 1 ? 'comment' : 'comments'}
+												</button>
+											{:else}
+												<button onclick={() => openThread(msg.id)} class="mt-1.5 flex items-center gap-1 text-xs text-[var(--text-secondary)] opacity-0 transition group-hover:opacity-100 hover:text-[var(--accent)]">
+													<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+													Comment
+												</button>
+											{/if}
+										</div>
+									</div>
+								{/if}
+							{/each}
+						</div>
+						{#if messages.length === 0 && !messageStore.isLoading(channelStore.activeChannelId ?? '')}
+							<div class="flex flex-col items-center justify-center py-20 text-center">
+								<span class="text-4xl">🖼</span>
+								<p class="mt-3 text-lg font-medium text-[var(--text-primary)]">No posts yet</p>
+								<p class="mt-1 text-sm text-[var(--text-secondary)]">Share images and files to get started</p>
+							</div>
+						{/if}
+					{:else}
 						{#each messages as msg, idx (msg.id)}
 						{@const grouped = isGroupedMessage(messages, idx) && !shouldShowDateSeparator(messages, idx)}
 						<!-- Unread separator -->
@@ -6631,7 +6710,7 @@
 						</div>
 					{/each}
 
-					{#if messages.length === 0}
+					{#if messages.length === 0 && activeChannel?.channel_type !== 'gallery'}
 						<div class="flex h-full flex-col items-center justify-center gap-3">
 							<div class="rounded-full bg-white/5 p-4">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-[var(--text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -6654,6 +6733,7 @@
 							</p>
 						</div>
 					{/if}
+					{/if}<!-- end gallery/normal branch -->
 				</div>
 				</div>
 

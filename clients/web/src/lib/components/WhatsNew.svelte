@@ -16,6 +16,18 @@
 
 	const changelog: ChangelogEntry[] = [
 		{
+			version: '0.23.0',
+			date: '2026-02-26',
+			changes: [
+				'New: Gallery channels — a media-focused channel type with grid layout for sharing images and files',
+				'New: server-side thumbnails for uploaded images (JPEG/PNG/WebP/GIF/BMP)',
+				'New: EXIF metadata automatically stripped from uploaded images for privacy',
+				'New: SVG sanitization removes embedded scripts and event handlers',
+				'New: upload rate limiting (10 uploads/minute per user)',
+				'New: admin Files tab now has grid view, search, content type and date range filters',
+			]
+		},
+		{
 			version: '0.22.6',
 			date: '2026-02-23',
 			changes: [
