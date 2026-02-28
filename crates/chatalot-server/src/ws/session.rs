@@ -83,8 +83,16 @@ async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
 fn validate_token(state: &AppState, token: &str) -> Option<AccessClaims> {
     let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA);
     validation.validate_exp = true;
+    validation.leeway = 60; // Match HTTP middleware
 
-    jsonwebtoken::decode::<AccessClaims>(token, &state.jwt_decoding_key, &validation)
+    let claims = jsonwebtoken::decode::<AccessClaims>(token, &state.jwt_decoding_key, &validation)
         .ok()
-        .map(|data| data.claims)
+        .map(|data| data.claims)?;
+
+    // Reject suspended users on WS too
+    if state.suspended_users.contains(&claims.sub) {
+        return None;
+    }
+
+    Some(claims)
 }

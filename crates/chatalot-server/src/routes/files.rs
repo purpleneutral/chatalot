@@ -170,9 +170,17 @@ async fn upload_file(
     if let Some(ref ct) = content_type {
         // Strip EXIF from images (removes GPS coordinates, camera info, etc.)
         if matches!(ct.as_str(), "image/jpeg" | "image/png" | "image/webp") {
-            if let Some(clean) = thumbnail_service::strip_exif(&data, ct).await {
-                data = clean;
-                exif_stripped = true;
+            match thumbnail_service::strip_exif(&data, ct).await {
+                Some(clean) => {
+                    data = clean;
+                    exif_stripped = true;
+                }
+                None => {
+                    tracing::warn!("EXIF stripping failed for upload, rejecting");
+                    return Err(AppError::Validation(
+                        "failed to process image metadata — please try a different file".to_string(),
+                    ));
+                }
             }
         }
 

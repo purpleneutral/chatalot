@@ -30,7 +30,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::header;
 use axum::routing::get;
 use tower_http::compression::CompressionLayer;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use axum::http::StatusCode;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -143,13 +143,32 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             },
         ));
 
-    // CORS is permissive because the desktop client (Tauri) makes cross-origin
-    // requests from a local file:// origin. All endpoints require JWT auth,
-    // so CORS is not the access gate.
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // CORS: restrict to known origins. Desktop client (Tauri) uses tauri://localhost.
+    // Override via CORS_ORIGINS env var (comma-separated).
+    let cors = {
+        use axum::http::{HeaderValue, Method};
+        let origins_str = std::env::var("CORS_ORIGINS").unwrap_or_else(|_| {
+            "https://chatalot.seglamater.app,tauri://localhost".to_string()
+        });
+        let origins: Vec<HeaderValue> = origins_str
+            .split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers([
+                header::CONTENT_TYPE,
+                header::AUTHORIZATION,
+            ])
+    };
 
     Router::new()
         .nest("/api", public_routes.merge(protected_routes))

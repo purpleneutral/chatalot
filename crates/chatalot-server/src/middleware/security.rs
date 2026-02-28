@@ -34,7 +34,7 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
     );
     headers.insert(
         "Strict-Transport-Security",
-        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
     );
     headers.insert(
         "Referrer-Policy",

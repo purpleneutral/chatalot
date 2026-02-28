@@ -6,7 +6,7 @@ pub struct Config {
     pub listen_addr: String,
     pub jwt_private_key_path: String,
     pub jwt_public_key_path: String,
-    pub totp_encryption_key: Option<String>,
+    pub totp_encryption_key: String,
     pub file_storage_path: String,
     pub max_file_size_mb: u64,
     pub github_api_token: Option<String>,
@@ -79,7 +79,8 @@ impl Config {
                 .unwrap_or_else(|_| "./secrets/jwt_private.pem".to_string()),
             jwt_public_key_path: std::env::var("JWT_PUBLIC_KEY_PATH")
                 .unwrap_or_else(|_| "./secrets/jwt_public.pem".to_string()),
-            totp_encryption_key: std::env::var("TOTP_ENCRYPTION_KEY").ok(),
+            totp_encryption_key: std::env::var("TOTP_ENCRYPTION_KEY")
+                .context("TOTP_ENCRYPTION_KEY must be set (hex-encoded 256-bit key)")?,
             file_storage_path: std::env::var("FILE_STORAGE_PATH")
                 .unwrap_or_else(|_| "./data/files".to_string()),
             max_file_size_mb,

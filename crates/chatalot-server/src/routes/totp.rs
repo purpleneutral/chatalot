@@ -215,7 +215,7 @@ async fn regenerate_backup_codes(
 pub fn verify_totp_code(
     secret: &[u8],
     code: &str,
-    encryption_key: &Option<String>,
+    encryption_key: &str,
 ) -> Result<bool, AppError> {
     let secret_bytes = decrypt_totp_secret(secret, encryption_key);
 
@@ -231,54 +231,44 @@ const AEAD_OVERHEAD: usize = 12 + 16;
 
 /// Encrypt a TOTP secret using ChaCha20-Poly1305.
 /// Output format: nonce (12 bytes) || ciphertext+tag.
-fn encrypt_totp_secret(secret: &[u8], key: &Option<String>) -> Vec<u8> {
-    match key {
-        Some(k) => {
-            use chacha20poly1305::{ChaCha20Poly1305, KeyInit, AeadCore, aead::Aead};
-            let key_bytes = sha2::Sha256::digest(k.as_bytes());
-            let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
-            let nonce = ChaCha20Poly1305::generate_nonce(&mut rand::rngs::OsRng);
-            let ciphertext = cipher
-                .encrypt(&nonce, secret)
-                .expect("TOTP secret encryption failed");
-            let mut out = Vec::with_capacity(12 + ciphertext.len());
-            out.extend_from_slice(&nonce);
-            out.extend_from_slice(&ciphertext);
-            out
-        }
-        None => secret.to_vec(),
-    }
+fn encrypt_totp_secret(secret: &[u8], key: &str) -> Vec<u8> {
+    use chacha20poly1305::{ChaCha20Poly1305, KeyInit, AeadCore, aead::Aead};
+    let key_bytes = sha2::Sha256::digest(key.as_bytes());
+    let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
+    let nonce = ChaCha20Poly1305::generate_nonce(&mut rand::rngs::OsRng);
+    let ciphertext = cipher
+        .encrypt(&nonce, secret)
+        .expect("TOTP secret encryption failed");
+    let mut out = Vec::with_capacity(12 + ciphertext.len());
+    out.extend_from_slice(&nonce);
+    out.extend_from_slice(&ciphertext);
+    out
 }
 
 /// Decrypt a TOTP secret. Transparently handles both:
 /// - New format: ChaCha20-Poly1305 (len > plaintext + 28 bytes overhead)
 /// - Legacy format: XOR with SHA-256 of key (len == plaintext, no nonce/tag)
-fn decrypt_totp_secret(encrypted: &[u8], key: &Option<String>) -> Vec<u8> {
-    match key {
-        Some(k) => {
-            let key_bytes = sha2::Sha256::digest(k.as_bytes());
+fn decrypt_totp_secret(encrypted: &[u8], key: &str) -> Vec<u8> {
+    let key_bytes = sha2::Sha256::digest(key.as_bytes());
 
-            // TOTP secrets are typically 20 bytes (SHA1) or 32 bytes (SHA256).
-            // AEAD adds 28 bytes overhead, so AEAD-encrypted data is always >= 28 bytes
-            // and the plaintext would be (len - 28). Legacy XOR has no overhead.
-            // Detect: if len > 28 and decryption succeeds, it's AEAD; otherwise try legacy XOR.
-            if encrypted.len() > AEAD_OVERHEAD {
-                use chacha20poly1305::{ChaCha20Poly1305, KeyInit, aead::Aead};
-                let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
-                let nonce = chacha20poly1305::Nonce::from_slice(&encrypted[..12]);
-                if let Ok(plaintext) = cipher.decrypt(nonce, &encrypted[12..]) {
-                    return plaintext;
-                }
-                // AEAD decryption failed — fall through to legacy XOR
-            }
-
-            // Legacy XOR decryption (for secrets encrypted before this upgrade)
-            encrypted
-                .iter()
-                .enumerate()
-                .map(|(i, b)| b ^ key_bytes[i % 32])
-                .collect()
+    // TOTP secrets are typically 20 bytes (SHA1) or 32 bytes (SHA256).
+    // AEAD adds 28 bytes overhead, so AEAD-encrypted data is always >= 28 bytes
+    // and the plaintext would be (len - 28). Legacy XOR has no overhead.
+    // Detect: if len > 28 and decryption succeeds, it's AEAD; otherwise try legacy XOR.
+    if encrypted.len() > AEAD_OVERHEAD {
+        use chacha20poly1305::{ChaCha20Poly1305, KeyInit, aead::Aead};
+        let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
+        let nonce = chacha20poly1305::Nonce::from_slice(&encrypted[..12]);
+        if let Ok(plaintext) = cipher.decrypt(nonce, &encrypted[12..]) {
+            return plaintext;
         }
-        None => encrypted.to_vec(),
+        // AEAD decryption failed — fall through to legacy XOR
     }
+
+    // Legacy XOR decryption (for secrets encrypted before the ChaCha20 upgrade)
+    encrypted
+        .iter()
+        .enumerate()
+        .map(|(i, b)| b ^ key_bytes[i % 32])
+        .collect()
 }
