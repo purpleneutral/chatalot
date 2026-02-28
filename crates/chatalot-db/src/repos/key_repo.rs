@@ -136,6 +136,16 @@ pub async fn fetch_key_bundle(
     }))
 }
 
+/// Fetch just the identity key bytes for a user.
+pub async fn fetch_identity_key(pool: &PgPool, user_id: Uuid) -> Result<Option<Vec<u8>>, sqlx::Error> {
+    let row: Option<(Vec<u8>,)> =
+        sqlx::query_as("SELECT identity_key FROM identity_keys WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.map(|r| r.0))
+}
+
 /// Delete ALL one-time prekeys for a user (used during full key re-registration).
 pub async fn delete_all_prekeys(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query("DELETE FROM one_time_prekeys WHERE user_id = $1")

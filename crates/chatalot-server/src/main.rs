@@ -41,14 +41,22 @@ async fn main() -> anyhow::Result<()> {
     let start_time = Instant::now();
     let state = Arc::new(AppState::new(config.clone(), db_pool, start_time)?);
 
-    // Seed admin user from env var if configured
+    // Seed admin user from env var — only if there are zero admins (first-run bootstrap).
+    // This prevents ADMIN_USERNAME from silently re-granting admin on every restart.
     if let Some(ref admin_username) = config.admin_username {
-        match chatalot_db::repos::user_repo::ensure_admin(&state.db, admin_username).await {
-            Ok(true) => tracing::info!("Granted admin to user '{admin_username}'"),
-            Ok(false) => {
-                tracing::debug!("User '{admin_username}' is already admin or does not exist")
+        let has_admins = chatalot_db::repos::user_repo::has_any_admin(&state.db)
+            .await
+            .unwrap_or(true); // assume admins exist on error (safe default)
+        if !has_admins {
+            match chatalot_db::repos::user_repo::ensure_admin(&state.db, admin_username).await {
+                Ok(true) => tracing::info!("Granted admin to user '{admin_username}' (first-run bootstrap)"),
+                Ok(false) => {
+                    tracing::debug!("User '{admin_username}' does not exist yet, skipping admin seed")
+                }
+                Err(e) => tracing::warn!("Failed to seed admin user '{admin_username}': {e}"),
             }
-            Err(e) => tracing::warn!("Failed to seed admin user '{admin_username}': {e}"),
+        } else {
+            tracing::debug!("Admin users already exist, skipping ADMIN_USERNAME seed");
         }
     }
 

@@ -420,6 +420,15 @@ pub async fn set_owner(pool: &PgPool, user_id: Uuid, is_owner: bool) -> Result<(
 }
 
 /// Ensure a user is admin by username (for env-var seeding).
+/// Check if any admin user exists.
+pub async fn has_any_admin(pool: &PgPool) -> Result<bool, sqlx::Error> {
+    let row: (bool,) =
+        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE is_admin = true)")
+            .fetch_one(pool)
+            .await?;
+    Ok(row.0)
+}
+
 pub async fn ensure_admin(pool: &PgPool, username: &str) -> Result<bool, sqlx::Error> {
     let result =
         sqlx::query("UPDATE users SET is_admin = true WHERE username = $1 AND is_admin = false")

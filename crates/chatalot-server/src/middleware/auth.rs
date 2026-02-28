@@ -11,6 +11,9 @@ use uuid::Uuid;
 use crate::app_state::AppState;
 use crate::error::AppError;
 
+/// Expected JWT audience claim.
+pub const JWT_AUDIENCE: &str = "chatalot";
+
 /// JWT access token claims.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessClaims {
@@ -29,6 +32,9 @@ pub struct AccessClaims {
     pub exp: i64,
     /// JWT ID (unique token identifier for revocation)
     pub jti: Uuid,
+    /// Audience
+    #[serde(default)]
+    pub aud: String,
 }
 
 /// Extract and validate JWT from the Authorization header.
@@ -47,6 +53,7 @@ pub async fn auth_middleware(
     let mut validation = Validation::new(Algorithm::EdDSA);
     validation.validate_exp = true;
     validation.leeway = 60; // 60 seconds clock skew tolerance
+    validation.set_audience(&[JWT_AUDIENCE]);
 
     let token_data =
         jsonwebtoken::decode::<AccessClaims>(token, &state.jwt_decoding_key, &validation)

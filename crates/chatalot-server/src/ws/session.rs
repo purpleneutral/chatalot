@@ -81,9 +81,11 @@ async fn handle_ws_auth(mut socket: WebSocket, state: Arc<AppState>) {
 }
 
 fn validate_token(state: &AppState, token: &str) -> Option<AccessClaims> {
+    use crate::middleware::auth::JWT_AUDIENCE;
     let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA);
     validation.validate_exp = true;
     validation.leeway = 60; // Match HTTP middleware
+    validation.set_audience(&[JWT_AUDIENCE]);
 
     let claims = jsonwebtoken::decode::<AccessClaims>(token, &state.jwt_decoding_key, &validation)
         .ok()

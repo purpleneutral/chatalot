@@ -9,9 +9,9 @@ set -euo pipefail
 # prod pulling from a public VPS, or a workstation pulling from any server).
 #
 # Configuration (set in environment or scripts/deploy.env):
-#   SOURCE_HOST     - SSH target running Chatalot (e.g. root@chatalot.seglamater.app)
+#   SOURCE_HOST     - SSH target running Chatalot (e.g. root@your-server.example.com)
 #   SOURCE_DIR      - Remote Chatalot directory (e.g. /srv/chatalot)
-#   BACKUP_DIR      - Local directory to store backups (e.g. /srv/ab9/chatalot_bak)
+#   BACKUP_DIR      - Local directory to store backups (e.g. /backups/chatalot)
 #   BACKUP_KEEP     - Number of DB backups to retain (default: 30)
 #
 # Usage:
@@ -20,7 +20,7 @@ set -euo pipefail
 #   ./scripts/backup.sh --list       # List existing backups
 #
 # Cron example (daily at 3am):
-#   0 3 * * * SOURCE_HOST=root@chatalot.seglamater.app BACKUP_DIR=/srv/ab9/chatalot_bak /srv/ab9/chatalot/scripts/backup.sh --db-only >> /var/log/chatalot-backup.log 2>&1
+#   0 3 * * * SOURCE_HOST=root@your-server BACKUP_DIR=/backups/chatalot /path/to/chatalot/scripts/backup.sh --db-only >> /var/log/chatalot-backup.log 2>&1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -30,7 +30,7 @@ if [[ -f "$SCRIPT_DIR/deploy.env" ]]; then
     source "$SCRIPT_DIR/deploy.env"
 fi
 
-SOURCE_HOST="${SOURCE_HOST:?Set SOURCE_HOST (e.g. root@chatalot.seglamater.app)}"
+SOURCE_HOST="${SOURCE_HOST:?Set SOURCE_HOST (e.g. root@your-server)}"
 SOURCE_DIR="${SOURCE_DIR:-/srv/chatalot}"
 BACKUP_DIR="${BACKUP_DIR:?Set BACKUP_DIR (e.g. /srv/ab9/chatalot_bak)}"
 BACKUP_KEEP="${BACKUP_KEEP:-30}"

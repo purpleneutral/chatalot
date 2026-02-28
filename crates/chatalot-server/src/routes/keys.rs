@@ -82,6 +82,20 @@ async fn upload_signed_prekey(
         ));
     }
 
+    // Fetch the user's identity key to verify the signature
+    let identity_key = key_repo::fetch_identity_key(&state.db, claims.sub)
+        .await
+        .map_err(|e| AppError::Internal(format!("failed to fetch identity key: {e}")))?
+        .ok_or_else(|| {
+            AppError::Validation("must register identity key before uploading signed prekey".to_string())
+        })?;
+
+    crate::services::auth_service::verify_signed_prekey_signature(
+        &identity_key,
+        &req.public_key,
+        &req.signature,
+    )?;
+
     key_repo::upsert_signed_prekey(
         &state.db,
         Uuid::now_v7(),
@@ -153,6 +167,14 @@ async fn register_keys(
             "signature must be 64 bytes".to_string(),
         ));
     }
+
+    // Verify the signed prekey signature against the identity key
+    crate::services::auth_service::verify_signed_prekey_signature(
+        &req.identity_key,
+        &req.signed_prekey.public_key,
+        &req.signed_prekey.signature,
+    )?;
+
     if req.one_time_prekeys.len() > MAX_OTP_BATCH_SIZE {
         return Err(AppError::Validation(
             format!("maximum {MAX_OTP_BATCH_SIZE} one-time prekeys per upload"),

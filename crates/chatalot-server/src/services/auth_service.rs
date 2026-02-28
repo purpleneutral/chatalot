@@ -190,6 +190,7 @@ fn issue_access_token(
     is_admin: bool,
     is_owner: bool,
 ) -> Result<String, AppError> {
+    use crate::middleware::auth::JWT_AUDIENCE;
     let now = Utc::now().timestamp();
     let claims = AccessClaims {
         sub: user_id,
@@ -199,6 +200,7 @@ fn issue_access_token(
         iat: now,
         exp: now + ACCESS_TOKEN_LIFETIME_SECS,
         jti: Uuid::new_v4(),
+        aud: JWT_AUDIENCE.to_string(),
     };
 
     let header = Header::new(JwtAlg::EdDSA);
@@ -364,6 +366,13 @@ pub async fn register(
             "signed prekey signature must be 64 bytes".to_string(),
         ));
     }
+
+    // Verify the signed prekey signature against the identity key
+    verify_signed_prekey_signature(
+        &req.identity_key,
+        &req.signed_prekey.public_key,
+        &req.signed_prekey.signature,
+    )?;
 
     // Check uniqueness BEFORE consuming the invite code
     if user_repo::username_exists(&state.db, &req.username).await? {
@@ -572,6 +581,11 @@ pub async fn login(
     // Successful login — clear any lockout tracking
     clear_lockout(&req.username);
 
+    // Revoke all existing refresh tokens for this user (token rotation on login)
+    if let Err(e) = user_repo::revoke_all_refresh_tokens(&state.db, user.id).await {
+        tracing::warn!("Failed to revoke old refresh tokens for {}: {e}", user.id);
+    }
+
     // Issue tokens
     let access_token =
         issue_access_token(state, user.id, &user.username, user.is_admin, user.is_owner)?;
@@ -682,4 +696,33 @@ pub async fn refresh_token(
         access_token,
         refresh_token: refresh_token_hex,
     })
+}
+
+/// Verify that a signed prekey's signature is valid against the identity key.
+///
+/// In X3DH, the signed prekey (X25519 public key) is signed by the Ed25519 identity key.
+/// The server must verify this to prevent clients from registering forged key material.
+pub fn verify_signed_prekey_signature(
+    identity_key: &[u8],
+    signed_prekey_public: &[u8],
+    signature: &[u8],
+) -> Result<(), AppError> {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+    let ik_bytes: [u8; 32] = identity_key
+        .try_into()
+        .map_err(|_| AppError::Validation("identity key must be 32 bytes".to_string()))?;
+    let verifying_key = VerifyingKey::from_bytes(&ik_bytes)
+        .map_err(|_| AppError::Validation("invalid identity key".to_string()))?;
+
+    let sig_bytes: [u8; 64] = signature
+        .try_into()
+        .map_err(|_| AppError::Validation("signature must be 64 bytes".to_string()))?;
+    let sig = Signature::from_bytes(&sig_bytes);
+
+    verifying_key
+        .verify(signed_prekey_public, &sig)
+        .map_err(|_| {
+            AppError::Validation("signed prekey signature verification failed".to_string())
+        })
 }
