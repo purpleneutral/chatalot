@@ -305,6 +305,18 @@ export class CryptoStorage {
 		});
 	}
 
+	// ─── Clear decrypted message cache ───────────────────────────
+
+	async clearDecryptedMessages(): Promise<void> {
+		if (!this.db) return;
+		return new Promise((resolve, reject) => {
+			const tx = this.db!.transaction('decryptedMessages', 'readwrite');
+			tx.objectStore('decryptedMessages').clear();
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+	}
+
 	// ─── Wipe ─────────────────────────────────────────────────────
 
 	async clear(): Promise<void> {

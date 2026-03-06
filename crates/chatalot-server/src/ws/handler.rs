@@ -144,6 +144,16 @@ pub async fn handle_socket(
                 }
                 tokens -= 1.0;
 
+                // Per-user rate limit (shared across all sessions for this user).
+                // Prevents abuse via multiple concurrent connections.
+                if !conn_mgr.check_user_rate_limit(user_id) {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "rate_limited".to_string(),
+                        message: "per-user rate limit exceeded, slow down".to_string(),
+                    });
+                    continue;
+                }
+
                 match serde_json::from_str::<ClientMessage>(&text) {
                     Ok(client_msg) => {
                         handle_client_message(

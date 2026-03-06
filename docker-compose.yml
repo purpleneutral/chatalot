@@ -10,6 +10,9 @@ services:
       DATABASE_URL: postgres://chatalot:${DB_PASSWORD}@postgres:5432/chatalot
       JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      # SECURITY: TOTP_ENCRYPTION_KEY should be populated from a secret file in
+      # production (e.g. read from /run/secrets/totp_encryption_key at startup).
+      # See the totp_encryption_key secret definition below.
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
       RUST_LOG: "${RUST_LOG:-chatalot_server=info,tower_http=info}"
       FILE_STORAGE_PATH: /app/data/files
@@ -32,6 +35,8 @@ services:
     secrets:
       - jwt_private_key
       - jwt_public_key
+      - totp_encryption_key
+      - db_password
     networks:
       - external
       - internal
@@ -64,6 +69,9 @@ services:
       POSTGRES_DB: chatalot
       POSTGRES_USER: chatalot
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # SECURITY: In production, POSTGRES_PASSWORD should be loaded from a Docker
+      # secret or mounted file rather than an environment variable. See the
+      # POSTGRES_PASSWORD_FILE alternative supported by the official postgres image.
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -74,6 +82,11 @@ services:
       timeout: 5s
       retries: 5
     # Security hardening — DB is on internal network only, never exposed
+    # SECURITY: In production, enable disk-level encryption (LUKS/dm-crypt) for
+    # the postgres_data volume, or enable pgcrypto for column-level encryption of
+    # sensitive fields. Chat message ciphertext is E2E-encrypted at the application
+    # layer, but metadata (usernames, timestamps, channel info) is stored in
+    # plaintext and should be protected at rest.
     cap_drop:
       - ALL
     cap_add:
@@ -197,6 +210,10 @@ secrets:
     file: ./secrets/jwt_private.pem
   jwt_public_key:
     file: ./secrets/jwt_public.pem
+  totp_encryption_key:
+    file: ./secrets/totp_encryption_key
+  db_password:
+    file: ./secrets/db_password
 
 networks:
   external:

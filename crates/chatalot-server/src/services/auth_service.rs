@@ -502,12 +502,17 @@ pub async fn login(
         )));
     }
 
-    let user = user_repo::find_by_username(&state.db, &req.username)
-        .await?
-        .ok_or(AppError::Unauthorized)?;
+    let user = match user_repo::find_by_username(&state.db, &req.username).await? {
+        Some(u) => u,
+        None => {
+            tracing::warn!("Failed login attempt for unknown user: {}", req.username);
+            return Err(AppError::Unauthorized);
+        }
+    };
 
     // Verify password (constant-time via Argon2)
     if !verify_password(&req.password, &user.password_hash)? {
+        tracing::warn!("Failed login attempt for user: {}", req.username);
         record_failed_login(&req.username);
         // Audit failed login
         user_repo::insert_audit_log(
@@ -546,6 +551,7 @@ pub async fn login(
                 user_repo::consume_totp_backup_code(&state.db, user.id, &code_hash).await?;
 
             if !backup_ok {
+                tracing::warn!("Failed login attempt (invalid 2FA code) for user: {}", req.username);
                 record_failed_login(&req.username);
                 user_repo::insert_audit_log(
                     &state.db,

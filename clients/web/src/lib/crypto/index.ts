@@ -68,6 +68,13 @@ export async function getPersonalKey(): Promise<Uint8Array | null> {
 export async function wipeCrypto(): Promise<void> {
 	if (_storage) {
 		try {
+			// Explicitly clear decrypted message cache first to ensure
+			// plaintext message content is wiped even if the full clear fails
+			await _storage.clearDecryptedMessages();
+		} catch {
+			// Best effort
+		}
+		try {
 			await _storage.clear();
 		} catch {
 			// Best effort — DB might already be closed
@@ -77,4 +84,15 @@ export async function wipeCrypto(): Promise<void> {
 	_keyManager = null;
 	_sessionManager = null;
 	_initPromise = null;
+
+	// Delete the entire IndexedDB database as a fallback to ensure no
+	// decrypted message content survives logout, even if store-level
+	// clear failed (e.g. DB connection was lost)
+	if (typeof indexedDB !== 'undefined') {
+		try {
+			indexedDB.deleteDatabase('chatalot-crypto');
+		} catch {
+			// Best effort — some browsers may restrict this
+		}
+	}
 }

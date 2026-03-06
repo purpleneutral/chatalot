@@ -12,6 +12,17 @@ pub struct SessionHandle {
     pub tx: mpsc::UnboundedSender<ServerMessage>,
 }
 
+/// Per-user token bucket for cross-session rate limiting.
+pub struct UserRateBucket {
+    pub tokens: f64,
+    pub last_refill: tokio::time::Instant,
+}
+
+/// Per-user rate limit: 30 msg/s sustained, burst of 60.
+/// This limits a single user across ALL their WebSocket sessions.
+const USER_RATE_LIMIT_BURST: f64 = 60.0;
+const USER_RATE_LIMIT_REFILL: f64 = 30.0;
+
 /// Manages all active WebSocket connections and channel subscriptions.
 pub struct ConnectionManager {
     /// user_id -> list of active sessions (supports multi-device)
@@ -24,6 +35,9 @@ pub struct ConnectionManager {
     reaction_cooldowns: DashMap<Uuid, tokio::time::Instant>,
     /// user_id -> last voice join/leave timestamp (2s cooldown)
     voice_cooldowns: DashMap<Uuid, tokio::time::Instant>,
+    /// Per-user message rate limiter (token bucket, shared across all sessions).
+    /// Prevents a single user from flooding via multiple concurrent connections.
+    user_rate_limits: DashMap<Uuid, UserRateBucket>,
 }
 
 /// Maximum concurrent WebSocket sessions per user (multi-device support).
@@ -37,7 +51,29 @@ impl ConnectionManager {
             typing_state: DashMap::new(),
             reaction_cooldowns: DashMap::new(),
             voice_cooldowns: DashMap::new(),
+            user_rate_limits: DashMap::new(),
         }
+    }
+
+    /// Check per-user cross-session rate limit. Returns true if the message is
+    /// allowed, false if the user has exceeded 30 msg/s (burst 60) across all
+    /// their concurrent WebSocket sessions.
+    pub fn check_user_rate_limit(&self, user_id: Uuid) -> bool {
+        let now = tokio::time::Instant::now();
+        let mut entry = self.user_rate_limits.entry(user_id).or_insert_with(|| {
+            UserRateBucket {
+                tokens: USER_RATE_LIMIT_BURST,
+                last_refill: now,
+            }
+        });
+        let elapsed = now.duration_since(entry.last_refill).as_secs_f64();
+        entry.tokens = (entry.tokens + elapsed * USER_RATE_LIMIT_REFILL).min(USER_RATE_LIMIT_BURST);
+        entry.last_refill = now;
+        if entry.tokens < 1.0 {
+            return false;
+        }
+        entry.tokens -= 1.0;
+        true
     }
 
     /// Check per-user reaction cooldown (200ms). Returns true if allowed.
@@ -84,6 +120,8 @@ impl ConnectionManager {
             if sessions.is_empty() {
                 drop(sessions);
                 self.connections.remove(&user_id);
+                // Clean up per-user rate limit state when the last session disconnects
+                self.user_rate_limits.remove(&user_id);
             }
         }
     }

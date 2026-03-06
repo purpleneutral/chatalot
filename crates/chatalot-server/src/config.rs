@@ -72,15 +72,43 @@ impl Config {
             .clamp(0, 100_000);
 
         Ok(Self {
-            database_url: std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?,
+            database_url: {
+                let mut url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+                // If DATABASE_URL contains the placeholder __DB_PASSWORD__, replace it
+                // with the value from the Docker secret file. This allows the connection
+                // string to be set via env while keeping the password in a secret.
+                if url.contains("__DB_PASSWORD__") {
+                    if let Ok(pw) = std::fs::read_to_string("/run/secrets/db_password") {
+                        url = url.replace("__DB_PASSWORD__", pw.trim());
+                    } else {
+                        tracing::warn!(
+                            "DATABASE_URL contains __DB_PASSWORD__ placeholder but /run/secrets/db_password is not available"
+                        );
+                    }
+                }
+                url
+            },
             listen_addr: std::env::var("LISTEN_ADDR")
                 .unwrap_or_else(|_| "0.0.0.0:8080".to_string()),
             jwt_private_key_path: std::env::var("JWT_PRIVATE_KEY_PATH")
                 .unwrap_or_else(|_| "./secrets/jwt_private.pem".to_string()),
             jwt_public_key_path: std::env::var("JWT_PUBLIC_KEY_PATH")
                 .unwrap_or_else(|_| "./secrets/jwt_public.pem".to_string()),
-            totp_encryption_key: std::env::var("TOTP_ENCRYPTION_KEY")
-                .context("TOTP_ENCRYPTION_KEY must be set (hex-encoded 256-bit key)")?,
+            totp_encryption_key: {
+                let mut key = std::env::var("TOTP_ENCRYPTION_KEY").unwrap_or_default();
+                // Fall back to Docker secret file if env var is empty
+                if key.is_empty() {
+                    if let Ok(secret) = std::fs::read_to_string("/run/secrets/totp_encryption_key") {
+                        key = secret.trim().to_string();
+                    }
+                }
+                if key.is_empty() {
+                    tracing::warn!(
+                        "TOTP_ENCRYPTION_KEY is not set - TOTP secrets will be stored unencrypted"
+                    );
+                }
+                key
+            },
             file_storage_path: std::env::var("FILE_STORAGE_PATH")
                 .unwrap_or_else(|_| "./data/files".to_string()),
             max_file_size_mb,
