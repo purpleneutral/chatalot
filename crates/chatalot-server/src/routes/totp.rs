@@ -3,7 +3,6 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::routing::post;
 use axum::{Extension, Json, Router};
-use sha2::Digest;
 use totp_rs::{Algorithm, Secret, TOTP};
 
 use chatalot_common::api_types::{BackupCodesResponse, TotpEnableResponse, TotpSetupResponse, TotpVerifyRequest};
@@ -241,14 +240,14 @@ fn derive_totp_key(key: &str) -> [u8; 32] {
 
 /// Encrypt a TOTP secret using ChaCha20-Poly1305.
 /// Output format: nonce (12 bytes) || ciphertext+tag.
-fn encrypt_totp_secret(secret: &[u8], key: &str) -> Result<Vec<u8>, crate::errors::AppError> {
+fn encrypt_totp_secret(secret: &[u8], key: &str) -> Result<Vec<u8>, AppError> {
     use chacha20poly1305::{ChaCha20Poly1305, KeyInit, AeadCore, aead::Aead};
     let key_bytes = derive_totp_key(key);
     let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
     let nonce = ChaCha20Poly1305::generate_nonce(&mut rand::rngs::OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, secret)
-        .map_err(|e| crate::errors::AppError::Internal(format!("TOTP encryption failed: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("TOTP encryption failed: {e}")))?;
     let mut out = Vec::with_capacity(12 + ciphertext.len());
     out.extend_from_slice(&nonce);
     out.extend_from_slice(&ciphertext);
@@ -256,9 +255,9 @@ fn encrypt_totp_secret(secret: &[u8], key: &str) -> Result<Vec<u8>, crate::error
 }
 
 /// Decrypt a TOTP secret using ChaCha20-Poly1305 with HKDF-derived key.
-fn decrypt_totp_secret(encrypted: &[u8], key: &str) -> Result<Vec<u8>, crate::errors::AppError> {
+fn decrypt_totp_secret(encrypted: &[u8], key: &str) -> Result<Vec<u8>, AppError> {
     if encrypted.len() <= AEAD_OVERHEAD {
-        return Err(crate::errors::AppError::Internal(
+        return Err(AppError::Internal(
             "TOTP secret data too short for AEAD decryption".to_string(),
         ));
     }
@@ -269,5 +268,5 @@ fn decrypt_totp_secret(encrypted: &[u8], key: &str) -> Result<Vec<u8>, crate::er
     let nonce = chacha20poly1305::Nonce::from_slice(&encrypted[..12]);
     cipher
         .decrypt(nonce, &encrypted[12..])
-        .map_err(|_| crate::errors::AppError::Internal("TOTP secret decryption failed".to_string()))
+        .map_err(|_| AppError::Internal("TOTP secret decryption failed".to_string()))
 }

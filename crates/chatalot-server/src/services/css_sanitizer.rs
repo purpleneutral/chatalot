@@ -80,8 +80,6 @@ pub fn sanitize_css(input: &str) -> Result<String, String> {
 
     // Parse by splitting into selector blocks and validating declarations inside each
     let mut sanitized = Vec::new();
-    let mut current_selector: Option<String> = None;
-
     // Split input into lines for processing
     for line in input.lines() {
         let trimmed = line.trim();
@@ -96,14 +94,12 @@ pub fn sanitize_css(input: &str) -> Result<String, String> {
             if selector.contains("url(") || selector.contains("javascript:") {
                 return Err("Invalid selector".to_string());
             }
-            current_selector = Some(selector.to_string());
             sanitized.push(format!("{selector} {{"));
             continue;
         }
 
         // Handle closing brace
         if trimmed == "}" {
-            current_selector = None;
             sanitized.push("}".to_string());
             continue;
         }
