@@ -78,47 +78,88 @@ pub fn sanitize_css(input: &str) -> Result<String, String> {
         }
     }
 
-    // Parse declarations: split by ; and validate each property
+    // Parse by splitting into selector blocks and validating declarations inside each
     let mut sanitized = Vec::new();
+    let mut current_selector: Option<String> = None;
 
-    for line in input.split(';') {
+    // Split input into lines for processing
+    for line in input.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
         }
 
-        // Support selectors with { } blocks
-        if trimmed.contains('{') || trimmed.contains('}') {
-            // Allow simple selectors but validate the declaration inside
-            // For community themes we only allow CSS custom properties and flat declarations
-            // Just pass through selector braces
-            sanitized.push(trimmed.to_string());
+        // Handle selector opening: "selector {"
+        if trimmed.ends_with('{') {
+            let selector = trimmed.trim_end_matches('{').trim();
+            // Only allow simple CSS selectors (element, class, id, pseudo)
+            if selector.contains("url(") || selector.contains("javascript:") {
+                return Err("Invalid selector".to_string());
+            }
+            current_selector = Some(selector.to_string());
+            sanitized.push(format!("{selector} {{"));
             continue;
         }
 
-        // Must be a property: value pair
-        let Some(colon_pos) = trimmed.find(':') else {
-            continue; // Skip non-declaration lines
-        };
-
-        let property = trimmed[..colon_pos].trim().to_lowercase();
-        let value = trimmed[colon_pos + 1..].trim();
-
-        // Allow CSS custom properties (--var-name)
-        if property.starts_with("--") {
-            sanitized.push(format!("{property}: {value}"));
+        // Handle closing brace
+        if trimmed == "}" {
+            current_selector = None;
+            sanitized.push("}".to_string());
             continue;
         }
 
-        // Check if property is in allowlist
-        if !ALLOWED_PROPERTIES.contains(&property.as_str()) {
-            return Err(format!("CSS property not allowed: {property}"));
-        }
+        // Process declarations (with or without a surrounding selector block)
+        for decl in trimmed.split(';') {
+            let decl = decl.trim().trim_end_matches('}');
+            let decl = decl.trim();
+            if decl.is_empty() {
+                continue;
+            }
 
-        sanitized.push(format!("{property}: {value}"));
+            let Some(colon_pos) = decl.find(':') else {
+                continue;
+            };
+
+            let property = decl[..colon_pos].trim().to_lowercase();
+            let value = decl[colon_pos + 1..].trim();
+
+            // Validate value: block url() except for /api/ paths
+            let value_lower = value.to_lowercase();
+            if value_lower.contains("url(") {
+                // Check each url() in the value
+                let mut search_from = 0;
+                while let Some(pos) = value_lower[search_from..].find("url(") {
+                    let abs_pos = search_from + pos;
+                    let after = &value_lower[abs_pos + 4..];
+                    let content = after.trim_start_matches(['\'', '"', ' ']);
+                    if !content.starts_with("/api/") && !content.starts_with(')') {
+                        return Err(format!("url() in '{property}' only allowed for /api/ paths"));
+                    }
+                    search_from = abs_pos + 4;
+                }
+            }
+
+            // Block dangerous value patterns
+            if value_lower.contains("expression(") || value_lower.contains("javascript:") {
+                return Err(format!("Dangerous value in property: {property}"));
+            }
+
+            // Allow CSS custom properties (--var-name)
+            if property.starts_with("--") {
+                sanitized.push(format!("  {property}: {value};"));
+                continue;
+            }
+
+            // Check if property is in allowlist
+            if !ALLOWED_PROPERTIES.contains(&property.as_str()) {
+                return Err(format!("CSS property not allowed: {property}"));
+            }
+
+            sanitized.push(format!("  {property}: {value};"));
+        }
     }
 
-    Ok(sanitized.join("; "))
+    Ok(sanitized.join("\n"))
 }
 
 #[cfg(test)]

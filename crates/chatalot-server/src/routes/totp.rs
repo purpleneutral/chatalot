@@ -61,7 +61,7 @@ async fn setup_totp(
 
     // Store the secret (not yet enabled — user must verify first)
     // Encrypt the secret if a TOTP encryption key is configured
-    let stored_secret = encrypt_totp_secret(&secret_bytes, &state.config.totp_encryption_key);
+    let stored_secret = encrypt_totp_secret(&secret_bytes, &state.config.totp_encryption_key)?;
 
     user_repo::set_totp_secret(&state.db, claims.sub, &stored_secret).await?;
 
@@ -85,7 +85,7 @@ async fn verify_totp(
         AppError::Validation("no TOTP secret configured, call /totp/setup first".to_string())
     })?;
 
-    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key);
+    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key)?;
 
     let totp = TOTP::new(
         Algorithm::SHA1,
@@ -136,7 +136,7 @@ async fn disable_totp(
         .totp_secret
         .ok_or_else(|| AppError::Internal("totp_enabled but no secret".to_string()))?;
 
-    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key);
+    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key)?;
 
     let totp = TOTP::new(
         Algorithm::SHA1,
@@ -182,7 +182,7 @@ async fn regenerate_backup_codes(
         .totp_secret
         .ok_or_else(|| AppError::Internal("totp_enabled but no secret".to_string()))?;
 
-    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key);
+    let secret_bytes = decrypt_totp_secret(&stored_secret, &state.config.totp_encryption_key)?;
 
     let totp = TOTP::new(
         Algorithm::SHA1,
@@ -217,7 +217,7 @@ pub fn verify_totp_code(
     code: &str,
     encryption_key: &str,
 ) -> Result<bool, AppError> {
-    let secret_bytes = decrypt_totp_secret(secret, encryption_key);
+    let secret_bytes = decrypt_totp_secret(secret, encryption_key)?;
 
     let totp = TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, String::new())
         .map_err(|e| AppError::Internal(format!("totp init: {e}")))?;
@@ -229,46 +229,45 @@ pub fn verify_totp_code(
 /// AEAD overhead: 12-byte nonce + 16-byte Poly1305 tag = 28 bytes.
 const AEAD_OVERHEAD: usize = 12 + 16;
 
+/// Derive a 32-byte encryption key from the configuration string using HKDF-SHA256.
+fn derive_totp_key(key: &str) -> [u8; 32] {
+    use hkdf::Hkdf;
+    let hk = Hkdf::<sha2::Sha256>::new(Some(b"chatalot-totp-encryption"), key.as_bytes());
+    let mut okm = [0u8; 32];
+    hk.expand(b"totp-secret-key", &mut okm)
+        .expect("HKDF expand with 32-byte output cannot fail");
+    okm
+}
+
 /// Encrypt a TOTP secret using ChaCha20-Poly1305.
 /// Output format: nonce (12 bytes) || ciphertext+tag.
-fn encrypt_totp_secret(secret: &[u8], key: &str) -> Vec<u8> {
+fn encrypt_totp_secret(secret: &[u8], key: &str) -> Result<Vec<u8>, crate::errors::AppError> {
     use chacha20poly1305::{ChaCha20Poly1305, KeyInit, AeadCore, aead::Aead};
-    let key_bytes = sha2::Sha256::digest(key.as_bytes());
+    let key_bytes = derive_totp_key(key);
     let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
     let nonce = ChaCha20Poly1305::generate_nonce(&mut rand::rngs::OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, secret)
-        .expect("TOTP secret encryption failed");
+        .map_err(|e| crate::errors::AppError::Internal(format!("TOTP encryption failed: {e}")))?;
     let mut out = Vec::with_capacity(12 + ciphertext.len());
     out.extend_from_slice(&nonce);
     out.extend_from_slice(&ciphertext);
-    out
+    Ok(out)
 }
 
-/// Decrypt a TOTP secret. Transparently handles both:
-/// - New format: ChaCha20-Poly1305 (len > plaintext + 28 bytes overhead)
-/// - Legacy format: XOR with SHA-256 of key (len == plaintext, no nonce/tag)
-fn decrypt_totp_secret(encrypted: &[u8], key: &str) -> Vec<u8> {
-    let key_bytes = sha2::Sha256::digest(key.as_bytes());
-
-    // TOTP secrets are typically 20 bytes (SHA1) or 32 bytes (SHA256).
-    // AEAD adds 28 bytes overhead, so AEAD-encrypted data is always >= 28 bytes
-    // and the plaintext would be (len - 28). Legacy XOR has no overhead.
-    // Detect: if len > 28 and decryption succeeds, it's AEAD; otherwise try legacy XOR.
-    if encrypted.len() > AEAD_OVERHEAD {
-        use chacha20poly1305::{ChaCha20Poly1305, KeyInit, aead::Aead};
-        let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
-        let nonce = chacha20poly1305::Nonce::from_slice(&encrypted[..12]);
-        if let Ok(plaintext) = cipher.decrypt(nonce, &encrypted[12..]) {
-            return plaintext;
-        }
-        // AEAD decryption failed — fall through to legacy XOR
+/// Decrypt a TOTP secret using ChaCha20-Poly1305 with HKDF-derived key.
+fn decrypt_totp_secret(encrypted: &[u8], key: &str) -> Result<Vec<u8>, crate::errors::AppError> {
+    if encrypted.len() <= AEAD_OVERHEAD {
+        return Err(crate::errors::AppError::Internal(
+            "TOTP secret data too short for AEAD decryption".to_string(),
+        ));
     }
 
-    // Legacy XOR decryption (for secrets encrypted before the ChaCha20 upgrade)
-    encrypted
-        .iter()
-        .enumerate()
-        .map(|(i, b)| b ^ key_bytes[i % 32])
-        .collect()
+    use chacha20poly1305::{ChaCha20Poly1305, KeyInit, aead::Aead};
+    let key_bytes = derive_totp_key(key);
+    let cipher = ChaCha20Poly1305::new((&key_bytes[..]).into());
+    let nonce = chacha20poly1305::Nonce::from_slice(&encrypted[..12]);
+    cipher
+        .decrypt(nonce, &encrypted[12..])
+        .map_err(|_| crate::errors::AppError::Internal("TOTP secret decryption failed".to_string()))
 }

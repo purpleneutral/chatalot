@@ -372,15 +372,9 @@ fn decrypt_with_key(
     let cipher = ChaCha20Poly1305::new(msg_key.into());
     let n = Nonce::from_slice(nonce);
 
-    // Try with AAD (new format)
     let header_aad = serde_json::to_vec(header).unwrap_or_default();
-    if let Ok(plaintext) = cipher.decrypt(n, Payload { msg: ciphertext, aad: &header_aad }) {
-        return Ok(plaintext);
-    }
-
-    // Fall back to no AAD (pre-AAD messages)
     cipher
-        .decrypt(n, ciphertext)
+        .decrypt(n, Payload { msg: ciphertext, aad: &header_aad })
         .map_err(|_| RatchetError::DecryptionFailed)
 }
 

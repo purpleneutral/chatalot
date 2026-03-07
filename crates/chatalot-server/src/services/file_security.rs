@@ -174,45 +174,162 @@ fn is_svg(text: &[u8]) -> bool {
         || (trimmed.starts_with("<?xml") && trimmed.contains("<svg"))
 }
 
-/// Sanitize SVG content by removing dangerous elements and attributes.
-/// Returns the sanitized SVG bytes, or an error if the input is not valid UTF-8.
+/// Allowed SVG element names (lowercase). Everything else is stripped.
+const ALLOWED_SVG_ELEMENTS: &[&str] = &[
+    "svg", "g", "defs", "symbol", "use", "title", "desc",
+    "circle", "ellipse", "line", "path", "polygon", "polyline", "rect",
+    "text", "tspan", "textpath",
+    "clippath", "mask", "pattern", "marker",
+    "lineargradient", "radialgradient", "stop",
+    "filter", "fegaussianblur", "feoffset", "feblend", "fecolormatrix",
+    "fecomponenttransfer", "fecomposite", "feconvolvematrix", "fediffuselighting",
+    "fedisplacementmap", "feflood", "feimage", "femerge", "femergenode",
+    "femorphology", "fespecularlighting", "fetile", "feturbulence",
+    "image",
+];
+
+/// Allowed SVG attribute prefixes/names (lowercase). Everything else is stripped.
+fn is_allowed_attribute(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    // Block all event handlers
+    if lower.starts_with("on") {
+        return false;
+    }
+    matches!(
+        lower.as_str(),
+        "id" | "class" | "style" | "transform" | "d" | "fill" | "stroke"
+        | "stroke-width" | "stroke-linecap" | "stroke-linejoin" | "stroke-dasharray"
+        | "stroke-dashoffset" | "stroke-opacity" | "fill-opacity" | "opacity"
+        | "cx" | "cy" | "r" | "rx" | "ry" | "x" | "y" | "x1" | "y1" | "x2" | "y2"
+        | "width" | "height" | "viewbox" | "preserveaspectratio" | "xmlns"
+        | "points" | "dx" | "dy" | "text-anchor" | "dominant-baseline"
+        | "font-size" | "font-family" | "font-weight" | "font-style"
+        | "letter-spacing" | "text-decoration"
+        | "offset" | "stop-color" | "stop-opacity" | "gradientunits" | "gradienttransform"
+        | "patternunits" | "patterntransform" | "patterncontentunits"
+        | "clip-path" | "clip-rule" | "mask" | "filter" | "flood-color" | "flood-opacity"
+        | "color-interpolation-filters" | "lighting-color"
+        | "markerwidth" | "markerheight" | "orient" | "markerunits" | "refx" | "refy"
+        | "result" | "in" | "in2" | "stddeviation" | "values" | "type" | "mode"
+        | "k1" | "k2" | "k3" | "k4" | "operator" | "basefrequency" | "numoctaves"
+        | "seed" | "stitchtiles" | "surfacescale" | "specularconstant" | "specularexponent"
+        | "role" | "aria-label" | "aria-hidden" | "focusable" | "tabindex"
+        | "visibility" | "display" | "overflow" | "color"
+        | "vector-effect" | "shape-rendering" | "image-rendering"
+    ) || lower.starts_with("data-")
+}
+
+/// Check if an href/xlink:href value is safe (only fragment references allowed).
+fn is_safe_href(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.is_empty() || trimmed.starts_with('#')
+}
+
+/// Sanitize SVG content using an XML parser with element/attribute allowlists.
+/// Returns the sanitized SVG bytes, or an error if the input is invalid.
 pub fn sanitize_svg(data: &[u8]) -> Result<Vec<u8>, &'static str> {
+    use quick_xml::events::{BytesEnd, BytesStart, Event};
+    use quick_xml::{Reader, Writer};
+    use std::io::Cursor;
+
     let text = std::str::from_utf8(data).map_err(|_| "SVG is not valid UTF-8")?;
 
-    use regex::Regex;
+    let mut reader = Reader::from_str(text);
+    let mut writer = Writer::new(Cursor::new(Vec::new()));
+    let mut skip_depth: usize = 0;
 
-    // Remove <script>...</script> tags (case-insensitive, including multiline)
-    let re_script = Regex::new(r"(?is)<script[\s>].*?</script\s*>").unwrap();
-    let text = re_script.replace_all(&text, "");
+    loop {
+        match reader.read_event() {
+            Ok(Event::Eof) => break,
+            Ok(Event::Start(ref e)) => {
+                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                if skip_depth > 0 {
+                    skip_depth += 1;
+                    continue;
+                }
+                if !ALLOWED_SVG_ELEMENTS.contains(&tag_name.as_str()) {
+                    skip_depth = 1;
+                    continue;
+                }
+                // Filter attributes
+                let mut clean = BytesStart::new(tag_name.clone());
+                for attr in e.attributes().flatten() {
+                    let attr_name = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
+                    if !is_allowed_attribute(&attr_name) {
+                        continue;
+                    }
+                    let value = String::from_utf8_lossy(&attr.value);
+                    // Block javascript: in any attribute value
+                    if value.trim().to_lowercase().starts_with("javascript:") {
+                        continue;
+                    }
+                    // Restrict href to fragment-only references
+                    if (attr_name == "href" || attr_name == "xlink:href")
+                        && !is_safe_href(&value)
+                    {
+                        continue;
+                    }
+                    clean.push_attribute((attr_name.as_str(), value.as_ref()));
+                }
+                writer.write_event(Event::Start(clean)).map_err(|_| "SVG write error")?;
+            }
+            Ok(Event::End(ref e)) => {
+                if skip_depth > 0 {
+                    skip_depth -= 1;
+                    continue;
+                }
+                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                if ALLOWED_SVG_ELEMENTS.contains(&tag_name.as_str()) {
+                    writer
+                        .write_event(Event::End(BytesEnd::new(tag_name)))
+                        .map_err(|_| "SVG write error")?;
+                }
+            }
+            Ok(Event::Empty(ref e)) => {
+                if skip_depth > 0 {
+                    continue;
+                }
+                let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                if !ALLOWED_SVG_ELEMENTS.contains(&tag_name.as_str()) {
+                    continue;
+                }
+                let mut clean = BytesStart::new(tag_name.clone());
+                for attr in e.attributes().flatten() {
+                    let attr_name = String::from_utf8_lossy(attr.key.as_ref()).to_lowercase();
+                    if !is_allowed_attribute(&attr_name) {
+                        continue;
+                    }
+                    let value = String::from_utf8_lossy(&attr.value);
+                    if value.trim().to_lowercase().starts_with("javascript:") {
+                        continue;
+                    }
+                    if (attr_name == "href" || attr_name == "xlink:href")
+                        && !is_safe_href(&value)
+                    {
+                        continue;
+                    }
+                    clean.push_attribute((attr_name.as_str(), value.as_ref()));
+                }
+                writer
+                    .write_event(Event::Empty(clean))
+                    .map_err(|_| "SVG write error")?;
+            }
+            Ok(Event::Text(ref e)) => {
+                if skip_depth == 0 {
+                    writer.write_event(Event::Text(e.clone())).map_err(|_| "SVG write error")?;
+                }
+            }
+            Ok(Event::Decl(ref e)) => {
+                writer.write_event(Event::Decl(e.clone())).map_err(|_| "SVG write error")?;
+            }
+            Ok(Event::Comment(_)) | Ok(Event::CData(_)) | Ok(Event::PI(_)) | Ok(Event::DocType(_)) => {
+                // Strip comments, CDATA, processing instructions, and doctypes
+            }
+            Err(_) => return Err("SVG XML parsing error"),
+        }
+    }
 
-    // Remove <script .../> self-closing
-    let re_script_self = Regex::new(r"(?i)<script[^>]*/\s*>").unwrap();
-    let text = re_script_self.replace_all(&text, "");
-
-    // Remove <foreignObject>...</foreignObject>
-    let re_foreign = Regex::new(r"(?is)<foreignObject[\s>].*?</foreignObject\s*>").unwrap();
-    let text = re_foreign.replace_all(&text, "");
-
-    // Remove on* event handler attributes (onclick, onload, onerror, etc.)
-    let re_on_event = Regex::new(r#"(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)"#).unwrap();
-    let text = re_on_event.replace_all(&text, "");
-
-    // Remove javascript: in href/xlink:href attributes
-    let re_js_href =
-        Regex::new(r#"(?i)(href\s*=\s*["'])\s*javascript:[^"']*"#).unwrap();
-    let text = re_js_href.replace_all(&text, "${1}#");
-
-    // Remove xlink:href pointing to external URLs (keep internal # references)
-    let re_xlink_ext =
-        Regex::new(r#"(?i)xlink:href\s*=\s*["']https?://[^"']*["']"#).unwrap();
-    let text = re_xlink_ext.replace_all(&text, "");
-
-    // Remove <use> elements with external href
-    let re_use_ext =
-        Regex::new(r#"(?i)<use[^>]+href\s*=\s*["']https?://[^"']*["'][^>]*/?\s*>"#).unwrap();
-    let text = re_use_ext.replace_all(&text, "");
-
-    Ok(text.into_owned().into_bytes())
+    Ok(writer.into_inner().into_inner())
 }
 
 #[cfg(test)]

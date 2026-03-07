@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use chatalot_common::api_types::{
     AnnouncementResponse, ChangePasswordRequest, DeleteAccountRequest, LogoutAllResponse,
-    PreferencesResponse, RegenerateRecoveryCodeResponse, SessionResponse,
+    PreferencesResponse, RegenerateRecoveryCodeResponse, ServerConfigResponse, SessionResponse,
     UpdatePreferencesRequest, UpdateProfileRequest, UserPublic,
 };
 use chatalot_common::ws_messages::ServerMessage;
@@ -23,6 +23,7 @@ use crate::services::auth_service;
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
+        .route("/account/config", get(authenticated_config))
         .route("/account/me", get(get_me))
         .route("/account/password", put(change_password))
         .route("/account/profile", put(update_profile))
@@ -54,6 +55,24 @@ pub fn routes() -> Router<Arc<AppState>> {
 /// Public route for serving avatar images (no auth required).
 pub fn public_routes() -> Router<Arc<AppState>> {
     Router::new().route("/avatars/{filename}", get(serve_avatar))
+}
+
+async fn authenticated_config(
+    State(state): State<Arc<AppState>>,
+    Extension(_claims): Extension<AccessClaims>,
+) -> Json<ServerConfigResponse> {
+    let ice_servers = state.config.ice_servers_json.as_ref()
+        .and_then(|json| serde_json::from_str(json).ok())
+        .unwrap_or_default();
+    let settings = state.instance_settings.read().await;
+    Json(ServerConfigResponse {
+        registration_mode: state.config.registration_mode.clone(),
+        public_url: state.config.public_url.clone(),
+        ice_servers,
+        max_messages_cache: settings.max_messages_cache,
+        max_pins_per_channel: settings.max_pins_per_channel,
+        e2e_enabled: settings.e2e_enabled,
+    })
 }
 
 async fn get_me(

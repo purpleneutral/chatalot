@@ -278,14 +278,8 @@ fn decrypt_with_key(
     let cipher = ChaCha20Poly1305::new(msg_key.into());
     let n = Nonce::from_slice(nonce);
 
-    // Try with AAD (new format)
-    if let Ok(plaintext) = cipher.decrypt(n, Payload { msg: ciphertext, aad }) {
-        return Ok(plaintext);
-    }
-
-    // Fall back to no AAD (pre-AAD messages)
     cipher
-        .decrypt(n, ciphertext)
+        .decrypt(n, Payload { msg: ciphertext, aad })
         .map_err(|_| SenderKeyError::DecryptionFailed)
 }
 

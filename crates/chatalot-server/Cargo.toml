@@ -27,6 +27,7 @@ jsonwebtoken = { workspace = true }
 ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
+hkdf = { workspace = true }
 subtle = { workspace = true }
 zeroize = { workspace = true }
 dashmap = { workspace = true }
@@ -39,6 +40,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 multer = "3"
 reqwest = { workspace = true }
 regex = "1"
+quick-xml = "0.37"
 url = "2"
 html-escape = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }

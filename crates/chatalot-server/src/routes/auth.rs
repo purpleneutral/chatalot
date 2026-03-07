@@ -29,14 +29,13 @@ pub fn routes() -> Router<Arc<AppState>> {
 }
 
 async fn server_config(State(state): State<Arc<AppState>>) -> Json<ServerConfigResponse> {
-    let ice_servers = state.config.ice_servers_json.as_ref()
-        .and_then(|json| serde_json::from_str(json).ok())
-        .unwrap_or_default();
+    // ICE/TURN credentials are not exposed on this public endpoint.
+    // Authenticated users get them via the authenticated config endpoint.
     let settings = state.instance_settings.read().await;
     Json(ServerConfigResponse {
         registration_mode: state.config.registration_mode.clone(),
         public_url: state.config.public_url.clone(),
-        ice_servers,
+        ice_servers: Vec::new(),
         max_messages_cache: settings.max_messages_cache,
         max_pins_per_channel: settings.max_pins_per_channel,
         e2e_enabled: settings.e2e_enabled,
