@@ -133,14 +133,14 @@ pub fn build_router(state: Arc<AppState>) -> Router {
                                 .status(StatusCode::OK)
                                 .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
                                 .body(axum::body::Body::from(bytes))
-                                .unwrap(),
+                                .expect("static response build"),
                         ),
                         Err(_) => Ok(
                             axum::http::Response::builder()
                                 .status(StatusCode::NOT_FOUND)
                                 .header(header::CONTENT_TYPE, "text/plain")
                                 .body(axum::body::Body::from("404 Not Found"))
-                                .unwrap(),
+                                .expect("static response build"),
                         ),
                     }
                 }

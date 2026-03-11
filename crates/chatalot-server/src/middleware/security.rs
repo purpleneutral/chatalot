@@ -11,7 +11,7 @@ const CSP_NO_INLINE: &str = "\
     default-src 'self'; \
     script-src 'self' 'wasm-unsafe-eval' blob:; \
     style-src 'self' 'unsafe-inline'; \
-    connect-src 'self' wss: https://cdn.jsdelivr.net; \
+    connect-src 'self' wss://chatalot.seglamater.app wss://chatalot.qlab wss://localhost:* https://cdn.jsdelivr.net; \
     img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
     media-src 'self' blob:; \
     worker-src 'self' blob:; \
@@ -33,7 +33,7 @@ fn csp_with_nonce(nonce: &str) -> String {
         "default-src 'self'; \
          script-src 'self' 'wasm-unsafe-eval' blob: 'nonce-{nonce}'; \
          style-src 'self' 'unsafe-inline'; \
-         connect-src 'self' wss: https://cdn.jsdelivr.net; \
+         connect-src 'self' wss://chatalot.seglamater.app wss://chatalot.qlab wss://localhost:* https://cdn.jsdelivr.net; \
          img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
          media-src 'self' blob:; \
          worker-src 'self' blob:; \
