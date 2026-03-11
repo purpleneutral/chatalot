@@ -19,18 +19,21 @@ RUN mkdir -p crates/chatalot-server/src && echo "fn main() {}" > crates/chatalot
     && mkdir -p migrations && touch migrations/.keep
 
 # Build dependencies only — cache mounts persist the registry + build artifacts between builds
+# Each stage uses unique cache IDs to prevent parallel build race conditions on .cargo-ok files
 ENV SQLX_OFFLINE=true
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/build/target \
+RUN --mount=type=cache,id=builder-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=builder-git,target=/usr/local/cargo/git \
+    --mount=type=cache,id=builder-target,target=/build/target \
+    find /usr/local/cargo/registry -name .cargo-ok -delete 2>/dev/null; \
     cargo build --release 2>/dev/null || true
 
 # Copy actual source and rebuild (only our code recompiles, deps are cached)
 COPY crates/ crates/
 COPY migrations/ migrations/
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/build/target \
+RUN --mount=type=cache,id=builder-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=builder-git,target=/usr/local/cargo/git \
+    --mount=type=cache,id=builder-target,target=/build/target \
+    find /usr/local/cargo/registry -name .cargo-ok -delete 2>/dev/null; \
     touch crates/*/src/*.rs && cargo build --release \
     && cp target/release/chatalot-server /build/chatalot-server
 
@@ -52,9 +55,10 @@ COPY crates/chatalot-common/Cargo.toml crates/chatalot-common/
 COPY crates/chatalot-crypto/ crates/chatalot-crypto/
 COPY crates/chatalot-crypto-wasm/ crates/chatalot-crypto-wasm/
 
-# Build WASM package
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+# Build WASM package (separate cache IDs from builder stage to avoid parallel race conditions)
+RUN --mount=type=cache,id=wasm-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=wasm-git,target=/usr/local/cargo/git \
+    find /usr/local/cargo/registry -name .cargo-ok -delete 2>/dev/null; \
     cd crates/chatalot-crypto-wasm && \
     wasm-pack build --target web --out-dir /build/wasm-pkg && \
     rm -f /build/wasm-pkg/package.json /build/wasm-pkg/.gitignore
