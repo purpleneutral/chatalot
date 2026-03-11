@@ -43,6 +43,7 @@ scripts/deploy.env
 
 # Claude Code
 .claude/
+CLAUDE.md
 
 # Playwright MCP
 .playwright-mcp/

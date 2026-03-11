@@ -116,9 +116,13 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     // We use a custom service_fn instead of ServeFile because ServeDir's
     // not_found_service preserves a 404 status code even when content is served.
     let index_html_path = format!("{static_dir}/index.html");
+    // NOTE: Do NOT use .precompressed_gzip() / .precompressed_br() here.
+    // Pre-compressed files bypass the security_headers middleware's nonce
+    // injection (the middleware can't parse compressed bytes as UTF-8), which
+    // causes CSP nonce mismatches and blocks all inline scripts.  The
+    // CompressionLayer applied to the outer Router handles on-the-fly
+    // compression AFTER nonce injection, so responses are still compressed.
     let spa_fallback = ServeDir::new(&static_dir)
-        .precompressed_gzip()
-        .precompressed_br()
         .fallback(tower::service_fn(
             move |_req: axum::http::Request<axum::body::Body>| {
                 let path = index_html_path.clone();
