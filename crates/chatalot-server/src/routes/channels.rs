@@ -264,9 +264,15 @@ async fn list_channel_members(
     // For discoverable channels, group members can also view the member list.
     let is_channel_member = channel_repo::is_member(&state.db, id, claims.sub).await?;
     if !is_channel_member {
-        let allowed = channel.discoverable
-            && channel.group_id.is_some()
-            && group_repo::is_member(&state.db, channel.group_id.unwrap(), claims.sub).await?;
+        let allowed = if channel.discoverable {
+            if let Some(group_id) = channel.group_id {
+                group_repo::is_member(&state.db, group_id, claims.sub).await?
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         if !allowed {
             return Err(AppError::Forbidden);
         }

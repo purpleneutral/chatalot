@@ -47,3 +47,6 @@ CLAUDE.md
 
 # Playwright MCP
 .playwright-mcp/
+
+# Pi agent config (local)
+.pi/
