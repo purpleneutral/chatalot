@@ -8,7 +8,7 @@ pub struct User {
     pub username: String,
     pub display_name: String,
     pub email: String,
-    pub password_hash: String,
+    pub password_hash: Option<String>,
     pub avatar_url: Option<String>,
     pub banner_url: Option<String>,
     pub voice_background_url: Option<String>,
@@ -25,6 +25,9 @@ pub struct User {
     pub recovery_code_hash: Option<String>,
     pub totp_backup_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
+    pub oidc_provider: Option<String>,
+    pub oidc_subject: Option<String>,
+    pub keys_registered: bool,
     pub updated_at: DateTime<Utc>,
 }
 

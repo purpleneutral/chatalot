@@ -37,9 +37,33 @@ async fn main() -> anyhow::Result<()> {
     chatalot_db::pool::run_migrations(&db_pool).await?;
     tracing::info!("Migrations applied");
 
+    // Initialize OIDC service if configured
+    let oidc_service = if config.oidc_enabled() {
+        match crate::services::oidc_service::OidcService::new(
+            config.oidc_issuer_url.as_deref().unwrap_or_default(),
+            config.oidc_client_id.as_deref().unwrap_or_default(),
+            config.oidc_client_secret.as_deref().unwrap_or_default(),
+            config.oidc_redirect_uri.as_deref().unwrap_or_default(),
+        )
+        .await
+        {
+            Ok(svc) => {
+                tracing::info!("OIDC/SSO authentication enabled");
+                Some(std::sync::Arc::new(svc))
+            }
+            Err(e) => {
+                tracing::error!("Failed to initialize OIDC service: {e}");
+                None
+            }
+        }
+    } else {
+        tracing::info!("OIDC not configured, SSO disabled");
+        None
+    };
+
     // Build application state
     let start_time = Instant::now();
-    let state = Arc::new(AppState::new(config.clone(), db_pool, start_time)?);
+    let state = Arc::new(AppState::with_oidc(config.clone(), db_pool, start_time, oidc_service)?);
 
     // Seed admin user from env var — only if there are zero admins (first-run bootstrap).
     // This prevents ADMIN_USERNAME from silently re-granting admin on every restart.

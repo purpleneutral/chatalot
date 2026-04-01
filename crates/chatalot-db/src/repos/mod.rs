@@ -12,6 +12,7 @@ pub mod group_repo;
 pub mod invite_repo;
 pub mod key_repo;
 pub mod message_repo;
+pub mod oidc_repo;
 pub mod pin_repo;
 pub mod poll_repo;
 pub mod preferences_repo;

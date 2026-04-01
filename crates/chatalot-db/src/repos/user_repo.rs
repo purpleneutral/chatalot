@@ -72,6 +72,14 @@ pub async fn username_exists(pool: &PgPool, username: &str) -> Result<bool, sqlx
     Ok(row.0)
 }
 
+/// Find a user by email address.
+pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, sqlx::Error> {
+    sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+        .bind(email)
+        .fetch_optional(pool)
+        .await
+}
+
 /// Check if an email is already taken.
 pub async fn email_exists(pool: &PgPool, email: &str) -> Result<bool, sqlx::Error> {
     let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)")
@@ -224,6 +232,42 @@ pub async fn search_users(
     .bind(limit)
     .fetch_all(pool)
     .await
+}
+
+/// Create a user via OIDC (no password, keys_registered=false).
+pub async fn create_oidc_user(
+    pool: &PgPool,
+    id: Uuid,
+    username: &str,
+    email: &str,
+    display_name: &str,
+    provider: &str,
+    subject: &str,
+) -> Result<User, sqlx::Error> {
+    sqlx::query_as::<_, User>(
+        r#"
+        INSERT INTO users (id, username, display_name, email, password_hash, oidc_provider, oidc_subject, keys_registered)
+        VALUES ($1, $2, $3, $4, NULL, $5, $6, false)
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(username)
+    .bind(display_name)
+    .bind(email)
+    .bind(provider)
+    .bind(subject)
+    .fetch_one(pool)
+    .await
+}
+
+/// Mark a user's E2E keys as registered.
+pub async fn set_keys_registered(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET keys_registered = true, updated_at = NOW() WHERE id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 /// Store a TOTP secret (setup phase, not yet enabled).

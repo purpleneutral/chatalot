@@ -706,6 +706,10 @@ pub struct ServerConfigResponse {
     pub max_pins_per_channel: i64,
     #[serde(default = "default_e2e_enabled")]
     pub e2e_enabled: bool,
+    #[serde(default)]
+    pub oidc_enabled: bool,
+    #[serde(default)]
+    pub oidc_disable_password_login: bool,
 }
 
 fn default_max_messages_cache() -> u32 {

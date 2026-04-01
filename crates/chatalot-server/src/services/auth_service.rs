@@ -129,7 +129,7 @@ pub(crate) fn verify_password(password: &str, hash: &str) -> Result<bool, AppErr
 }
 
 /// Generate a cryptographically random refresh token (32 bytes) and return (raw, sha256_hash).
-fn generate_refresh_token() -> (Vec<u8>, Vec<u8>) {
+pub(crate) fn generate_refresh_token() -> (Vec<u8>, Vec<u8>) {
     let mut token = vec![0u8; 32];
     OsRng.fill_bytes(&mut token);
 
@@ -183,7 +183,7 @@ pub fn generate_backup_codes(count: usize) -> (Vec<String>, Vec<String>) {
 }
 
 /// Issue a JWT access token.
-fn issue_access_token(
+pub(crate) fn issue_access_token(
     state: &AppState,
     user_id: Uuid,
     username: &str,
@@ -208,7 +208,7 @@ fn issue_access_token(
         .map_err(|e| AppError::Internal(format!("jwt encode failed: {e}")))
 }
 
-fn user_to_public(
+pub(crate) fn user_to_public(
     user: &chatalot_db::models::user::User,
     is_admin: bool,
     is_owner: bool,
@@ -495,6 +495,13 @@ pub async fn login(
     device_name: Option<&str>,
     ip_address: Option<&str>,
 ) -> Result<AuthResponse, AppError> {
+    // Check if password login is disabled (OIDC-only mode)
+    if state.config.oidc_disable_password_login {
+        return Err(AppError::Validation(
+            "password login is disabled, use SSO".to_string(),
+        ));
+    }
+
     // Check account lockout before doing any DB work
     if let Some(remaining) = check_lockout(&req.username) {
         return Err(AppError::Validation(format!(
@@ -510,8 +517,17 @@ pub async fn login(
         }
     };
 
+    // OIDC-only users have no password — reject password login
+    let password_hash = match &user.password_hash {
+        Some(h) => h,
+        None => {
+            tracing::warn!("Password login attempted for OIDC-only user: {}", req.username);
+            return Err(AppError::Unauthorized);
+        }
+    };
+
     // Verify password (constant-time via Argon2)
-    if !verify_password(&req.password, &user.password_hash)? {
+    if !verify_password(&req.password, password_hash)? {
         tracing::warn!("Failed login attempt for user: {}", req.username);
         record_failed_login(&req.username);
         // Audit failed login

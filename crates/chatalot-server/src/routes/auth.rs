@@ -39,6 +39,8 @@ async fn server_config(State(state): State<Arc<AppState>>) -> Json<ServerConfigR
         max_messages_cache: settings.max_messages_cache,
         max_pins_per_channel: settings.max_pins_per_channel,
         e2e_enabled: settings.e2e_enabled,
+        oidc_enabled: state.config.oidc_enabled(),
+        oidc_disable_password_login: state.config.oidc_disable_password_login,
     })
 }
 

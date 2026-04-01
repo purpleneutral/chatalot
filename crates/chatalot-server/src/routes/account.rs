@@ -72,6 +72,8 @@ async fn authenticated_config(
         max_messages_cache: settings.max_messages_cache,
         max_pins_per_channel: settings.max_pins_per_channel,
         e2e_enabled: settings.e2e_enabled,
+        oidc_enabled: state.config.oidc_enabled(),
+        oidc_disable_password_login: state.config.oidc_disable_password_login,
     })
 }
 
@@ -109,8 +111,13 @@ async fn change_password(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
+    // OIDC-only users have no password to change
+    let password_hash = user.password_hash.as_deref().ok_or_else(|| {
+        AppError::Validation("password change is not available for SSO accounts".to_string())
+    })?;
+
     // Verify current password
-    if !auth_service::verify_password(&req.current_password, &user.password_hash)? {
+    if !auth_service::verify_password(&req.current_password, password_hash)? {
         return Err(AppError::Validation(
             "current password is incorrect".to_string(),
         ));
@@ -695,8 +702,11 @@ async fn delete_account(
         .await?
         .ok_or(AppError::Unauthorized)?;
 
-    // Verify password
-    if !auth_service::verify_password(&req.password, &user.password_hash)? {
+    // Verify password (OIDC-only users cannot delete via password)
+    let password_hash = user.password_hash.as_deref().ok_or_else(|| {
+        AppError::Validation("password verification not available for SSO accounts".to_string())
+    })?;
+    if !auth_service::verify_password(&req.password, password_hash)? {
         return Err(AppError::Validation("password is incorrect".to_string()));
     }
 

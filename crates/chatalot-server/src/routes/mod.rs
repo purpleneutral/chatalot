@@ -15,6 +15,7 @@ pub mod keys;
 pub mod legal;
 pub mod link_preview;
 pub mod messages;
+pub mod oidc;
 pub mod polls;
 pub mod push;
 pub mod scheduled;
@@ -57,7 +58,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(webhooks::public_routes())
         .merge(push::public_routes())
         .merge(communities::asset_routes())
-        .merge(groups::asset_routes());
+        .merge(groups::asset_routes())
+        .merge(oidc::public_routes());
 
     // Community-gated routes (require auth + community membership)
     let community_gated_routes = Router::new().merge(communities::gated_routes()).layer(
@@ -87,6 +89,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .merge(announcements::routes())
         .merge(push::routes())
         .merge(communities::public_routes())
+        .merge(oidc::authenticated_routes())
         .merge(community_gated_routes)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

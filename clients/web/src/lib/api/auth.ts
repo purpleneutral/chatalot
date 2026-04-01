@@ -52,6 +52,8 @@ export interface ServerConfig {
 	max_messages_cache?: number;
 	max_pins_per_channel?: number;
 	e2e_enabled?: boolean;
+	oidc_enabled?: boolean;
+	oidc_disable_password_login?: boolean;
 }
 
 /** Cached public URL from server config, populated on first getServerConfig() call. */
@@ -96,4 +98,35 @@ export async function recoverAccount(
 		recovery_code: recoveryCode,
 		new_password: newPassword
 	});
+}
+
+// --- OIDC / SSO ---
+
+export interface OidcAuthResponse extends AuthResponse {
+	keys_registered: boolean;
+}
+
+export async function getOidcAuthUrl(): Promise<{ url: string }> {
+	return api.get<{ url: string }>('/auth/oidc/initiate');
+}
+
+export async function handleOidcCallback(code: string, state: string): Promise<OidcAuthResponse> {
+	return api.get<OidcAuthResponse>(`/auth/oidc/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`);
+}
+
+export interface OidcKeySetup {
+	identity_key: number[];
+	signed_prekey: {
+		key_id: number;
+		public_key: number[];
+		signature: number[];
+	};
+	one_time_prekeys: {
+		key_id: number;
+		public_key: number[];
+	}[];
+}
+
+export async function completeOidcSetup(keys: OidcKeySetup): Promise<void> {
+	return api.post('/auth/oidc/complete-setup', keys);
 }

@@ -39,6 +39,7 @@ data-encoding = { workspace = true }
 tokio-util = { version = "0.7", features = ["io"] }
 multer = "3"
 reqwest = { workspace = true }
+openidconnect = { workspace = true }
 regex = "1"
 quick-xml = "0.37"
 url = "2"

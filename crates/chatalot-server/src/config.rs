@@ -24,10 +24,35 @@ pub struct Config {
     pub vapid_public_key: Option<String>,
     /// Per-user upload quota in MB (0 = unlimited). Default 500 MB.
     pub upload_quota_mb: u64,
+    /// OIDC issuer URL (e.g. https://auth.example.com/application/o/chatalot/)
+    pub oidc_issuer_url: Option<String>,
+    /// OIDC client ID
+    pub oidc_client_id: Option<String>,
+    /// OIDC client secret
+    pub oidc_client_secret: Option<String>,
+    /// OIDC redirect URI (e.g. https://chatalot.example.com/api/auth/oidc/callback)
+    pub oidc_redirect_uri: Option<String>,
+    /// If true, disable password-based login (force SSO)
+    pub oidc_disable_password_login: bool,
 }
 
 impl Config {
+    /// Returns true if all required OIDC configuration is present.
+    pub fn oidc_enabled(&self) -> bool {
+        self.oidc_issuer_url.is_some()
+            && self.oidc_client_id.is_some()
+            && self.oidc_client_secret.is_some()
+            && self.oidc_redirect_uri.is_some()
+    }
+
     pub fn from_env() -> Result<Self> {
+        let oidc_issuer_url = std::env::var("OIDC_ISSUER_URL").ok().filter(|s| !s.is_empty());
+        let oidc_client_id = std::env::var("OIDC_CLIENT_ID").ok().filter(|s| !s.is_empty());
+        let oidc_client_secret = std::env::var("OIDC_CLIENT_SECRET").ok().filter(|s| !s.is_empty());
+        let oidc_redirect_uri = std::env::var("OIDC_REDIRECT_URI").ok().filter(|s| !s.is_empty());
+        let oidc_disable_password_login = std::env::var("OIDC_DISABLE_PASSWORD_LOGIN")
+            .unwrap_or_else(|_| "false".to_string())
+            .eq_ignore_ascii_case("true");
         let max_file_size_mb = std::env::var("MAX_FILE_SIZE_MB")
             .unwrap_or_else(|_| "100".to_string())
             .parse()
@@ -123,6 +148,11 @@ impl Config {
             vapid_private_key: std::env::var("VAPID_PRIVATE_KEY").ok(),
             vapid_public_key: std::env::var("VAPID_PUBLIC_KEY").ok(),
             upload_quota_mb,
+            oidc_issuer_url,
+            oidc_client_id,
+            oidc_client_secret,
+            oidc_redirect_uri,
+            oidc_disable_password_login,
         })
     }
 }
