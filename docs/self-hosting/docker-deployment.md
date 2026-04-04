@@ -82,6 +82,35 @@ Key details:
 - **Health check** ensures the database is ready before the application starts
 - **Data** is persisted in a named Docker volume
 
+#### `coturn` (TURN Server)
+
+An optional [coturn](https://github.com/coturn/coturn) TURN relay server for voice and video calls. TURN relays media traffic for users who cannot establish direct peer-to-peer connections (typically due to restrictive firewalls or symmetric NATs).
+
+```yaml
+coturn:
+  image: coturn/coturn:latest
+  container_name: chatalot-turn
+  network_mode: host
+  command: >
+    -n
+    --listening-port=3478
+    --user=${TURN_USER:-chatalot}:${TURN_PASSWORD:-}
+    --realm=chatalot
+    --external-ip=${TURN_EXTERNAL_IP:-0.0.0.0}
+    ...
+  profiles:
+    - turn
+```
+
+Key details:
+- **Not started by default** -- enable with `docker compose --profile turn up -d`
+- **Host networking** -- uses `network_mode: host` so it can relay UDP traffic without port mapping overhead
+- **Requires `TURN_EXTERNAL_IP`** -- must be set to your server's public IP for relay to work
+- **Security hardened** -- denies relay to private IP ranges, limits bandwidth per session
+- **Firewall ports** -- requires 3478/tcp+udp (signaling) and 49152-49200/udp (media relay)
+
+See [Configuration > Voice & Video](./configuration.md#voice--video-turnstun) for the full setup guide.
+
 #### `cloudflared` (Cloudflare Tunnel)
 
 Two tunnel services are defined behind Docker Compose profiles (they do not start by default):

@@ -76,7 +76,7 @@ Chatalot uses WebRTC for peer-to-peer connections. If you can join a call but ca
 | Cannot connect to anyone | Corporate firewall blocking UDP | Try from a different network, or ask your network admin to allow UDP traffic |
 | Connection drops after a few seconds | Firewall closing idle UDP connections | This is uncommon; check for aggressive firewall timeout settings |
 
-> **Note:** Chatalot does not currently include a TURN server, which means connections between two peers both behind symmetric NATs may fail. Self-hosted deployments can add a TURN server by modifying the ICE server configuration.
+> **Note:** Chatalot includes an optional TURN server (coturn) that can be enabled via Docker Compose profiles. If voice or video calls fail for users behind restrictive firewalls or symmetric NATs, ask your server administrator to enable the TURN server. See the [self-hosting configuration guide](../../self-hosting/configuration.md#voice--video-turnstun) for setup instructions.
 
 ### Checking Connection State
 

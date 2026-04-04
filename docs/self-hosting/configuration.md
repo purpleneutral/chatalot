@@ -124,6 +124,58 @@ Generate VAPID keys with:
 npx web-push generate-vapid-keys
 ```
 
+### Voice & Video (TURN/STUN)
+
+Chatalot uses WebRTC for voice and video calls. By default, it uses Google's public STUN servers to help peers discover each other and establish direct connections. This works for most home networks.
+
+However, users behind restrictive corporate firewalls or symmetric NATs may not be able to connect directly. In these cases, a **TURN server** acts as a relay -- routing media traffic through a server that both peers can reach. Chatalot ships with an optional [coturn](https://github.com/coturn/coturn) TURN server in `docker-compose.yml` that you can enable when needed.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ICE_SERVERS` | JSON array of STUN/TURN servers for WebRTC peer discovery and relay | *(none -- uses Google STUN)* |
+| `TURN_USER` | Username for the built-in coturn TURN server | `chatalot` |
+| `TURN_PASSWORD` | Password for the built-in coturn TURN server | *(none)* |
+| `TURN_EXTERNAL_IP` | Your server's public IP address (required for coturn to work) | *(none)* |
+
+#### Enabling the Built-in TURN Server
+
+The coturn service uses a Docker Compose [profile](https://docs.docker.com/compose/profiles/), so it does not start by default. To enable it:
+
+1. Set the required environment variables in `.env`:
+   ```bash
+   TURN_USER=chatalot
+   TURN_PASSWORD=a-strong-random-password
+   TURN_EXTERNAL_IP=203.0.113.50  # Your server's public IP
+   ```
+
+2. Start Chatalot with the `turn` profile:
+   ```bash
+   docker compose --profile turn up -d
+   ```
+
+3. Configure `ICE_SERVERS` to tell the client about your TURN server:
+   ```bash
+   ICE_SERVERS='[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:203.0.113.50:3478","username":"chatalot","credential":"a-strong-random-password"}]'
+   ```
+
+4. Ensure the following ports are open in your firewall:
+   - **3478/tcp and 3478/udp** -- TURN signaling
+   - **49152-49200/udp** -- Media relay range
+
+See the `coturn` service definition in `docker-compose.yml` for the full configuration, including security hardening options like denied peer IP ranges and bandwidth limits.
+
+#### Using a Custom ICE Configuration
+
+If you already run your own TURN server or want to use a third-party service, set `ICE_SERVERS` without enabling the built-in coturn:
+
+```bash
+ICE_SERVERS='[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:turn.example.com:3478","username":"myuser","credential":"mypassword"}]'
+```
+
+The value must be a valid JSON array. Each entry can include `urls`, `username`, and `credential` fields matching the [RTCIceServer](https://developer.mozilla.org/en-US/docs/Web/API/RTCIceServer) specification.
+
+> **Tip:** Most small deployments (friends, family, small teams) work fine with just STUN. Only enable TURN if users report connection failures from restrictive networks.
+
 ### Cloudflare Tunnel (Optional)
 
 | Variable | Description | Default |
@@ -179,6 +231,12 @@ OIDC_DISABLE_PASSWORD_LOGIN=false
 # Web push notifications (optional -- generate with: npx web-push generate-vapid-keys)
 VAPID_PRIVATE_KEY=
 VAPID_PUBLIC_KEY=
+
+# Voice/video TURN relay (optional -- see Voice & Video section above)
+# TURN_USER=chatalot
+# TURN_PASSWORD=
+# TURN_EXTERNAL_IP=
+# ICE_SERVERS='[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:YOUR_IP:3478","username":"chatalot","credential":"your-turn-password"}]'
 
 # Cloudflare Tunnel (optional)
 CLOUDFLARE_TUNNEL_TOKEN=

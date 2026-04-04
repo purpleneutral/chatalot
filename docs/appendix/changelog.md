@@ -4,6 +4,79 @@ All notable changes to Chatalot are documented here. Versions follow [Semantic V
 
 ---
 
+## v0.23.0
+
+### Added
+- **OIDC/SSO support** — login via Authentik, Keycloak, or any OpenID Connect provider
+- OIDC user provisioning (auto-create accounts on first SSO login)
+- Option to disable password login when OIDC is enabled (`OIDC_DISABLE_PASSWORD_LOGIN`)
+- CI workflow for automated testing on push/PR (cargo check, clippy, frontend build)
+- Root-level `SECURITY.md`, `CONTRIBUTING.md`, and `CHANGELOG.md`
+- TURN/coturn documentation in self-hosting guide
+- Build hash cache-busting for static assets
+
+### Fixed
+- CSP no longer hardcodes specific domains — WebSocket origins derived from `PUBLIC_URL`
+- CORS fallback no longer leaks author's domain — derived from `PUBLIC_URL`
+- Fixed `og:image` using absolute URL (now relative)
+- Version sync across all manifests (workspace, desktop, frontend)
+
+### Security
+- Removed internal homelab hostnames from CSP headers
+- Added responsible disclosure policy (`SECURITY.md`)
+
+---
+
+## v0.22.6
+
+### Added
+- **UI zoom** (50–200%) with keyboard shortcuts (Ctrl+/Ctrl-), synced across tabs
+
+### Fixed
+- Sidebar tab not remembering last selection
+- Removed dead Tauri bridge iframe code
+
+---
+
+## v0.22.5
+
+### Fixed
+- All TypeScript errors resolved across the frontend codebase
+- Removed dead shell/console feature code
+
+---
+
+## v0.21.0
+
+### Added
+- **Gallery channels** with image thumbnails and lightbox viewer
+- Automated backup script with remote pg_dump and file sync
+- GitHub Action to auto-update AUR package on release
+- `.desktop` file categories for Linux packaging
+
+### Fixed
+- 5 WebRTC video/screen sharing bugs
+- WebRTC memory leak in voice connections
+- Voice rate limiting and broadcast channel hardening
+- ICE candidates silently dropped (voice calls failing)
+- Voice auto-kick race condition with multiple tabs
+- RwLock crash risk in concurrent access paths
+- Group invite permissions for instance owner
+- 3-person mesh call connectivity
+- Desktop app auto-update (navigate to server SPA on version mismatch)
+- Docker build race condition (separate cargo cache IDs per stage)
+- CSP blocking SvelteKit (per-request nonce injection)
+
+### Security
+- Multiple security hardening rounds: CORS, TOTP encryption, EXIF stripping, WebSocket auth
+- JWT audience validation, prekey verification
+- Secrets management overhaul, rate limiting, auth audit logging
+- Fixed 2 critical + 5 high findings from security audit
+- CSP hardened with nonce-based script policy
+- Replaced `unwrap()` with proper error handling in channel routes
+
+---
+
 ## v0.20.0
 
 - Permissions overhaul: unified 5-tier role hierarchy (Instance Owner > Instance Admin > Owner/Admin > Moderator > Member)

@@ -15,7 +15,7 @@ fn build_csp_static(extra_ws: &str) -> String {
         "default-src 'self'; \
          script-src 'self' 'wasm-unsafe-eval' blob:; \
          style-src 'self' 'unsafe-inline'; \
-         connect-src 'self'{extra_ws} wss://localhost:*; \
+         connect-src 'self'{extra_ws} wss://localhost:* https://cdn.jsdelivr.net; \
          img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
          media-src 'self' blob:; \
          worker-src 'self' blob:; \
@@ -39,7 +39,7 @@ fn csp_with_nonce(nonce: &str, extra_ws: &str) -> String {
         "default-src 'self'; \
          script-src 'self' 'wasm-unsafe-eval' blob: 'nonce-{nonce}'; \
          style-src 'self' 'unsafe-inline'; \
-         connect-src 'self'{extra_ws} wss://localhost:*; \
+         connect-src 'self'{extra_ws} wss://localhost:* https://cdn.jsdelivr.net; \
          img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
          media-src 'self' blob:; \
          worker-src 'self' blob:; \
