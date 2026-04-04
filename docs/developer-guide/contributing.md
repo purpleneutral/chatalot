@@ -73,7 +73,7 @@ chatalot/
 
 ### New Database Table
 
-1. Create a migration file: `migrations/NNN_description.sql` (sequential numbering, currently at 039)
+1. Create a migration file: `migrations/NNN_description.sql` (sequential numbering, currently at 052)
 2. Add model in `chatalot-db/src/models/` with `#[derive(Debug, sqlx::FromRow)]`
 3. Add repository functions in `chatalot-db/src/repos/`
 4. Register in `models/mod.rs` and `repos/mod.rs`
@@ -83,7 +83,7 @@ chatalot/
 Before submitting a pull request:
 
 ```bash
-# Run all Rust tests (23 crypto tests + server tests)
+# Run all Rust tests (69 total: 23 crypto + 46 server)
 cargo test
 
 # Run clippy

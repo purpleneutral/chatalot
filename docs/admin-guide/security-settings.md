@@ -105,6 +105,37 @@ Click **Remove** next to any blocked hash to unblock it. A confirmation dialog i
 
 Hash operations are recorded in the audit log as `admin_block_hash` and `admin_unblock_hash`.
 
+## OIDC / Single Sign-On
+
+Chatalot supports external authentication through any OpenID Connect provider (Authentik, Keycloak, Authelia, Zitadel, etc.). When OIDC is configured, users see a **Log in with SSO** button on the login page.
+
+### Enabling OIDC
+
+Set the following environment variables (see [Configuration](../self-hosting/configuration.md#oidc--sso) for full details):
+
+| Variable | Description |
+|----------|-------------|
+| `OIDC_ISSUER_URL` | Provider discovery URL (must expose `/.well-known/openid-configuration`) |
+| `OIDC_CLIENT_ID` | Client ID from your identity provider |
+| `OIDC_CLIENT_SECRET` | Client secret from your identity provider |
+| `OIDC_REDIRECT_URI` | Callback URL (e.g. `https://chat.example.com/auth/oidc/callback`) |
+| `OIDC_DISABLE_PASSWORD_LOGIN` | Set to `true` to enforce SSO-only login (default: `false`) |
+
+SSO is active when all three of `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET` are set.
+
+### User Accounts
+
+- First-time SSO users get a local account created automatically from the provider's `email` and `preferred_username` claims.
+- OIDC users appear in the admin Users list like any other user. You can suspend, promote, or delete them normally.
+- If `OIDC_DISABLE_PASSWORD_LOGIN=true`, the email/password login form is hidden and all users must authenticate through the identity provider.
+- Invite-only mode still applies: first-time SSO users need a valid invite code unless their account was pre-created by an admin.
+
+### Security Considerations
+
+- OIDC login is subject to the same rate limiting and account lockout rules as password login.
+- The OIDC client secret should be treated with the same care as any other credential. Store it in `.env` or Docker secrets, never in version control.
+- Disabling password login (`OIDC_DISABLE_PASSWORD_LOGIN=true`) is recommended for instances where all users are managed through a central identity provider.
+
 ## Instance-Wide Security Features
 
 Beyond the Security tab, Chatalot enforces several security measures at the infrastructure level:

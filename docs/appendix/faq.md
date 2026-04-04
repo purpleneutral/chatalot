@@ -43,7 +43,7 @@ Voice and video calls use WebRTC, which encrypts all media in transit using SRTP
 
 Direct messages use the Signal protocol (X3DH key agreement + Double Ratchet) compiled to WebAssembly and running client-side. This means the server cannot read your DM content.
 
-Group encryption uses the Sender Keys protocol and is implemented but currently in beta -- the WASM integration for groups is still being finalized.
+Group encryption uses the Sender Keys protocol and is fully implemented and stable.
 
 Text channels within communities are **not** end-to-end encrypted. Messages are encrypted in transit (TLS) and at rest if your server's disk encryption is enabled, but the server can read them.
 

@@ -12,9 +12,12 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.17.0"
+version = "0.23.0"
 edition = "2024"
 license = "GPL-3.0-only"
+description = "Self-hosted encrypted chat platform with E2EE, voice/video calls, and SSO support"
+homepage = "https://github.com/purpleneutral/chatalot"
+repository = "https://github.com/purpleneutral/chatalot"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }

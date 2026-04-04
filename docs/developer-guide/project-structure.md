@@ -6,11 +6,11 @@ Chatalot uses a Cargo workspace with four crates, plus a Svelte web client and a
 
 ```
 chatalot/
-+-- Cargo.toml                 Workspace root (edition 2024, version 0.17.0)
++-- Cargo.toml                 Workspace root (edition 2024, version 0.23.0)
 +-- Cargo.lock
 +-- Dockerfile                 Multi-stage Docker build
 +-- docker-compose.yml         Server + PostgreSQL + Cloudflare tunnel
-+-- migrations/                SQL migration files (001-039)
++-- migrations/                SQL migration files (001-052)
 +-- secrets/                   JWT Ed25519 PEM key pair (not committed)
 +-- scripts/                   Deployment and utility scripts
 +-- crates/

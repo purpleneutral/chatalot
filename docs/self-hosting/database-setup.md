@@ -106,7 +106,7 @@ INFO chatalot_server: Migrations applied
 
 ### Migration Files
 
-Migrations are stored in the `migrations/` directory at the project root. As of the current version, there are 39 migration files covering:
+Migrations are stored in the `migrations/` directory at the project root. As of the current version, there are 52 migration files covering:
 
 | Range | Description |
 |-------|-------------|
@@ -118,6 +118,9 @@ Migrations are stored in the `migrations/` directory at the project root. As of 
 | `026`-`030` | Security suite, lockout/quota, blocking/reports, new features, discoverable |
 | `031`-`035` | Group discoverable, personal groups, channel archiving, customization, more indexes |
 | `036`-`039` | Community members index, recovery codes, message edits, threads |
+| `040`-`044` | Webhooks, polls, custom emoji, announcements, feedback |
+| `045`-`048` | Web push, user warnings, slow mode, instance settings |
+| `049`-`052` | E2E feature flag, thumbnails, gallery channels, OIDC |
 
 ### Running Migrations Manually (Without the Server)
 

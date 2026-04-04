@@ -6,19 +6,25 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 use rand::RngCore;
 
-/// Static CSP used for non-HTML responses (API, assets, etc.).
-const CSP_NO_INLINE: &str = "\
-    default-src 'self'; \
-    script-src 'self' 'wasm-unsafe-eval' blob:; \
-    style-src 'self' 'unsafe-inline'; \
-    connect-src 'self' wss://chatalot.seglamater.app wss://chatalot.qlab wss://localhost:* https://cdn.jsdelivr.net; \
-    img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
-    media-src 'self' blob:; \
-    worker-src 'self' blob:; \
-    frame-ancestors 'self' tauri://localhost; \
-    base-uri 'self'; \
-    form-action 'self'; \
-    object-src 'none'";
+/// Build the static CSP string (no inline script nonces).
+///
+/// WebSocket origins are derived from `PUBLIC_URL` at startup so the CSP
+/// doesn't leak internal hostnames.  Falls back to `'self'` only.
+fn build_csp_static(extra_ws: &str) -> String {
+    format!(
+        "default-src 'self'; \
+         script-src 'self' 'wasm-unsafe-eval' blob:; \
+         style-src 'self' 'unsafe-inline'; \
+         connect-src 'self'{extra_ws} wss://localhost:*; \
+         img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
+         media-src 'self' blob:; \
+         worker-src 'self' blob:; \
+         frame-ancestors 'self' tauri://localhost; \
+         base-uri 'self'; \
+         form-action 'self'; \
+         object-src 'none'"
+    )
+}
 
 /// Generate a cryptographically random 128-bit nonce, base64-encoded.
 fn generate_nonce() -> String {
@@ -28,12 +34,12 @@ fn generate_nonce() -> String {
 }
 
 /// Build the CSP string with a per-request nonce for inline scripts.
-fn csp_with_nonce(nonce: &str) -> String {
+fn csp_with_nonce(nonce: &str, extra_ws: &str) -> String {
     format!(
         "default-src 'self'; \
          script-src 'self' 'wasm-unsafe-eval' blob: 'nonce-{nonce}'; \
          style-src 'self' 'unsafe-inline'; \
-         connect-src 'self' wss://chatalot.seglamater.app wss://chatalot.qlab wss://localhost:* https://cdn.jsdelivr.net; \
+         connect-src 'self'{extra_ws} wss://localhost:*; \
          img-src 'self' data: blob: https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; \
          media-src 'self' blob:; \
          worker-src 'self' blob:; \
@@ -42,6 +48,25 @@ fn csp_with_nonce(nonce: &str) -> String {
          form-action 'self'; \
          object-src 'none'"
     )
+}
+
+/// Derive the WebSocket CSP fragment from `PUBLIC_URL`.
+///
+/// e.g. `https://chat.example.com` → `" wss://chat.example.com"`
+pub fn ws_origins_from_public_url() -> String {
+    match std::env::var("PUBLIC_URL").ok() {
+        Some(url) if !url.is_empty() => {
+            if let Some(host) = url
+                .strip_prefix("https://")
+                .or_else(|| url.strip_prefix("http://"))
+            {
+                format!(" wss://{host}")
+            } else {
+                String::new()
+            }
+        }
+        _ => String::new(),
+    }
 }
 
 /// Inject `nonce="..."` into every `<script` tag in the HTML.
@@ -118,11 +143,13 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
         .and_then(|v| v.to_str().ok())
         .is_some_and(|ct| ct.contains("text/html"));
 
+    let extra_ws = ws_origins_from_public_url();
+
     if !is_html {
-        response.headers_mut().insert(
-            "Content-Security-Policy",
-            HeaderValue::from_static(CSP_NO_INLINE),
-        );
+        let static_csp = build_csp_static(&extra_ws);
+        if let Ok(val) = HeaderValue::from_str(&static_csp) {
+            response.headers_mut().insert("Content-Security-Policy", val);
+        }
         return response;
     }
 
@@ -130,7 +157,7 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
     let nonce = generate_nonce();
 
     // Set the CSP header with the nonce before consuming the body
-    let csp = csp_with_nonce(&nonce);
+    let csp = csp_with_nonce(&nonce, &extra_ws);
     if let Ok(val) = HeaderValue::from_str(&csp) {
         response.headers_mut().insert("Content-Security-Policy", val);
     }

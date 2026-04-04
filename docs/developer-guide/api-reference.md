@@ -414,7 +414,7 @@ Response:
 ```json
 {
   "status": "ok",
-  "version": "0.17.0",
+  "version": "0.23.0",
   "uptime_secs": 3600,
   "db_healthy": true
 }

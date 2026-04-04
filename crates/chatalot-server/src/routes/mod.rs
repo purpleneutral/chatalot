@@ -155,7 +155,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     let cors = {
         use axum::http::{HeaderValue, Method};
         let origins_str = std::env::var("CORS_ORIGINS").unwrap_or_else(|_| {
-            "https://chatalot.seglamater.app,tauri://localhost".to_string()
+            // Derive from PUBLIC_URL if set, otherwise allow only Tauri desktop.
+            match std::env::var("PUBLIC_URL").ok() {
+                Some(url) if !url.is_empty() => format!("{url},tauri://localhost"),
+                _ => "tauri://localhost".to_string(),
+            }
         });
         let origins: Vec<HeaderValue> = origins_str
             .split(',')

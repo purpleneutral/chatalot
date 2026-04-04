@@ -63,7 +63,7 @@ Chatalot takes a different approach: **one Docker command, and you're live.** A 
 - **Customization** — themes, 8 accent colors, message density, sidebar layout (expanded panel or compact dropdown), font size, time format, profile banners, community theming with custom CSS, group icons/banners/accent colors, voice call backgrounds (6 presets + custom), and more
 - **Webhooks** — create incoming webhooks for channels, post messages from external services
 - **Desktop app** — native Linux and Windows clients via Tauri 2.0, with auto-update and OS keychain integration
-- **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, rate limiting, invite-only registration, self-service account recovery
+- **Security** — Argon2id passwords, Ed25519-signed JWTs, TOTP 2FA with backup codes, OIDC/SSO login (Authentik, Keycloak, etc.), rate limiting, invite-only registration, self-service account recovery
 - **Moderation** — 5-tier role hierarchy (instance owner/admin, community owner/admin, moderator, member), message reports, user warnings, blocking, bans, timeouts, slow mode
 - **Admin panel** — user management, invite codes, announcements, report review, webhooks overview, instance settings, and system feedback
 - **Legal framework** — built-in privacy policy and terms of service, customizable per instance
@@ -324,7 +324,7 @@ chatalot/
 │   │       └── routes/        # Pages
 │   └── desktop/               # Tauri 2.0 wrapper
 ├── docs/                      # Detailed documentation
-├── migrations/                # PostgreSQL migrations (48 files)
+├── migrations/                # PostgreSQL migrations (52 files)
 ├── scripts/
 │   ├── install.sh             # Interactive setup wizard
 │   ├── deploy.sh              # Automated deploy (commit, push, pull, rebuild)
@@ -355,6 +355,11 @@ chatalot/
 | `RUST_LOG` | `info` | Log level |
 | `VAPID_PRIVATE_KEY` | *optional* | Base64-encoded ECDSA P-256 private key for web push notifications |
 | `VAPID_PUBLIC_KEY` | *optional* | Base64-encoded ECDSA P-256 public key for web push notifications |
+| `OIDC_ISSUER_URL` | *optional* | OIDC provider discovery URL (e.g. `https://auth.example.com/application/o/chatalot/`) |
+| `OIDC_CLIENT_ID` | *optional* | Client ID from your identity provider |
+| `OIDC_CLIENT_SECRET` | *optional* | Client secret from your identity provider |
+| `OIDC_REDIRECT_URI` | *optional* | Callback URL, typically `https://your-domain.com/auth/oidc/callback` |
+| `OIDC_DISABLE_PASSWORD_LOGIN` | `false` | Set to `true` to require SSO-only login |
 | `CLOUDFLARE_TUNNEL_TOKEN` | *optional* | For production Cloudflare Tunnel profile |
 | `GIPHY_API_KEY` | *optional* | Giphy API key for GIF search ([get one free](https://developers.giphy.com/dashboard/)) |
 
@@ -390,7 +395,7 @@ npm run dev
 ### Tests
 
 ```bash
-cargo test          # 59 unit tests (crypto, auth, security, CSS sanitizer)
+cargo test          # 69 unit tests (crypto, auth, security, CSS sanitizer)
 cargo clippy        # Lint checks
 cd clients/web && npm run check   # Svelte type checking
 ```

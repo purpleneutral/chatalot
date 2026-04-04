@@ -51,6 +51,56 @@ Access tokens are valid for **15 minutes**. Refresh tokens are valid for **30 da
 | `MAX_FILE_SIZE_MB` | Maximum file upload size in megabytes | `100` |
 | `UPLOAD_QUOTA_MB` | Per-user upload quota in megabytes (0 = unlimited) | `500` |
 
+### OIDC / SSO
+
+Chatalot supports single sign-on via any OpenID Connect provider (Authentik, Keycloak, Authelia, Zitadel, etc.). When configured, a **Log in with SSO** button appears on the login page alongside the standard email/password form.
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `OIDC_ISSUER_URL` | OIDC provider discovery URL. Must expose a `/.well-known/openid-configuration` endpoint. | *(none -- SSO disabled)* |
+| `OIDC_CLIENT_ID` | Client ID registered with your identity provider | *(none)* |
+| `OIDC_CLIENT_SECRET` | Client secret from your identity provider | *(none)* |
+| `OIDC_REDIRECT_URI` | The callback URL the provider redirects to after authentication. Must match the redirect URI configured in your provider. | *(none)* |
+| `OIDC_DISABLE_PASSWORD_LOGIN` | Set to `true` to hide the email/password form and require all users to log in via SSO | `false` |
+
+SSO is enabled when `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET` are all set. If any of the three is missing, OIDC is silently disabled.
+
+#### Quick Example: Authentik
+
+1. In Authentik, create a new **OAuth2/OpenID Provider**:
+   - **Name**: `chatalot`
+   - **Authorization flow**: implicit consent (or explicit, depending on your preference)
+   - **Redirect URI**: `https://chat.example.com/auth/oidc/callback`
+   - **Scopes**: `openid`, `email`, `profile`
+
+2. Create an **Application** linked to the provider, with the slug `chatalot`.
+
+3. Set the environment variables:
+   ```bash
+   OIDC_ISSUER_URL=https://auth.example.com/application/o/chatalot/
+   OIDC_CLIENT_ID=<client-id-from-authentik>
+   OIDC_CLIENT_SECRET=<client-secret-from-authentik>
+   OIDC_REDIRECT_URI=https://chat.example.com/auth/oidc/callback
+   ```
+
+4. Restart Chatalot:
+   ```bash
+   docker compose up -d
+   ```
+
+#### User Provisioning
+
+When a user logs in via OIDC for the first time, Chatalot automatically creates a local account using the `email` and `preferred_username` claims from the identity provider. If the username is already taken, a numeric suffix is appended.
+
+OIDC users can still set a local password later from Settings > Security if you want to allow fallback authentication. If `OIDC_DISABLE_PASSWORD_LOGIN=true`, users who were provisioned via SSO will only be able to log in through the identity provider.
+
+#### Notes
+
+- The provider must support the **Authorization Code** flow.
+- The `openid`, `email`, and `profile` scopes are required.
+- OIDC login respects the same rate limiting and account lockout rules as password login.
+- Invite-only mode still applies: if `REGISTRATION_MODE=invite_only`, first-time SSO users will need a valid invite code unless an admin has pre-created their account.
+
 ### Integrations (Optional)
 
 | Variable | Description | Default |
@@ -118,6 +168,13 @@ COMMUNITY_CREATION_MODE=admin_only
 
 # Public URL (if behind a reverse proxy)
 PUBLIC_URL=https://chat.example.com
+
+# OIDC / SSO (optional)
+OIDC_ISSUER_URL=https://auth.example.com/application/o/chatalot/
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_REDIRECT_URI=https://chat.example.com/auth/oidc/callback
+OIDC_DISABLE_PASSWORD_LOGIN=false
 
 # Web push notifications (optional -- generate with: npx web-push generate-vapid-keys)
 VAPID_PRIVATE_KEY=
