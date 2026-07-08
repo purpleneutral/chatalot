@@ -1,5 +1,11 @@
 # Chatalot
 
+**This repository has moved.**
+
+Chatalot is developed and maintained by Seglamater. For the latest releases, documentation, and updates, visit https://seglamater.app.
+
+This GitHub copy is an archived, unmaintained mirror — please do not deploy it
+
 **Your chat. Your server. Your rules.**
 
 Chatalot is a self-hosted chat platform for friends, teams, and communities who refuse to hand their conversations to corporations. Real-time messaging, voice and video calls, end-to-end encryption, and a desktop app — all running on hardware you control.
